@@ -1,0 +1,204 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+
+	"jdiff/internal/diff"
+	"jdiff/internal/source"
+)
+
+// entry is one file in the selector. Its diff view is created on first open
+// and kept, so anchors survive going back to the list.
+type entry struct {
+	source.File
+	added, removed int
+	view           *Model
+}
+
+// label returns the status label, matching the delta file labels.
+func (e *entry) label() string {
+	switch {
+	case !e.InOld:
+		return "[+]"
+	case !e.InNew:
+		return "[-]"
+	}
+	return "[*]"
+}
+
+func (e *entry) updateStats() {
+	if e.Binary {
+		return
+	}
+	rows := diff.Align(e.Old, e.New, nil)
+	if e.view != nil {
+		rows = e.view.rows
+	}
+	e.added, e.removed = diff.Stats(rows)
+}
+
+// App is the Bubble Tea model of the file selector. It shows the diff view
+// of the selected file and returns to the list on backspace.
+type App struct {
+	files  []*entry
+	cursor int
+	top    int
+	open   *entry // file whose diff view is shown, nil for the list
+
+	width, height int
+	msg           string
+}
+
+// NewApp returns the file selector for files.
+func NewApp(files []source.File) *App {
+	a := &App{}
+	for _, f := range files {
+		e := &entry{File: f}
+		e.updateStats()
+		a.files = append(a.files, e)
+	}
+	if len(files) == 0 {
+		a.msg = "no changed files"
+	}
+	return a
+}
+
+func (a *App) Init() tea.Cmd { return nil }
+
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if sz, ok := msg.(tea.WindowSizeMsg); ok {
+		a.width, a.height = sz.Width, sz.Height
+		a.scrollToCursor()
+	}
+	if a.open != nil {
+		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
+			a.open.updateStats()
+			a.open = nil
+			return a, nil
+		}
+		_, cmd := a.open.view.Update(msg)
+		return a, cmd
+	}
+	if k, ok := msg.(tea.KeyMsg); ok {
+		return a, a.key(k.String())
+	}
+	return a, nil
+}
+
+func (a *App) key(k string) tea.Cmd {
+	a.msg = ""
+	page := max(a.listHeight()-1, 1)
+	switch k {
+	case "q", "ctrl+c":
+		return tea.Quit
+	case "up", "k":
+		a.moveCursor(-1)
+	case "down", "j":
+		a.moveCursor(1)
+	case "pgup", "ctrl+b":
+		a.moveCursor(-page)
+	case "pgdown", "ctrl+f", " ":
+		a.moveCursor(page)
+	case "home", "g":
+		a.moveCursor(-len(a.files))
+	case "end", "G":
+		a.moveCursor(len(a.files))
+	case "enter":
+		a.openFile()
+	}
+	return nil
+}
+
+func (a *App) openFile() {
+	if a.cursor >= len(a.files) {
+		return
+	}
+	e := a.files[a.cursor]
+	if e.Binary {
+		a.msg = e.Path + " is a binary file"
+		return
+	}
+	if e.view == nil {
+		e.view = New("a/"+e.Path, "b/"+e.Path, e.Old, e.New)
+		e.view.canBack = true
+	}
+	e.view.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+	a.open = e
+}
+
+func (a *App) moveCursor(delta int) {
+	a.cursor = max(min(a.cursor+delta, len(a.files)-1), 0)
+	a.scrollToCursor()
+}
+
+func (a *App) listHeight() int { return max(a.height-2, 1) }
+
+func (a *App) scrollToCursor() {
+	h := a.listHeight()
+	if a.cursor < a.top {
+		a.top = a.cursor
+	} else if a.cursor >= a.top+h {
+		a.top = a.cursor - h + 1
+	}
+	a.top = max(min(a.top, len(a.files)-h), 0)
+}
+
+func (a *App) View() string {
+	if a.open != nil {
+		return a.open.view.View()
+	}
+	if a.width == 0 {
+		return ""
+	}
+
+	var added, removed int
+	addW, remW := 1, 1
+	for _, e := range a.files {
+		added, removed = added+e.added, removed+e.removed
+		addW = max(addW, len(fmt.Sprint(e.added)))
+		remW = max(remW, len(fmt.Sprint(e.removed)))
+	}
+
+	var b strings.Builder
+	// Styles are rendered side by side: lipgloss underlining breaks nested
+	// escape sequences.
+	head := activeTitleStyle.Render(fmt.Sprintf(" %d files changed", len(a.files))) + ", " +
+		plusStyle.Render(fmt.Sprintf("+%d", added)) + ", " + minusStyle.Render(fmt.Sprintf("-%d", removed))
+	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n")
+
+	for i := a.top; i < a.top+a.listHeight(); i++ {
+		if i < len(a.files) {
+			e := a.files[i]
+			counts := plusStyle.Render(count("+", e.added, addW+1)) + " " +
+				minusStyle.Render(count("-", e.removed, remW+1))
+			if e.Binary {
+				counts = fillerStyle.Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
+			}
+			lbl := " " + e.label() + " "
+			if i == a.cursor {
+				lbl = cursorStyle.Render(lbl)
+			}
+			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+e.Path, a.width, "…"))
+		}
+		b.WriteString("\n")
+	}
+
+	status := a.msg
+	if status == "" {
+		status = "enter open · backspace back to list · j/k move · q quit"
+	}
+	b.WriteString(ansi.Truncate(statusStyle.Render(status), a.width, ""))
+	return b.String()
+}
+
+// count formats n with sign right aligned to width, or blanks when n is 0.
+func count(sign string, n, width int) string {
+	if n == 0 {
+		return strings.Repeat(" ", width)
+	}
+	return fmt.Sprintf("%*s", width, sign+fmt.Sprint(n))
+}
