@@ -8,7 +8,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
 	"jdiff/internal/source"
+	"jdiff/internal/theme"
 )
 
 // entry is one file in the selector. Its diff view is created on first open
@@ -19,15 +21,15 @@ type entry struct {
 	view           *Model
 }
 
-// label returns the status label, matching the delta file labels.
-func (e *entry) label() string {
+// label returns the status label, using delta's file labels.
+func (e *entry) label(th *theme.Theme) string {
 	switch {
 	case !e.InOld:
-		return "[+]"
+		return th.AddedLabel
 	case !e.InNew:
-		return "[-]"
+		return th.RemovedLabel
 	}
-	return "[*]"
+	return th.ModifiedLabel
 }
 
 func (e *entry) updateStats() {
@@ -44,18 +46,20 @@ func (e *entry) updateStats() {
 // App is the Bubble Tea model of the file selector. It shows the diff view
 // of the selected file and returns to the list on backspace.
 type App struct {
-	files  []*entry
-	cursor int
-	top    int
-	open   *entry // file whose diff view is shown, nil for the list
+	theme    *theme.Theme
+	settings settings.Settings
+	files    []*entry
+	cursor   int
+	top      int
+	open     *entry // file whose diff view is shown, nil for the list
 
 	width, height int
 	msg           string
 }
 
 // NewApp returns the file selector for files.
-func NewApp(files []source.File) *App {
-	a := &App{}
+func NewApp(th *theme.Theme, st settings.Settings, files []source.File) *App {
+	a := &App{theme: th, settings: st}
 	for _, f := range files {
 		e := &entry{File: f}
 		e.updateStats()
@@ -63,6 +67,9 @@ func NewApp(files []source.File) *App {
 	}
 	if len(files) == 0 {
 		a.msg = "no changed files"
+	}
+	if len(th.Warnings) > 0 {
+		a.msg = "theme: " + strings.Join(th.Warnings, "; ")
 	}
 	return a
 }
@@ -123,7 +130,7 @@ func (a *App) openFile() {
 		return
 	}
 	if e.view == nil {
-		e.view = New("a/"+e.Path, "b/"+e.Path, e.Old, e.New)
+		e.view = New(a.theme, a.settings, "a/"+e.Path, "b/"+e.Path, e.Old, e.New)
 		e.view.canBack = true
 	}
 	e.view.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
@@ -155,32 +162,34 @@ func (a *App) View() string {
 		return ""
 	}
 
+	t := a.theme
 	var added, removed int
-	addW, remW := 1, 1
+	addW, remW, lblW := 1, 1, 0
 	for _, e := range a.files {
 		added, removed = added+e.added, removed+e.removed
 		addW = max(addW, len(fmt.Sprint(e.added)))
 		remW = max(remW, len(fmt.Sprint(e.removed)))
+		lblW = max(lblW, ansi.StringWidth(e.label(t)))
 	}
 
 	var b strings.Builder
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
-	head := activeTitleStyle.Render(fmt.Sprintf(" %d files changed", len(a.files))) + ", " +
-		plusStyle.Render(fmt.Sprintf("+%d", added)) + ", " + minusStyle.Render(fmt.Sprintf("-%d", removed))
+	head := t.Title.Render(fmt.Sprintf(" %d files changed", len(a.files))) + ", " +
+		t.Plus.Render(fmt.Sprintf("+%d", added)) + ", " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n")
 
 	for i := a.top; i < a.top+a.listHeight(); i++ {
 		if i < len(a.files) {
 			e := a.files[i]
-			counts := plusStyle.Render(count("+", e.added, addW+1)) + " " +
-				minusStyle.Render(count("-", e.removed, remW+1))
+			counts := t.Plus.Render(count("+", e.added, addW+1)) + " " +
+				t.Minus.Render(count("-", e.removed, remW+1))
 			if e.Binary {
-				counts = fillerStyle.Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
+				counts = t.Filler.Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 			}
-			lbl := " " + e.label() + " "
+			lbl := fmt.Sprintf(" %-*s ", lblW, e.label(t))
 			if i == a.cursor {
-				lbl = cursorStyle.Render(lbl)
+				lbl = t.Cursor.Render(lbl)
 			}
 			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+e.Path, a.width, "…"))
 		}
@@ -191,7 +200,7 @@ func (a *App) View() string {
 	if status == "" {
 		status = "enter open · backspace back to list · j/k move · q quit"
 	}
-	b.WriteString(ansi.Truncate(statusStyle.Render(status), a.width, ""))
+	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))
 	return b.String()
 }
 

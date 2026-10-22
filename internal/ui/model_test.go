@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -9,10 +10,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
+	"jdiff/internal/theme"
 )
 
 func newTestModel(a, b []string) *Model {
-	m := New("old", "new", a, b)
+	m := New(theme.Default(), settings.Default(), "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m
 }
@@ -40,11 +43,11 @@ func moveTo(t *testing.T, m *Model, s side, line int) {
 	if m.active != s {
 		press(m, "tab")
 	}
-	m.cursor = m.rowOf[s][line]
+	m.cursor = m.viewOf[m.rowOf[s][line]]
 }
 
 func TestEnterMarksAndJumpsToOtherPane(t *testing.T) {
-	m := newTestModel([]string{"a", "b"}, []string{"a", "b"})
+	m := newTestModel([]string{"a", "b"}, []string{"a", "c"})
 	press(m, "j", "enter")
 	if m.pending == nil || *m.pending != (mark{left, 1}) {
 		t.Fatalf("pending = %+v, want left line 1", m.pending)
@@ -150,5 +153,96 @@ func TestViewFitsWidth(t *testing.T) {
 		if w := ansi.StringWidth(l); w > 80 {
 			t.Errorf("line %d is %d columns wide", i, w)
 		}
+	}
+}
+
+// numbered returns lines "prefix0" .. "prefix<n-1>".
+func numbered(prefix string, n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("%s%d", prefix, i)
+	}
+	return out
+}
+
+func folds(m *Model) []vrow {
+	var out []vrow
+	for _, v := range m.view {
+		if v.hidden > 0 {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func TestFoldUnchanged(t *testing.T) {
+	// 20 unchanged lines, one change, 20 unchanged lines.
+	a := append(append(numbered("x", 20), "old"), numbered("y", 20)...)
+	b := append(append(numbered("x", 20), "new"), numbered("y", 20)...)
+	m := newTestModel(a, b)
+
+	// Context 3: rows 0-16 and 24-40 are folded around the change at row 20.
+	if got, want := folds(m), []vrow{{0, 17}, {24, 17}}; !slices.Equal(got, want) {
+		t.Fatalf("folds = %v, want %v", got, want)
+	}
+	if len(m.view) != 9 {
+		t.Errorf("%d displayed rows, want 9", len(m.view))
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "17 unchanged lines") {
+		t.Errorf("fold row not rendered:\n%s", ansi.Strip(m.View()))
+	}
+
+	// Space unfolds the whole file and keeps the cursor on its row.
+	press(m, "n")
+	changeRow := m.view[m.cursor].row
+	press(m, " ")
+	if len(folds(m)) != 0 || len(m.view) != len(m.rows) {
+		t.Fatalf("space did not unfold: %d folds", len(folds(m)))
+	}
+	if m.view[m.cursor].row != changeRow {
+		t.Errorf("cursor moved from row %d to %d", changeRow, m.view[m.cursor].row)
+	}
+
+	// Space again folds; a cursor inside a fold lands on the fold row.
+	press(m, "g", " ")
+	if m.cursor != 0 || m.view[0].hidden == 0 {
+		t.Errorf("cursor %d not on the first fold %v", m.cursor, m.view[0])
+	}
+	press(m, "enter")
+	if m.pending != nil {
+		t.Errorf("enter on a fold marked a line")
+	}
+}
+
+func TestFoldShortRunsAndAnchors(t *testing.T) {
+	// One unchanged row between the contexts is shown, not folded.
+	a := append(append(numbered("x", 4), "old1"), append(numbered("y", 7), "old2")...)
+	b := append(append(numbered("x", 4), "new1"), append(numbered("y", 7), "new2")...)
+	m := newTestModel(a, b)
+	if got, want := folds(m), []vrow(nil); !slices.Equal(got, want) {
+		t.Errorf("folds = %v, want none", got)
+	}
+
+	// An anchored unchanged line stays visible with its context.
+	a, b = numbered("x", 30), numbered("x", 30)
+	m = newTestModel(a, b)
+	m.anchors = []diff.Anchor{{Left: 15, Right: 15}}
+	m.realign()
+	if got, want := folds(m), []vrow{{0, 12}, {19, 11}}; !slices.Equal(got, want) {
+		t.Errorf("folds = %v, want %v", got, want)
+	}
+}
+
+func TestCollapseUnchangedSetting(t *testing.T) {
+	st := settings.Default()
+	st.CollapseUnchanged = false
+	a, b := numbered("x", 30), append(numbered("x", 30), "new")
+	m := New(theme.Default(), st, "old", "new", a, b)
+	if len(folds(m)) != 0 {
+		t.Errorf("collapse_unchanged=false started folded")
+	}
+	press(m, " ")
+	if len(folds(m)) != 1 {
+		t.Errorf("space did not fold: %v", m.view)
 	}
 }

@@ -7,11 +7,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/settings"
 	"jdiff/internal/source"
+	"jdiff/internal/theme"
 )
 
 func newTestApp() *App {
-	a := NewApp([]source.File{
+	a := NewApp(theme.Default(), settings.Default(), []source.File{
 		{Path: "a.go", Old: []string{"x", "y"}, New: []string{"x", "z", "w"}, InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true},
 		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
@@ -38,7 +40,7 @@ func pressApp(a *App, keys ...string) {
 func TestAppListShowsCounts(t *testing.T) {
 	a := newTestApp()
 	view := ansi.Strip(a.View())
-	for _, want := range []string{"[*]  +2 -1  a.go", "[+]  +1     b.go", "binary", "3 files changed, +3, -1"} {
+	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", "3 files changed, +3, -1"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("list view lacks %q:\n%s", want, view)
 		}
@@ -68,9 +70,9 @@ func TestAppKeepsAnchors(t *testing.T) {
 	pressApp(a, "enter")
 	v := a.open.view
 	// Anchor old "y" to new "w" instead of the positional pairing with "z".
-	v.cursor = v.rowOf[left][1]
+	v.cursor = v.viewOf[v.rowOf[left][1]]
 	pressApp(a, "enter")
-	v.cursor = v.rowOf[right][2]
+	v.cursor = v.viewOf[v.rowOf[right][2]]
 	pressApp(a, "enter", "backspace", "enter")
 	if len(a.open.view.anchors) != 1 {
 		t.Fatalf("anchors = %v after reopening, want 1", a.open.view.anchors)

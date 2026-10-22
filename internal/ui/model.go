@@ -9,6 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
+	"jdiff/internal/theme"
 )
 
 type side int
@@ -26,18 +28,28 @@ type mark struct {
 	line int
 }
 
+// vrow is a displayed row: the diff row row, or when hidden > 0 a fold
+// standing for the unchanged rows [row, row+hidden).
+type vrow struct{ row, hidden int }
+
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
-	names [2]string
-	lines [2][]string
+	theme    *theme.Theme
+	settings settings.Settings
+	names    [2]string
+	lines    [2][]string
 
 	anchors []diff.Anchor // sorted by Left, never crossing
 	rows    []diff.Row
 	rowOf   [2][]int // line index -> row index, per side
 
-	cursor int // row under the cursor
+	collapsed bool   // unchanged code is folded
+	view      []vrow // displayed rows
+	viewOf    []int  // row index -> view index
+
+	cursor int // index into view
 	active side
-	top    int // first visible row
+	top    int // first displayed row
 	xoff   int // horizontal scroll in columns
 
 	width, height int
@@ -49,14 +61,20 @@ type Model struct {
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
-func New(oldName, newName string, oldLines, newLines []string) *Model {
+func New(th *theme.Theme, st settings.Settings, oldName, newName string, oldLines, newLines []string) *Model {
 	m := &Model{
-		names: [2]string{oldName, newName},
-		lines: [2][]string{oldLines, newLines},
+		theme:     th,
+		settings:  st,
+		collapsed: st.CollapseUnchanged,
+		names:     [2]string{oldName, newName},
+		lines:     [2][]string{oldLines, newLines},
 	}
 	m.realign()
 	if slices.Equal(oldLines, newLines) {
 		m.msg = "files are identical"
+	}
+	if len(th.Warnings) > 0 {
+		m.msg = "theme: " + strings.Join(th.Warnings, "; ")
 	}
 	return m
 }
@@ -104,16 +122,16 @@ func (m *Model) key(k string) tea.Cmd {
 		m.moveCursor(1)
 	case "pgup", "ctrl+b":
 		m.moveCursor(-page)
-	case "pgdown", "ctrl+f", " ":
+	case "pgdown", "ctrl+f":
 		m.moveCursor(page)
 	case "ctrl+u":
 		m.moveCursor(-page / 2)
 	case "ctrl+d":
 		m.moveCursor(page / 2)
 	case "home", "g":
-		m.moveCursor(-len(m.rows))
+		m.moveCursor(-len(m.view))
 	case "end", "G":
-		m.moveCursor(len(m.rows))
+		m.moveCursor(len(m.view))
 	case "left", "h":
 		m.xoff = max(m.xoff-8, 0)
 	case "right", "l":
@@ -129,6 +147,8 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 	case "enter":
 		m.enter()
+	case " ":
+		m.toggleCollapsed()
 	}
 	return nil
 }
@@ -139,12 +159,15 @@ func (m *Model) enter() {
 	line := m.lineAt(m.active, m.cursor)
 	if line < 0 {
 		m.msg = "no line here"
+		if m.cursor < len(m.view) && m.view[m.cursor].hidden > 0 {
+			m.msg = "unchanged lines folded, space expands"
+		}
 		return
 	}
 	if an, ok := m.anchorAt(m.active, line); ok {
 		m.removeAnchor(an)
 		m.realign()
-		m.cursor = m.rowOf[m.active][line]
+		m.cursor = m.viewOf[m.rowOf[m.active][line]]
 		m.scrollToCursor()
 		m.msg = "removed anchor " + anchorName(an)
 		return
@@ -186,7 +209,7 @@ func (m *Model) addAnchor(an diff.Anchor) {
 	m.anchors = slices.Insert(m.anchors, i, an)
 	m.pending = nil
 	m.realign()
-	m.cursor = m.rowOf[left][an.Left]
+	m.cursor = m.viewOf[m.rowOf[left][an.Left]]
 	m.scrollToCursor()
 	m.msg = "anchored " + anchorName(an)
 }
@@ -217,32 +240,94 @@ func (m *Model) realign() {
 			m.rowOf[right][r.Right] = i
 		}
 	}
-	m.cursor = min(m.cursor, max(len(m.rows)-1, 0))
+	m.buildView()
+	m.cursor = min(m.cursor, max(len(m.view)-1, 0))
 }
 
-// lineAt returns the line index shown on side s of row r, or -1.
-func (m *Model) lineAt(s side, r int) int {
-	if r < 0 || r >= len(m.rows) {
+// buildView computes the displayed rows. While collapsed, unchanged rows
+// further than the context from any change, anchor or pending mark are
+// folded; a single such row is shown rather than folded.
+func (m *Model) buildView() {
+	keep := make([]bool, len(m.rows))
+	ctx := max(m.settings.Context, 0)
+	for i, r := range m.rows {
+		if !m.collapsed || r.Kind != diff.Equal || r.Anchored || m.isPending(r) {
+			for j := max(i-ctx, 0); j <= min(i+ctx, len(m.rows)-1); j++ {
+				keep[j] = true
+			}
+		}
+	}
+
+	m.view = m.view[:0]
+	m.viewOf = make([]int, len(m.rows))
+	for i := 0; i < len(m.rows); {
+		j := i + 1
+		if !keep[i] {
+			for j < len(m.rows) && !keep[j] {
+				j++
+			}
+		}
+		if j-i < 2 {
+			m.viewOf[i] = len(m.view)
+			m.view = append(m.view, vrow{row: i})
+		} else {
+			for k := i; k < j; k++ {
+				m.viewOf[k] = len(m.view)
+			}
+			m.view = append(m.view, vrow{row: i, hidden: j - i})
+		}
+		i = j
+	}
+}
+
+func (m *Model) isPending(r diff.Row) bool {
+	if m.pending == nil {
+		return false
+	}
+	if m.pending.side == left {
+		return r.Left == m.pending.line
+	}
+	return r.Right == m.pending.line
+}
+
+// toggleCollapsed folds or unfolds all unchanged code, keeping the cursor on
+// the same row (or the fold containing it).
+func (m *Model) toggleCollapsed() {
+	if len(m.view) == 0 {
+		return
+	}
+	r := m.view[m.cursor].row
+	m.collapsed = !m.collapsed
+	m.buildView()
+	m.cursor = m.viewOf[r]
+	m.scrollToCursor()
+}
+
+// lineAt returns the line index shown on side s of displayed row v, or -1.
+func (m *Model) lineAt(s side, v int) int {
+	if v < 0 || v >= len(m.view) || m.view[v].hidden > 0 {
 		return -1
 	}
-	if s == left {
-		return m.rows[r].Left
+	if r := m.rows[m.view[v].row]; s == left {
+		return r.Left
+	} else {
+		return r.Right
 	}
-	return m.rows[r].Right
 }
 
 func (m *Model) moveCursor(delta int) {
-	m.cursor = max(min(m.cursor+delta, len(m.rows)-1), 0)
+	m.cursor = max(min(m.cursor+delta, len(m.view)-1), 0)
 	m.scrollToCursor()
 }
 
 // nextChange moves the cursor to the start of the next (dir > 0) or previous
 // block of non-equal rows.
 func (m *Model) nextChange(dir int) {
-	isStart := func(i int) bool {
-		return m.rows[i].Kind != diff.Equal && (i == 0 || m.rows[i-1].Kind == diff.Equal)
+	changed := func(v int) bool {
+		return m.view[v].hidden == 0 && m.rows[m.view[v].row].Kind != diff.Equal
 	}
-	for i := m.cursor + dir; i >= 0 && i < len(m.rows); i += dir {
+	isStart := func(v int) bool { return changed(v) && (v == 0 || !changed(v-1)) }
+	for i := m.cursor + dir; i >= 0 && i < len(m.view); i += dir {
 		if isStart(i) {
 			m.cursor = i
 			m.scrollToCursor()
@@ -261,7 +346,7 @@ func (m *Model) scrollToCursor() {
 	} else if m.cursor >= m.top+h {
 		m.top = m.cursor - h + 1
 	}
-	m.top = max(min(m.top, len(m.rows)-h), 0)
+	m.top = max(min(m.top, len(m.view)-h), 0)
 }
 
 func sideName(s side) string {

@@ -10,15 +10,20 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
+	"jdiff/internal/settings"
 	"jdiff/internal/source"
+	"jdiff/internal/theme"
 	"jdiff/internal/ui"
 )
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	features := flag.String("features", "", "delta features (themes) to use instead of delta.features")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [--version] OLD NEW\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [--version] [--features NAMES] OLD NEW\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -31,7 +36,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	m, err := load(flag.Arg(0), flag.Arg(1))
+	// 16 color mode: colors render as ANSI colors, so the terminal palette
+	// applies. Terminals without color support stay without.
+	if lipgloss.ColorProfile() != termenv.Ascii {
+		lipgloss.SetColorProfile(termenv.ANSI)
+	}
+	cfg := theme.ReadGitConfig()
+	th := theme.Load(cfg, theme.Features(cfg, os.Getenv("DELTA_FEATURES"), *features))
+
+	m, err := load(th, flag.Arg(0), flag.Arg(1))
 	if err != nil {
 		fatal(err)
 	}
@@ -42,7 +55,7 @@ func main() {
 
 // load opens the file selector for two directories, as passed by
 // git difftool --dir-diff, and the diff view for two files.
-func load(oldPath, newPath string) (tea.Model, error) {
+func load(th *theme.Theme, oldPath, newPath string) (tea.Model, error) {
 	oldInfo, errOld := os.Stat(oldPath)
 	newInfo, errNew := os.Stat(newPath)
 	if errOld == nil && errNew == nil && oldInfo.IsDir() && newInfo.IsDir() {
@@ -50,7 +63,7 @@ func load(oldPath, newPath string) (tea.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ui.NewApp(files), nil
+		return ui.NewApp(th, settings.Default(), files), nil
 	}
 
 	oldLines, err := source.ReadLines(oldPath)
@@ -61,7 +74,7 @@ func load(oldPath, newPath string) (tea.Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", newPath, err)
 	}
-	return ui.New(oldPath, newPath, oldLines, newLines), nil
+	return ui.New(th, settings.Default(), oldPath, newPath, oldLines, newLines), nil
 }
 
 func fatal(err error) {
