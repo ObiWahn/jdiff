@@ -34,18 +34,32 @@ type Row struct {
 	LeftEmph, RightEmph []Span
 }
 
+// Options control how changed lines are compared.
+type Options struct {
+	// SplitIndent compares indentation character by character, so only its
+	// added or removed part is emphasized.
+	SplitIndent bool
+}
+
 // Align computes the display rows for old lines a and new lines b. anchors
 // must be sorted by Left and must not cross (see Conflicts).
-func Align(a, b []string, anchors []Anchor) []Row {
-	ka, kb := keys(a), keys(b)
-	var rows []Row
+func Align(a, b []string, anchors []Anchor, opt Options) []Row {
+	al := aligner{a: a, b: b, ka: keys(a), kb: keys(b), opt: opt}
 	pa, pb := 0, 0
 	for _, an := range anchors {
-		rows = alignSection(rows, a, b, ka, kb, pa, an.Left, pb, an.Right)
-		rows = append(rows, pairRow(a, b, an.Left, an.Right, true))
+		al.section(pa, an.Left, pb, an.Right)
+		al.pair(an.Left, an.Right, true)
 		pa, pb = an.Left+1, an.Right+1
 	}
-	return alignSection(rows, a, b, ka, kb, pa, len(a), pb, len(b))
+	al.section(pa, len(a), pb, len(b))
+	return al.rows
+}
+
+// aligner accumulates the rows of one alignment.
+type aligner struct {
+	a, b, ka, kb []string
+	opt          Options
+	rows         []Row
 }
 
 // Conflicts returns the anchors that cannot coexist with n, because they
@@ -85,38 +99,37 @@ func keys(lines []string) []string {
 	return out
 }
 
-// alignSection appends the rows for a[a0:a1] against b[b0:b1].
-func alignSection(rows []Row, a, b, ka, kb []string, a0, a1, b0, b1 int) []Row {
+// section appends the rows for a[a0:a1] against b[b0:b1].
+func (al *aligner) section(a0, a1, b0, b1 int) {
 	i, j := a0, b0
-	for _, p := range patience(ka[a0:a1], kb[b0:b1]) {
-		rows = gapRows(rows, a, b, i, a0+p.a, j, b0+p.b)
-		rows = append(rows, pairRow(a, b, a0+p.a, b0+p.b, false))
+	for _, p := range patience(al.ka[a0:a1], al.kb[b0:b1]) {
+		al.gap(i, a0+p.a, j, b0+p.b)
+		al.pair(a0+p.a, b0+p.b, false)
 		i, j = a0+p.a+1, b0+p.b+1
 	}
-	return gapRows(rows, a, b, i, a1, j, b1)
+	al.gap(i, a1, j, b1)
 }
 
-// gapRows appends rows for unmatched lines. Lines are paired by position as
+// gap appends rows for unmatched lines. Lines are paired by position as
 // changes; the remainder becomes plain deletions or insertions.
-func gapRows(rows []Row, a, b []string, i0, i1, j0, j1 int) []Row {
+func (al *aligner) gap(i0, i1, j0, j1 int) {
 	for i0 < i1 && j0 < j1 {
-		rows = append(rows, pairRow(a, b, i0, j0, false))
+		al.pair(i0, j0, false)
 		i0, j0 = i0+1, j0+1
 	}
 	for ; i0 < i1; i0++ {
-		rows = append(rows, Row{Kind: Delete, Left: i0, Right: -1})
+		al.rows = append(al.rows, Row{Kind: Delete, Left: i0, Right: -1})
 	}
 	for ; j0 < j1; j0++ {
-		rows = append(rows, Row{Kind: Insert, Left: -1, Right: j0})
+		al.rows = append(al.rows, Row{Kind: Insert, Left: -1, Right: j0})
 	}
-	return rows
 }
 
-func pairRow(a, b []string, l, r int, anchored bool) Row {
+func (al *aligner) pair(l, r int, anchored bool) {
 	row := Row{Kind: Equal, Left: l, Right: r, Anchored: anchored}
-	if a[l] != b[r] {
+	if al.a[l] != al.b[r] {
 		row.Kind = Change
-		row.LeftEmph, row.RightEmph = Intraline(a[l], b[r])
+		row.LeftEmph, row.RightEmph = Intraline(al.a[l], al.b[r], al.opt.SplitIndent)
 	}
-	return row
+	al.rows = append(al.rows, row)
 }

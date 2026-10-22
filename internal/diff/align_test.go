@@ -59,7 +59,7 @@ func kinds(rows []Row) string {
 
 func TestAlignIdentical(t *testing.T) {
 	a := []string{"a", "b", "c"}
-	rows := Align(a, a, nil)
+	rows := Align(a, a, nil, Options{})
 	checkRows(t, a, a, rows)
 	if got := kinds(rows); got != "===" {
 		t.Errorf("kinds = %q, want %q", got, "===")
@@ -68,9 +68,9 @@ func TestAlignIdentical(t *testing.T) {
 
 func TestAlignEmpty(t *testing.T) {
 	b := []string{"x", "y"}
-	checkRows(t, nil, b, Align(nil, b, nil))
-	checkRows(t, b, nil, Align(b, nil, nil))
-	checkRows(t, nil, nil, Align(nil, nil, nil))
+	checkRows(t, nil, b, Align(nil, b, nil, Options{}))
+	checkRows(t, b, nil, Align(b, nil, nil, Options{}))
+	checkRows(t, nil, nil, Align(nil, nil, nil, Options{}))
 }
 
 // Wrapping code in an if/else must show only the new lines as inserted and
@@ -92,7 +92,7 @@ func TestAlignWrapInIf(t *testing.T) {
 		"\t}",
 		"}",
 	}
-	rows := Align(a, b, nil)
+	rows := Align(a, b, nil, Options{})
 	checkRows(t, a, b, rows)
 	if got, want := kinds(rows), "=+~~+++="; got != want {
 		t.Fatalf("kinds = %q, want %q", got, want)
@@ -105,12 +105,18 @@ func TestAlignWrapInIf(t *testing.T) {
 	if got := rows[2].RightEmph; !slices.Equal(got, []Span{{0, 2}}) {
 		t.Errorf("RightEmph = %v, want indentation only", got)
 	}
+
+	// Compared character by character, only the added tab is emphasized.
+	rows = Align(a, b, nil, Options{SplitIndent: true})
+	if l, r := rows[2].LeftEmph, rows[2].RightEmph; l != nil || !slices.Equal(r, []Span{{1, 2}}) {
+		t.Errorf("split indent: emph = %v, %v, want none and the second tab", l, r)
+	}
 }
 
 func TestStats(t *testing.T) {
 	a := []string{"keep", "\told", "gone"}
 	b := []string{"keep", "\t\told", "new", "more"}
-	added, removed := Stats(Align(a, b, nil))
+	added, removed := Stats(Align(a, b, nil, Options{}))
 	if added != 3 || removed != 2 {
 		t.Errorf("Stats = +%d -%d, want +3 -2", added, removed)
 	}
@@ -119,7 +125,7 @@ func TestStats(t *testing.T) {
 func TestAlignAnchorForcesPairing(t *testing.T) {
 	a := []string{"foo", "bar"}
 	b := []string{"bar", "foo"}
-	rows := Align(a, b, []Anchor{{Left: 1, Right: 0}})
+	rows := Align(a, b, []Anchor{{Left: 1, Right: 0}}, Options{})
 	checkRows(t, a, b, rows)
 	if got, want := kinds(rows), "-=+"; got != want {
 		t.Fatalf("kinds = %q, want %q", got, want)
@@ -132,7 +138,7 @@ func TestAlignAnchorForcesPairing(t *testing.T) {
 func TestAlignAnchorUnrelatedLines(t *testing.T) {
 	a := []string{"keep", "old one", "x", "tail"}
 	b := []string{"keep", "y", "z", "new one", "tail"}
-	rows := Align(a, b, []Anchor{{Left: 1, Right: 3}})
+	rows := Align(a, b, []Anchor{{Left: 1, Right: 3}}, Options{})
 	checkRows(t, a, b, rows)
 	var anchored []Row
 	for _, r := range rows {
@@ -149,7 +155,7 @@ func TestAlignManyAnchors(t *testing.T) {
 	a := []string{"a", "b", "c", "d", "e"}
 	b := []string{"e", "d", "c", "b", "a"}
 	anchors := []Anchor{{0, 1}, {2, 2}, {4, 3}}
-	rows := Align(a, b, anchors)
+	rows := Align(a, b, anchors, Options{})
 	checkRows(t, a, b, rows)
 	n := 0
 	for _, r := range rows {
@@ -186,7 +192,7 @@ func TestAlignRandom(t *testing.T) {
 			}
 			anchors = append(anchors, Anchor{l, r})
 		}
-		checkRows(t, a, b, Align(a, b, anchors))
+		checkRows(t, a, b, Align(a, b, anchors, Options{SplitIndent: rng.Intn(2) == 0}))
 	}
 }
 

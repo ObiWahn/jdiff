@@ -33,7 +33,11 @@ func pressApp(a *App, keys ...string) {
 		default:
 			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
-		a.Update(msg)
+		// Run returned commands like the Bubble Tea runtime does.
+		_, cmd := a.Update(msg)
+		for cmd != nil {
+			_, cmd = a.Update(cmd())
+		}
 	}
 }
 
@@ -88,5 +92,30 @@ func TestAppBinaryNotOpened(t *testing.T) {
 	pressApp(a, "G", "enter")
 	if a.open != nil || !strings.Contains(a.msg, "binary") {
 		t.Errorf("binary file opened: open=%v msg=%q", a.open, a.msg)
+	}
+}
+
+func TestAppKeyBurst(t *testing.T) {
+	a := newTestApp()
+	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jj")})
+	if a.cursor != 2 {
+		t.Errorf("cursor = %d after a burst of 2 j, want 2", a.cursor)
+	}
+}
+
+func TestAppNextPrevFile(t *testing.T) {
+	a := newTestApp()
+	pressApp(a, "enter", "n")
+	if a.open == nil || a.open.Path != "b.go" || a.cursor != 1 {
+		t.Fatalf("n: open %v cursor %d, want b.go", a.open, a.cursor)
+	}
+	// c.bin is binary and skipped: b.go is the last file that can be shown.
+	pressApp(a, "n")
+	if a.open.Path != "b.go" || !strings.Contains(a.open.view.msg, "last file") {
+		t.Errorf("n on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
+	}
+	pressApp(a, "p")
+	if a.open.Path != "a.go" || a.cursor != 0 {
+		t.Errorf("p: open %s cursor %d, want a.go", a.open.Path, a.cursor)
 	}
 }

@@ -16,10 +16,11 @@ type token struct {
 
 // Intraline returns the parts of a and b that differ, at word granularity.
 // Leading whitespace is its own token, so an indentation change emphasizes
-// just the indentation. Both results are nil when the lines are too different
-// for emphasis to be useful.
-func Intraline(a, b string) (ea, eb []Span) {
-	ta, tb := tokenize(a), tokenize(b)
+// just the indentation; with splitIndent each indentation character is a
+// token, so only the added or removed part is emphasized. Both results are
+// nil when the lines are too different for emphasis to be useful.
+func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
+	ta, tb := tokenize(a, splitIndent), tokenize(b, splitIndent)
 	ma := make([]bool, len(ta))
 	mb := make([]bool, len(tb))
 	texts := func(ts []token) []string {
@@ -45,8 +46,9 @@ func Intraline(a, b string) (ea, eb []Span) {
 // contentBytes counts the changed and total bytes, leaving out indentation so
 // that re-indented lines do not look unrelated.
 func contentBytes(ts []token, matched []bool) (changed, total int) {
+	indent := true
 	for i, t := range ts {
-		if i == 0 && isSpace(t.text) {
+		if indent = indent && isSpace(t.text); indent {
 			continue
 		}
 		total += len(t.text)
@@ -73,13 +75,21 @@ func spans(ts []token, matched []bool) []Span {
 }
 
 // tokenize splits s into runs of word characters, runs of whitespace and
-// single other characters.
-func tokenize(s string) []token {
+// single other characters. With splitIndent, each character of the leading
+// whitespace is a token of its own.
+func tokenize(s string, splitIndent bool) []token {
 	var out []token
+	indent := splitIndent
 	for i := 0; i < len(s); {
 		r, n := utf8.DecodeRuneInString(s[i:])
 		j := i + n
-		if class := runeClass(r); class != 0 {
+		class := runeClass(r)
+		if indent = indent && class == 2; indent {
+			out = append(out, token{s[i:j], i, j})
+			i = j
+			continue
+		}
+		if class != 0 {
 			for j < len(s) {
 				r2, n2 := utf8.DecodeRuneInString(s[j:])
 				if runeClass(r2) != class {

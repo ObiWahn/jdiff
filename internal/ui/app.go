@@ -36,7 +36,7 @@ func (e *entry) updateStats() {
 	if e.Binary {
 		return
 	}
-	rows := diff.Align(e.Old, e.New, nil)
+	rows := diff.Align(e.Old, e.New, nil, diff.Options{})
 	if e.view != nil {
 		rows = e.view.rows
 	}
@@ -81,6 +81,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width, a.height = sz.Width, sz.Height
 		a.scrollToCursor()
 	}
+	if dir, ok := msg.(switchFileMsg); ok {
+		a.switchFile(int(dir))
+		return a, nil
+	}
 	if a.open != nil {
 		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
 			a.open.updateStats()
@@ -91,7 +95,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if k, ok := msg.(tea.KeyMsg); ok {
-		return a, a.key(k.String())
+		for _, name := range keyNames(k) {
+			if cmd := a.key(name); cmd != nil {
+				return a, cmd
+			}
+		}
 	}
 	return a, nil
 }
@@ -135,6 +143,24 @@ func (a *App) openFile() {
 	}
 	e.view.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
 	a.open = e
+}
+
+// switchFile opens the next (dir > 0) or previous file that can be shown.
+func (a *App) switchFile(dir int) {
+	for i := a.cursor + dir; i >= 0 && i < len(a.files); i += dir {
+		if !a.files[i].Binary {
+			a.open.updateStats()
+			a.cursor = i
+			a.scrollToCursor()
+			a.openFile()
+			return
+		}
+	}
+	if dir > 0 {
+		a.open.view.msg = "last file"
+	} else {
+		a.open.view.msg = "first file"
+	}
 }
 
 func (a *App) moveCursor(delta int) {

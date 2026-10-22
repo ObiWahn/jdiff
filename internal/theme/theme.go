@@ -26,6 +26,7 @@ type Theme struct {
 	Hint       lipgloss.Style // status bar
 
 	Anchor, Pending, Cursor, Filler lipgloss.Style
+	Whitespace                      lipgloss.Style // unchanged whitespace when shown
 
 	AddedLabel, RemovedLabel, ModifiedLabel string
 
@@ -124,20 +125,20 @@ func Load(cfg Config, features []string) *Theme {
 	t.Anchor = jdiff("anchor-style", jdiffDefaults["anchor-style"])
 	t.Pending = jdiff("pending-style", jdiffDefaults["pending-style"])
 	t.Cursor = jdiff("cursor-style", jdiffDefaults["cursor-style"])
-	t.Filler = t.Decoration
+	t.Filler, t.Whitespace = t.Decoration, t.Decoration
 	if _, ok := cfg["jdiff.filler-style"]; ok {
 		t.Filler = jdiff("filler-style", "")
 	}
-	// Whitespace has no foreground to color: changed indentation needs a
-	// background, taken from the emphasis style when it has one.
-	t.MinusIndent = jdiff("minus-indent-style", indentFallback(t.MinusEmph, "normal red"))
-	t.PlusIndent = jdiff("plus-indent-style", indentFallback(t.PlusEmph, "normal green"))
-	return t
-}
-
-func indentFallback(emph lipgloss.Style, fallback string) string {
-	if bg, ok := emph.GetBackground().(lipgloss.Color); ok && bg != "" {
-		return "normal " + string(bg)
+	if _, ok := cfg["jdiff.whitespace-style"]; ok {
+		t.Whitespace = jdiff("whitespace-style", "")
 	}
-	return fallback
+	// Changed whitespace is drawn as · and →, by default like changed words.
+	t.MinusIndent, t.PlusIndent = t.MinusEmph, t.PlusEmph
+	if _, ok := cfg["jdiff.minus-indent-style"]; ok {
+		t.MinusIndent = jdiff("minus-indent-style", "")
+	}
+	if _, ok := cfg["jdiff.plus-indent-style"]; ok {
+		t.PlusIndent = jdiff("plus-indent-style", "")
+	}
+	return t
 }

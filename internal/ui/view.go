@@ -15,6 +15,16 @@ import (
 
 const tabWidth = 4
 
+// lineStyles are the styles of one rendered line.
+type lineStyles struct {
+	base  lipgloss.Style // text outside emphasized spans
+	emph  lipgloss.Style // changed words
+	space lipgloss.Style // changed whitespace, drawn as · and →
+	ws    lipgloss.Style // other whitespace, drawn as · and → when showAll
+	// showAll draws all whitespace visibly, not only changed whitespace.
+	showAll bool
+}
+
 // sideStyles returns the styles of side s for whole-line changes, the
 // unchanged parts of changed lines, changed words and changed whitespace.
 func (m *Model) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) {
@@ -26,9 +36,9 @@ func (m *Model) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) 
 }
 
 func (m *Model) help() string {
-	h := "tab pane · enter mark/anchor · space fold · n/N change · h/l scroll · esc cancel · "
+	h := "tab pane · enter mark/anchor · space fold · ]/[ change · h/l scroll · esc cancel · "
 	if m.canBack {
-		h += "backspace files · "
+		h += "n/p file · backspace files · "
 	}
 	return h + "q quit"
 }
@@ -136,28 +146,29 @@ func (m *Model) cell(s side, v, width, numWidth int) string {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	var content string
+	st := lineStyles{base: t.Zero, ws: t.Whitespace, showAll: m.settings.ShowWhitespaces}
+	var spans []diff.Span
 	switch {
 	case !changed:
-		content = highlight(m.lines[s][line], nil, t.Zero, t.Zero, t.Zero)
 	case row.Kind != diff.Change:
-		content = highlight(m.lines[s][line], nil, lineStyle, lineStyle, lineStyle)
+		st.base = lineStyle
 	case s == left:
-		content = highlight(m.lines[s][line], row.LeftEmph, nonEmph, emph, indent)
+		st.base, st.emph, st.space, spans = nonEmph, emph, indent, row.LeftEmph
 	default:
-		content = highlight(m.lines[s][line], row.RightEmph, nonEmph, emph, indent)
+		st.base, st.emph, st.space, spans = nonEmph, emph, indent, row.RightEmph
 	}
+	content := highlight(m.lines[s][line], spans, st)
 	content = ansi.Cut(content, m.xoff, m.xoff+contentWidth)
 	return gutter + pad(content, contentWidth, lipgloss.NewStyle())
 }
 
-// highlight renders text in base style with the given spans in emph style,
-// whitespace inside spans in space style. Tabs are expanded and control
-// characters made visible.
-func highlight(text string, spans []diff.Span, base, emph, space lipgloss.Style) string {
+// highlight renders text with the given spans emphasized. Whitespace inside
+// spans, and with showAll all whitespace, is drawn visibly: · for a space, →
+// for a tab. Tabs are expanded and control characters made visible.
+func highlight(text string, spans []diff.Span, st lineStyles) string {
 	var b strings.Builder
 	col := 0
-	render := func(part string, style lipgloss.Style) {
+	render := func(part string, style lipgloss.Style, visible bool) {
 		if part == "" {
 			return
 		}
@@ -166,8 +177,15 @@ func highlight(text string, spans []diff.Span, base, emph, space lipgloss.Style)
 			switch {
 			case r == '\t':
 				n := tabWidth - col%tabWidth
-				p.WriteString(strings.Repeat(" ", n))
+				if visible {
+					p.WriteString("→" + strings.Repeat(" ", n-1))
+				} else {
+					p.WriteString(strings.Repeat(" ", n))
+				}
 				col += n
+			case r == ' ' && visible:
+				p.WriteRune('·')
+				col++
 			case r < 0x20 || r == 0x7f:
 				p.WriteRune('·')
 				col++
@@ -178,8 +196,8 @@ func highlight(text string, spans []diff.Span, base, emph, space lipgloss.Style)
 		}
 		b.WriteString(style.Render(p.String()))
 	}
-	// renderEmph splits an emphasized part into whitespace and other runs.
-	renderEmph := func(part string) {
+	// renderPart splits a part into whitespace and other runs.
+	renderPart := func(part string, emph bool) {
 		for part != "" {
 			r, _ := utf8.DecodeRuneInString(part)
 			ws := unicode.IsSpace(r)
@@ -187,21 +205,26 @@ func highlight(text string, spans []diff.Span, base, emph, space lipgloss.Style)
 			if i < 0 {
 				i = len(part)
 			}
-			if ws {
-				render(part[:i], space)
-			} else {
-				render(part[:i], emph)
+			switch {
+			case ws && emph:
+				render(part[:i], st.space, true)
+			case ws && st.showAll:
+				render(part[:i], st.ws, true)
+			case emph:
+				render(part[:i], st.emph, false)
+			default:
+				render(part[:i], st.base, false)
 			}
 			part = part[i:]
 		}
 	}
 	pos := 0
 	for _, sp := range spans {
-		render(text[pos:sp.Start], base)
-		renderEmph(text[sp.Start:sp.End])
+		renderPart(text[pos:sp.Start], false)
+		renderPart(text[sp.Start:sp.End], true)
 		pos = sp.End
 	}
-	render(text[pos:], base)
+	renderPart(text[pos:], false)
 	return b.String()
 }
 

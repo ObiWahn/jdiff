@@ -182,7 +182,7 @@ func TestFoldUnchanged(t *testing.T) {
 	m := newTestModel(a, b)
 
 	// Context 3: rows 0-16 and 24-40 are folded around the change at row 20.
-	if got, want := folds(m), []vrow{{0, 17}, {24, 17}}; !slices.Equal(got, want) {
+	if got, want := folds(m), []vrow{{0, 17, 0}, {24, 17, 1}}; !slices.Equal(got, want) {
 		t.Fatalf("folds = %v, want %v", got, want)
 	}
 	if len(m.view) != 9 {
@@ -192,21 +192,31 @@ func TestFoldUnchanged(t *testing.T) {
 		t.Errorf("fold row not rendered:\n%s", ansi.Strip(m.View()))
 	}
 
-	// Space unfolds the whole file and keeps the cursor on its row.
-	press(m, "n")
+	// On the change, both folds are 4 rows away: space opens the lower one.
+	press(m, "]")
 	changeRow := m.view[m.cursor].row
 	press(m, " ")
-	if len(folds(m)) != 0 || len(m.view) != len(m.rows) {
-		t.Fatalf("space did not unfold: %d folds", len(folds(m)))
+	if got, want := folds(m), []vrow{{0, 17, 0}}; !slices.Equal(got, want) {
+		t.Fatalf("after space: folds = %v, want only the upper one", got)
 	}
 	if m.view[m.cursor].row != changeRow {
 		t.Errorf("cursor moved from row %d to %d", changeRow, m.view[m.cursor].row)
 	}
+	// Space again closes the same block.
+	press(m, " ")
+	if got := len(folds(m)); got != 2 {
+		t.Fatalf("after second space: %d folds, want 2", got)
+	}
 
-	// Space again folds; a cursor inside a fold lands on the fold row.
+	// On a fold row, space opens that fold; inside an open block, space
+	// closes it and the cursor lands on the fold row.
 	press(m, "g", " ")
-	if m.cursor != 0 || m.view[0].hidden == 0 {
-		t.Errorf("cursor %d not on the first fold %v", m.cursor, m.view[0])
+	if got, want := folds(m), []vrow{{24, 17, 1}}; !slices.Equal(got, want) {
+		t.Fatalf("after space on the first fold: folds = %v, want %v", got, want)
+	}
+	press(m, "j", "j", " ")
+	if m.cursor != 0 || m.view[0].hidden == 0 || len(folds(m)) != 2 {
+		t.Errorf("closing from inside: cursor %d, view[0] %v, folds %v", m.cursor, m.view[0], folds(m))
 	}
 	press(m, "enter")
 	if m.pending != nil {
@@ -228,7 +238,7 @@ func TestFoldShortRunsAndAnchors(t *testing.T) {
 	m = newTestModel(a, b)
 	m.anchors = []diff.Anchor{{Left: 15, Right: 15}}
 	m.realign()
-	if got, want := folds(m), []vrow{{0, 12}, {19, 11}}; !slices.Equal(got, want) {
+	if got, want := folds(m), []vrow{{0, 12, 0}, {19, 11, 1}}; !slices.Equal(got, want) {
 		t.Errorf("folds = %v, want %v", got, want)
 	}
 }
@@ -238,11 +248,130 @@ func TestCollapseUnchangedSetting(t *testing.T) {
 	st.CollapseUnchanged = false
 	a, b := numbered("x", 30), append(numbered("x", 30), "new")
 	m := New(theme.Default(), st, "old", "new", a, b)
-	if len(folds(m)) != 0 {
-		t.Errorf("collapse_unchanged=false started folded")
+	if len(folds(m)) != 0 || len(m.blocks) != 1 {
+		t.Errorf("collapse_unchanged=false: %d folds, %d blocks, want 0 and 1", len(folds(m)), len(m.blocks))
 	}
 	press(m, " ")
 	if len(folds(m)) != 1 {
 		t.Errorf("space did not fold: %v", m.view)
+	}
+}
+
+// screenRow returns the screen row of the cursor within the diff body.
+func screenRow(m *Model) int { return m.cursor - m.top }
+
+func TestCursorKeepsScreenRow(t *testing.T) {
+	// Changes every 20 lines, so folding changes the rows above the cursor.
+	var a, b []string
+	for i := range 10 {
+		block := numbered(fmt.Sprintf("b%d-", i), 19)
+		a = append(append(a, block...), fmt.Sprintf("old%d", i))
+		b = append(append(b, block...), fmt.Sprintf("new%d", i))
+	}
+	st := settings.Default()
+	st.CollapseUnchanged = false
+	m := New(theme.Default(), st, "old", "new", a, b)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20}) // body height 18
+
+	// Line 100 is context after the change at 99; the block below it folds.
+	m.cursor = m.viewOf[m.rowOf[left][100]]
+	m.top = m.cursor - 7
+	press(m, " ")
+	if got := screenRow(m); got != 7 || len(folds(m)) != 1 {
+		t.Errorf("after folding below: screen row %d, %d folds, want 7 and 1", got, len(folds(m)))
+	}
+	// Folding the block above the cursor must not move it either.
+	m.cursor = m.viewOf[m.rowOf[left][118]]
+	m.top = m.cursor - 7
+	press(m, " ")
+	if got := screenRow(m); got != 7 || m.view[m.cursor].row != m.rowOf[left][118] {
+		t.Errorf("after folding above: screen row %d on row %d, want 7 on row %d",
+			got, m.view[m.cursor].row, m.rowOf[left][118])
+	}
+
+	// Anchoring keeps the cursor line in place too. The partner line is one
+	// row above the marked one, at screen row 4.
+	m.cursor = m.viewOf[m.rowOf[left][119]]
+	m.top = m.cursor - 5
+	press(m, "enter")
+	m.cursor = m.viewOf[m.rowOf[right][118]]
+	press(m, "enter")
+	if len(m.anchors) != 1 {
+		t.Fatalf("anchors = %v", m.anchors)
+	}
+	if got := screenRow(m); got != 4 {
+		t.Errorf("after anchoring: screen row %d, want 4", got)
+	}
+	press(m, "enter")
+	if len(m.anchors) != 0 || screenRow(m) != 4 {
+		t.Errorf("after removing anchor: anchors %v, screen row %d, want 4", m.anchors, screenRow(m))
+	}
+}
+
+func TestCursorScreenRowAtFileEdges(t *testing.T) {
+	a := append(numbered("x", 40), "old")
+	b := append(numbered("x", 40), "new")
+	m := newTestModel(a, b)
+	press(m, " ")
+
+	// Near the start the view cannot scroll above line 1.
+	m.cursor, m.top = 2, 0
+	press(m, " ")
+	if m.top != 0 || m.cursor != 0 {
+		t.Errorf("top %d cursor %d, want both 0 on the first fold", m.top, m.cursor)
+	}
+
+	// Shrinking the window keeps the cursor visible.
+	press(m, " ")
+	m.cursor = m.viewOf[m.rowOf[left][30]]
+	m.top = m.cursor - 15
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 8})
+	if got := screenRow(m); got < 0 || got >= m.bodyHeight() {
+		t.Errorf("cursor off screen after resize: screen row %d, height %d", got, m.bodyHeight())
+	}
+}
+
+func TestKeyBurstCountsEachKey(t *testing.T) {
+	m := newTestModel(numbered("x", 10), append(numbered("x", 10), "new"))
+	press(m, " ")
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jjjj")})
+	if m.cursor != 4 {
+		t.Errorf("cursor = %d after a burst of 4 j, want 4", m.cursor)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jjq")})
+	if m.cursor != 6 {
+		t.Errorf("cursor = %d, want 6", m.cursor)
+	}
+}
+
+func TestHighlightVisibleWhitespace(t *testing.T) {
+	tests := []struct {
+		text    string
+		spans   []diff.Span
+		showAll bool
+		want    string
+	}{
+		{"  x()", []diff.Span{{0, 2}}, false, "··x()"},
+		{"\t\tx", []diff.Span{{1, 2}}, false, "    →   x"},
+		{"a  b", []diff.Span{{1, 4}}, false, "a··b"},
+		{"\tx y", nil, false, "    x y"},
+		{"\tx y ", nil, true, "→   x·y·"},
+		{"\t\tx", []diff.Span{{1, 2}}, true, "→   →   x"},
+	}
+	for _, tt := range tests {
+		st := lineStyles{showAll: tt.showAll}
+		if got := ansi.Strip(highlight(tt.text, tt.spans, st)); got != tt.want {
+			t.Errorf("highlight(%q, %v, showAll %v) = %q, want %q", tt.text, tt.spans, tt.showAll, got, tt.want)
+		}
+	}
+}
+
+func TestShowWhitespacesSetting(t *testing.T) {
+	st := settings.Default()
+	st.ShowWhitespaces = true
+	m := New(theme.Default(), st, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "→   same") {
+		t.Errorf("unchanged tab not shown:\n%s", view)
 	}
 }

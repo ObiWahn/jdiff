@@ -29,8 +29,16 @@ type mark struct {
 }
 
 // vrow is a displayed row: the diff row row, or when hidden > 0 a fold
-// standing for the unchanged rows [row, row+hidden).
-type vrow struct{ row, hidden int }
+// standing for the unchanged rows [row, row+hidden). block is the index of
+// the foldable block the row belongs to, or -1.
+type vrow struct{ row, hidden, block int }
+
+// block is a foldable run of unchanged rows [start, end).
+type block struct{ start, end int }
+
+// switchFileMsg asks the file selector to show the next (1) or previous (-1)
+// file.
+type switchFileMsg int
 
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
@@ -43,9 +51,10 @@ type Model struct {
 	rows    []diff.Row
 	rowOf   [2][]int // line index -> row index, per side
 
-	collapsed bool   // unchanged code is folded
-	view      []vrow // displayed rows
-	viewOf    []int  // row index -> view index
+	blocks   []block      // foldable blocks of unchanged rows
+	foldOpen map[int]bool // open state by the block's first left line
+	view     []vrow       // displayed rows
+	viewOf   []int        // row index -> view index
 
 	cursor int // index into view
 	active side
@@ -63,11 +72,11 @@ type Model struct {
 // New returns a model comparing oldLines (left) with newLines (right).
 func New(th *theme.Theme, st settings.Settings, oldName, newName string, oldLines, newLines []string) *Model {
 	m := &Model{
-		theme:     th,
-		settings:  st,
-		collapsed: st.CollapseUnchanged,
-		names:     [2]string{oldName, newName},
-		lines:     [2][]string{oldLines, newLines},
+		theme:    th,
+		settings: st,
+		foldOpen: map[int]bool{},
+		names:    [2]string{oldName, newName},
+		lines:    [2][]string{oldLines, newLines},
 	}
 	m.realign()
 	if slices.Equal(oldLines, newLines) {
@@ -84,12 +93,29 @@ func (m *Model) Init() tea.Cmd { return nil }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.scrollToCursor()
+		m.keepScreenRow(func() { m.width, m.height = msg.Width, msg.Height })
 	case tea.KeyMsg:
-		return m, m.key(msg.String())
+		for _, k := range keyNames(msg) {
+			if cmd := m.key(k); cmd != nil {
+				return m, cmd
+			}
+		}
 	}
 	return m, nil
+}
+
+// keyNames returns the key presses of msg. Bubble Tea delivers runes read
+// together (held keys, fast typing over ssh) as one message; they are split so
+// that each counts.
+func keyNames(msg tea.KeyMsg) []string {
+	if msg.Type != tea.KeyRunes || msg.Paste || msg.Alt || len(msg.Runes) < 2 {
+		return []string{msg.String()}
+	}
+	out := make([]string, len(msg.Runes))
+	for i, r := range msg.Runes {
+		out[i] = string(r)
+	}
+	return out
 }
 
 func (m *Model) key(k string) tea.Cmd {
@@ -136,10 +162,18 @@ func (m *Model) key(k string) tea.Cmd {
 		m.xoff = max(m.xoff-8, 0)
 	case "right", "l":
 		m.xoff += 8
-	case "n":
+	case "]":
 		m.nextChange(1)
-	case "N":
+	case "[":
 		m.nextChange(-1)
+	case "n", "p":
+		if m.canBack {
+			dir := switchFileMsg(1)
+			if k == "p" {
+				dir = -1
+			}
+			return func() tea.Msg { return dir }
+		}
 	case "esc":
 		if m.pending != nil {
 			m.pending = nil
@@ -148,7 +182,7 @@ func (m *Model) key(k string) tea.Cmd {
 	case "enter":
 		m.enter()
 	case " ":
-		m.toggleCollapsed()
+		m.toggleNearestBlock()
 	}
 	return nil
 }
@@ -165,10 +199,11 @@ func (m *Model) enter() {
 		return
 	}
 	if an, ok := m.anchorAt(m.active, line); ok {
-		m.removeAnchor(an)
-		m.realign()
-		m.cursor = m.viewOf[m.rowOf[m.active][line]]
-		m.scrollToCursor()
+		m.keepScreenRow(func() {
+			m.removeAnchor(an)
+			m.realign()
+			m.cursor = m.viewOf[m.rowOf[m.active][line]]
+		})
 		m.msg = "removed anchor " + anchorName(an)
 		return
 	}
@@ -208,9 +243,10 @@ func (m *Model) addAnchor(an diff.Anchor) {
 	})
 	m.anchors = slices.Insert(m.anchors, i, an)
 	m.pending = nil
-	m.realign()
-	m.cursor = m.viewOf[m.rowOf[left][an.Left]]
-	m.scrollToCursor()
+	m.keepScreenRow(func() {
+		m.realign()
+		m.cursor = m.viewOf[m.rowOf[left][an.Left]]
+	})
 	m.msg = "anchored " + anchorName(an)
 }
 
@@ -228,7 +264,8 @@ func (m *Model) anchorAt(s side, line int) (diff.Anchor, bool) {
 }
 
 func (m *Model) realign() {
-	m.rows = diff.Align(m.lines[left], m.lines[right], m.anchors)
+	m.rows = diff.Align(m.lines[left], m.lines[right], m.anchors,
+		diff.Options{SplitIndent: m.settings.OnlyChangedWhitespaces})
 	for s := range m.rowOf {
 		m.rowOf[s] = make([]int, len(m.lines[s]))
 	}
@@ -244,20 +281,21 @@ func (m *Model) realign() {
 	m.cursor = min(m.cursor, max(len(m.view)-1, 0))
 }
 
-// buildView computes the displayed rows. While collapsed, unchanged rows
-// further than the context from any change, anchor or pending mark are
-// folded; a single such row is shown rather than folded.
+// buildView computes the displayed rows. Unchanged rows further than the
+// context from any change, anchor or pending mark form foldable blocks,
+// shown as one fold row while closed; a single such row is never a block.
 func (m *Model) buildView() {
 	keep := make([]bool, len(m.rows))
 	ctx := max(m.settings.Context, 0)
 	for i, r := range m.rows {
-		if !m.collapsed || r.Kind != diff.Equal || r.Anchored || m.isPending(r) {
+		if r.Kind != diff.Equal || r.Anchored || m.isPending(r) {
 			for j := max(i-ctx, 0); j <= min(i+ctx, len(m.rows)-1); j++ {
 				keep[j] = true
 			}
 		}
 	}
 
+	m.blocks = m.blocks[:0]
 	m.view = m.view[:0]
 	m.viewOf = make([]int, len(m.rows))
 	for i := 0; i < len(m.rows); {
@@ -269,15 +307,34 @@ func (m *Model) buildView() {
 		}
 		if j-i < 2 {
 			m.viewOf[i] = len(m.view)
-			m.view = append(m.view, vrow{row: i})
-		} else {
-			for k := i; k < j; k++ {
-				m.viewOf[k] = len(m.view)
+			m.view = append(m.view, vrow{row: i, block: -1})
+			i = j
+			continue
+		}
+		b := len(m.blocks)
+		m.blocks = append(m.blocks, block{i, j})
+		open := m.blockOpen(m.blocks[b])
+		for k := i; k < j; k++ {
+			m.viewOf[k] = len(m.view)
+			if open {
+				m.view = append(m.view, vrow{row: k, block: b})
 			}
-			m.view = append(m.view, vrow{row: i, hidden: j - i})
+		}
+		if !open {
+			m.view = append(m.view, vrow{row: i, hidden: j - i, block: b})
 		}
 		i = j
 	}
+}
+
+// blockOpen reports whether b is unfolded. Blocks start closed when
+// collapse_unchanged is set; toggled state is kept by the block's first
+// line, so it survives realigning as long as the block starts there.
+func (m *Model) blockOpen(b block) bool {
+	if open, ok := m.foldOpen[m.rows[b.start].Left]; ok {
+		return open
+	}
+	return !m.settings.CollapseUnchanged
 }
 
 func (m *Model) isPending(r diff.Row) bool {
@@ -290,17 +347,35 @@ func (m *Model) isPending(r diff.Row) bool {
 	return r.Right == m.pending.line
 }
 
-// toggleCollapsed folds or unfolds all unchanged code, keeping the cursor on
-// the same row (or the fold containing it).
-func (m *Model) toggleCollapsed() {
-	if len(m.view) == 0 {
+// toggleNearestBlock folds or unfolds the block of unchanged rows under the
+// cursor, or else the one closest to it (the lower one on a tie). The cursor
+// stays on its row, or on the fold containing it.
+func (m *Model) toggleNearestBlock() {
+	b := m.nearestBlock()
+	if b < 0 {
+		m.msg = "no unchanged code to fold"
 		return
 	}
 	r := m.view[m.cursor].row
-	m.collapsed = !m.collapsed
-	m.buildView()
-	m.cursor = m.viewOf[r]
-	m.scrollToCursor()
+	m.keepScreenRow(func() {
+		blk := m.blocks[b]
+		m.foldOpen[m.rows[blk.start].Left] = !m.blockOpen(blk)
+		m.buildView()
+		m.cursor = m.viewOf[r]
+	})
+}
+
+// nearestBlock returns the index of the block at or closest to the cursor,
+// or -1 when there is none.
+func (m *Model) nearestBlock() int {
+	for d := 0; d < len(m.view); d++ {
+		for _, v := range []int{m.cursor + d, m.cursor - d} {
+			if v >= 0 && v < len(m.view) && m.view[v].block >= 0 {
+				return m.view[v].block
+			}
+		}
+	}
+	return -1
 }
 
 // lineAt returns the line index shown on side s of displayed row v, or -1.
@@ -338,6 +413,16 @@ func (m *Model) nextChange(dir int) {
 }
 
 func (m *Model) bodyHeight() int { return max(m.height-2, 1) }
+
+// keepScreenRow runs f, which may rebuild the view, move the cursor or
+// resize, and then scrolls so that the cursor stays on the same screen row.
+// Near the start or end of the file it moves as little as possible.
+func (m *Model) keepScreenRow(f func()) {
+	offset := m.cursor - m.top
+	f()
+	m.top = m.cursor - offset
+	m.scrollToCursor()
+}
 
 func (m *Model) scrollToCursor() {
 	h := m.bodyHeight()

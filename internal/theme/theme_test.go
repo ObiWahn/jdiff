@@ -133,8 +133,9 @@ func TestLoadPriority(t *testing.T) {
 
 func TestLoadIndentAndWarnings(t *testing.T) {
 	th := Default()
-	if th.MinusIndent.GetBackground() != lipgloss.Color("1") || th.PlusIndent.GetBackground() != lipgloss.Color("2") {
-		t.Errorf("default indent backgrounds = %v %v", th.MinusIndent.GetBackground(), th.PlusIndent.GetBackground())
+	if th.MinusIndent.GetForeground() != lipgloss.Color("9") || th.PlusIndent.GetForeground() != lipgloss.Color("10") {
+		t.Errorf("default indent styles = %v %v, want the emph colors",
+			th.MinusIndent.GetForeground(), th.PlusIndent.GetForeground())
 	}
 
 	cfg := Config{
@@ -144,7 +145,7 @@ func TestLoadIndentAndWarnings(t *testing.T) {
 	}
 	th = Load(cfg, nil)
 	if th.PlusIndent.GetBackground() != lipgloss.Color("22") {
-		t.Errorf("plus indent should use the emph background, got %v", th.PlusIndent.GetBackground())
+		t.Errorf("plus indent should follow plus-emph-style, got %v", th.PlusIndent.GetBackground())
 	}
 	if th.MinusIndent.GetBackground() != lipgloss.Color("8") {
 		t.Errorf("minus indent = %v, want jdiff override", th.MinusIndent.GetBackground())
