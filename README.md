@@ -49,7 +49,17 @@ jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdif
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
-As git's difftool, with `git jd` (like `git diff`, e.g. `git jd --cached`, `git jd main..topic`) and `git jl` (like `jdiff log`), add to `~/.gitconfig`:
+Git aliases, in `~/.gitconfig`: `git jd` takes the arguments of `git diff` (`git jd --cached`, `git jd main..topic`), `git jl` those of `git log`:
+
+```gitconfig
+[alias]
+	jd = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
+	jdiff = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
+	jl = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
+	jlog = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
+```
+
+As git's difftool, for `git difftool -d`:
 
 ```gitconfig
 [diff]
@@ -58,15 +68,9 @@ As git's difftool, with `git jd` (like `git diff`, e.g. `git jd --cached`, `git 
 	cmd = jdiff \"$LOCAL\" \"$REMOTE\"
 [difftool]
 	prompt = false
-[alias]
-	# git difftool --dir-diff fails without changes (git 2.47.3 crashes): check first.
-	jd = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
-	jdiff = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
-	jl = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
-	jlog = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
 ```
 
-Against the working tree, git links your working copy into the comparison, so edits you save while jdiff is open show up live.
+Files of the working tree are watched, so edits you save while jdiff is open show up live.
 
 ## Keys
 
@@ -232,8 +236,8 @@ To use your build in this repository, the same in its `.git/config`, with `bin/j
 [difftool]
 	prompt = false
 [alias]
-	jd = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
-	jdiff = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
+	jd = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
+	jdiff = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
 	jl = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
 	jlog = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
 ```
