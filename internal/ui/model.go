@@ -40,33 +40,6 @@ type sline struct{ v, sub int }
 // block is a foldable run of unchanged rows [start, end).
 type block struct{ start, end int }
 
-// switchFileMsg asks the file selector to show the next (1) or previous (-1)
-// file.
-type switchFileMsg int
-
-// switchCommitMsg asks the log to show the next (1, older) or previous (-1)
-// commit.
-type switchCommitMsg int
-
-// backMsg asks the log to return to the commit list, or the file selector to
-// its list when it shows the flow view.
-type backMsg struct{}
-
-// toggleFlowMsg asks the log or the file selector to switch between the diff
-// view of one file and the flow view of all files.
-type toggleFlowMsg struct{}
-
-func toggleFlow() tea.Msg { return toggleFlowMsg{} }
-
-// saveState writes the toggles to state.toml, returning a message when that
-// fails, else "".
-func saveState(cfg *config.Config) string {
-	if err := cfg.SaveState(); err != nil {
-		return "state: " + err.Error()
-	}
-	return ""
-}
-
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
 	cfg   *config.Config
@@ -134,20 +107,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
-}
-
-// keyNames returns the key presses of msg. Bubble Tea delivers runes read
-// together (held keys, fast typing over ssh) as one message; they are split so
-// that each counts.
-func keyNames(msg tea.KeyMsg) []string {
-	if msg.Type != tea.KeyRunes || msg.Paste || msg.Alt || len(msg.Runes) < 2 {
-		return []string{msg.String()}
-	}
-	out := make([]string, len(msg.Runes))
-	for i, r := range msg.Runes {
-		out[i] = string(r)
-	}
-	return out
 }
 
 func (m *Model) key(k string) tea.Cmd {
@@ -598,16 +557,6 @@ func (m *Model) scrollToCursor() {
 		m.top = p - h + 1
 	}
 	m.top = max(min(m.top, len(m.screen)-h), 0)
-}
-
-// switchCommit returns the command asking the log for the next (N) or
-// previous (P) commit.
-func switchCommit(k string) tea.Cmd {
-	dir := switchCommitMsg(1)
-	if k == "P" {
-		dir = -1
-	}
-	return func() tea.Msg { return dir }
 }
 
 func sideName(s side) string {

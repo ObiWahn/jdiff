@@ -170,21 +170,6 @@ func (f *Flow) key(k string) tea.Cmd {
 	return nil
 }
 
-func direction(forward bool) int {
-	if forward {
-		return 1
-	}
-	return -1
-}
-
-// ends returns the message for having reached the last or first item.
-func ends(forward bool, last, first string) string {
-	if forward {
-		return last
-	}
-	return first
-}
-
 // delegate passes an anchor or fold key to the diff view of the file under
 // the cursor.
 func (f *Flow) delegate(k string) {

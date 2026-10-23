@@ -446,11 +446,3 @@ func (a *App) View() string {
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))
 	return b.String()
 }
-
-// count formats n with sign right aligned to width, or blanks when n is 0.
-func count(sign string, n, width int) string {
-	if n == 0 {
-		return strings.Repeat(" ", width)
-	}
-	return fmt.Sprintf("%*s", width, sign+fmt.Sprint(n))
-}
