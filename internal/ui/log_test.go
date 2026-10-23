@@ -8,10 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
-	"jdiff/internal/settings"
 	"jdiff/internal/source"
-	"jdiff/internal/theme"
 )
 
 func modified(path string, old, new []string) source.File {
@@ -43,7 +42,7 @@ func newTestLog() (*Log, map[string]int) {
 		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T",
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
-	l := NewLog(theme.Default(), settings.Default(), commits, load)
+	l := NewLog(config.Default(), commits, load)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return l, loads
 }

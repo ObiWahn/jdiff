@@ -9,13 +9,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/config"
 	"jdiff/internal/diff"
-	"jdiff/internal/settings"
-	"jdiff/internal/theme"
 )
 
 func newTestModel(a, b []string) *Model {
-	m := New(theme.Default(), settings.Default(), "old", "new", a, b)
+	m := New(config.Default(), "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m
 }
@@ -244,10 +243,10 @@ func TestFoldShortRunsAndAnchors(t *testing.T) {
 }
 
 func TestCollapseUnchangedSetting(t *testing.T) {
-	st := settings.Default()
-	st.CollapseUnchanged = false
+	cfg := config.Default()
+	cfg.Settings.CollapseUnchanged = false
 	a, b := numbered("x", 30), append(numbered("x", 30), "new")
-	m := New(theme.Default(), st, "old", "new", a, b)
+	m := New(cfg, "old", "new", a, b)
 	if len(folds(m)) != 0 || len(m.blocks) != 1 {
 		t.Errorf("collapse_unchanged=false: %d folds, %d blocks, want 0 and 1", len(folds(m)), len(m.blocks))
 	}
@@ -268,9 +267,9 @@ func TestCursorKeepsScreenRow(t *testing.T) {
 		a = append(append(a, block...), fmt.Sprintf("old%d", i))
 		b = append(append(b, block...), fmt.Sprintf("new%d", i))
 	}
-	st := settings.Default()
-	st.CollapseUnchanged = false
-	m := New(theme.Default(), st, "old", "new", a, b)
+	cfg := config.Default()
+	cfg.Settings.CollapseUnchanged = false
+	m := New(cfg, "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20}) // body height 18
 
 	// Line 100 is context after the change at 99; the block below it folds.
@@ -367,9 +366,9 @@ func TestHighlightVisibleWhitespace(t *testing.T) {
 }
 
 func TestShowWhitespacesSetting(t *testing.T) {
-	st := settings.Default()
-	st.ShowWhitespaces = true
-	m := New(theme.Default(), st, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
+	cfg := config.Default()
+	cfg.Settings.ShowWhitespaces = true
+	m := New(cfg, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	if view := ansi.Strip(m.View()); !strings.Contains(view, "→   same") {
 		t.Errorf("unchanged tab not shown:\n%s", view)

@@ -7,13 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"jdiff/internal/settings"
+	"jdiff/internal/config"
 	"jdiff/internal/source"
-	"jdiff/internal/theme"
 )
 
 func newTestApp() *App {
-	a := NewApp(theme.Default(), settings.Default(), []source.File{
+	a := NewApp(config.Default(), []source.File{
 		{Path: "a.go", Old: []string{"x", "y"}, New: []string{"x", "z", "w"}, InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true},
 		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
@@ -126,7 +125,7 @@ func TestAppNextPrevFile(t *testing.T) {
 }
 
 func TestAppSingleFileOpensDirectly(t *testing.T) {
-	a := NewApp(theme.Default(), settings.Default(), []source.File{
+	a := NewApp(config.Default(), []source.File{
 		{Path: "only.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	})
 	if a.open == nil || a.open.Path != "only.go" {
@@ -140,7 +139,7 @@ func TestAppSingleFileOpensDirectly(t *testing.T) {
 }
 
 func TestAppRenameLabel(t *testing.T) {
-	a := NewApp(theme.Default(), settings.Default(), []source.File{
+	a := NewApp(config.Default(), []source.File{
 		{Path: "new.go", OldPath: "old.go", Old: []string{"x"}, New: []string{"x", "y"}, InOld: true, InNew: true},
 		{Path: "other.go", New: []string{"z"}, InNew: true},
 	})

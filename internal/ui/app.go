@@ -7,8 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/config"
 	"jdiff/internal/diff"
-	"jdiff/internal/settings"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
 )
@@ -57,22 +57,21 @@ func (e *entry) updateStats() {
 // of the selected file and returns to the list on backspace. A single file
 // is opened directly.
 type App struct {
-	theme    *theme.Theme
-	settings settings.Settings
-	inLog    bool   // part of the log: backspace and n/p go to the log
-	title    string // shown before the file count
-	files    []*entry
-	cursor   int
-	top      int
-	open     *entry // file whose diff view is shown, nil for the list
+	cfg    *config.Config
+	inLog  bool   // part of the log: backspace and n/p go to the log
+	title  string // shown before the file count
+	files  []*entry
+	cursor int
+	top    int
+	open   *entry // file whose diff view is shown, nil for the list
 
 	width, height int
 	msg           string
 }
 
 // NewApp returns the file selector for files.
-func NewApp(th *theme.Theme, st settings.Settings, files []source.File) *App {
-	a := &App{theme: th, settings: st}
+func NewApp(cfg *config.Config, files []source.File) *App {
+	a := &App{cfg: cfg}
 	for _, f := range files {
 		e := &entry{File: f}
 		e.updateStats()
@@ -81,8 +80,8 @@ func NewApp(th *theme.Theme, st settings.Settings, files []source.File) *App {
 	if len(files) == 0 {
 		a.msg = "no changed files"
 	}
-	if len(th.Warnings) > 0 {
-		a.msg = "theme: " + strings.Join(th.Warnings, "; ")
+	if len(cfg.Theme.Warnings) > 0 {
+		a.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
 	}
 	if a.single() {
 		a.openFile()
@@ -194,7 +193,7 @@ func (a *App) openFile() {
 		if e.OldPath != "" {
 			oldPath = e.OldPath
 		}
-		e.view = New(a.theme, a.settings, "a/"+oldPath, "b/"+e.Path, e.Old, e.New)
+		e.view = New(a.cfg, "a/"+oldPath, "b/"+e.Path, e.Old, e.New)
 		e.view.canBack = true
 	}
 	// inLog may be set after NewApp opened a single file.
@@ -246,7 +245,7 @@ func (a *App) View() string {
 		return ""
 	}
 
-	t := a.theme
+	t := a.cfg.Theme
 	var added, removed int
 	addW, remW, lblW := 1, 1, 0
 	for _, e := range a.files {

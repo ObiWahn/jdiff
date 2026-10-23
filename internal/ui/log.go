@@ -7,10 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
-	"jdiff/internal/settings"
 	"jdiff/internal/source"
-	"jdiff/internal/theme"
 )
 
 // LoadFunc returns the files a commit changed.
@@ -26,9 +25,8 @@ type commitEntry struct {
 // Log is the Bubble Tea model of the commit list. Enter shows the files of
 // a commit; n/p step through commits from the deeper views.
 type Log struct {
-	theme    *theme.Theme
-	settings settings.Settings
-	load     LoadFunc
+	cfg  *config.Config
+	load LoadFunc
 
 	commits []*commitEntry
 	cursor  int
@@ -40,16 +38,16 @@ type Log struct {
 }
 
 // NewLog returns the commit list for commits, newest first.
-func NewLog(th *theme.Theme, st settings.Settings, commits []gitsrc.Commit, load LoadFunc) *Log {
-	l := &Log{theme: th, settings: st, load: load}
+func NewLog(cfg *config.Config, commits []gitsrc.Commit, load LoadFunc) *Log {
+	l := &Log{cfg: cfg, load: load}
 	for _, c := range commits {
 		l.commits = append(l.commits, &commitEntry{Commit: c})
 	}
 	if len(commits) == 0 {
 		l.msg = "no commits"
 	}
-	if len(th.Warnings) > 0 {
-		l.msg = "theme: " + strings.Join(th.Warnings, "; ")
+	if len(cfg.Theme.Warnings) > 0 {
+		l.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
 	}
 	return l
 }
@@ -119,7 +117,7 @@ func (l *Log) openCommit(i int, path string) bool {
 			l.msg = err.Error()
 			return false
 		}
-		e.app = NewApp(l.theme, l.settings, files)
+		e.app = NewApp(l.cfg, files)
 		e.app.inLog = true
 		e.app.title = e.Short + " " + e.Subject + ": "
 	}
@@ -193,7 +191,7 @@ func (l *Log) View() string {
 	if l.width == 0 {
 		return ""
 	}
-	t := l.theme
+	t := l.cfg.Theme
 	addW, remW, authW := 1, 1, 0
 	for _, c := range l.commits {
 		addW = max(addW, len(fmt.Sprint(c.Added)))

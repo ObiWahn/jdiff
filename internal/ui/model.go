@@ -8,9 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"jdiff/internal/config"
 	"jdiff/internal/diff"
-	"jdiff/internal/settings"
-	"jdiff/internal/theme"
 )
 
 type side int
@@ -49,10 +48,9 @@ type backMsg struct{}
 
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
-	theme    *theme.Theme
-	settings settings.Settings
-	names    [2]string
-	lines    [2][]string
+	cfg   *config.Config
+	names [2]string
+	lines [2][]string
 
 	anchors []diff.Anchor // sorted by Left, never crossing
 	rows    []diff.Row
@@ -78,10 +76,9 @@ type Model struct {
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
-func New(th *theme.Theme, st settings.Settings, oldName, newName string, oldLines, newLines []string) *Model {
+func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
 	m := &Model{
-		theme:    th,
-		settings: st,
+		cfg:      cfg,
 		foldOpen: map[int]bool{},
 		names:    [2]string{oldName, newName},
 		lines:    [2][]string{oldLines, newLines},
@@ -90,8 +87,8 @@ func New(th *theme.Theme, st settings.Settings, oldName, newName string, oldLine
 	if slices.Equal(oldLines, newLines) {
 		m.msg = "files are identical"
 	}
-	if len(th.Warnings) > 0 {
-		m.msg = "theme: " + strings.Join(th.Warnings, "; ")
+	if len(cfg.Theme.Warnings) > 0 {
+		m.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
 	}
 	return m
 }
@@ -277,7 +274,7 @@ func (m *Model) anchorAt(s side, line int) (diff.Anchor, bool) {
 
 func (m *Model) realign() {
 	m.rows = diff.Align(m.lines[left], m.lines[right], m.anchors,
-		diff.Options{SplitIndent: m.settings.OnlyChangedWhitespaces})
+		diff.Options{SplitIndent: m.cfg.Settings.OnlyChangedWhitespaces})
 	for s := range m.rowOf {
 		m.rowOf[s] = make([]int, len(m.lines[s]))
 	}
@@ -298,7 +295,7 @@ func (m *Model) realign() {
 // shown as one fold row while closed; a single such row is never a block.
 func (m *Model) buildView() {
 	keep := make([]bool, len(m.rows))
-	ctx := max(m.settings.Context, 0)
+	ctx := max(m.cfg.Settings.Context, 0)
 	for i, r := range m.rows {
 		if r.Kind != diff.Equal || r.Anchored || m.isPending(r) {
 			for j := max(i-ctx, 0); j <= min(i+ctx, len(m.rows)-1); j++ {
@@ -346,7 +343,7 @@ func (m *Model) blockOpen(b block) bool {
 	if open, ok := m.foldOpen[m.rows[b.start].Left]; ok {
 		return open
 	}
-	return !m.settings.CollapseUnchanged
+	return !m.cfg.Settings.CollapseUnchanged
 }
 
 func (m *Model) isPending(r diff.Row) bool {

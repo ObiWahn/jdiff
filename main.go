@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
 	"jdiff/internal/settings"
 	"jdiff/internal/source"
@@ -44,15 +45,18 @@ func main() {
 	if lipgloss.ColorProfile() != termenv.Ascii {
 		lipgloss.SetColorProfile(termenv.ANSI)
 	}
-	cfg := theme.ReadGitConfig()
-	th := theme.Load(cfg, theme.Features(cfg, os.Getenv("DELTA_FEATURES"), *features))
+	gitCfg := theme.ReadGitConfig()
+	cfg := &config.Config{
+		Theme:    theme.Load(gitCfg, theme.Features(gitCfg, os.Getenv("DELTA_FEATURES"), *features)),
+		Settings: settings.Default(),
+	}
 
 	var m tea.Model
 	var err error
 	if isLog {
-		m, err = loadLog(th, flag.Args()[1:])
+		m, err = loadLog(cfg, flag.Args()[1:])
 	} else {
-		m, err = load(th, flag.Arg(0), flag.Arg(1))
+		m, err = load(cfg, flag.Arg(0), flag.Arg(1))
 	}
 	if err != nil {
 		fatal(err)
@@ -64,7 +68,7 @@ func main() {
 
 // load opens the file selector for two directories, as passed by
 // git difftool --dir-diff, and the diff view for two files.
-func load(th *theme.Theme, oldPath, newPath string) (tea.Model, error) {
+func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 	oldInfo, errOld := os.Stat(oldPath)
 	newInfo, errNew := os.Stat(newPath)
 	if errOld == nil && errNew == nil && oldInfo.IsDir() && newInfo.IsDir() {
@@ -72,7 +76,7 @@ func load(th *theme.Theme, oldPath, newPath string) (tea.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ui.NewApp(th, settings.Default(), files), nil
+		return ui.NewApp(cfg, files), nil
 	}
 
 	oldLines, err := source.ReadLines(oldPath)
@@ -83,11 +87,11 @@ func load(th *theme.Theme, oldPath, newPath string) (tea.Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", newPath, err)
 	}
-	return ui.New(th, settings.Default(), oldPath, newPath, oldLines, newLines), nil
+	return ui.New(cfg, oldPath, newPath, oldLines, newLines), nil
 }
 
 // loadLog opens the commit list for the commits git log selects with args.
-func loadLog(th *theme.Theme, args []string) (tea.Model, error) {
+func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	repo := gitsrc.Repo{}
 	commits, err := repo.Log(args)
 	if err != nil {
@@ -96,7 +100,7 @@ func loadLog(th *theme.Theme, args []string) (tea.Model, error) {
 	if len(commits) == 0 {
 		return nil, fmt.Errorf("no commits")
 	}
-	return ui.NewLog(th, settings.Default(), commits, repo.Files), nil
+	return ui.NewLog(cfg, commits, repo.Files), nil
 }
 
 func fatal(err error) {

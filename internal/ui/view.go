@@ -28,7 +28,7 @@ type lineStyles struct {
 // sideStyles returns the styles of side s for whole-line changes, the
 // unchanged parts of changed lines, changed words and changed whitespace.
 func (m *Model) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) {
-	t := m.theme
+	t := m.cfg.Theme
 	if s == left {
 		return t.Minus, t.MinusNonEmph, t.MinusEmph, t.MinusIndent
 	}
@@ -52,7 +52,7 @@ func (m *Model) View() string {
 	}
 	paneWidth := (m.width - 1) / 2
 	numWidth := len(strconv.Itoa(max(len(m.lines[left]), len(m.lines[right]), 1)))
-	sep := m.theme.Decoration.Render("│")
+	sep := m.cfg.Theme.Decoration.Render("│")
 
 	var b strings.Builder
 	b.WriteString(m.title(left, paneWidth) + sep + m.title(right, paneWidth) + "\n")
@@ -71,7 +71,7 @@ func (m *Model) View() string {
 }
 
 func (m *Model) title(s side, width int) string {
-	style := m.theme.Title
+	style := m.cfg.Theme.Title
 	if s != m.active {
 		style = style.Faint(true).Underline(false)
 	}
@@ -90,25 +90,25 @@ func (m *Model) status() string {
 	right := fmt.Sprintf(" anchors %d · row %d/%d", len(m.anchors), row, len(m.rows))
 	left = ansi.Truncate(left, max(m.width-ansi.StringWidth(right), 0), "…")
 	gap := max(m.width-ansi.StringWidth(left)-ansi.StringWidth(right), 0)
-	return ansi.Truncate(m.theme.Hint.Render(left+strings.Repeat(" ", gap)+right), m.width, "")
+	return ansi.Truncate(m.cfg.Theme.Hint.Render(left+strings.Repeat(" ", gap)+right), m.width, "")
 }
 
 // fold renders displayed row v, a fold of unchanged rows, across both panes.
 func (m *Model) fold(v int) string {
 	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", m.view[v].hidden)
 	if v == m.cursor {
-		label = m.theme.Cursor.Render(label)
+		label = m.cfg.Theme.Cursor.Render(label)
 	}
 	side := max(m.width-ansi.StringWidth(label), 0)
-	line := m.theme.Decoration.Render(strings.Repeat("─", side/2)) + label +
-		m.theme.Decoration.Render(strings.Repeat("─", side-side/2))
+	line := m.cfg.Theme.Decoration.Render(strings.Repeat("─", side/2)) + label +
+		m.cfg.Theme.Decoration.Render(strings.Repeat("─", side-side/2))
 	return ansi.Truncate(line, m.width, "")
 }
 
 // cell renders side s of displayed row v: marker, line number, separator and
 // the line content.
 func (m *Model) cell(s side, v, width, numWidth int) string {
-	t := m.theme
+	t := m.cfg.Theme
 	row := m.rows[m.view[v].row]
 	line := m.lineAt(s, v)
 	changed := row.Kind != diff.Equal && line >= 0
@@ -149,7 +149,7 @@ func (m *Model) cell(s side, v, width, numWidth int) string {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	st := lineStyles{base: t.Zero, ws: t.Whitespace, showAll: m.settings.ShowWhitespaces}
+	st := lineStyles{base: t.Zero, ws: t.Whitespace, showAll: m.cfg.Settings.ShowWhitespaces}
 	var spans []diff.Span
 	switch {
 	case !changed:
