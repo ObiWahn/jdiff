@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -84,27 +85,47 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 		h.scroll(0)
 	case tea.KeyMsg:
-		k := msg.String()
-		if h.open {
-			switch k {
-			case "?", "esc", "q":
-				h.open = false
-			case "ctrl+c":
-				return h, tea.Quit
-			case "down", "j":
-				h.scroll(1)
-			case "up", "k":
-				h.scroll(-1)
+		keys := keyNames(msg)
+		if !h.open && !slices.Contains(keys, "?") {
+			break
+		}
+		if len(keys) == 1 {
+			return h, h.key(keys[0], msg)
+		}
+		// A burst of runes opening or closing the popup: each key goes where
+		// it would have gone pressed alone.
+		for _, k := range keys {
+			if cmd := h.key(k, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}); cmd != nil {
+				return h, cmd
 			}
-			return h, nil
 		}
-		if k == "?" {
-			h.open, h.top = true, 0
-			return h, nil
-		}
+		return h, nil
 	}
 	_, cmd := h.Model.Update(msg)
 	return h, cmd
+}
+
+// key handles k, pressed as msg, in the popup, or passes msg to the page.
+func (h *Help) key(k string, msg tea.KeyMsg) tea.Cmd {
+	if h.open {
+		switch k {
+		case "?", "esc", "q":
+			h.open = false
+		case "ctrl+c":
+			return tea.Quit
+		case "down", "j":
+			h.scroll(1)
+		case "up", "k":
+			h.scroll(-1)
+		}
+		return nil
+	}
+	if k == "?" {
+		h.open, h.top = true, 0
+		return nil
+	}
+	_, cmd := h.Model.Update(msg)
+	return cmd
 }
 
 // boxHeight is the height of the popup: all lines when they fit, else the

@@ -57,6 +57,21 @@ func TestHelpScrolls(t *testing.T) {
 	}
 }
 
+func TestHelpInKeyBurst(t *testing.T) {
+	a := newTestApp()
+	h := WithHelp(config.Default(), a)
+	h.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	// Runes read together arrive as one message.
+	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j?j")})
+	if a.cursor != 1 || !h.open || h.top != 1 {
+		t.Errorf("j?j: cursor %d, help open %v top %d; want 1, true, 1", a.cursor, h.open, h.top)
+	}
+	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?j")})
+	if h.open || a.cursor != 2 {
+		t.Errorf("?j: help open %v cursor %d; want false, 2", h.open, a.cursor)
+	}
+}
+
 func TestOverlayKeepsSides(t *testing.T) {
 	got := overlay("abcdefgh\nijklmnop\nqrstuvwx", "XY\n", 2, 8)
 	if want := "abcdefgh\nijkXYnop\nqrstuvwx"; got != want {
