@@ -165,7 +165,7 @@ func TestSpaceDoesNotNavigateLists(t *testing.T) {
 
 func TestTogglesSaveState(t *testing.T) {
 	dir := t.TempDir()
-	cfg, err := config.Load(dir, nil, nil)
+	cfg, err := config.Load(dir, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,11 @@
 package theme
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Kind is where a theme comes from.
@@ -11,6 +14,7 @@ type Kind int
 const (
 	KindBuiltin Kind = iota // jdiff's defaults
 	KindGit                 // delta's and jdiff's git config sections
+	KindFile                // a theme file
 )
 
 // Spec is a theme as its source defines it: the values as written, nil for
@@ -19,8 +23,8 @@ const (
 // The TOML keys are the option names; in the git config they are keys of
 // the [delta] section, or of [jdiff] where the git tag says so.
 type Spec struct {
-	Name string
-	Kind Kind
+	Name string `toml:"-"`
+	Kind Kind   `toml:"-"`
 
 	MinusStyle            *string `toml:"minus-style"`
 	MinusEmphStyle        *string `toml:"minus-emph-style"`
@@ -64,7 +68,7 @@ func (s *Spec) options(f func(key, section string, field **string)) {
 	v := reflect.ValueOf(s).Elem()
 	for i := range v.NumField() {
 		key := v.Type().Field(i).Tag.Get("toml")
-		if key == "" || key == "colors" {
+		if key == "-" || key == "colors" {
 			continue
 		}
 		section := v.Type().Field(i).Tag.Get("git")
@@ -75,8 +79,8 @@ func (s *Spec) options(f func(key, section string, field **string)) {
 	}
 }
 
-// IsJdiffKey reports whether key is a [jdiff] key rather than a delta one.
-func IsJdiffKey(key string) bool {
+// isJdiffKey reports whether key is a [jdiff] key rather than a delta one.
+func isJdiffKey(key string) bool {
 	jdiff := false
 	(&Spec{}).options(func(k, section string, _ **string) {
 		jdiff = jdiff || (k == key && section == "jdiff")
@@ -143,4 +147,26 @@ func FromGit(cfg Config, features []string) Spec {
 		}
 	}
 	return s
+}
+
+// FromFile reads the theme file path, a TOML file of options and a [colors]
+// table, and names the theme after the file. It also returns the keys of the
+// file that are no options.
+func FromFile(path string) (Spec, []string, error) {
+	s := Spec{Name: strings.TrimSuffix(filepath.Base(path), ".toml"), Kind: KindFile}
+	md, err := toml.DecodeFile(path, &s)
+	if err != nil {
+		return Spec{}, nil, err
+	}
+	var unknown []string
+	for _, k := range md.Undecoded() {
+		unknown = append(unknown, k.String())
+	}
+	// Color words are matched lowercased, as git lowercases its keys.
+	colors := make(map[string]string, len(s.Colors))
+	for name, c := range s.Colors {
+		colors[strings.ToLower(name)] = c
+	}
+	s.Colors = colors
+	return s, unknown, nil
 }

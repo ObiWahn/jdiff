@@ -2,8 +2,11 @@
 // user settings. All views share one Config.
 //
 // The settings come from ~/.config/jdiff: main.toml holds the settings and the
-// name of the theme, themes/<name>.toml its styles, which override delta's
-// git config, and state.toml, written by jdiff, the toggles as last set.
+// name of the theme, state.toml, written by jdiff, the toggles as last set.
+// Each themes/<name>.toml is a theme: style and label options as in delta's
+// git config, and named colors in a [colors] table. A theme leaves unset
+// options to jdiff's defaults; without a name, delta's git config is the
+// theme.
 package config
 
 import (
@@ -11,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,6 +30,7 @@ import (
 type Config struct {
 	Theme    *theme.Theme
 	Settings settings.Settings
+	Themes   []theme.Spec // all themes found; Theme is the selected one
 
 	warnings  []string // problems with the files
 	statePath string   // where SaveState writes, empty for no state file
@@ -57,52 +60,86 @@ type mainFile struct {
 	Theme string `toml:"theme"`
 }
 
-// Load reads the files in dir over the default settings, and builds the
-// theme from delta's git config gitCfg with features and the theme file.
-// Missing files are skipped and unknown keys reported by Warning; files
-// that cannot be parsed are an error. An empty dir reads no files.
-func Load(dir string, gitCfg theme.Config, features []string) (*Config, error) {
+// Load reads the files in dir over the default settings and selects the
+// theme. The themes are jdiff's defaults ("default"), delta's git config
+// gitCfg with the features env (DELTA_FEATURES) and flag (--features) select
+// ("delta"), and the theme files; main.toml selects one by name, else it is
+// "delta". Missing files are skipped and unknown keys reported by Warning;
+// files that cannot be parsed are an error, unless they are theme files not
+// selected. An empty dir reads no files.
+func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 	c := &Config{Settings: settings.Default()}
-	if dir == "" {
-		c.Theme = theme.Load(gitCfg, features)
-		return c, nil
-	}
-	c.statePath = filepath.Join(dir, "state.toml")
-
-	m := mainFile{Settings: c.Settings}
-	if err := c.decode(filepath.Join(dir, "main.toml"), &m); err != nil {
-		return nil, err
-	}
-	c.Settings = m.Settings
-
-	// state.toml holds only the toggles.
-	if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
-		return nil, err
-	}
-
-	if m.Theme != "" {
-		styles := map[string]string{}
-		path := filepath.Join(dir, "themes", m.Theme+".toml")
-		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-			c.warnings = append(c.warnings, fmt.Sprintf("theme %q: no file %s", m.Theme, path))
-		} else if err := c.decode(path, &styles); err != nil {
+	c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
+	name := ""
+	if dir != "" {
+		c.statePath = filepath.Join(dir, "state.toml")
+		m := mainFile{Settings: c.Settings}
+		if err := c.decode(filepath.Join(dir, "main.toml"), &m); err != nil {
 			return nil, err
 		}
-		// The theme's keys win over all of delta's sections.
-		gitCfg = maps.Clone(gitCfg)
-		if gitCfg == nil {
-			gitCfg = theme.Config{}
+		c.Settings = m.Settings
+		// state.toml holds only the toggles.
+		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
+			return nil, err
 		}
-		for k, v := range styles {
-			section := "delta."
-			if theme.IsJdiffKey(k) {
-				section = "jdiff."
-			}
-			gitCfg[section+k] = v
+		name = m.Theme
+		if err := c.readThemes(filepath.Join(dir, "themes"), name); err != nil {
+			return nil, err
 		}
 	}
-	c.Theme = theme.Load(gitCfg, features)
+	c.Theme = theme.Resolve(c.selectTheme(name, dir))
 	return c, nil
+}
+
+// readThemes adds the theme files in dir to the themes. A file that cannot
+// be parsed is an error when it is the selected theme, else a warning, and
+// unknown keys are reported for the selected theme only.
+func (c *Config) readThemes(dir, selected string) error {
+	paths, _ := filepath.Glob(filepath.Join(dir, "*.toml"))
+	for _, path := range paths {
+		name := strings.TrimSuffix(filepath.Base(path), ".toml")
+		if c.theme(name) != nil {
+			c.warnings = append(c.warnings, fmt.Sprintf("%s: %q is a built-in theme, file ignored", filepath.Base(path), name))
+			continue
+		}
+		sp, unknown, err := theme.FromFile(path)
+		if err != nil {
+			err = fmt.Errorf("%s: %w", path, err)
+			if name == selected {
+				return err
+			}
+			c.warnings = append(c.warnings, err.Error())
+			continue
+		}
+		if name == selected {
+			c.unknown(path, unknown)
+		}
+		c.Themes = append(c.Themes, sp)
+	}
+	return nil
+}
+
+// selectTheme returns the theme called name, "delta" for "", or with a
+// warning "delta" when there is none.
+func (c *Config) selectTheme(name, dir string) theme.Spec {
+	if name == "" {
+		name = "delta"
+	}
+	if sp := c.theme(name); sp != nil {
+		return *sp
+	}
+	c.warnings = append(c.warnings, fmt.Sprintf("theme %q: no file %s", name, filepath.Join(dir, "themes", name+".toml")))
+	return *c.theme("delta")
+}
+
+// theme returns the theme called name, or nil.
+func (c *Config) theme(name string) *theme.Spec {
+	for i := range c.Themes {
+		if c.Themes[i].Name == name {
+			return &c.Themes[i]
+		}
+	}
+	return nil
 }
 
 // decode reads the TOML file path into v, if it exists, and records its
@@ -119,11 +156,16 @@ func (c *Config) decode(path string, v any) error {
 	for _, k := range md.Undecoded() {
 		unknown = append(unknown, k.String())
 	}
-	if len(unknown) > 0 {
-		sort.Strings(unknown)
-		c.warnings = append(c.warnings, fmt.Sprintf("%s: unknown %s", filepath.Base(path), strings.Join(unknown, ", ")))
-	}
+	c.unknown(path, unknown)
 	return nil
+}
+
+// unknown reports the unknown keys of the file path.
+func (c *Config) unknown(path string, keys []string) {
+	if len(keys) > 0 {
+		sort.Strings(keys)
+		c.warnings = append(c.warnings, fmt.Sprintf("%s: unknown %s", filepath.Base(path), strings.Join(keys, ", ")))
+	}
 }
 
 // SaveState writes the toggled settings to state.toml, through a temporary

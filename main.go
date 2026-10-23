@@ -48,8 +48,7 @@ func main() {
 	if err != nil {
 		dir = "" // no home: defaults only
 	}
-	gitCfg := theme.ReadGitConfig()
-	cfg, err := config.Load(dir, gitCfg, theme.Features(gitCfg, os.Getenv("DELTA_FEATURES"), *features))
+	cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), *features)
 	if err != nil {
 		fatal(err)
 	}

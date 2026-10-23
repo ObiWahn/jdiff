@@ -50,7 +50,10 @@ func Resolve(sp Spec) *Theme {
 	def := Builtin()
 	t := &Theme{}
 	name := func(key string) string {
-		if IsJdiffKey(key) {
+		switch {
+		case sp.Kind == KindFile:
+			return sp.Name + ".toml: " + key
+		case isJdiffKey(key):
 			return "jdiff." + key
 		}
 		return "delta." + key
