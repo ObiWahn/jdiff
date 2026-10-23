@@ -102,11 +102,11 @@ func (m *Model) unifiedLine(v, sub int, cursor bool) string {
 	case m.isPending(row) && (row.Kind == diff.Equal || m.pending.side == s):
 		marker = t.Pending.Render("●")
 	case row.Anchored:
-		marker = t.Anchor.Render("◆")
+		marker = boldIf(t.Anchor, cursor).Render("◆")
 	case changed && s == left:
-		marker = lineStyle.Render("-")
+		marker = boldIf(lineStyle, cursor).Render("-")
 	case changed:
-		marker = lineStyle.Render("+")
+		marker = boldIf(lineStyle, cursor).Render("+")
 	}
 	number := func(line int, of side) string {
 		if line < 0 || (changed && of != s) {
@@ -117,19 +117,17 @@ func (m *Model) unifiedLine(v, sub int, cursor bool) string {
 	nums := number(row.Left, left) + " " + number(row.Right, right)
 	numStyle := t.NumZero
 	switch {
-	case cursor:
-		numStyle = t.Cursor
 	case changed && s == left:
 		numStyle = t.NumMinus
 	case changed:
 		numStyle = t.NumPlus
 	}
-	gutter := marker + numStyle.Render(nums) + t.Decoration.Render("│") + " "
+	gutter := marker + boldIf(numStyle, cursor).Render(nums) + t.Decoration.Render("│") + " "
 	line := row.Right
 	if s == left {
 		line = row.Left
 	}
-	return gutter + m.content(s, row, line, max(m.width-2*nw-4, 0))
+	return gutter + m.content(s, row, line, max(m.width-2*nw-4, 0), cursor)
 }
 
 // bodyRow renders displayed row v side by side, marked as the cursor row
@@ -181,7 +179,7 @@ func statusLine(t *theme.Theme, width int, left, right string) string {
 func (m *Model) fold(v int, cursor bool) string {
 	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", m.view[v].hidden)
 	if cursor {
-		label = m.cfg.Theme.Cursor.Render(label)
+		label = lipgloss.NewStyle().Bold(true).Render(label)
 	}
 	side := max(m.width-ansi.StringWidth(label), 0)
 	line := m.cfg.Theme.Decoration.Render(strings.Repeat("─", side/2)) + label +
@@ -201,47 +199,54 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 	if s == right {
 		numStyle, sepStyle = t.NumPlus, t.NumRight
 	}
+	if !changed {
+		numStyle = t.NumZero
+	}
+	// The cursor shows on the active side.
+	cursor = cursor && s == m.active
 
 	marker := " "
 	switch {
 	case m.pending != nil && m.pending.side == s && m.pending.line == line && line >= 0:
 		marker = t.Pending.Render("●")
 	case row.Anchored:
-		marker = t.Anchor.Render("◆")
+		marker = boldIf(t.Anchor, cursor).Render("◆")
 	case changed && s == left:
-		marker = lineStyle.Render("-")
+		marker = boldIf(lineStyle, cursor).Render("-")
 	case changed:
-		marker = lineStyle.Render("+")
+		marker = boldIf(lineStyle, cursor).Render("+")
 	}
 
 	num := strings.Repeat(" ", numWidth)
 	if line >= 0 {
 		num = fmt.Sprintf("%*d", numWidth, line+1)
 	}
-	switch {
-	case cursor && s == m.active:
-		num = t.Cursor.Render(num)
-	case changed:
-		num = numStyle.Render(num)
-	default:
-		num = t.NumZero.Render(num)
-	}
-	gutter := marker + num + sepStyle.Render("│") + " "
+	gutter := marker + boldIf(numStyle, cursor).Render(num) + sepStyle.Render("│") + " "
 
 	contentWidth := max(width-numWidth-3, 0)
 	if line < 0 {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	return gutter + m.content(s, row, line, contentWidth)
+	return gutter + m.content(s, row, line, contentWidth, cursor)
+}
+
+// boldIf returns style, bold when on is set.
+func boldIf(style lipgloss.Style, on bool) lipgloss.Style {
+	if on {
+		return style.Bold(true)
+	}
+	return style
 }
 
 // content renders line of side s, shown in row, width columns wide with
-// changes emphasized and scrolled by the horizontal offset.
-func (m *Model) content(s side, row diff.Row, line, width int) string {
+// changes emphasized and scrolled by the horizontal offset. On the cursor
+// line unchanged text is bold.
+func (m *Model) content(s side, row diff.Row, line, width int, cursor bool) string {
 	t := m.cfg.Theme
 	lineStyle, nonEmph, emph, indent := m.sideStyles(s)
-	st := lineStyles{base: t.Zero, ws: t.Whitespace, showAll: m.cfg.Settings.ShowWhitespaces}
+	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
+		showAll: m.cfg.Settings.ShowWhitespaces}
 	var spans []diff.Span
 	switch {
 	case row.Kind == diff.Equal:

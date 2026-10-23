@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
@@ -530,5 +532,21 @@ func TestToggleAllBlocks(t *testing.T) {
 	press(m, " ", "ctrl+space")
 	if len(folds(m)) != 0 {
 		t.Errorf("ctrl+space with one fold opened: %d folds, want all opened", len(folds(m)))
+	}
+}
+
+func TestCursorLineBold(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	m := newTestModel([]string{"same", "old"}, []string{"same", "new"})
+	for _, layout := range []string{"side by side", "normal"} {
+		row := m.screenLine(m.screen[0], true) // the unchanged line
+		if strings.Contains(row, "\x1b[7m") || !strings.Contains(row, "\x1b[1m") {
+			t.Errorf("%s: cursor line %q, want bold and no reverse video", layout, row)
+		}
+		if plain := m.screenLine(m.screen[0], false); strings.Contains(plain, "\x1b[1m") {
+			t.Errorf("%s: line without cursor is bold: %q", layout, plain)
+		}
+		press(m, "s")
 	}
 }
