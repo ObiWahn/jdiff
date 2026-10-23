@@ -24,10 +24,10 @@ const (
 // flowRow is a row of the flow view. part is the index of its part, file
 // the index of its file within the part (-1 for rows of the commit), and
 // line the line of the commit header or the index into the file's
-// displayed rows.
+// displayed rows; sub is the line of a diff row in the normal layout.
 type flowRow struct {
-	kind             flowKind
-	part, file, line int
+	kind                  flowKind
+	part, file, line, sub int
 }
 
 // flowPart is one commit of the log, or all files outside the log.
@@ -159,6 +159,9 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "enter", "esc", " ":
 		f.delegate(k)
+	case "s":
+		f.cfg.Settings.SideBySide = !f.cfg.Settings.SideBySide
+		f.keepScreenRow(f.relocate)
 	}
 	return nil
 }
@@ -202,12 +205,13 @@ func (f *Flow) delegate(k string) {
 	if k == "enter" && f.marked != m {
 		f.dropMark()
 	}
-	m.cursor, m.active, m.msg = r.line, f.active, ""
+	m.syncLayout()
+	m.cursor, m.sub, m.active, m.msg = r.line, r.sub, f.active, ""
 	f.keepScreenRow(func() {
 		m.key(k)
 		e.updateStats()
 		f.build()
-		if i := f.find(flowRow{flowDiff, r.part, r.file, m.cursor}); i >= 0 {
+		if i := f.findDiff(r.part, r.file, m.cursor, m.sub); i >= 0 {
 			f.cursor = i
 		}
 	})
@@ -237,7 +241,7 @@ func (f *Flow) dropMark() {
 func (f *Flow) build() {
 	f.rows = f.rows[:0]
 	add := func(k flowKind, part, file, line int) {
-		f.rows = append(f.rows, flowRow{k, part, file, line})
+		f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 	}
 	for p, part := range f.parts {
 		for i := range part.header {
@@ -255,15 +259,19 @@ func (f *Flow) build() {
 				add(flowNote, p, i, 0)
 				continue
 			}
-			for v := range part.app.viewOf(e).view {
-				add(flowDiff, p, i, v)
+			m := part.app.viewOf(e)
+			for v := range m.view {
+				for s := range m.rowLines(v, m.unified()) {
+					f.rows = append(f.rows, flowRow{flowDiff, p, i, v, s})
+				}
 			}
 		}
 	}
 	f.cursor = max(min(f.cursor, len(f.rows)-1), 0)
 }
 
-// relocate rebuilds the rows, keeping the cursor on its row.
+// relocate rebuilds the rows, keeping the cursor on its row, or on the
+// first line of its diff row when the layout changed.
 func (f *Flow) relocate() {
 	var cur flowRow
 	ok := f.cursor < len(f.rows)
@@ -271,9 +279,22 @@ func (f *Flow) relocate() {
 		cur = f.rows[f.cursor]
 	}
 	f.build()
-	if i := f.find(cur); ok && i >= 0 {
+	i := f.find(cur)
+	if cur.kind == flowDiff {
+		i = f.findDiff(cur.part, cur.file, cur.line, cur.sub)
+	}
+	if ok && i >= 0 {
 		f.cursor = i
 	}
+}
+
+// findDiff returns the index of line sub of diff row line, or of its first
+// line when it has no line sub, or -1.
+func (f *Flow) findDiff(part, file, line, sub int) int {
+	if i := f.find(flowRow{flowDiff, part, file, line, sub}); i >= 0 {
+		return i
+	}
+	return f.find(flowRow{flowDiff, part, file, line, 0})
 }
 
 func (f *Flow) find(r flowRow) int {
@@ -384,25 +405,26 @@ func (f *Flow) isKind(k flowKind, line int) func(int) bool {
 
 func (f *Flow) changeStart(i int) bool {
 	r := f.rows[i]
-	return r.kind == flowDiff && f.parts[r.part].app.files[r.file].view.changeStart(r.line)
+	return r.kind == flowDiff && r.sub == 0 && f.parts[r.part].app.files[r.file].view.changeStart(r.line)
 }
 
-// show puts the cursor on line of file in part, on the file bar for line
-// -1 and on the commit bar for file -1, at screen row screenRow.
-func (f *Flow) show(part, file, line, screenRow int) {
+// show puts the cursor on line sub of diff row line of file in part, on
+// the file bar for line -1 and on the commit bar for file -1, at screen row
+// screenRow.
+func (f *Flow) show(part, file, line, sub, screenRow int) {
 	if f.load != nil && f.unloaded(part) {
 		f.loadPart(part)
 	}
 	f.marked, f.replacing = nil, nil
-	target := flowRow{flowCommit, part, -1, 0}
+	i := f.find(flowRow{flowCommit, part, -1, 0, 0})
 	switch {
 	case f.parts[part].app == nil:
 	case file >= 0 && line >= 0:
-		target = flowRow{flowDiff, part, file, line}
+		i = f.findDiff(part, file, line, sub)
 	case file >= 0:
-		target = flowRow{flowFile, part, file, 0}
+		i = f.find(flowRow{flowFile, part, file, 0, 0})
 	}
-	f.cursor = max(f.find(target), 0)
+	f.cursor = max(i, 0)
 	f.top = f.cursor - screenRow
 	f.scrollToCursor()
 	f.loadVisible()
@@ -431,6 +453,14 @@ func (f *Flow) headerLines() int {
 	return 1
 }
 
+// cursorSub returns the line of the cursor within its diff row.
+func (f *Flow) cursorSub() int {
+	if len(f.rows) == 0 {
+		return 0
+	}
+	return f.rows[f.cursor].sub
+}
+
 func (f *Flow) bodyHeight() int { return max(f.height-1-f.headerLines(), 1) }
 
 func (f *Flow) keepScreenRow(fn func()) {
@@ -451,7 +481,7 @@ func (f *Flow) scrollToCursor() {
 }
 
 func (f *Flow) help() string {
-	h := "f single file · tab pane · enter mark/anchor · space fold · ]/[ change · n/p file · "
+	h := "f single file · tab pane · enter mark/anchor · space fold · ]/[ change · s layout · n/p file · "
 	if f.load != nil {
 		h += "N/P commit · "
 	}
@@ -563,5 +593,6 @@ func (f *Flow) row(i int) string {
 	}
 	m := part.app.files[r.file].view
 	m.width, m.xoff, m.active = f.width, f.xoff, f.active
-	return m.bodyRow(r.line, i == f.cursor)
+	m.syncLayout()
+	return m.screenLine(sline{r.line, r.sub}, i == f.cursor)
 }

@@ -120,7 +120,7 @@ func (l *Log) key(k string) tea.Cmd {
 		l.moveCursor(len(l.commits))
 	case "enter":
 		if l.cfg.Settings.Flow {
-			l.showFlow(-1, -1, 0)
+			l.showFlow(-1, -1, 0, 0)
 		} else {
 			l.openCommit(l.cursor, "")
 		}
@@ -136,12 +136,12 @@ func (l *Log) key(k string) tea.Cmd {
 // flowShown reports whether the flow view is shown.
 func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow }
 
-// showFlow shows the flow view on line of file of the commit under the
-// cursor (see Flow.show) at screen row screenRow.
-func (l *Log) showFlow(file, line, screenRow int) {
+// showFlow shows the flow view on line sub of diff row line of file of the
+// commit under the cursor (see Flow.show) at screen row screenRow.
+func (l *Log) showFlow(file, line, sub, screenRow int) {
 	l.open = l.commits[l.cursor]
 	l.flow.width, l.flow.height = l.width, l.height
-	l.flow.show(l.cursor, file, line, screenRow)
+	l.flow.show(l.cursor, file, line, sub, screenRow)
 }
 
 // toggleFlow switches between the flow view and the files of the commit
@@ -152,13 +152,14 @@ func (l *Log) toggleFlow() {
 		st.Flow = true
 		switch {
 		case l.open == nil:
-			l.showFlow(-1, -1, 0)
+			l.showFlow(-1, -1, 0, 0)
 		case l.open.app.open == nil:
-			l.showFlow(l.open.app.cursor, -1, 0)
+			l.showFlow(l.open.app.cursor, -1, 0, 0)
 		default:
 			app := l.open.app
 			m := app.open.view
-			l.showFlow(app.cursor, m.cursor, m.cursor-m.top)
+			m.syncLayout()
+			l.showFlow(app.cursor, m.cursor, m.sub, m.pos()-m.top)
 			l.flow.active = m.active
 		}
 		return
@@ -186,9 +187,7 @@ func (l *Log) toggleFlow() {
 	if app.open != nil && line >= 0 && app.open.Path == path {
 		m := app.open.view
 		m.active = l.flow.active
-		m.cursor = line
-		m.top = line - screenRow
-		m.scrollToCursor()
+		m.place(line, l.flow.cursorSub(), screenRow)
 	}
 }
 

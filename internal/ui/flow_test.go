@@ -214,3 +214,32 @@ func TestAppDiffPreview(t *testing.T) {
 		t.Errorf("v should hide the preview: list %d box %d", a.listHeight(), a.boxHeight())
 	}
 }
+
+func TestFlowAndPreviewLayout(t *testing.T) {
+	a := newFlowApp()
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "+10│ new9") {
+		t.Errorf("side by side preview lacks +10│ new9:\n%s", view)
+	}
+	pressApp(a, "s")
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
+		t.Errorf("normal preview:\n%s", view)
+	}
+
+	pressApp(a, "s", "f", "]")
+	rows := len(a.flow.rows)
+	_, file, line := a.flow.position()
+	pressApp(a, "s")
+	if len(a.flow.rows) != rows+3 || !flowAt(a, file, line) || a.flow.cursorSub() != 0 {
+		t.Fatalf("s in the flow: %d rows (was %d, 3 changed rows), cursor %d.%d",
+			len(a.flow.rows), rows, line, a.flow.cursorSub())
+	}
+	pressApp(a, "j")
+	if !flowAt(a, file, line) || a.flow.cursorSub() != 1 {
+		t.Errorf("j in the flow should reach the added line of the same row")
+	}
+	// The single file view follows, on the same line of the row.
+	pressApp(a, "f")
+	if m := a.open.view; !m.screenUnified || m.cursor != line || m.sub != 1 {
+		t.Errorf("f: normal %v cursor %d.%d, want %d.1", m.screenUnified, m.cursor, m.sub, line)
+	}
+}

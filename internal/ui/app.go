@@ -214,6 +214,8 @@ func (a *App) key(k string) tea.Cmd {
 	case "v":
 		a.cfg.Settings.Preview = !a.cfg.Settings.Preview
 		a.scrollToCursor()
+	case "s":
+		a.cfg.Settings.SideBySide = !a.cfg.Settings.SideBySide
 	}
 	return nil
 }
@@ -234,7 +236,7 @@ func (a *App) openFile() {
 		return
 	}
 	if a.cfg.Settings.Flow && !a.inLog {
-		a.showFlow(a.cursor, -1, 0)
+		a.showFlow(a.cursor, -1, 0, 0)
 		return
 	}
 	e := a.files[a.cursor]
@@ -246,15 +248,15 @@ func (a *App) openFile() {
 	a.open = e
 }
 
-// showFlow shows the flow view on line of file (its bar for line -1) at
-// screen row screenRow.
-func (a *App) showFlow(file, line, screenRow int) {
+// showFlow shows the flow view on line sub of diff row line of file (its
+// bar for line -1) at screen row screenRow.
+func (a *App) showFlow(file, line, sub, screenRow int) {
 	if a.flow == nil {
 		a.flow = flowOfApp(a)
 	}
 	a.open = a.files[file]
 	a.flow.width, a.flow.height = a.width, a.height
-	a.flow.show(0, file, line, screenRow)
+	a.flow.show(0, file, line, sub, screenRow)
 }
 
 // toggleFlow switches between the diff view of the file under the cursor
@@ -266,10 +268,11 @@ func (a *App) toggleFlow() {
 		switch {
 		case len(a.files) == 0:
 		case a.open == nil:
-			a.showFlow(a.cursor, -1, 0)
+			a.showFlow(a.cursor, -1, 0, 0)
 		default:
 			m := a.open.view
-			a.showFlow(a.cursor, m.cursor, m.cursor-m.top)
+			m.syncLayout()
+			a.showFlow(a.cursor, m.cursor, m.sub, m.pos()-m.top)
 			a.flow.active = m.active
 		}
 		return
@@ -293,9 +296,7 @@ func (a *App) toggleFlow() {
 	a.openFile()
 	if m := a.open.view; line >= 0 {
 		m.active = a.flow.active
-		m.cursor = line
-		m.top = line - screenRow
-		m.scrollToCursor()
+		m.place(line, a.flow.cursorSub(), screenRow)
 	}
 }
 
@@ -345,6 +346,7 @@ func (a *App) preview(e *entry, height int) string {
 	}
 	m := a.viewOf(e)
 	m.width = max(a.width-4, 0)
+	m.syncLayout()
 	start := 0
 	for v := range m.view {
 		if m.changeStart(v) {
@@ -353,8 +355,8 @@ func (a *App) preview(e *entry, height int) string {
 		}
 	}
 	var lines []string
-	for v := start; v < len(m.view) && len(lines) < height-2; v++ {
-		lines = append(lines, m.bodyRow(v, false))
+	for i := m.screenOf[start]; i < len(m.screen) && len(lines) < height-2; i++ {
+		lines = append(lines, m.screenLine(m.screen[i], false))
 	}
 	return box(t, a.width, height, title, lines)
 }
@@ -422,9 +424,9 @@ func (a *App) View() string {
 
 	status := a.msg
 	if status == "" {
-		status = "enter open · f flow · v preview · j/k move · q quit"
+		status = "enter open · f flow · v preview · s layout · j/k move · q quit"
 		if a.inLog {
-			status = "enter open · f flow · v preview · j/k move · N/P commit · backspace commits · q quit"
+			status = "enter open · f flow · v preview · s layout · j/k move · N/P commit · backspace commits · q quit"
 		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))

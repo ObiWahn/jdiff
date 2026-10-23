@@ -32,6 +32,11 @@ type mark struct {
 // the foldable block the row belongs to, or -1.
 type vrow struct{ row, hidden, block int }
 
+// sline is a screen line of the diff view: line sub of displayed row v.
+// Side by side every displayed row is one line; in the normal layout a
+// changed row shows its removed line, then its added line.
+type sline struct{ v, sub int }
+
 // block is a foldable run of unchanged rows [start, end).
 type block struct{ start, end int }
 
@@ -68,9 +73,14 @@ type Model struct {
 	view     []vrow       // displayed rows
 	viewOf   []int        // row index -> view index
 
+	screen        []sline // screen lines of the displayed rows
+	screenOf      []int   // view index -> first screen line
+	screenUnified bool    // layout screen was built for: normal, not side by side
+
 	cursor int // index into view
+	sub    int // line of the cursor row in the normal layout
 	active side
-	top    int // first displayed row
+	top    int // first screen line
 	xoff   int // horizontal scroll in columns
 
 	width, height int
@@ -103,6 +113,7 @@ func New(cfg *config.Config, oldName, newName string, oldLines, newLines []strin
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.syncLayout()
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.keepScreenRow(func() { m.width, m.height = msg.Width, msg.Height })
@@ -167,9 +178,9 @@ func (m *Model) key(k string) tea.Cmd {
 	case "ctrl+d":
 		m.moveCursor(page / 2)
 	case "home", "g":
-		m.moveCursor(-len(m.view))
+		m.moveCursor(-len(m.screen))
 	case "end", "G":
-		m.moveCursor(len(m.view))
+		m.moveCursor(len(m.screen))
 	case "left", "h":
 		m.xoff = max(m.xoff-8, 0)
 	case "right", "l":
@@ -194,6 +205,9 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.canBack {
 			return toggleFlow
 		}
+	case "s":
+		m.cfg.Settings.SideBySide = !m.cfg.Settings.SideBySide
+		m.syncLayout()
 	case "esc":
 		if m.pending != nil {
 			m.pending = nil
@@ -210,6 +224,10 @@ func (m *Model) key(k string) tea.Cmd {
 // enter implements the anchor workflow: mark a line, then pick its partner
 // in the other pane. Enter on an anchored line removes that anchor.
 func (m *Model) enter() {
+	if m.screenUnified {
+		m.msg = "marks need the side by side view (s)"
+		return
+	}
 	line := m.lineAt(m.active, m.cursor)
 	if line < 0 {
 		m.msg = "no line here"
@@ -345,6 +363,63 @@ func (m *Model) buildView() {
 		}
 		i = j
 	}
+	m.buildScreen()
+}
+
+func (m *Model) unified() bool { return !m.cfg.Settings.SideBySide }
+
+// rowLines returns the number of screen lines of displayed row v.
+func (m *Model) rowLines(v int, unified bool) int {
+	if !unified || m.view[v].hidden > 0 {
+		return 1
+	}
+	if r := m.rows[m.view[v].row]; r.Kind != diff.Equal && r.Left >= 0 && r.Right >= 0 {
+		return 2
+	}
+	return 1
+}
+
+// buildScreen computes the screen lines of the displayed rows for the
+// current layout.
+func (m *Model) buildScreen() {
+	m.screenUnified = m.unified()
+	m.screen = m.screen[:0]
+	m.screenOf = make([]int, len(m.view))
+	for v := range m.view {
+		m.screenOf[v] = len(m.screen)
+		for s := range m.rowLines(v, m.screenUnified) {
+			m.screen = append(m.screen, sline{v, s})
+		}
+	}
+}
+
+// syncLayout rebuilds the screen lines when the layout was switched, here
+// or in another view, keeping the cursor on its screen row.
+func (m *Model) syncLayout() {
+	if m.screenUnified == m.unified() {
+		return
+	}
+	offset := m.pos() - m.top
+	m.buildScreen()
+	m.top = m.pos() - offset
+	m.scrollToCursor()
+}
+
+// pos returns the screen line of the cursor.
+func (m *Model) pos() int {
+	if m.cursor >= len(m.view) {
+		return 0
+	}
+	return m.screenOf[m.cursor] + min(m.sub, m.rowLines(m.cursor, m.screenUnified)-1)
+}
+
+// place puts the cursor on line sub of displayed row v at screen row
+// screenRow.
+func (m *Model) place(v, sub, screenRow int) {
+	m.syncLayout()
+	m.cursor, m.sub = v, sub
+	m.top = m.pos() - screenRow
+	m.scrollToCursor()
 }
 
 // blockOpen reports whether b is unfolded. Blocks start closed when
@@ -410,8 +485,13 @@ func (m *Model) lineAt(s side, v int) int {
 	}
 }
 
+// moveCursor moves the cursor by delta screen lines.
 func (m *Model) moveCursor(delta int) {
-	m.cursor = max(min(m.cursor+delta, len(m.view)-1), 0)
+	if len(m.screen) == 0 {
+		return
+	}
+	s := m.screen[max(min(m.pos()+delta, len(m.screen)-1), 0)]
+	m.cursor, m.sub = s.v, s.sub
 	m.scrollToCursor()
 }
 
@@ -420,7 +500,7 @@ func (m *Model) moveCursor(delta int) {
 func (m *Model) nextChange(dir int) {
 	for i := m.cursor + dir; i >= 0 && i < len(m.view); i += dir {
 		if m.changeStart(i) {
-			m.cursor = i
+			m.cursor, m.sub = i, 0
 			m.scrollToCursor()
 			return
 		}
@@ -443,20 +523,20 @@ func (m *Model) bodyHeight() int { return max(m.height-2, 1) }
 // resize, and then scrolls so that the cursor stays on the same screen row.
 // Near the start or end of the file it moves as little as possible.
 func (m *Model) keepScreenRow(f func()) {
-	offset := m.cursor - m.top
+	offset := m.pos() - m.top
 	f()
-	m.top = m.cursor - offset
+	m.top = m.pos() - offset
 	m.scrollToCursor()
 }
 
 func (m *Model) scrollToCursor() {
 	h := m.bodyHeight()
-	if m.cursor < m.top {
-		m.top = m.cursor
-	} else if m.cursor >= m.top+h {
-		m.top = m.cursor - h + 1
+	if p := m.pos(); p < m.top {
+		m.top = p
+	} else if p >= m.top+h {
+		m.top = p - h + 1
 	}
-	m.top = max(min(m.top, len(m.view)-h), 0)
+	m.top = max(min(m.top, len(m.screen)-h), 0)
 }
 
 // switchCommit returns the command asking the log for the next (N) or

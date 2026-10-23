@@ -22,6 +22,9 @@ type Settings struct {
 	// Preview (preview) shows a box below the commit and file lists with
 	// the selected commit's message or file's diff; v toggles it.
 	Preview bool
+	// SideBySide (side_by_side) shows the old and new file next to each
+	// other; off, they are shown in one column like git diff. s toggles it.
+	SideBySide bool
 }
 
 // Default returns the default settings.
@@ -32,5 +35,6 @@ func Default() Settings {
 		ShowWhitespaces:        false,
 		OnlyChangedWhitespaces: true,
 		Preview:                true,
+		SideBySide:             true,
 	}
 }

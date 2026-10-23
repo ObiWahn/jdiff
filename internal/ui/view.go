@@ -37,7 +37,7 @@ func (m *Model) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) 
 }
 
 func (m *Model) help() string {
-	h := "tab pane · enter mark/anchor · space fold · ]/[ change · h/l scroll · esc cancel · "
+	h := "tab pane · enter mark/anchor · space fold · ]/[ change · s layout · h/l scroll · esc cancel · "
 	if m.commitNav {
 		h += "N/P commit · "
 	}
@@ -53,9 +53,11 @@ func (m *Model) View() string {
 	}
 	var b strings.Builder
 	b.WriteString(m.header() + "\n")
+	m.syncLayout()
+	pos := m.pos()
 	for i := m.top; i < m.top+m.bodyHeight(); i++ {
-		if i < len(m.view) {
-			b.WriteString(m.bodyRow(i, i == m.cursor))
+		if i < len(m.screen) {
+			b.WriteString(m.screenLine(m.screen[i], i == pos))
 		}
 		b.WriteString("\n")
 	}
@@ -72,8 +74,67 @@ func (m *Model) numWidth() int {
 // header renders the file names above both panes.
 func (m *Model) header() string { return paneTitles(m.cfg.Theme, m.names, m.active, m.width) }
 
-// bodyRow renders displayed row v, marked as the cursor row when cursor is
-// set.
+// screenLine renders screen line s in the current layout, marked as the
+// cursor line when cursor is set.
+func (m *Model) screenLine(s sline, cursor bool) string {
+	if m.screenUnified {
+		return m.unifiedLine(s.v, s.sub, cursor)
+	}
+	return m.bodyRow(s.v, cursor)
+}
+
+// unifiedLine renders line sub of displayed row v in the normal layout:
+// marker, old and new line number, separator and the content. Unchanged
+// lines show both numbers, changed ones the number of their side.
+func (m *Model) unifiedLine(v, sub int, cursor bool) string {
+	if m.view[v].hidden > 0 {
+		return m.fold(v, cursor)
+	}
+	t := m.cfg.Theme
+	row := m.rows[m.view[v].row]
+	s := right
+	if row.Kind == diff.Delete || (row.Kind == diff.Change && sub == 0) {
+		s = left
+	}
+	nw := m.numWidth()
+	changed := row.Kind != diff.Equal
+	lineStyle, _, _, _ := m.sideStyles(s)
+
+	marker := " "
+	switch {
+	case row.Anchored:
+		marker = t.Anchor.Render("◆")
+	case changed && s == left:
+		marker = lineStyle.Render("-")
+	case changed:
+		marker = lineStyle.Render("+")
+	}
+	number := func(line int, of side) string {
+		if line < 0 || (changed && of != s) {
+			return strings.Repeat(" ", nw)
+		}
+		return fmt.Sprintf("%*d", nw, line+1)
+	}
+	nums := number(row.Left, left) + " " + number(row.Right, right)
+	numStyle := t.NumZero
+	switch {
+	case cursor:
+		numStyle = t.Cursor
+	case changed && s == left:
+		numStyle = t.NumMinus
+	case changed:
+		numStyle = t.NumPlus
+	}
+	gutter := marker + numStyle.Render(nums) + t.Decoration.Render("│") + " "
+	line := row.Right
+	if s == left {
+		line = row.Left
+	}
+	return gutter + m.content(s, row, line, max(m.width-2*nw-4, 0))
+}
+
+// bodyRow renders displayed row v side by side, marked as the cursor row
+// when cursor is set.
 func (m *Model) bodyRow(v int, cursor bool) string {
 	if m.view[v].hidden > 0 {
 		return m.fold(v, cursor)
@@ -136,7 +197,7 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 	row := m.rows[m.view[v].row]
 	line := m.lineAt(s, v)
 	changed := row.Kind != diff.Equal && line >= 0
-	lineStyle, nonEmph, emph, indent := m.sideStyles(s)
+	lineStyle, _, _, _ := m.sideStyles(s)
 	numStyle, sepStyle := t.NumMinus, t.NumLeft
 	if s == right {
 		numStyle, sepStyle = t.NumPlus, t.NumRight
@@ -173,10 +234,18 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
+	return gutter + m.content(s, row, line, contentWidth)
+}
+
+// content renders line of side s, shown in row, width columns wide with
+// changes emphasized and scrolled by the horizontal offset.
+func (m *Model) content(s side, row diff.Row, line, width int) string {
+	t := m.cfg.Theme
+	lineStyle, nonEmph, emph, indent := m.sideStyles(s)
 	st := lineStyles{base: t.Zero, ws: t.Whitespace, showAll: m.cfg.Settings.ShowWhitespaces}
 	var spans []diff.Span
 	switch {
-	case !changed:
+	case row.Kind == diff.Equal:
 	case row.Kind != diff.Change:
 		st.base = lineStyle
 	case s == left:
@@ -185,8 +254,8 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 		st.base, st.emph, st.space, spans = nonEmph, emph, indent, row.RightEmph
 	}
 	content := highlight(m.lines[s][line], spans, st)
-	content = ansi.Cut(content, m.xoff, m.xoff+contentWidth)
-	return gutter + pad(content, contentWidth, lipgloss.NewStyle())
+	content = ansi.Cut(content, m.xoff, m.xoff+width)
+	return pad(content, width, lipgloss.NewStyle())
 }
 
 // highlight renders text with the given spans emphasized. Whitespace inside

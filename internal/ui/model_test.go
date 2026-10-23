@@ -388,3 +388,65 @@ func TestShowWhitespacesSetting(t *testing.T) {
 		t.Errorf("unchanged tab not shown:\n%s", view)
 	}
 }
+
+// newUnifiedTestModel returns a model with an unchanged, a changed, an
+// unchanged and a removed line, nothing folded, in the normal layout.
+func newUnifiedTestModel() *Model {
+	cfg := config.Default()
+	cfg.Settings.CollapseUnchanged = false
+	m := New(cfg, "old", "new", []string{"same", "alpha beta", "keep", "gone"}, []string{"same", "alpha gamma", "keep"})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	press(m, "s")
+	return m
+}
+
+func TestUnifiedLayout(t *testing.T) {
+	m := newUnifiedTestModel()
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	for i, want := range []string{" 1 1│ same", "-2  │ alpha beta", "+  2│ alpha gamma", " 3 3│ keep", "-4  │ gone"} {
+		if !strings.HasPrefix(lines[i+1], want) {
+			t.Errorf("line %d = %q, want prefix %q", i+1, lines[i+1], want)
+		}
+	}
+}
+
+func TestUnifiedCursor(t *testing.T) {
+	m := newUnifiedTestModel()
+	// j steps through both lines of the changed row.
+	var got []string
+	for range 4 {
+		press(m, "j")
+		got = append(got, fmt.Sprintf("%d.%d", m.cursor, m.sub))
+	}
+	if want := []string{"1.0", "1.1", "2.0", "3.0"}; !slices.Equal(got, want) {
+		t.Errorf("j: cursor rows %v, want %v", got, want)
+	}
+	// Switching layouts keeps the cursor row, and back on the added line.
+	press(m, "k", "k", "s")
+	if m.cursor != 1 || m.pos() != 1 {
+		t.Errorf("s to side by side: cursor %d pos %d, want row 1", m.cursor, m.pos())
+	}
+	press(m, "s")
+	if m.cursor != 1 || m.pos() != 2 {
+		t.Errorf("s to normal: cursor %d pos %d, want the added line of row 1", m.cursor, m.pos())
+	}
+}
+
+func TestUnifiedNoMarks(t *testing.T) {
+	m := newUnifiedTestModel()
+	press(m, "s")
+	moveTo(t, m, left, 1)
+	press(m, "enter", "enter")
+	if len(m.anchors) != 1 {
+		t.Fatalf("anchoring side by side: anchors %v", m.anchors)
+	}
+	press(m, "s")
+	if lines := strings.Split(ansi.Strip(m.View()), "\n"); !strings.HasPrefix(lines[2], "◆2  │ alpha beta") ||
+		!strings.HasPrefix(lines[3], "◆  2│ alpha gamma") {
+		t.Errorf("anchored lines in the normal layout: %q", lines[2:4])
+	}
+	press(m, "j", "enter")
+	if m.pending != nil || m.msg != "marks need the side by side view (s)" {
+		t.Errorf("enter in the normal layout: pending %v msg %q", m.pending, m.msg)
+	}
+}
