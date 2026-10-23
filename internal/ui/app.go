@@ -82,9 +82,10 @@ type App struct {
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	list
-	open *entry // file whose diff view is shown, nil for the list
-	flow *Flow  // flow view outside the log, created on first use
-	msg  string
+	open   *entry // file whose diff view is shown, nil for the list
+	flow   *Flow  // flow view outside the log, created on first use
+	msg    string
+	prefix string // "'" while waiting for the letter of a mark
 }
 
 // NewApp returns the file selector for files.
@@ -193,6 +194,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jumpMsg:
 		a.jump(msg)
 		return a, nil
+	case markJumpMsg:
+		a.gotoMark(msg.letter, msg.screenRow)
+		return a, nil
 	case switchFileMsg:
 		a.switchFile(int(msg))
 		return a, nil
@@ -234,6 +238,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a *App) key(k string) tea.Cmd {
 	a.msg = ""
+	if a.prefix != "" {
+		a.prefix = ""
+		if isMarkLetter(k) {
+			a.gotoMark(k, (a.height-2)/2)
+		}
+		return nil
+	}
 	page := max(a.listHeight()-1, 1)
 	if delta, _, ok := motion(k, page, len(a.files)); ok {
 		a.moveCursor(delta)
@@ -258,6 +269,8 @@ func (a *App) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
+	case "'":
+		a.prefix, a.msg = k, "jump to mark: press its letter"
 	case "v":
 		a.msg = toggle(a.cfg, &a.cfg.Settings.Preview)
 		a.scrollToCursor()
@@ -273,6 +286,7 @@ func (a *App) key(k string) tea.Cmd {
 func (a *App) diffOf(e *entry) *fileDiff {
 	if e.diff == nil {
 		e.diff = newFileDiff(a.cfg, e.paneNames(), [2][]string{e.Old, e.New})
+		e.diff.markPath = e.Path
 	}
 	return e.diff
 }
@@ -351,6 +365,35 @@ func (a *App) toggleFlow() {
 	}
 	a.openFile()
 	a.open.view.takeOver(a.flow, line, screenRow)
+}
+
+// gotoMark opens the file of mark letter, when it is in the diff, with the
+// cursor on its line at screen row screenRow.
+func (a *App) gotoMark(letter string, screenRow int) {
+	mk, ok := a.cfg.Mark(letter)
+	if !ok {
+		a.setMsg("no mark " + letter)
+		return
+	}
+	for i, e := range a.files {
+		if e.Path != mk.Path || e.Binary {
+			continue
+		}
+		if a.open != nil {
+			a.open.updateStats()
+		}
+		a.cursor = i
+		a.scrollToCursor()
+		if a.cfg.Settings.Flow && !a.inLog() {
+			a.showFlow(i, -1, 0, 0)
+			a.flow.gotoMark(letter)
+			return
+		}
+		a.openFile()
+		a.open.view.showMark(letter, mk, screenRow)
+		return
+	}
+	a.setMsg(notInDiff(letter, mk))
 }
 
 // jump opens the file of j's end of moved code with the cursor on its line.

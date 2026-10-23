@@ -105,6 +105,7 @@ type fileDiff struct {
 	reloadSide side
 	moved      []int
 
+	markPath   string     // the file's path in marks
 	aligns     int        // counts the alignments
 	group      *moveGroup // the files searched for moved code with this one
 	groupIndex int        // the index of this file in group

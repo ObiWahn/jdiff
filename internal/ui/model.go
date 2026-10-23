@@ -36,13 +36,15 @@ type Model struct {
 	canBack       bool // shown from the file selector, which handles backspace
 	commitNav     bool // shown from the log, which switches commits
 
-	msg   string
-	watch *source.File // the files on disk, reloaded when they change; nil when not watched
+	msg    string
+	watch  *source.File // the files on disk, reloaded when they change; nil when not watched
+	prefix string       // "m" or "'" while waiting for the letter of a mark
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
 func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
 	d := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
+	d.markPath = newName
 	(&moveGroup{}).add(d, newName)
 	return newModel(d)
 }
@@ -52,6 +54,7 @@ func New(cfg *config.Config, oldName, newName string, oldLines, newLines []strin
 func NewWatched(cfg *config.Config, f source.File) *Model {
 	m := New(cfg, f.OldFile, f.NewFile, f.Old, f.New)
 	m.watch = &f
+	m.markPath = repoPath(cfg.Repo(), f.NewFile)
 	return m
 }
 
@@ -92,6 +95,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) key(k string) tea.Cmd {
+	if p := m.prefix; p != "" {
+		m.prefix, m.msg = "", ""
+		switch {
+		case !isMarkLetter(k):
+		case p == "m":
+			m.msg = setMark(m.cfg, m.fileDiff, k, m.cursor)
+		default:
+			return m.gotoMark(k, m.pos()-m.top)
+		}
+		return nil
+	}
 	if m.replace != nil && k != "enter" && k != "esc" {
 		m.replace = nil
 		m.msg = ""
@@ -145,8 +159,43 @@ func (m *Model) key(k string) tea.Cmd {
 		m.act(k)
 	case "o":
 		return m.jump()
+	case "m":
+		m.prefix, m.msg = k, "set mark: press a letter"
+	case "'":
+		m.prefix, m.msg = k, "jump to mark: press its letter"
 	}
 	return nil
+}
+
+// gotoMark moves the cursor to the line of mark letter, at screen row
+// screenRow. A mark in another file of the diff is shown by the file
+// selector.
+func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
+	mk, ok := m.cfg.Mark(letter)
+	switch {
+	case !ok:
+		m.msg = "no mark " + letter
+	case mk.Path == m.markPath:
+		m.showMark(letter, mk, screenRow)
+	case m.canBack:
+		j := markJumpMsg{letter, screenRow}
+		return func() tea.Msg { return j }
+	default:
+		m.msg = notInDiff(letter, mk)
+	}
+	return nil
+}
+
+// showMark puts the cursor on the line of mark mk, called letter, of this
+// file at screen row screenRow.
+func (m *Model) showMark(letter string, mk config.Mark, screenRow int) {
+	line, note, ok := m.markLine(mk)
+	if !ok {
+		m.msg = markMsg(letter, "the new file is empty")
+		return
+	}
+	m.show(m.reveal(right, line), screenRow)
+	m.msg = markMsg(letter, note)
 }
 
 // jump moves the cursor to the other end of the moved line under it, which

@@ -61,6 +61,7 @@ type Flow struct {
 	active    side
 	marked    *fileDiff // diff holding a pending mark
 	replacing *fileDiff // diff waiting for confirmation to replace anchors
+	prefix    string    // "m" or "'" while waiting for the letter of a jump mark
 
 	width, height int
 	msg           string
@@ -121,6 +122,17 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.replacing = nil
 	}
 	f.msg = ""
+	if p := f.prefix; p != "" {
+		f.prefix = ""
+		switch {
+		case !isMarkLetter(k):
+		case p == "m":
+			f.setMark(k)
+		default:
+			f.gotoMark(k)
+		}
+		return nil
+	}
 	page := max(f.bodyHeight()-1, 1)
 	if delta, paging, ok := motion(k, page, far); ok {
 		if paging {
@@ -169,6 +181,10 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.delegate(k)
 	case "o":
 		f.jump()
+	case "m":
+		f.prefix, f.msg = k, "set mark: press a letter"
+	case "'":
+		f.prefix, f.msg = k, "jump to mark: press its letter"
 	case "s":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.SideBySide)
 		f.keepScreenRow(f.relocate)
@@ -263,6 +279,52 @@ func (f *Flow) jump() {
 		f.active = at.side
 		return
 	}
+}
+
+// setMark sets jump mark letter on the new-file line under the cursor.
+func (f *Flow) setMark(letter string) {
+	if len(f.rows) == 0 || f.rows[f.cursor].kind != flowDiff {
+		f.msg = "no line of the new file here"
+		return
+	}
+	r := f.rows[f.cursor]
+	f.msg = setMark(f.cfg, f.parts[r.part].app.files[r.file].diff, letter, r.line)
+}
+
+// gotoMark moves the cursor to the line of jump mark letter when its file is
+// in the commit under the cursor, or outside the log among the files; it
+// keeps its screen row.
+func (f *Flow) gotoMark(letter string) {
+	mk, ok := f.cfg.Mark(letter)
+	if !ok {
+		f.msg = "no mark " + letter
+		return
+	}
+	if len(f.rows) > 0 {
+		r := f.rows[f.cursor]
+		if app := f.parts[r.part].app; app != nil {
+			for i, e := range app.files {
+				if e.Path != mk.Path || e.diff == nil {
+					continue
+				}
+				line, note, ok := e.diff.markLine(mk)
+				if !ok {
+					f.msg = markMsg(letter, "the new file is empty")
+					return
+				}
+				f.keepScreenRow(func() {
+					at := e.diff.reveal(right, line)
+					f.build() // a fold may have opened
+					if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
+						f.cursor = j
+					}
+				})
+				f.active, f.msg = right, markMsg(letter, note)
+				return
+			}
+		}
+	}
+	f.msg = notInDiff(letter, mk)
 }
 
 // dropMark cancels a pending mark; the caller rebuilds the rows.
