@@ -23,7 +23,11 @@ import (
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
-	features := flag.String("features", "", "delta features (themes) to use instead of delta.features")
+	features := flag.String("features", "",
+		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
+			"your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
+			"unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
+			"to them.")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--features NAMES] OLD NEW\n"+
 			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n", os.Args[0])

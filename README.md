@@ -45,7 +45,7 @@ The other make targets: `make test`, `make vet`, `make fmt`, `make fmt-check` an
 jdiff OLD NEW                 # compare two files
 jdiff DIR1 DIR2               # compare two directories
 jdiff log [GIT LOG ARGS]      # browse commits, e.g. jdiff log -20 or jdiff log main..topic
-jdiff --features NAMES ...    # use these delta features (themes) instead of delta.features
+jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
 As git's difftool, set it up once:
