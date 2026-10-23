@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/config"
 	"jdiff/internal/theme"
 )
 
@@ -157,4 +159,67 @@ func count(sign string, n, width int) string {
 // digits wide, in st of the plus and minus styles.
 func counts(t *theme.Theme, st func(lipgloss.Style) lipgloss.Style, added, removed, addW, remW int) string {
 	return st(t.Plus).Render(count("+", added, addW+1)) + " " + st(t.Minus).Render(count("-", removed, remW+1))
+}
+
+// minWidth and minHeight are the smallest terminal the views are drawn in.
+// Side by side the gutters of both panes take 7 columns and twice the digits
+// of the line numbers, 19 for files of up to 999999 lines; the lists need a
+// heading, an empty line, an item and the status bar.
+const minWidth, minHeight = 20, 4
+
+// SizeGuard wraps the top-level model. In a terminal smaller than minWidth
+// by minHeight it shows that in a centered box instead of the page and
+// ignores keys but ctrl+c, until the terminal is large enough again; the
+// page still learns the size and gets all other messages.
+type SizeGuard struct {
+	tea.Model
+	cfg           *config.Config
+	width, height int
+}
+
+// WithSizeGuard returns m guarded against too small terminals.
+func WithSizeGuard(cfg *config.Config, m tea.Model) *SizeGuard { return &SizeGuard{Model: m, cfg: cfg} }
+
+func (g *SizeGuard) tooSmall() bool { return g.width < minWidth || g.height < minHeight }
+
+func (g *SizeGuard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		g.width, g.height = msg.Width, msg.Height
+	case tea.KeyMsg:
+		if g.tooSmall() {
+			if msg.String() == "ctrl+c" {
+				return g, tea.Quit
+			}
+			return g, nil
+		}
+	}
+	_, cmd := g.Model.Update(msg)
+	return g, cmd
+}
+
+func (g *SizeGuard) View() string {
+	if g.width == 0 || !g.tooSmall() {
+		return g.Model.View()
+	}
+	first := "terminal too small"
+	if ansi.StringWidth(first) > g.width {
+		first = "too small"
+	}
+	lines := []string{first, fmt.Sprintf("%dx%d, need %dx%d", g.width, g.height, minWidth, minHeight)}
+	w := 0
+	for _, l := range lines {
+		w = max(w, ansi.StringWidth(l)+4) // border and a space on each side
+	}
+	notice := strings.Join(lines, "\n")
+	if w <= g.width && len(lines)+2 <= g.height {
+		notice = strings.TrimSuffix(box(g.cfg.Theme, w, len(lines)+2, "", lines), "\n")
+	}
+	// Without room for all of it, it is cut.
+	rows := strings.Split(lipgloss.Place(g.width, g.height, lipgloss.Center, lipgloss.Center, notice), "\n")
+	rows = rows[:min(len(rows), g.height)]
+	for i, r := range rows {
+		rows[i] = ansi.Truncate(r, g.width, "")
+	}
+	return strings.Join(rows, "\n")
 }

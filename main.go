@@ -68,7 +68,8 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	if _, err := tea.NewProgram(ui.WithHelp(cfg, ui.WithMarks(cfg, m)), tea.WithAltScreen()).Run(); err != nil {
+	page := ui.WithSizeGuard(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m)))
+	if _, err := tea.NewProgram(page, tea.WithAltScreen()).Run(); err != nil {
 		fatal(err)
 	}
 }

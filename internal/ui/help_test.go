@@ -78,3 +78,98 @@ func TestOverlayKeepsSides(t *testing.T) {
 		t.Errorf("overlay = %q, want %q", got, want)
 	}
 }
+
+func TestSizeGuardWhenTooSmall(t *testing.T) {
+	a := newTestApp()
+	g := WithSizeGuard(a.cfg, a)
+	g.Update(tea.WindowSizeMsg{Width: 15, Height: 3})
+	view := g.View()
+	if v := ansi.Strip(view); !strings.Contains(v, "too small") || !strings.Contains(v, "15x3, need 20x4") {
+		t.Errorf("15x3: no notice:\n%s", ansi.Strip(view))
+	}
+	if line := rawText(view, 15); line != "" || len(strings.Split(view, "\n")) > 3 {
+		t.Errorf("15x3: the notice does not fit:\n%s", ansi.Strip(view))
+	}
+	// Keys are ignored, but ctrl+c quits.
+	pressRoot(g, "j", "enter", "?")
+	if a.cursor != 0 || a.open != nil {
+		t.Errorf("keys reached the page: cursor %d, open %v", a.cursor, a.open)
+	}
+	if _, cmd := g.Update(keyMsg("ctrl+c")); cmd == nil {
+		t.Error("ctrl+c does not quit while the terminal is too small")
+	}
+	// Large enough: the page again, sized while it was hidden.
+	g.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if a.width != 80 || strings.Contains(ansi.Strip(g.View()), "too small") {
+		t.Errorf("80x20: page width %d:\n%s", a.width, ansi.Strip(g.View()))
+	}
+	pressRoot(g, "j")
+	if a.cursor != 1 {
+		t.Errorf("80x20: j moved the cursor to %d, want 1", a.cursor)
+	}
+}
+
+// TestNoViewOverflows draws every view in terminals of many sizes, small
+// ones included, and checks that no line is wider and no screen taller than
+// the terminal, which would make the terminal wrap or scroll.
+func TestNoViewOverflows(t *testing.T) {
+	long := func() tea.Model {
+		a, b := numbered("a fairly long line of code number ", 40), numbered("a fairly long line of code number ", 40)
+		b[4] = "changed and longer than before"
+		return newTestModel(a, b)
+	}
+	big := func() tea.Model { // 10000 lines: line numbers of 5 digits
+		b := numbered("x", 10000)
+		b[5000] = "changed"
+		return newTestModel(numbered("x", 10000), b)
+	}
+	views := []struct {
+		name string
+		make func() tea.Model
+		keys []string
+	}{
+		{"diff", long, nil},
+		{"diff normal", long, []string{"s"}},
+		{"diff wrapped", long, []string{"r"}},
+		{"diff normal wrapped", long, []string{"s", "r", "j", "j", "j", "j", "j"}},
+		{"big diff", big, []string{"]"}},
+		{"big diff normal", big, []string{"s", "]"}},
+		{"file list", func() tea.Model { return newTestApp() }, nil},
+		{"flow", func() tea.Model { return newFlowApp() }, []string{"f"}},
+		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "r"}},
+		{"commit list", func() tea.Model { l, _ := newTestLog(); return l }, nil},
+		{"log flow", func() tea.Model { l, _ := newTestLog(); return l }, []string{"f", "enter"}},
+		{"help", func() tea.Model { return newTestApp() }, []string{"?"}},
+		{"marks", func() tea.Model { return newMarkModel() }, []string{"m", "a", "\\"}},
+	}
+	sizes := []int{1, 2, 3, 4, 5, 8, 12}
+	widths := []int{1, 5, 10, 15, 19, 20, 21, 25, 30, 41, 60}
+	for _, v := range views {
+		m := v.make()
+		cfg := config.Default()
+		switch p := m.(type) {
+		case *Model:
+			cfg = p.cfg
+		case *App:
+			cfg = p.cfg
+		case *Log:
+			cfg = p.cfg
+		}
+		g := WithSizeGuard(cfg, WithHelp(cfg, WithMarks(cfg, m)))
+		g.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+		pressRoot(g, v.keys...)
+		// One view is resized through all sizes, as a terminal is.
+		for _, w := range widths {
+			for _, h := range sizes {
+				g.Update(tea.WindowSizeMsg{Width: w, Height: h})
+				view := g.View()
+				if n := len(strings.Split(view, "\n")); n > h {
+					t.Errorf("%s at %dx%d: %d lines", v.name, w, h, n)
+				}
+				if line := rawText(view, w); line != "" {
+					t.Errorf("%s at %dx%d: line too wide: %q", v.name, w, h, line)
+				}
+			}
+		}
+	}
+}
