@@ -191,3 +191,22 @@ func TestFlowFollowsReloadedLine(t *testing.T) {
 		t.Errorf("flow msg %q", a.flow.msg)
 	}
 }
+
+func TestWatchSeesQuickSameSizeChange(t *testing.T) {
+	m, dir := newWatchedModel(t, []string{"aaa"}, []string{"bbb"})
+	path := filepath.Join(dir, "new.txt")
+	// Rewritten at once with the same size: the modification time may not
+	// have changed yet, the content has.
+	writeLines(t, path, []string{"ccc"})
+	m.Update(watchTickMsg{})
+	if !slices.Equal(m.lines[right], []string{"ccc"}) {
+		t.Errorf("same size change within the timestamp resolution: lines %q, want it reloaded", m.lines[right])
+	}
+	// The same content written again is no change.
+	m.msg = ""
+	writeLines(t, path, []string{"ccc"})
+	m.Update(watchTickMsg{})
+	if m.msg != "" || m.reloads != 1 {
+		t.Errorf("unchanged content: msg %q, %d reloads; want no reload", m.msg, m.reloads)
+	}
+}

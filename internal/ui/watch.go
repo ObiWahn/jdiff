@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +11,11 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/source"
 )
+
+// racyWindow is how long after its modification time a file is compared by
+// content: file systems keep the time in coarse steps, so a change of the
+// same size right after the last read may leave the stamp as it was.
+const racyWindow = 2 * time.Second
 
 // watchTickMsg asks the top-level view to check its watched files.
 type watchTickMsg struct{}
@@ -26,8 +32,10 @@ func watchTick(cfg *config.Config) tea.Cmd {
 
 // refreshFile reloads the sides of f that changed on disk into f and into
 // its diff d, unless nil, which view m, unless nil, follows. It returns the
-// message to show, "" when nothing changed. A side that cannot be read is
-// checked again next time; a side that became binary keeps its content.
+// message to show, "" when nothing changed. A side changed when its stamp
+// did, or, while its modification time is recent, its content. A side that
+// cannot be read is checked again next time; a side that became binary keeps
+// its content.
 func refreshFile(f *source.File, d *fileDiff, m *Model) string {
 	type sideFile struct {
 		path  string
@@ -40,7 +48,7 @@ func refreshFile(f *source.File, d *fileDiff, m *Model) string {
 		if sf.path == "" {
 			continue
 		}
-		if st, err := source.StampOf(sf.path); err != nil || st == *sf.stamp {
+		if st, err := source.StampOf(sf.path); err != nil || (st == *sf.stamp && time.Since(st.ModTime) >= racyWindow) {
 			continue
 		}
 		lines, st, err := source.Read(sf.path)
@@ -49,6 +57,10 @@ func refreshFile(f *source.File, d *fileDiff, m *Model) string {
 			continue
 		}
 		if err != nil {
+			continue
+		}
+		if slices.Equal(lines, *sf.lines) {
+			*sf.stamp = st
 			continue
 		}
 		*sf.stamp, *sf.lines, reloaded = st, lines, true
