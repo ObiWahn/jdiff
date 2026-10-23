@@ -16,6 +16,9 @@ type Settings struct {
 	// OnlyChangedWhitespaces (only_changed_whitespaces) compares indentation
 	// character by character, so only its added or removed part is marked.
 	OnlyChangedWhitespaces bool
+	// Flow (flow) shows all files one after the other instead of one file
+	// at a time; f toggles it.
+	Flow bool
 }
 
 // Default returns the default settings.

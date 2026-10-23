@@ -21,24 +21,7 @@ func newTestApp() *App {
 	return a
 }
 
-func pressApp(a *App, keys ...string) {
-	for _, k := range keys {
-		var msg tea.KeyMsg
-		switch k {
-		case "enter":
-			msg = tea.KeyMsg{Type: tea.KeyEnter}
-		case "backspace":
-			msg = tea.KeyMsg{Type: tea.KeyBackspace}
-		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
-		}
-		// Run returned commands like the Bubble Tea runtime does.
-		_, cmd := a.Update(msg)
-		for cmd != nil {
-			_, cmd = a.Update(cmd())
-		}
-	}
-}
+func pressApp(a *App, keys ...string) { pressRoot(a, keys...) }
 
 func TestAppListShowsCounts(t *testing.T) {
 	a := newTestApp()

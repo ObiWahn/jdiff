@@ -22,6 +22,7 @@ type Commit struct {
 	Hash, Short    string
 	Author, Date   string
 	Subject        string
+	Body           string // the message after the subject, trimmed
 	Parent         string // first parent, empty for a root commit
 	Added, Removed int    // line counts as reported by git
 }
@@ -46,9 +47,11 @@ func (r Repo) git(args ...string) ([]byte, error) {
 
 // Log returns the commits git log selects with args, newest first. Merges
 // are counted against their first parent, as Files compares them.
+// Records start with RS, fields are separated by US and the body, which
+// may span lines, ends with GS before the numstat lines.
 func (r Repo) Log(args []string) ([]Commit, error) {
 	out, err := r.git(append([]string{"log",
-		"--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s",
+		"--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s%x1f%b%x1d",
 		"--date=short", "--numstat", "--diff-merges=first-parent"}, args...)...)
 	if err != nil {
 		return nil, err
@@ -58,12 +61,13 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 		if rec == "" {
 			continue
 		}
-		header, stat, _ := strings.Cut(rec, "\n")
+		header, stat, _ := strings.Cut(rec, "\x1d")
 		f := strings.Split(header, "\x1f")
-		if len(f) != 6 {
+		if len(f) != 7 {
 			return nil, fmt.Errorf("git log: unexpected record %q", header)
 		}
-		c := Commit{Hash: f[0], Short: f[1], Author: f[2], Date: f[3], Subject: f[5]}
+		c := Commit{Hash: f[0], Short: f[1], Author: f[2], Date: f[3], Subject: f[5],
+			Body: strings.TrimSpace(f[6])}
 		c.Parent, _, _ = strings.Cut(f[4], " ")
 		for line := range strings.SplitSeq(stat, "\n") {
 			// "added<TAB>removed<TAB>path"; binary files show "-".

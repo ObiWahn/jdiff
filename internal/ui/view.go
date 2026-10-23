@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/diff"
+	"jdiff/internal/theme"
 )
 
 const tabWidth = 4
@@ -41,7 +42,7 @@ func (m *Model) help() string {
 		h += "n/p commit · "
 	}
 	if m.canBack {
-		h += "N/P file · backspace back · "
+		h += "N/P file · f flow · backspace back · "
 	}
 	return h + "q quit"
 }
@@ -50,24 +51,38 @@ func (m *Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
-	paneWidth := (m.width - 1) / 2
-	numWidth := len(strconv.Itoa(max(len(m.lines[left]), len(m.lines[right]), 1)))
-	sep := m.cfg.Theme.Decoration.Render("│")
-
 	var b strings.Builder
-	b.WriteString(m.title(left, paneWidth) + sep + m.title(right, paneWidth) + "\n")
+	b.WriteString(m.header() + "\n")
 	for i := m.top; i < m.top+m.bodyHeight(); i++ {
-		switch {
-		case i >= len(m.view):
-		case m.view[i].hidden > 0:
-			b.WriteString(m.fold(i))
-		default:
-			b.WriteString(m.cell(left, i, paneWidth, numWidth) + sep + m.cell(right, i, paneWidth, numWidth))
+		if i < len(m.view) {
+			b.WriteString(m.bodyRow(i, i == m.cursor))
 		}
 		b.WriteString("\n")
 	}
 	b.WriteString(m.status())
 	return b.String()
+}
+
+func (m *Model) paneWidth() int { return (m.width - 1) / 2 }
+
+func (m *Model) numWidth() int {
+	return len(strconv.Itoa(max(len(m.lines[left]), len(m.lines[right]), 1)))
+}
+
+// header renders the file names above both panes.
+func (m *Model) header() string {
+	w := m.paneWidth()
+	return m.title(left, w) + m.cfg.Theme.Decoration.Render("│") + m.title(right, w)
+}
+
+// bodyRow renders displayed row v, marked as the cursor row when cursor is
+// set.
+func (m *Model) bodyRow(v int, cursor bool) string {
+	if m.view[v].hidden > 0 {
+		return m.fold(v, cursor)
+	}
+	w, nw := m.paneWidth(), m.numWidth()
+	return m.cell(left, v, w, nw, cursor) + m.cfg.Theme.Decoration.Render("│") + m.cell(right, v, w, nw, cursor)
 }
 
 func (m *Model) title(s side, width int) string {
@@ -88,15 +103,21 @@ func (m *Model) status() string {
 		row = m.view[m.cursor].row + 1
 	}
 	right := fmt.Sprintf(" anchors %d · row %d/%d", len(m.anchors), row, len(m.rows))
-	left = ansi.Truncate(left, max(m.width-ansi.StringWidth(right), 0), "…")
-	gap := max(m.width-ansi.StringWidth(left)-ansi.StringWidth(right), 0)
-	return ansi.Truncate(m.cfg.Theme.Hint.Render(left+strings.Repeat(" ", gap)+right), m.width, "")
+	return statusLine(m.cfg.Theme, m.width, left, right)
+}
+
+// statusLine renders the status bar with left and right aligned parts; left
+// is shortened when both do not fit.
+func statusLine(t *theme.Theme, width int, left, right string) string {
+	left = ansi.Truncate(left, max(width-ansi.StringWidth(right), 0), "…")
+	gap := max(width-ansi.StringWidth(left)-ansi.StringWidth(right), 0)
+	return ansi.Truncate(t.Hint.Render(left+strings.Repeat(" ", gap)+right), width, "")
 }
 
 // fold renders displayed row v, a fold of unchanged rows, across both panes.
-func (m *Model) fold(v int) string {
+func (m *Model) fold(v int, cursor bool) string {
 	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", m.view[v].hidden)
-	if v == m.cursor {
+	if cursor {
 		label = m.cfg.Theme.Cursor.Render(label)
 	}
 	side := max(m.width-ansi.StringWidth(label), 0)
@@ -106,8 +127,8 @@ func (m *Model) fold(v int) string {
 }
 
 // cell renders side s of displayed row v: marker, line number, separator and
-// the line content.
-func (m *Model) cell(s side, v, width, numWidth int) string {
+// the line content. The cursor shows on the line number of the active side.
+func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 	t := m.cfg.Theme
 	row := m.rows[m.view[v].row]
 	line := m.lineAt(s, v)
@@ -135,7 +156,7 @@ func (m *Model) cell(s side, v, width, numWidth int) string {
 		num = fmt.Sprintf("%*d", numWidth, line+1)
 	}
 	switch {
-	case v == m.cursor && s == m.active:
+	case cursor && s == m.active:
 		num = t.Cursor.Render(num)
 	case changed:
 		num = numStyle.Render(num)

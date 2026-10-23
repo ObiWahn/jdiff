@@ -19,20 +19,34 @@ func newTestModel(a, b []string) *Model {
 	return m
 }
 
+func keyMsg(k string) tea.KeyMsg {
+	switch k {
+	case "enter":
+		return tea.KeyMsg{Type: tea.KeyEnter}
+	case "tab":
+		return tea.KeyMsg{Type: tea.KeyTab}
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	}
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+}
+
 func press(m *Model, keys ...string) {
 	for _, k := range keys {
-		var msg tea.KeyMsg
-		switch k {
-		case "enter":
-			msg = tea.KeyMsg{Type: tea.KeyEnter}
-		case "tab":
-			msg = tea.KeyMsg{Type: tea.KeyTab}
-		case "esc":
-			msg = tea.KeyMsg{Type: tea.KeyEsc}
-		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+		m.Update(keyMsg(k))
+	}
+}
+
+// pressRoot presses keys on the top-level model m, running the returned
+// commands like the Bubble Tea runtime does.
+func pressRoot(m tea.Model, keys ...string) {
+	for _, k := range keys {
+		_, cmd := m.Update(keyMsg(k))
+		for cmd != nil {
+			_, cmd = m.Update(cmd())
 		}
-		m.Update(msg)
 	}
 }
 

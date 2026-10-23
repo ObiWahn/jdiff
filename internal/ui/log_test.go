@@ -23,6 +23,9 @@ func modified(path string, old, new []string) source.File {
 //	c2: changes only a.go
 //	c1: changes only c.go
 //	c0: cannot be loaded
+//
+// Only c3 has a message body. In the flow view c3 takes the 10 rows of the
+// screen: 6 header rows and two files of a bar and one row each.
 func newTestLog() (*Log, map[string]int) {
 	loads := map[string]int{}
 	files := map[string][]source.File{
@@ -42,28 +45,13 @@ func newTestLog() (*Log, map[string]int) {
 		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T",
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
+	commits[0].Body = "body c3"
 	l := NewLog(config.Default(), commits, load)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return l, loads
 }
 
-func pressLog(l *Log, keys ...string) {
-	for _, k := range keys {
-		var msg tea.KeyMsg
-		switch k {
-		case "enter":
-			msg = tea.KeyMsg{Type: tea.KeyEnter}
-		case "backspace":
-			msg = tea.KeyMsg{Type: tea.KeyBackspace}
-		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
-		}
-		_, cmd := l.Update(msg)
-		for cmd != nil {
-			_, cmd = l.Update(cmd())
-		}
-	}
-}
+func pressLog(l *Log, keys ...string) { pressRoot(l, keys...) }
 
 // shownFile returns the path of the diff shown, or "" for a list.
 func shownFile(l *Log) string {
@@ -174,5 +162,84 @@ func TestLogFileKeysInCommit(t *testing.T) {
 	pressLog(l, "P")
 	if shownFile(l) != "a.go" {
 		t.Errorf("P in c3: shown %q, want a.go", shownFile(l))
+	}
+}
+
+// flowCommitAt returns the commit of the flow cursor, or -1 when the flow view
+// is not shown.
+func flowCommitAt(l *Log) int {
+	if !l.flowShown() {
+		return -1
+	}
+	p, _, _ := l.flow.position()
+	return p
+}
+
+func TestLogFlowLoadsLazily(t *testing.T) {
+	l, loads := newTestLog()
+	pressLog(l, "f")
+	if flowCommitAt(l) != 0 || len(loads) != 1 || loads["c3"] != 1 {
+		t.Fatalf("f: flow at %d, loads %v, want c3 only", flowCommitAt(l), loads)
+	}
+	view := ansi.Strip(l.View())
+	for _, want := range []string{"commit c3 · T · 2026-10-22", "    subject c3", "    body c3", "a.go", "b.go"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("flow view lacks %q:\n%s", want, view)
+		}
+	}
+	pressLog(l, "j")
+	if loads["c2"] != 1 || loads["c1"] != 0 {
+		t.Errorf("j: loads %v, want c2 loaded as it comes near, c1 not", loads)
+	}
+	pressLog(l, "G")
+	if flowCommitAt(l) != 3 || !strings.Contains(ansi.Strip(l.View()), "cannot load c0") {
+		t.Errorf("G: flow at %d, want c0 with its error:\n%s", flowCommitAt(l), ansi.Strip(l.View()))
+	}
+	for h, n := range loads {
+		if n != 1 {
+			t.Errorf("%s loaded %d times", h, n)
+		}
+	}
+}
+
+func TestLogFlowCommitKeys(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f", "n")
+	if flowCommitAt(l) != 1 {
+		t.Fatalf("n: flow at %d, want c2", flowCommitAt(l))
+	}
+	pressLog(l, "n", "n", "n")
+	if flowCommitAt(l) != 3 || l.flow.msg != "oldest commit" {
+		t.Errorf("n past c0: flow at %d msg %q", flowCommitAt(l), l.flow.msg)
+	}
+	pressLog(l, "p")
+	if flowCommitAt(l) != 2 {
+		t.Errorf("p: flow at %d, want c1", flowCommitAt(l))
+	}
+	pressLog(l, "backspace")
+	if l.open != nil || l.cursor != 2 {
+		t.Fatalf("backspace: open %v cursor %d, want the list on c1", l.open, l.cursor)
+	}
+	// Flow stays on: enter shows the flow again.
+	pressLog(l, "enter")
+	if flowCommitAt(l) != 2 {
+		t.Errorf("enter with flow on: flow at %d, want c1", flowCommitAt(l))
+	}
+	// Off again on c1, a single-file commit: its diff is shown.
+	pressLog(l, "f")
+	if l.flowShown() || shownFile(l) != "c.go" {
+		t.Errorf("f on c1: shown %q, want c.go", shownFile(l))
+	}
+}
+
+func TestLogFlowFromDiff(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "enter", "enter", "f") // c3, a.go
+	if p, f, line := l.flow.position(); !l.flowShown() || p != 0 || f != 0 || line != 0 {
+		t.Fatalf("f in the a.go diff: flow at %d %d %d", p, f, line)
+	}
+	pressLog(l, "N", "j", "f")
+	if shownFile(l) != "b.go" || l.open.app.open.view.cursor != 0 {
+		t.Errorf("f on the row of b.go: shown %q", shownFile(l))
 	}
 }

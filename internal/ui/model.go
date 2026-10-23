@@ -43,8 +43,15 @@ type switchFileMsg int
 // commit.
 type switchCommitMsg int
 
-// backMsg asks the log to return to the commit list.
+// backMsg asks the log to return to the commit list, or the file selector to
+// its list when it shows the flow view.
 type backMsg struct{}
+
+// toggleFlowMsg asks the log or the file selector to switch between the diff
+// view of one file and the flow view of all files.
+type toggleFlowMsg struct{}
+
+func toggleFlow() tea.Msg { return toggleFlowMsg{} }
 
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
@@ -182,6 +189,10 @@ func (m *Model) key(k string) tea.Cmd {
 	case "n", "p":
 		if m.commitNav {
 			return switchCommit(k)
+		}
+	case "f":
+		if m.canBack {
+			return toggleFlow
 		}
 	case "esc":
 		if m.pending != nil {
@@ -407,18 +418,23 @@ func (m *Model) moveCursor(delta int) {
 // nextChange moves the cursor to the start of the next (dir > 0) or previous
 // block of non-equal rows.
 func (m *Model) nextChange(dir int) {
-	changed := func(v int) bool {
-		return m.view[v].hidden == 0 && m.rows[m.view[v].row].Kind != diff.Equal
-	}
-	isStart := func(v int) bool { return changed(v) && (v == 0 || !changed(v-1)) }
 	for i := m.cursor + dir; i >= 0 && i < len(m.view); i += dir {
-		if isStart(i) {
+		if m.changeStart(i) {
 			m.cursor = i
 			m.scrollToCursor()
 			return
 		}
 	}
 	m.msg = "no more changes"
+}
+
+// changeStart reports whether displayed row v starts a block of non-equal
+// rows.
+func (m *Model) changeStart(v int) bool {
+	changed := func(v int) bool {
+		return m.view[v].hidden == 0 && m.rows[m.view[v].row].Kind != diff.Equal
+	}
+	return changed(v) && (v == 0 || !changed(v-1))
 }
 
 func (m *Model) bodyHeight() int { return max(m.height-2, 1) }

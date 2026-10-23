@@ -64,14 +64,19 @@ type App struct {
 	cursor int
 	top    int
 	open   *entry // file whose diff view is shown, nil for the list
+	flow   *Flow  // flow view outside the log, created on first use
 
 	width, height int
 	msg           string
 }
 
 // NewApp returns the file selector for files.
-func NewApp(cfg *config.Config, files []source.File) *App {
-	a := &App{cfg: cfg}
+func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, false) }
+
+// newApp returns the file selector for files, as part of the log when
+// inLog is set.
+func newApp(cfg *config.Config, files []source.File, inLog bool) *App {
+	a := &App{cfg: cfg, inLog: inLog}
 	for _, f := range files {
 		e := &entry{File: f}
 		e.updateStats()
@@ -116,14 +121,32 @@ func (a *App) setMsg(msg string) {
 
 func (a *App) Init() tea.Cmd { return nil }
 
+// flowShown reports whether the flow view is shown instead of a diff view.
+// Inside the log, the log shows its own flow view.
+func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog }
+
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if sz, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width, a.height = sz.Width, sz.Height
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		a.width, a.height = msg.Width, msg.Height
 		a.scrollToCursor()
-	}
-	if dir, ok := msg.(switchFileMsg); ok {
-		a.switchFile(int(dir))
+	case switchFileMsg:
+		a.switchFile(int(msg))
 		return a, nil
+	case toggleFlowMsg:
+		a.toggleFlow()
+		return a, nil
+	case backMsg: // from the flow view
+		a.open = nil
+		return a, nil
+	}
+	if a.flowShown() {
+		_, cmd := a.flow.Update(msg)
+		if _, file, _ := a.flow.position(); file >= 0 {
+			a.cursor = file
+			a.scrollToCursor()
+		}
+		return a, cmd
 	}
 	if a.open != nil {
 		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
@@ -175,19 +198,14 @@ func (a *App) key(k string) tea.Cmd {
 		if a.inLog {
 			return switchCommit(k)
 		}
+	case "f":
+		return toggleFlow
 	}
 	return nil
 }
 
-func (a *App) openFile() {
-	if a.cursor >= len(a.files) {
-		return
-	}
-	e := a.files[a.cursor]
-	if e.Binary {
-		a.msg = e.Path + " is a binary file"
-		return
-	}
+// viewOf returns the diff view of e, creating it on first use.
+func (a *App) viewOf(e *entry) *Model {
 	if e.view == nil {
 		oldPath := e.Path
 		if e.OldPath != "" {
@@ -195,11 +213,79 @@ func (a *App) openFile() {
 		}
 		e.view = New(a.cfg, "a/"+oldPath, "b/"+e.Path, e.Old, e.New)
 		e.view.canBack = true
+		e.view.commitNav = a.inLog
 	}
-	// inLog may be set after NewApp opened a single file.
-	e.view.commitNav = a.inLog
-	e.view.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+	return e.view
+}
+
+func (a *App) openFile() {
+	if a.cursor >= len(a.files) {
+		return
+	}
+	if a.cfg.Settings.Flow && !a.inLog {
+		a.showFlow(a.cursor, -1, 0)
+		return
+	}
+	e := a.files[a.cursor]
+	if e.Binary {
+		a.msg = e.Path + " is a binary file"
+		return
+	}
+	a.viewOf(e).Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
 	a.open = e
+}
+
+// showFlow shows the flow view on line of file (its bar for line -1) at
+// screen row screenRow.
+func (a *App) showFlow(file, line, screenRow int) {
+	if a.flow == nil {
+		a.flow = flowOfApp(a)
+	}
+	a.open = a.files[file]
+	a.flow.width, a.flow.height = a.width, a.height
+	a.flow.show(0, file, line, screenRow)
+}
+
+// toggleFlow switches between the diff view of the file under the cursor
+// and the flow view, keeping the cursor on its line and screen row.
+func (a *App) toggleFlow() {
+	st := &a.cfg.Settings
+	if !st.Flow {
+		st.Flow = true
+		switch {
+		case len(a.files) == 0:
+		case a.open == nil:
+			a.showFlow(a.cursor, -1, 0)
+		default:
+			m := a.open.view
+			a.showFlow(a.cursor, m.cursor, m.cursor-m.top)
+			a.flow.active = m.active
+		}
+		return
+	}
+	st.Flow = false
+	if a.open == nil {
+		a.msg = "flow off"
+		return
+	}
+	_, file, line := a.flow.position()
+	screenRow := a.flow.cursor - a.flow.top
+	a.open = nil
+	if file < 0 {
+		return
+	}
+	a.cursor = file
+	a.scrollToCursor()
+	if a.files[file].Binary {
+		return
+	}
+	a.openFile()
+	if m := a.open.view; line >= 0 {
+		m.active = a.flow.active
+		m.cursor = line
+		m.top = line - screenRow
+		m.scrollToCursor()
+	}
 }
 
 // switchFile opens the next (dir > 0) or previous file that can be shown.
@@ -238,6 +324,9 @@ func (a *App) scrollToCursor() {
 }
 
 func (a *App) View() string {
+	if a.flowShown() {
+		return a.flow.View()
+	}
 	if a.open != nil {
 		return a.open.view.View()
 	}
@@ -281,9 +370,9 @@ func (a *App) View() string {
 
 	status := a.msg
 	if status == "" {
-		status = "enter open · j/k move · q quit"
+		status = "enter open · f flow · j/k move · q quit"
 		if a.inLog {
-			status = "enter open · j/k move · n/p commit · backspace commits · q quit"
+			status = "enter open · f flow · j/k move · n/p commit · backspace commits · q quit"
 		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))

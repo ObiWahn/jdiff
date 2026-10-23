@@ -32,6 +32,7 @@ type Log struct {
 	cursor  int
 	top     int
 	open    *commitEntry // commit whose files are shown, nil for the list
+	flow    *Flow        // all commits one after the other
 
 	width, height int
 	msg           string
@@ -40,9 +41,13 @@ type Log struct {
 // NewLog returns the commit list for commits, newest first.
 func NewLog(cfg *config.Config, commits []gitsrc.Commit, load LoadFunc) *Log {
 	l := &Log{cfg: cfg, load: load}
+	var parts []*flowPart
 	for _, c := range commits {
-		l.commits = append(l.commits, &commitEntry{Commit: c})
+		e := &commitEntry{Commit: c}
+		l.commits = append(l.commits, e)
+		parts = append(parts, &flowPart{commit: e, header: commitHeader(c)})
 	}
+	l.flow = newFlow(cfg, parts, l.app)
 	if len(commits) == 0 {
 		l.msg = "no commits"
 	}
@@ -59,12 +64,25 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		l.width, l.height = msg.Width, msg.Height
 		l.scrollToCursor()
+		if l.flowShown() {
+			l.flow.Update(msg)
+			return l, nil
+		}
 	case backMsg:
 		l.open = nil
 		return l, nil
 	case switchCommitMsg:
 		l.switchCommit(int(msg))
 		return l, nil
+	case toggleFlowMsg:
+		l.toggleFlow()
+		return l, nil
+	}
+	if l.flowShown() {
+		_, cmd := l.flow.Update(msg)
+		l.cursor, _, _ = l.flow.position()
+		l.scrollToCursor()
+		return l, cmd
 	}
 	if l.open != nil {
 		_, cmd := l.open.app.Update(msg)
@@ -99,9 +117,89 @@ func (l *Log) key(k string) tea.Cmd {
 	case "end", "G":
 		l.moveCursor(len(l.commits))
 	case "enter":
-		l.openCommit(l.cursor, "")
+		if l.cfg.Settings.Flow {
+			l.showFlow(-1, -1, 0)
+		} else {
+			l.openCommit(l.cursor, "")
+		}
+	case "f":
+		return toggleFlow
 	}
 	return nil
+}
+
+// flowShown reports whether the flow view is shown.
+func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow }
+
+// showFlow shows the flow view on line of file of the commit under the
+// cursor (see Flow.show) at screen row screenRow.
+func (l *Log) showFlow(file, line, screenRow int) {
+	l.open = l.commits[l.cursor]
+	l.flow.width, l.flow.height = l.width, l.height
+	l.flow.show(l.cursor, file, line, screenRow)
+}
+
+// toggleFlow switches between the flow view and the files of the commit
+// under the cursor, keeping the cursor on its line and screen row.
+func (l *Log) toggleFlow() {
+	st := &l.cfg.Settings
+	if !st.Flow {
+		st.Flow = true
+		switch {
+		case l.open == nil:
+			l.showFlow(-1, -1, 0)
+		case l.open.app.open == nil:
+			l.showFlow(l.open.app.cursor, -1, 0)
+		default:
+			app := l.open.app
+			m := app.open.view
+			l.showFlow(app.cursor, m.cursor, m.cursor-m.top)
+			l.flow.active = m.active
+		}
+		return
+	}
+	st.Flow = false
+	if l.open == nil {
+		l.msg = "flow off"
+		return
+	}
+	p, file, line := l.flow.position()
+	screenRow := l.flow.cursor - l.flow.top
+	path := ""
+	if e := l.commits[p]; e.app != nil && file >= 0 {
+		path = e.app.files[file].Path
+	}
+	l.open = nil
+	if !l.openCommit(p, path) {
+		return
+	}
+	app := l.open.app
+	if app.open == nil && file >= 0 {
+		app.cursor = file
+		app.scrollToCursor()
+	}
+	if app.open != nil && line >= 0 && app.open.Path == path {
+		m := app.open.view
+		m.active = l.flow.active
+		m.cursor = line
+		m.top = line - screenRow
+		m.scrollToCursor()
+	}
+}
+
+// app returns the file selector of commit i, loading its files on first
+// use.
+func (l *Log) app(i int) (*App, error) {
+	e := l.commits[i]
+	if e.app == nil {
+		files, err := l.load(e.Commit)
+		if err != nil {
+			return nil, err
+		}
+		e.app = newApp(l.cfg, files, true)
+		e.app.title = e.Short + " " + e.Subject + ": "
+	}
+	return e.app, nil
 }
 
 // openCommit shows the files of commit i, opening path directly when the
@@ -111,15 +209,9 @@ func (l *Log) openCommit(i int, path string) bool {
 		return false
 	}
 	e := l.commits[i]
-	if e.app == nil {
-		files, err := l.load(e.Commit)
-		if err != nil {
-			l.msg = err.Error()
-			return false
-		}
-		e.app = NewApp(l.cfg, files)
-		e.app.inLog = true
-		e.app.title = e.Short + " " + e.Subject + ": "
+	if _, err := l.app(i); err != nil {
+		l.msg = err.Error()
+		return false
 	}
 	e.app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
 	switch {
@@ -185,6 +277,9 @@ func (l *Log) scrollToCursor() {
 const maxAuthorWidth = 16
 
 func (l *Log) View() string {
+	if l.flowShown() {
+		return l.flow.View()
+	}
 	if l.open != nil {
 		return l.open.app.View()
 	}
@@ -219,7 +314,7 @@ func (l *Log) View() string {
 	}
 	status := l.msg
 	if status == "" {
-		status = "enter open · j/k move · q quit"
+		status = "enter open · f flow · j/k move · q quit"
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), l.width, ""))
 	return b.String()

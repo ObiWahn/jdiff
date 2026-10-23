@@ -41,7 +41,7 @@ func newRepo(t *testing.T) Repo {
 	run("mv", "b.txt", "c.txt")
 	write("bin.dat", "\x00\x01")
 	run("add", ".")
-	run("commit", "-qm", "second")
+	run("commit", "-qm", "second", "-m", "first body line\nsecond body line")
 	run("checkout", "-qb", "side", "HEAD~1")
 	write("d.txt", "side\n")
 	run("add", ".")
@@ -76,6 +76,9 @@ func TestLog(t *testing.T) {
 	}
 	if merge.Added != 1 || merge.Removed != 0 {
 		t.Errorf("merge counts +%d -%d, want +1 -0 against the first parent", merge.Added, merge.Removed)
+	}
+	if second.Body != "first body line\nsecond body line" || root.Body != "" {
+		t.Errorf("bodies: second %q root %q", second.Body, root.Body)
 	}
 	if root.Short == "" || root.Author != "T" || root.Date == "" {
 		t.Errorf("root = %+v", root)
