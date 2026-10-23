@@ -63,6 +63,20 @@ func TestMarkMessages(t *testing.T) {
 	}
 }
 
+func TestMarkFindsLineInShrunkFile(t *testing.T) {
+	m := newMarkModel()
+	press(m, "ctrl+space")
+	moveTo(t, m, right, 30)
+	press(m, "m", "a")
+	// The file shrank to 3 lines, the marked line among them: it is found
+	// by its text, although its old number is far past the end.
+	m.reload(right, []string{"x0", m.lines[right][30], "x2"})
+	press(m, "g", "'", "a")
+	if m.lineAt(right, m.cursor) != 1 || m.msg != "mark a" {
+		t.Errorf("shrunk file: right line %d, msg %q; want line 1 found by its text", m.lineAt(right, m.cursor), m.msg)
+	}
+}
+
 func TestMarkFindsMovedLine(t *testing.T) {
 	m := newMarkModel()
 	press(m, "ctrl+space")

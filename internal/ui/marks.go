@@ -69,7 +69,9 @@ func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
 		return 0, "", false
 	}
 	want := m.Line - 1
-	for dist := 0; dist < len(lines); dist++ {
+	// Out from the old line until both directions left the file, which may
+	// have shrunk far below it.
+	for dist := 0; want-dist >= 0 || want+dist < len(lines); dist++ {
 		for _, i := range []int{want - dist, want + dist} {
 			// Without the \r of a \r\n line end, which may have changed.
 			if i >= 0 && i < len(lines) && strings.TrimSuffix(lines[i], "\r") == strings.TrimSuffix(m.Text, "\r") {
