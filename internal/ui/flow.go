@@ -481,11 +481,11 @@ func (f *Flow) scrollToCursor() {
 }
 
 func (f *Flow) help() string {
-	h := "f single file · tab pane · enter mark/anchor · space fold · ]/[ change · s layout · n/p file · "
+	h := "f single file · space fold · ]/[ change · n/p file · "
 	if f.load != nil {
 		h += "N/P commit · "
 	}
-	return h + "backspace back · q quit"
+	return h + "? help · q quit"
 }
 
 func (f *Flow) View() string {

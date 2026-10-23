@@ -340,7 +340,7 @@ func (l *Log) View() string {
 	}
 	status := l.msg
 	if status == "" {
-		status = "enter open · f flow · v message · j/k move · q quit"
+		status = "enter open · f flow · v message · ? help · q quit"
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), l.width, ""))
 	return b.String()

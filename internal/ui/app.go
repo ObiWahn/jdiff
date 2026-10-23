@@ -424,9 +424,9 @@ func (a *App) View() string {
 
 	status := a.msg
 	if status == "" {
-		status = "enter open · f flow · v preview · s layout · j/k move · q quit"
+		status = "enter open · f flow · v preview · ? help · q quit"
 		if a.inLog {
-			status = "enter open · f flow · v preview · s layout · j/k move · N/P commit · backspace commits · q quit"
+			status = "enter open · N/P commit · backspace commits · ? help · q quit"
 		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))
