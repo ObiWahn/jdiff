@@ -66,7 +66,9 @@ func (d *fileDiff) numWidth() int {
 }
 
 // header renders the file names above both panes.
-func (m *Model) header() string { return paneTitles(m.cfg.Theme, m.names, m.active, m.width) }
+func (m *Model) header() string {
+	return paneTitles(m.cfg.Theme, m.names, m.active, m.cfg.Settings.SideBySide, m.width)
+}
 
 // screenLine renders screen line s in the current layout, marked as the
 // cursor line when cursor is set.

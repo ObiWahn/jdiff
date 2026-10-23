@@ -591,7 +591,7 @@ func (f *Flow) header() string {
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}
 	if file >= 0 {
-		b.WriteString(paneTitles(t, f.parts[p].app.files[file].paneNames(), f.active, f.width))
+		b.WriteString(paneTitles(t, f.parts[p].app.files[file].paneNames(), f.active, f.cfg.Settings.SideBySide, f.width))
 	}
 	return b.String() + "\n"
 }

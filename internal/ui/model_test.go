@@ -677,3 +677,16 @@ func TestViewFollowsItsLineThroughReload(t *testing.T) {
 		t.Errorf("cursor on right line %d, want 15, the old partner of the changed line", line)
 	}
 }
+
+func TestHeaderFocus(t *testing.T) {
+	ansiColors(t)
+	m := newTestModel([]string{"a"}, []string{"b"})
+	press(m, "tab") // the new side
+	if h := m.header(); !strings.Contains(h, "\x1b[2m old") || !strings.Contains(h, "\x1b[1m new") {
+		t.Errorf("side by side: header %q, want the old name faint and the active new one bold", h)
+	}
+	press(m, "s") // the normal layout: one column, no pane has the focus
+	if h := m.header(); strings.Contains(h, "\x1b[2m") || !strings.Contains(h, "\x1b[1m old") || !strings.Contains(h, "\x1b[1m new") {
+		t.Errorf("normal layout: header %q, want both names bold", h)
+	}
+}

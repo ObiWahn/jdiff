@@ -10,13 +10,14 @@ import (
 	"jdiff/internal/theme"
 )
 
-// paneTitles renders names above the panes of a view width columns wide,
-// the name of the active pane in bold, the other one faint.
-func paneTitles(t *theme.Theme, names [2]string, active side, width int) string {
+// paneTitles renders names above the panes of a view width columns wide.
+// Side by side the name of the active pane is bold, the other one faint; in
+// the normal layout, one column of both, both are bold.
+func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
 	w := (width - 1) / 2
 	title := func(s side) string {
 		style := lipgloss.NewStyle().Bold(true)
-		if s != active {
+		if sideBySide && s != active {
 			style = lipgloss.NewStyle().Faint(true)
 		}
 		return pad(style.Render(ansi.Truncate(" "+names[s], w, "…")), w, lipgloss.NewStyle())
