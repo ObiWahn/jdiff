@@ -142,7 +142,7 @@ func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
 	_, moved := d.movedTo(s, line)
 	gutter := d.gutter(row, s, changed, pending, moved, piece > 0, nums, t.Decoration, cursor, cursor)
 	width := d.contentWidth(lo.width, true)
-	return gutter + d.content(s, row, line, width, cursor, moved, startCol(piece, width, lo))
+	return gutter + d.content(s, row, line, width, cursor, moved, startCol(piece, width, lo), lo.wrap == 0)
 }
 
 // bodyRow renders line sub of displayed row v side by side, marked as the
@@ -215,7 +215,7 @@ func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo l
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	return gutter + d.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo))
+	return gutter + d.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo), lo.wrap == 0)
 }
 
 // gutter renders what precedes a line of side s in row: the marker, the line
@@ -282,7 +282,9 @@ func (d *fileDiff) movedStyle(s side) lipgloss.Style {
 // content renders line of side s, shown in row, width columns wide with
 // changes emphasized, from column from on. On the cursor line unchanged text
 // is bold; a moved line is drawn in the moved style, without emphasis.
-func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved bool, from int) string {
+// With cut, a line that goes on past the pane ends in Extends, one with
+// text scrolled out to the left starts with Precedes.
+func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved bool, from int, cut bool) string {
 	t := d.cfg.Theme
 	lineStyle, nonEmph, emph, indent := d.sideStyles(s)
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
@@ -303,8 +305,38 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 		st.base = lineStyle
 	}
 	content := highlight(d.lines[s][line], spans, st)
-	content = ansi.Cut(content, from, from+width)
-	return pad(content, width, lipgloss.NewStyle())
+	plain := lipgloss.NewStyle()
+	if !cut { // a piece of a wrapped line
+		return pad(ansi.Cut(content, from, from+width), width, plain)
+	}
+	// fit returns s as w columns.
+	fit := func(s string, w int) string { return pad(ansi.Truncate(s, w, ""), w, plain) }
+	full := ansi.StringWidth(content)
+	content = fit(cutLeft(content, from), width)
+	// The edges say where the line goes on.
+	if width >= 2 {
+		mark := d.cfg.Theme.Overflow
+		if full > from+width {
+			content = fit(content, width-1) + mark.Render(d.cfg.Settings.Extends)
+		}
+		if from > 0 && full > 0 {
+			content = mark.Render(d.cfg.Settings.Precedes) + fit(cutLeft(content, 1), width-1)
+		}
+	}
+	return content
+}
+
+// cutLeft returns s without its first n columns. A wide character they cut
+// through leaves a space, so that what follows keeps its column.
+func cutLeft(s string, n int) string {
+	if n <= 0 {
+		return s
+	}
+	r := ansi.TruncateLeft(s, n, "")
+	if ansi.StringWidth(r) > ansi.StringWidth(s)-n { // kept the cut character
+		r = " " + ansi.TruncateLeft(s, n+1, "")
+	}
+	return r
 }
 
 // highlight renders text with the given spans emphasized. Changed

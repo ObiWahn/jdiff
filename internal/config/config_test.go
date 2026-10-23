@@ -303,6 +303,29 @@ func TestCREnd(t *testing.T) {
 	}
 }
 
+func TestCutMarkers(t *testing.T) {
+	for _, tt := range []struct {
+		main              string
+		extends, precedes string
+		warning           string
+	}{
+		{"", "»", "«", ""},
+		{"extends = \">\"\nprecedes = \"<\"", ">", "<", ""},
+		{`extends = ">>"`, "»", "«", `extends ">>" is not one column wide`},
+		{`precedes = ""`, "»", "«", `precedes "" is not one column wide`},
+	} {
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st := c.Settings
+		if w := c.Warning(); st.Extends != tt.extends || st.Precedes != tt.precedes || (tt.warning == "") != (w == "") ||
+			!strings.Contains(w, tt.warning) {
+			t.Errorf("%q: extends %q precedes %q, warning %q", tt.main, st.Extends, st.Precedes, w)
+		}
+	}
+}
+
 func TestMarks(t *testing.T) {
 	dir := t.TempDir()
 	c, err := Load(dir, nil, "", "")

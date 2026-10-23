@@ -22,6 +22,7 @@ It reads [delta](https://github.com/dandavison/delta)'s git config, so an existi
   - A mark finds its line again by its text when the file changed.
 - **Live reload:** outside the log, files on disk are watched (by default every second). When a file changes, its diff is updated, and anchors, folds and the cursor follow their lines.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
+- **Cut lines:** without wrapping (`r`), a line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
 - **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
 - **Line wrap (reflow):** `r` wraps long lines onto further lines, marked `↪`, instead of cutting them; off, `h` and `l` scroll them.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
@@ -180,6 +181,8 @@ only_changed_whitespaces = true # mark only the added or removed part of whitesp
 watch_interval = 1              # seconds between checks for changed files; 0 turns it off
 line_end = "¶"                  # drawn at the end of lines while w shows all whitespace; one column
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
+extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column
+precedes = "«"                  # first column of a line scrolled out to the left; one column
 
 # The toggles, also kept in state.toml:
 side_by_side = true
@@ -214,7 +217,7 @@ sand = "#c2b280"
 The options:
 
 - From delta: `minus-style`, `minus-emph-style`, `minus-non-emph-style`, `plus-style`, `plus-emph-style`, `plus-non-emph-style`, `zero-style`, `line-numbers-minus-style`, `line-numbers-plus-style`, `line-numbers-zero-style`, `line-numbers-left-style`, `line-numbers-right-style`, `file-style`, `file-decoration-style`, `inline-hint-style`, `file-added-label`, `file-removed-label`, `file-modified-label`, `file-renamed-label`.
-- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
+- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
 
 Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`, …), then a foreground and a background color, given as a name, `bright-` name, 0–255 or `#rrggbb`. Colors beyond the 16 ANSI colors are mapped to the nearest one.
 

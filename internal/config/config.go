@@ -93,7 +93,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			key      string
 			v        *string
 			fallback string
-		}{{"line_end", &c.Settings.LineEnd, def.LineEnd}, {"cr_end", &c.Settings.CREnd, def.CREnd}} {
+		}{
+			{"line_end", &c.Settings.LineEnd, def.LineEnd}, {"cr_end", &c.Settings.CREnd, def.CREnd},
+			{"extends", &c.Settings.Extends, def.Extends}, {"precedes", &c.Settings.Precedes, def.Precedes},
+		} {
 			if ansi.StringWidth(*sym.v) != 1 {
 				c.warnings = append(c.warnings, fmt.Sprintf("main.toml: %s %q is not one column wide, %q is used",
 					sym.key, *sym.v, sym.fallback))

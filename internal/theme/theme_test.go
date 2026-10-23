@@ -190,6 +190,12 @@ func TestMovedStyles(t *testing.T) {
 	}
 }
 
+func TestOverflowStyle(t *testing.T) {
+	if fg := Default().Overflow.GetForeground(); fg != lipgloss.Color("4") {
+		t.Errorf("cut line markers %v, want blue", fg)
+	}
+}
+
 func TestHiddenCharStyle(t *testing.T) {
 	if bg := Default().HiddenChar.GetBackground(); bg != lipgloss.Color("1") {
 		t.Errorf("hidden character background %v, want red", bg)

@@ -604,6 +604,55 @@ func TestMarksIgnoreCarriageReturn(t *testing.T) {
 	}
 }
 
+func TestCutLineMarkers(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	probe := newTestModel([]string{"x"}, []string{"x"})
+	cw := probe.contentWidth(80, false)
+	long := strings.Repeat("abcdefghij", 10)
+	exact := strings.Repeat("y", cw)
+	m := newTestModel([]string{long, exact, "short"}, []string{long, exact, "short"})
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	cell := func(v int, s side) string {
+		// The text of one pane, between its separator and the next.
+		row := ansi.Strip(m.screenLine(m.screen[m.screenAt[sline{v, 0}]], false))
+		parts := strings.Split(row, "│")
+		return strings.TrimRight(parts[1+2*int(s)], " ")[1:]
+	}
+	if got := cell(0, left); !strings.HasSuffix(got, "»") || strings.HasPrefix(got, "«") {
+		t.Errorf("long line: %q, want » at its end only", got)
+	}
+	if got := cell(1, right); strings.Contains(got, "»") {
+		t.Errorf("line as wide as the pane: %q, want no marker", got)
+	}
+	if !strings.Contains(m.screenLine(m.screen[0], false), "\x1b[34m»") {
+		t.Errorf("marker not blue: %q", m.screenLine(m.screen[0], false))
+	}
+	press(m, "l")
+	if got := cell(0, left); !strings.HasPrefix(got, "«") || !strings.HasSuffix(got, "»") {
+		t.Errorf("scrolled long line: %q, want « and »", got)
+	}
+	if got := cell(2, left); got != "«" {
+		t.Errorf("short line scrolled out of view: %q, want «", got)
+	}
+	// Scrolled into a wide character, and one at the right edge: the row
+	// keeps the width of the view.
+	wide := "1234567日本語" + strings.Repeat("語", cw)
+	w := newTestModel([]string{wide, "x"}, []string{wide, "y"})
+	press(w, "l")
+	want := ansi.StringWidth(w.screenLine(w.screen[1], false)) // a row of a short line
+	if got := ansi.StringWidth(w.screenLine(w.screen[0], false)); got != want {
+		t.Errorf("wide characters at the edges: row %d columns wide, want %d: %q", got, want,
+			ansi.Strip(w.screenLine(w.screen[0], false)))
+	}
+
+	press(m, "r")
+	if strings.ContainsAny(ansi.Strip(m.View()), "«»") {
+		t.Errorf("wrapped lines with markers:\n%s", ansi.Strip(m.View()))
+	}
+}
+
 func TestHighlightPlainChangedWhitespace(t *testing.T) {
 	// W off: changed whitespace looks like unchanged whitespace, plain or,
 	// with all whitespace shown, as · and → like the rest; words keep their

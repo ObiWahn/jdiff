@@ -25,6 +25,12 @@ type Settings struct {
 	// CREnd (cr_end) is drawn for the \r of a \r\n line end where it
 	// changed, and on all lines while ShowCR is set; one column wide.
 	CREnd string `toml:"cr_end"`
+	// Extends (extends) and Precedes (precedes) mark lines cut at the edge
+	// of their pane while lines are not wrapped: Extends in the last column
+	// when the line goes on, Precedes in the first when text is scrolled out
+	// to the left; one column wide each.
+	Extends  string `toml:"extends"`
+	Precedes string `toml:"precedes"`
 	Toggles
 }
 
@@ -81,6 +87,8 @@ func Default() Settings {
 		WatchInterval:          1,
 		LineEnd:                "¶",
 		CREnd:                  "␍",
+		Extends:                "»",
+		Precedes:               "«",
 		Toggles: Toggles{
 			SideBySide:      true,
 			Preview:         true,

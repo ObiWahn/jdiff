@@ -57,6 +57,7 @@ type Spec struct {
 	WhitespaceStyle         *string `toml:"whitespace-style" git:"jdiff"`          // unset: file-decoration-style's color
 	TrailingWhitespaceStyle *string `toml:"trailing-whitespace-style" git:"jdiff"` // shown by t
 	HiddenCharStyle         *string `toml:"hidden-char-style" git:"jdiff"`         // ☠ for invisible characters
+	OverflowStyle           *string `toml:"overflow-style" git:"jdiff"`            // « » at the edges of cut lines
 	MinusIndentStyle        *string `toml:"minus-indent-style" git:"jdiff"`        // unset: minus-emph-style
 	PlusIndentStyle         *string `toml:"plus-indent-style" git:"jdiff"`         // unset: plus-emph-style
 	MinusMovedStyle         *string `toml:"minus-moved-style" git:"jdiff"`         // removed lines that moved elsewhere
@@ -133,6 +134,7 @@ func Builtin() Spec {
 		// Trailing whitespace as git marks whitespace errors.
 		TrailingWhitespaceStyle: str("normal red"),
 		HiddenCharStyle:         str("normal red"),
+		OverflowStyle:           str("blue"),
 	}
 }
 
