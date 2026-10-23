@@ -40,6 +40,13 @@ func FindMoves(files []MoveInput) Moves {
 	removed := make([]side, len(files))
 	added := make([]side, len(files))
 	candidates := map[string][]Ref{} // added lines by their key
+	// Added lines followed by another added line, by the keys of both: the
+	// starts of blocks of two lines or more, so that a line found in many
+	// places, like a blank one, is not tried against all of them.
+	pairs := map[string][]Ref{}
+	pairKey := func(lines []string, line int) string {
+		return strings.TrimSpace(lines[line]) + "\n" + strings.TrimSpace(lines[line+1])
+	}
 	for i, f := range files {
 		removed[i] = side{row: map[int]int{}, used: map[int]bool{}}
 		added[i] = side{row: map[int]int{}, used: map[int]bool{}}
@@ -58,6 +65,10 @@ func FindMoves(files []MoveInput) Moves {
 			if _, ok := added[i].row[line]; ok {
 				key := strings.TrimSpace(f.New[line])
 				candidates[key] = append(candidates[key], Ref{i, line})
+				if _, ok := added[i].row[line+1]; ok {
+					pk := pairKey(f.New, line)
+					pairs[pk] = append(pairs[pk], Ref{i, line})
+				}
 			}
 		}
 	}
@@ -80,18 +91,33 @@ func FindMoves(files []MoveInput) Moves {
 	for i := range files {
 		moves.From[i], moves.To[i] = map[int]Ref{}, map[int]Ref{}
 	}
+	// longest returns the longest block starting at removed line l of file
+	// i among the added lines cands, the first one on a tie, and its length.
+	longest := func(i, l int, cands []Ref) (best Ref, n int) {
+		for _, c := range cands {
+			k := 0
+			for matches(i, l+k, Ref{c.File, c.Line + k}) {
+				k++
+			}
+			if k > n {
+				best, n = c, k
+			}
+		}
+		return best, n
+	}
 	for i, f := range files {
 		for l := 0; l < len(f.Old); l++ {
+			// Blocks of two lines or more start among the pairs, in the
+			// order of the candidates. A single line counts only with
+			// enough letters and digits of its own, rarely found in many
+			// places: only then are all candidates tried.
 			var best Ref
 			n := 0
-			for _, c := range candidates[strings.TrimSpace(f.Old[l])] {
-				k := 0
-				for matches(i, l+k, Ref{c.File, c.Line + k}) {
-					k++
-				}
-				if k > n {
-					best, n = c, k
-				}
+			if l+1 < len(f.Old) {
+				best, n = longest(i, l, pairs[pairKey(f.Old, l)])
+			}
+			if n < 2 && alnum(f.Old[l:l+1]) >= minMovedAlnum {
+				best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])])
 			}
 			if n == 0 || alnum(f.Old[l:l+n]) < minMovedAlnum {
 				continue

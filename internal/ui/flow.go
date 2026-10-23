@@ -266,19 +266,17 @@ func (f *Flow) jump() {
 	if !ok {
 		return
 	}
-	for i, e := range app.files {
-		if e.diff == nil || e.diff.groupIndex != end.file {
-			continue
-		}
-		at := e.diff.spotOf(end.side, end.line)
-		f.keepScreenRow(func() {
-			if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
-				f.cursor = j
-			}
-		})
-		f.active = at.side
+	i := app.fileByGroup(end.file)
+	if i < 0 {
 		return
 	}
+	at := app.files[i].diff.spotOf(end.side, end.line)
+	f.keepScreenRow(func() {
+		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
+			f.cursor = j
+		}
+	})
+	f.active = at.side
 }
 
 // setMark sets jump mark letter on the new-file line under the cursor.
@@ -300,31 +298,31 @@ func (f *Flow) gotoMark(letter string) {
 		f.msg = "no mark " + letter
 		return
 	}
-	if len(f.rows) > 0 {
-		r := f.rows[f.cursor]
-		if app := f.parts[r.part].app; app != nil {
-			for i, e := range app.files {
-				if e.Path != mk.Path || e.diff == nil {
-					continue
-				}
-				line, note, ok := e.diff.markLine(mk)
-				if !ok {
-					f.msg = markMsg(letter, "the new file is empty")
-					return
-				}
-				f.keepScreenRow(func() {
-					at := e.diff.reveal(right, line)
-					f.build() // a fold may have opened
-					if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
-						f.cursor = j
-					}
-				})
-				f.active, f.msg = right, markMsg(letter, note)
-				return
-			}
-		}
+	if len(f.rows) == 0 || f.parts[f.rows[f.cursor].part].app == nil {
+		f.msg = notInDiff(letter, mk)
+		return
 	}
-	f.msg = notInDiff(letter, mk)
+	r := f.rows[f.cursor]
+	app := f.parts[r.part].app
+	i := app.fileByPath(mk.Path)
+	if i < 0 {
+		f.msg = notInDiff(letter, mk)
+		return
+	}
+	d := app.files[i].diff
+	line, note, ok := d.markLine(mk)
+	if !ok {
+		f.msg = markMsg(letter, "the new file is empty")
+		return
+	}
+	f.keepScreenRow(func() {
+		at := d.reveal(right, line)
+		f.build() // a fold may have opened
+		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
+			f.cursor = j
+		}
+	})
+	f.active, f.msg = right, markMsg(letter, note)
 }
 
 // dropMark cancels a pending mark; the caller rebuilds the rows.
@@ -608,7 +606,7 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	if f.inLog() && f.unloaded(part) {
 		f.loadPart(part)
 	}
-	f.marked, f.replacing = nil, nil
+	f.adopt(part, file)
 	i := f.find(flowRow{flowCommit, part, -1, 0, 0})
 	switch {
 	case f.parts[part].app == nil:
@@ -621,6 +619,60 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	f.top = f.cursor - screenRow
 	f.scrollToCursor()
 	f.loadVisible()
+}
+
+// showFrom shows file of part where its diff view from leaves it: on the
+// cursor's line at its screen row, in its pane. For from nil it shows the
+// file's bar, or the commit's bar for file -1. Model.takeOver is the way
+// back.
+func (f *Flow) showFrom(part, file int, from *Model) {
+	if from == nil {
+		f.show(part, file, -1, 0, 0)
+		return
+	}
+	from.syncLayout()
+	f.show(part, file, from.cursor, from.sub, from.pos()-from.top)
+	f.active = from.active
+}
+
+// adopt takes over the pending mark and replace prompt that diff views of
+// the files of part left, so that esc and enter treat them as the flow's
+// own. Of several pending marks the one of file is kept, else the first;
+// the others are dropped, as the flow keeps one.
+func (f *Flow) adopt(part, file int) {
+	f.marked, f.replacing = nil, nil
+	app := f.parts[part].app
+	if app == nil {
+		return
+	}
+	var marked []*fileDiff
+	for i, e := range app.files {
+		d := e.diff
+		if d == nil {
+			continue
+		}
+		if d.pending != nil {
+			if i == file {
+				marked = append([]*fileDiff{d}, marked...)
+			} else {
+				marked = append(marked, d)
+			}
+		}
+		if d.replace != nil {
+			f.replacing = d
+		}
+	}
+	if len(marked) == 0 {
+		return
+	}
+	for _, d := range marked[1:] {
+		f.marked = d
+		f.dropMark()
+	}
+	f.marked = marked[0]
+	if len(marked) > 1 {
+		f.build() // the dropped marks may have folded rows
+	}
 }
 
 // position returns the part of the cursor, its file (-1 on rows of the

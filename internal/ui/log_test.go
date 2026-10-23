@@ -451,3 +451,40 @@ func TestFlowStayInCommit(t *testing.T) {
 		t.Errorf("C off, k: setting %v, on commit %d; want off and back in c3", l.cfg.Settings.StayInCommit, part())
 	}
 }
+
+func TestLogExpandsTabsInCommits(t *testing.T) {
+	commits := []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-22", Author: "A\tB",
+		Subject: "sub\tject\x01", Body: "body\tline\nsecond\t\tline"}}
+	load := func(gitsrc.Commit) ([]source.File, error) {
+		return []source.File{modified("a.go", []string{"1"}, []string{"2"})}, nil
+	}
+	l := NewLog(config.Default(), "main", commits, load)
+	l.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+	if line := rawText(l.View(), 60); line != "" {
+		t.Errorf("commit list line with raw text: %q", line)
+	}
+	l.cfg.Settings.Flow = true
+	pressLog(l, "enter")
+	if line := rawText(l.View(), 60); line != "" {
+		t.Errorf("flow line with raw text: %q", line)
+	}
+	if !strings.Contains(ansi.Strip(l.View()), "    body    line") {
+		t.Errorf("body not shown with its tab expanded:\n%s", ansi.Strip(l.View()))
+	}
+}
+
+func TestMarkOnCommitListExplains(t *testing.T) {
+	l, _ := newTestLog()
+	if err := l.cfg.SetMark("a", config.Mark{Path: "a.go", Line: 1, Text: "2"}); err != nil {
+		t.Fatal(err)
+	}
+	p := WithMarks(l.cfg, l)
+	p.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	pressRoot(p, "\\", "enter")
+	if want := "mark a: open a commit to jump to it"; l.msg != want {
+		t.Errorf("enter in the marks popup on the commit list: msg %q, want %q", l.msg, want)
+	}
+	if l.open != nil || l.cursor != 0 {
+		t.Errorf("the mark letter moved the list: open %v, cursor %d", l.open, l.cursor)
+	}
+}

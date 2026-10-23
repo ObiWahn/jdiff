@@ -32,9 +32,10 @@ type Log struct {
 
 	commits []*commitEntry
 	list
-	open *commitEntry // commit whose files are shown, nil for the list
-	flow *Flow        // all commits one after the other
-	msg  string
+	open   *commitEntry // commit whose files are shown, nil for the list
+	flow   *Flow        // all commits one after the other
+	msg    string
+	prefix string // "'" while waiting for the letter of a mark
 }
 
 // NewLog returns the commit list for commits, newest first, of branch.
@@ -42,6 +43,13 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 	l := &Log{cfg: cfg, branch: branch, load: load}
 	var parts []*flowPart
 	for _, c := range commits {
+		// Commits are only shown: their text is made printable once.
+		c.Author, c.Subject = printable(c.Author), printable(c.Subject)
+		body := strings.Split(c.Body, "\n")
+		for i, line := range body {
+			body[i] = printable(line)
+		}
+		c.Body = strings.Join(body, "\n")
 		e := &commitEntry{Commit: c}
 		l.commits = append(l.commits, e)
 		parts = append(parts, newCommitPart(e))
@@ -99,6 +107,14 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (l *Log) key(k string) tea.Cmd {
 	l.msg = ""
+	if l.prefix != "" {
+		// Marks are lines of files: the list has none to jump to.
+		l.prefix = ""
+		if isMarkLetter(k) {
+			l.msg = "mark " + k + ": open a commit to jump to it"
+		}
+		return nil
+	}
 	page := max(l.listHeight()-1, 1)
 	if delta, _, ok := motion(k, page, len(l.commits)); ok {
 		l.moveCursor(delta)
@@ -109,12 +125,14 @@ func (l *Log) key(k string) tea.Cmd {
 		return tea.Quit
 	case "enter":
 		if l.cfg.Settings.Flow {
-			l.showFlow(-1, -1, 0, 0)
+			l.showFlow(-1, nil)
 		} else {
 			l.openCommit(l.cursor, "")
 		}
 	case "f":
 		return toggleFlow
+	case "'":
+		l.prefix, l.msg = k, "jump to mark: press its letter"
 	case "v":
 		l.msg = toggle(l.cfg, &l.cfg.Settings.Preview)
 		l.scrollToCursor()
@@ -125,12 +143,13 @@ func (l *Log) key(k string) tea.Cmd {
 // flowShown reports whether the flow view is shown.
 func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow }
 
-// showFlow shows the flow view on line sub of diff row line of file of the
-// commit under the cursor (see Flow.show) at screen row screenRow.
-func (l *Log) showFlow(file, line, sub, screenRow int) {
+// showFlow shows the flow view on file of the commit under the cursor,
+// where its diff view from leaves it, or on its bar for from nil and on the
+// commit's bar for file -1 (see Flow.showFrom).
+func (l *Log) showFlow(file int, from *Model) {
 	l.open = l.commits[l.cursor]
 	l.flow.width, l.flow.height = l.width, l.height
-	l.flow.show(l.cursor, file, line, sub, screenRow)
+	l.flow.showFrom(l.cursor, file, from)
 }
 
 // toggleFlow switches between the flow view and the files of the commit
@@ -141,15 +160,11 @@ func (l *Log) toggleFlow() {
 		st.Flow = true
 		switch {
 		case l.open == nil:
-			l.showFlow(-1, -1, 0, 0)
+			l.showFlow(-1, nil)
 		case l.open.app.open == nil:
-			l.showFlow(l.open.app.cursor, -1, 0, 0)
+			l.showFlow(l.open.app.cursor, nil)
 		default:
-			app := l.open.app
-			m := app.open.view
-			m.syncLayout()
-			l.showFlow(app.cursor, m.cursor, m.sub, m.pos()-m.top)
-			l.flow.active = m.active
+			l.showFlow(l.open.app.cursor, l.open.app.open.view)
 		}
 		return
 	}

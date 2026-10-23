@@ -271,27 +271,7 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 			return
 		}
 		var p strings.Builder
-		for _, r := range part {
-			switch {
-			case r == '\t':
-				n := tabWidth - col%tabWidth
-				if visible {
-					p.WriteString("→" + strings.Repeat(" ", n-1))
-				} else {
-					p.WriteString(strings.Repeat(" ", n))
-				}
-				col += n
-			case r == ' ' && visible:
-				p.WriteRune('·')
-				col++
-			case r < 0x20 || r == 0x7f:
-				p.WriteRune('·')
-				col++
-			default:
-				p.WriteRune(r)
-				col += ansi.StringWidth(string(r))
-			}
-		}
+		expand(&p, part, &col, visible)
 		b.WriteString(style.Render(p.String()))
 	}
 	// renderPart splits a part into whitespace and other runs.
@@ -323,5 +303,41 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 		pos = sp.End
 	}
 	renderPart(text[pos:], false)
+	return b.String()
+}
+
+// expand writes text, which starts at column *col, to b as drawn: tabs
+// expanded to the next tab stop and control characters as ·; with visible
+// set, spaces are drawn as · and tabs start with →. *col advances.
+func expand(b *strings.Builder, text string, col *int, visible bool) {
+	for _, r := range text {
+		switch {
+		case r == '\t':
+			n := tabWidth - *col%tabWidth
+			if visible {
+				b.WriteString("→" + strings.Repeat(" ", n-1))
+			} else {
+				b.WriteString(strings.Repeat(" ", n))
+			}
+			*col += n
+		case r == ' ' && visible:
+			b.WriteRune('·')
+			*col++
+		case r < 0x20 || r == 0x7f:
+			b.WriteRune('·')
+			*col++
+		default:
+			b.WriteRune(r)
+			*col += ansi.StringWidth(string(r))
+		}
+	}
+}
+
+// printable returns line as drawn, see expand, so that its width is known:
+// text from files, git or marks may hold tabs and control characters.
+func printable(line string) string {
+	var b strings.Builder
+	col := 0
+	expand(&b, line, &col, false)
 	return b.String()
 }

@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"fmt"
 	"maps"
 	"testing"
 )
@@ -98,5 +99,25 @@ func TestFindMovesLongestBlockFirst(t *testing.T) {
 	m := FindMoves([]MoveInput{input(a, b)})
 	if got, ok := m.From[0][0]; !ok || got != (Ref{0, 6}) {
 		t.Errorf("first line moved to %v (found %v), want {0 6}, the start of the whole block", got, ok)
+	}
+}
+
+// BenchmarkFindMovesRewrite finds moves in a rewrite of every line, with
+// blank lines in different places on both sides: blank lines are found in
+// many places, but no block is moved.
+func BenchmarkFindMovesRewrite(b *testing.B) {
+	var old, new []string
+	for i := range 20000 {
+		old, new = append(old, fmt.Sprintf("old line %d", i)), append(new, fmt.Sprintf("new line %d", i))
+		if i%3 == 0 {
+			old[i] = ""
+		}
+		if i%4 == 0 {
+			new[i] = ""
+		}
+	}
+	in := []MoveInput{input(old, new)}
+	for b.Loop() {
+		FindMoves(in)
 	}
 }

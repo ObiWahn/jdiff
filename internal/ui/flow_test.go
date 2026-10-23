@@ -165,6 +165,25 @@ func TestFlowMarkMovesBetweenFiles(t *testing.T) {
 	}
 }
 
+func TestFlowTakesOverMarkOfDiffView(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "enter", "]", "enter", "f") // mark in the diff view of a.go, then flow
+	if a.files[0].diff.pending == nil {
+		t.Fatalf("enter did not mark a line in a.go")
+	}
+	pressApp(a, "G", "esc")
+	if a.files[0].diff.pending != nil || a.flow.msg != "mark cancelled" {
+		t.Errorf("esc in c.go: a.go mark %v, msg %q; want the mark of the diff view cancelled",
+			a.files[0].diff.pending, a.flow.msg)
+	}
+
+	a = newFlowApp()
+	pressApp(a, "enter", "]", "enter", "f", "G", "enter")
+	if a.files[0].diff.pending != nil || a.files[2].diff.pending == nil {
+		t.Errorf("marking in c.go should drop the mark set in the diff view of a.go")
+	}
+}
+
 func TestFlowFoldKeepsScreenRow(t *testing.T) {
 	a := newFlowApp()
 	pressApp(a, "f", "]")

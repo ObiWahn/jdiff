@@ -196,7 +196,7 @@ func (p *MarksPopup) View() string {
 	var lines []string
 	widest := 0
 	for i, mk := range marks {
-		line := fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, mk.Path, mk.Line, strings.TrimSpace(mk.Text))
+		line := fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
 		widest = max(widest, ansi.StringWidth(line))
 		if i < p.top || len(lines) >= p.boxHeight()-2 {
 			continue

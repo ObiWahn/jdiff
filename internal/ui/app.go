@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,9 +16,9 @@ import (
 	"jdiff/internal/theme"
 )
 
-// entry is one file in the selector. Its diff is created on first use and
-// its diff view on first open; both are kept, so anchors survive going back
-// to the list.
+// entry is one file in the selector. Its diff is created with the selector,
+// since moved code is searched in all files together, and its diff view on
+// first open; both are kept, so anchors survive going back to the list.
 type entry struct {
 	source.File
 	added, removed int
@@ -75,11 +76,11 @@ func (e *entry) updateStats() {
 	if e.Binary {
 		return
 	}
-	rows := diff.Align(e.Old, e.New, nil, diff.Options{})
 	if e.diff != nil {
-		rows = e.diff.rows
+		e.added, e.removed = diff.Stats(e.diff.rows)
+		return
 	}
-	e.added, e.removed = diff.Stats(rows)
+	e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil, diff.Options{}))
 }
 
 // App is the Bubble Tea model of the file selector. It shows the diff view
@@ -135,15 +136,33 @@ func (a *App) single() bool { return len(a.files) == 1 && !a.files[0].Binary }
 
 // openPath opens the file with the given path and reports whether it could.
 func (a *App) openPath(path string) bool {
-	for i, e := range a.files {
-		if e.Path == path && !e.Binary {
-			a.cursor = i
-			a.scrollToCursor()
-			a.openFile()
-			return true
-		}
+	i := a.fileByPath(path)
+	if i >= 0 {
+		a.openIndex(i)
 	}
-	return false
+	return i >= 0
+}
+
+// fileByPath returns the index of the file with the given path that can be
+// shown, or -1.
+func (a *App) fileByPath(path string) int {
+	return slices.IndexFunc(a.files, func(e *entry) bool { return e.Path == path && !e.Binary })
+}
+
+// fileByGroup returns the index of the file at index i of the files searched
+// for moved code, or -1.
+func (a *App) fileByGroup(i int) int {
+	return slices.IndexFunc(a.files, func(e *entry) bool { return e.diff != nil && e.diff.groupIndex == i })
+}
+
+// openIndex opens file i, after updating the counts of the file it leaves.
+func (a *App) openIndex(i int) {
+	if a.open != nil {
+		a.open.updateStats()
+	}
+	a.cursor = i
+	a.scrollToCursor()
+	a.openFile()
 }
 
 // setMsg shows msg in the status bar of whatever is displayed.
@@ -314,7 +333,7 @@ func (a *App) openFile() {
 		return
 	}
 	if a.cfg.Settings.Flow && !a.inLog() {
-		a.showFlow(a.cursor, -1, 0, 0)
+		a.showFlow(a.cursor, nil)
 		return
 	}
 	e := a.files[a.cursor]
@@ -326,15 +345,15 @@ func (a *App) openFile() {
 	a.open = e
 }
 
-// showFlow shows the flow view on line sub of diff row line of file (its
-// bar for line -1) at screen row screenRow.
-func (a *App) showFlow(file, line, sub, screenRow int) {
+// showFlow shows the flow view on file, where its diff view from leaves
+// it, or on its bar for from nil (see Flow.showFrom).
+func (a *App) showFlow(file int, from *Model) {
 	if a.flow == nil {
 		a.flow = flowOfApp(a)
 	}
 	a.open = a.files[file]
 	a.flow.width, a.flow.height = a.width, a.height
-	a.flow.show(0, file, line, sub, screenRow)
+	a.flow.showFrom(0, file, from)
 }
 
 // toggleFlow switches between the diff view of the file under the cursor
@@ -346,12 +365,9 @@ func (a *App) toggleFlow() {
 		switch {
 		case len(a.files) == 0:
 		case a.open == nil:
-			a.showFlow(a.cursor, -1, 0, 0)
+			a.showFlow(a.cursor, nil)
 		default:
-			m := a.open.view
-			m.syncLayout()
-			a.showFlow(a.cursor, m.cursor, m.sub, m.pos()-m.top)
-			a.flow.active = m.active
+			a.showFlow(a.cursor, a.open.view)
 		}
 		return
 	}
@@ -383,53 +399,35 @@ func (a *App) gotoMark(letter string, screenRow int) {
 		a.setMsg("no mark " + letter)
 		return
 	}
-	for i, e := range a.files {
-		if e.Path != mk.Path || e.Binary {
-			continue
-		}
-		if a.open != nil {
-			a.open.updateStats()
-		}
-		a.cursor = i
-		a.scrollToCursor()
-		if a.cfg.Settings.Flow && !a.inLog() {
-			a.showFlow(i, -1, 0, 0)
-			a.flow.gotoMark(letter)
-			return
-		}
-		a.openFile()
-		a.open.view.showMark(letter, mk, screenRow)
+	i := a.fileByPath(mk.Path)
+	if i < 0 {
+		a.setMsg(notInDiff(letter, mk))
 		return
 	}
-	a.setMsg(notInDiff(letter, mk))
+	a.openIndex(i)
+	if a.flowShown() {
+		a.flow.gotoMark(letter)
+		return
+	}
+	a.open.view.showMark(letter, mk, screenRow)
 }
 
 // jump opens the file of j's end of moved code with the cursor on its line.
 func (a *App) jump(j jumpMsg) {
-	for i, e := range a.files {
-		if e.diff == nil || e.diff.groupIndex != j.end.file {
-			continue
-		}
-		if a.open != nil {
-			a.open.updateStats()
-		}
-		a.cursor = i
-		a.scrollToCursor()
-		a.openFile()
-		a.open.view.show(e.diff.spotOf(j.end.side, j.end.line), j.screenRow)
-		a.open.view.msg = j.msg
+	i := a.fileByGroup(j.end.file)
+	if i < 0 {
 		return
 	}
+	a.openIndex(i)
+	a.open.view.show(a.open.diff.spotOf(j.end.side, j.end.line), j.screenRow)
+	a.open.view.msg = j.msg
 }
 
 // switchFile opens the next (dir > 0) or previous file that can be shown.
 func (a *App) switchFile(dir int) {
 	for i := a.cursor + dir; i >= 0 && i < len(a.files); i += dir {
 		if !a.files[i].Binary {
-			a.open.updateStats()
-			a.cursor = i
-			a.scrollToCursor()
-			a.openFile()
+			a.openIndex(i)
 			return
 		}
 	}

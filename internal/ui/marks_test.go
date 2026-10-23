@@ -180,3 +180,32 @@ func TestMarksPopupJumpsToAnotherFile(t *testing.T) {
 		t.Errorf("enter on a mark in b.go: file %s, line %d", a.open.Path, a.open.view.lineAt(right, a.open.view.cursor))
 	}
 }
+
+// rawText reports the first line of view, stripped of styles, that holds a
+// tab or control character or is wider than width, or "".
+func rawText(view string, width int) string {
+	for _, line := range strings.Split(ansi.Strip(view), "\n") {
+		if strings.ContainsFunc(line, func(r rune) bool { return r < 0x20 || r == 0x7f }) ||
+			ansi.StringWidth(line) > width {
+			return line
+		}
+	}
+	return ""
+}
+
+func TestMarksPopupExpandsTabs(t *testing.T) {
+	m := newMarkModel()
+	p := WithMarks(m.cfg, m)
+	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if err := m.cfg.SetMark("t", config.Mark{Path: "new", Line: 1, Text: "a\tb\x01c"}); err != nil {
+		t.Fatal(err)
+	}
+	pressRoot(p, "\\")
+	view := p.View()
+	if line := rawText(view, 80); line != "" {
+		t.Errorf("popup line with raw text: %q", line)
+	}
+	if !strings.Contains(ansi.Strip(view), "a   b·c") {
+		t.Errorf("mark text not shown with its tab expanded:\n%s", ansi.Strip(view))
+	}
+}
