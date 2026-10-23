@@ -53,11 +53,21 @@ As git's difftool, set it up once:
 ```gitconfig
 [diff]
     tool = jdiff
+[difftool]
+    prompt = false
 [difftool "jdiff"]
     cmd = jdiff "$LOCAL" "$REMOTE"
 ```
 
 Then `git difftool -d` opens all changed files in jdiff's file list.
+
+A short alias, `git jd`, takes the same arguments as `git diff` (`git jd`, `git jd --cached`, `git jd main..topic`):
+
+```sh
+git config --global alias.jd '!f() { if git diff --quiet "$@"; then echo "no changes"; else git difftool --dir-diff "$@"; fi; }; f'
+```
+
+The `git diff --quiet` check is needed: without changes, `git difftool --dir-diff` starts no tool and says nothing, and git 2.47.3 even crashes with a segmentation fault. The alias says "no changes" instead.
 Against the working tree, git links your working copy into the comparison, so edits you save while jdiff is open show up live.
 
 ## Keys
@@ -197,6 +207,13 @@ Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`,
 make test   # go test -race with a timeout
 make vet
 make fmt
+```
+
+To try your build with `git jd` in this repository, point the difftool at it in `.git/config`, which takes precedence over the global setup:
+
+```gitconfig
+[difftool "jdiff"]
+    cmd = "$(git rev-parse --show-toplevel)/bin/jdiff" "$LOCAL" "$REMOTE"
 ```
 
 The packages under `internal/`:
