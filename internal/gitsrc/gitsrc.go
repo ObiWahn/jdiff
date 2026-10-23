@@ -127,11 +127,7 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 			f.OldPath, f.Path = f.Path, tokens[i]
 			i++
 		}
-		oldPath := f.Path
-		if f.OldPath != "" {
-			oldPath = f.OldPath
-		}
-		specs = append(specs, base+":"+oldPath, c.Hash+":"+f.Path)
+		specs = append(specs, base+":"+f.PathInOld(), c.Hash+":"+f.Path)
 		files = append(files, f)
 	}
 

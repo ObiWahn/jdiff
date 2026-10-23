@@ -46,11 +46,7 @@ func (e *entry) name() string {
 
 // paneNames returns the names shown above the panes of the file's diff.
 func (e *entry) paneNames() [2]string {
-	oldPath := e.Path
-	if e.OldPath != "" {
-		oldPath = e.OldPath
-	}
-	return [2]string{"a/" + oldPath, "b/" + e.Path}
+	return [2]string{"a/" + e.PathInOld(), "b/" + e.Path}
 }
 
 func (e *entry) updateStats() {

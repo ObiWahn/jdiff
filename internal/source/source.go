@@ -24,6 +24,14 @@ type File struct {
 	Binary       bool
 }
 
+// PathInOld returns the path of the file on the old side.
+func (f File) PathInOld() string {
+	if f.OldPath != "" {
+		return f.OldPath
+	}
+	return f.Path
+}
+
 // ReadLines reads a text file into lines without their line terminators.
 func ReadLines(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
@@ -64,14 +72,11 @@ func LoadDirs(oldDir, newDir string) ([]File, error) {
 	paths := append(slices.Clone(oldFiles), newFiles...)
 	slices.Sort(paths)
 	paths = slices.Compact(paths)
+	inOld, inNew := pathSet(oldFiles), pathSet(newFiles)
 
 	var out []File
 	for _, p := range paths {
-		f := File{
-			Path:  p,
-			InOld: slices.Contains(oldFiles, p),
-			InNew: slices.Contains(newFiles, p),
-		}
+		f := File{Path: p, InOld: inOld[p], InNew: inNew[p]}
 		if f.InOld {
 			if f.Old, err = ReadLines(filepath.Join(oldDir, p)); err != nil && !errors.Is(err, ErrBinary) {
 				return nil, err
@@ -90,6 +95,14 @@ func LoadDirs(oldDir, newDir string) ([]File, error) {
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+func pathSet(paths []string) map[string]bool {
+	set := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		set[p] = true
+	}
+	return set
 }
 
 // listFiles returns the sorted slash-separated paths of all regular files
