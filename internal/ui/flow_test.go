@@ -243,3 +243,14 @@ func TestFlowAndPreviewLayout(t *testing.T) {
 		t.Errorf("f: normal %v cursor %d.%d, want %d.1", m.screenUnified, m.cursor, m.sub, line)
 	}
 }
+
+func TestFlowToggleAllBlocks(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f", "]")
+	rows := len(a.flow.rows)
+	pressApp(a, "ctrl+space")
+	if len(folds(a.files[0].view)) != 0 || len(a.flow.rows) <= rows {
+		t.Errorf("ctrl+space in the flow: %d folds in a.go, %d rows (was %d)",
+			len(folds(a.files[0].view)), len(a.flow.rows), rows)
+	}
+}

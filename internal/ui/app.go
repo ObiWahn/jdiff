@@ -193,7 +193,7 @@ func (a *App) key(k string) tea.Cmd {
 		a.moveCursor(1)
 	case "pgup", "ctrl+b":
 		a.moveCursor(-page)
-	case "pgdown", "ctrl+f", " ":
+	case "pgdown", "ctrl+f":
 		a.moveCursor(page)
 	case "home", "g":
 		a.moveCursor(-len(a.files))

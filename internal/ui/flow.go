@@ -157,7 +157,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		default:
 			f.msg = ends(k == "N", "oldest commit", "newest commit")
 		}
-	case "enter", "esc", " ":
+	case "enter", "esc", " ", "ctrl+@":
 		f.delegate(k)
 	case "s":
 		f.cfg.Settings.SideBySide = !f.cfg.Settings.SideBySide

@@ -147,3 +147,16 @@ func TestAppListNextPrev(t *testing.T) {
 		t.Errorf("p in the list: cursor %d, want b.go", a.cursor)
 	}
 }
+
+func TestSpaceDoesNotNavigateLists(t *testing.T) {
+	a := newTestApp()
+	pressApp(a, " ")
+	if a.cursor != 0 || a.open != nil {
+		t.Errorf("space in the file list: cursor %d open %v", a.cursor, a.open)
+	}
+	l, _ := newTestLog()
+	pressLog(l, " ")
+	if l.cursor != 0 || l.open != nil {
+		t.Errorf("space in the commit list: cursor %d open %v", l.cursor, l.open)
+	}
+}

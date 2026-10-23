@@ -37,7 +37,7 @@ func (m *Model) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) 
 }
 
 func (m *Model) help() string {
-	h := "tab pane · enter mark/anchor · space fold · ]/[ change · s layout · h/l scroll · esc cancel · "
+	h := "tab pane · enter mark/anchor · space fold · ctrl+space all · ]/[ change · s layout · h/l scroll · esc cancel · "
 	if m.commitNav {
 		h += "N/P commit · "
 	}

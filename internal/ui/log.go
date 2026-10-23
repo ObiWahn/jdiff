@@ -112,7 +112,7 @@ func (l *Log) key(k string) tea.Cmd {
 		l.moveCursor(1)
 	case "pgup", "ctrl+b":
 		l.moveCursor(-page)
-	case "pgdown", "ctrl+f", " ":
+	case "pgdown", "ctrl+f":
 		l.moveCursor(page)
 	case "home", "g":
 		l.moveCursor(-len(l.commits))

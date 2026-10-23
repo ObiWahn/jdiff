@@ -29,6 +29,8 @@ func keyMsg(k string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyEsc}
 	case "backspace":
 		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "ctrl+space":
+		return tea.KeyMsg{Type: tea.KeyCtrlAt}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }
@@ -448,5 +450,31 @@ func TestUnifiedNoMarks(t *testing.T) {
 	press(m, "j", "enter")
 	if m.pending != nil || m.msg != "marks need the side by side view (s)" {
 		t.Errorf("enter in the normal layout: pending %v msg %q", m.pending, m.msg)
+	}
+}
+
+func TestToggleAllBlocks(t *testing.T) {
+	// Changes at lines 10 and 40 of 60: three folded blocks.
+	a := numbered("x", 60)
+	b := slices.Clone(a)
+	b[9], b[39] = "new9", "new39"
+	m := newTestModel(a, b)
+	if len(folds(m)) != 3 {
+		t.Fatalf("%d folds at start, want 3", len(folds(m)))
+	}
+	press(m, "]", "ctrl+space")
+	if len(folds(m)) != 0 {
+		t.Errorf("ctrl+space with folds: %d folds left", len(folds(m)))
+	}
+	line := m.lineAt(left, m.cursor)
+	press(m, "ctrl+space")
+	if len(folds(m)) != 3 || m.lineAt(left, m.cursor) != line {
+		t.Errorf("ctrl+space without folds: %d folds, cursor on line %d, want 3 and %d",
+			len(folds(m)), m.lineAt(left, m.cursor), line)
+	}
+	// One open block is enough to fold all, one folded block to unfold all.
+	press(m, " ", "ctrl+space")
+	if len(folds(m)) != 0 {
+		t.Errorf("ctrl+space with one fold opened: %d folds, want all opened", len(folds(m)))
 	}
 }

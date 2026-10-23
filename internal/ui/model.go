@@ -217,6 +217,8 @@ func (m *Model) key(k string) tea.Cmd {
 		m.enter()
 	case " ":
 		m.toggleNearestBlock()
+	case "ctrl+@": // ctrl+space
+		m.toggleAllBlocks()
 	}
 	return nil
 }
@@ -455,6 +457,31 @@ func (m *Model) toggleNearestBlock() {
 	m.keepScreenRow(func() {
 		blk := m.blocks[b]
 		m.foldOpen[m.rows[blk.start].Left] = !m.blockOpen(blk)
+		m.buildView()
+		m.cursor = m.viewOf[r]
+	})
+}
+
+// toggleAllBlocks unfolds all blocks of unchanged rows when one of them is
+// folded, and folds them all otherwise. The cursor stays on its row, or on
+// the fold containing it.
+func (m *Model) toggleAllBlocks() {
+	if len(m.blocks) == 0 {
+		m.msg = "no unchanged code to fold"
+		return
+	}
+	open := false
+	for _, b := range m.blocks {
+		if !m.blockOpen(b) {
+			open = true
+			break
+		}
+	}
+	r := m.view[m.cursor].row
+	m.keepScreenRow(func() {
+		for _, b := range m.blocks {
+			m.foldOpen[m.rows[b.start].Left] = open
+		}
 		m.buildView()
 		m.cursor = m.viewOf[r]
 	})
