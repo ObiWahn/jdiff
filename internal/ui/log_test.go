@@ -261,3 +261,22 @@ func TestLogFlowHeader(t *testing.T) {
 		t.Errorf("in a.go: %q", top)
 	}
 }
+
+func TestLogListColumns(t *testing.T) {
+	l, _ := newTestLog()
+	line := topLines(l, 3)[2]
+	order := []string{"c3", "+12 -3", "subject c3", "T", "2026-10-22"}
+	pos := -1
+	for _, want := range order {
+		i := strings.Index(line[pos+1:], want)
+		if i < 0 {
+			t.Fatalf("line %q lacks %q after column %d, want order %q", line, want, pos, order)
+		}
+		pos += 1 + i
+	}
+	// When narrow, the subject is cut and the date stays visible.
+	l.Update(tea.WindowSizeMsg{Width: 34, Height: 12})
+	if line := topLines(l, 3)[2]; !strings.Contains(line, "  subje…  T  ") || !strings.HasSuffix(line, "2026-10-22") {
+		t.Errorf("narrow line %q", line)
+	}
+}

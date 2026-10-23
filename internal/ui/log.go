@@ -290,12 +290,18 @@ func (l *Log) View() string {
 		return ""
 	}
 	t := l.cfg.Theme
-	addW, remW, authW := 1, 1, 0
+	addW, remW, authW, subjW, fixedW := 1, 1, 0, 0, 0
 	for _, c := range l.commits {
 		addW = max(addW, len(fmt.Sprint(c.Added)))
 		remW = max(remW, len(fmt.Sprint(c.Removed)))
 		authW = max(authW, min(ansi.StringWidth(c.Author), maxAuthorWidth))
+		subjW = max(subjW, ansi.StringWidth(c.Subject))
+		fixedW = max(fixedW, ansi.StringWidth(c.Short)+ansi.StringWidth(c.Date))
 	}
+	// The subject gets the room left by the other columns, so that author
+	// and date stay aligned and visible.
+	fixedW += 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
+	subjW = max(min(subjW, l.width-fixedW), 1)
 
 	var b strings.Builder
 	head := " " + t.Branch.Render(l.branch) + " " +
@@ -309,8 +315,11 @@ func (l *Log) View() string {
 			counts := st(t.Plus).Render(count("+", c.Added, addW+1)) + " " +
 				st(t.Minus).Render(count("-", c.Removed, remW+1))
 			author := fmt.Sprintf("%-*s", authW, ansi.Truncate(c.Author, maxAuthorWidth, "…"))
-			line := " " + st(t.CommitHash).Render(c.Short) + "  " + st(t.Decoration).Render(c.Date) + " " +
-				counts + "  " + st(t.Decoration).Render(author) + "  " + st(lipgloss.NewStyle()).Render(c.Subject)
+			subject := ansi.Truncate(c.Subject, subjW, "…")
+			subject += strings.Repeat(" ", subjW-ansi.StringWidth(subject))
+			line := " " + st(t.CommitHash).Render(c.Short) + "  " + counts + "  " +
+				st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
+				st(t.Decoration).Render(c.Date)
 			b.WriteString(ansi.Truncate(line, l.width, "…"))
 		}
 		b.WriteString("\n")
