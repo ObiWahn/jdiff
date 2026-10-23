@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -572,17 +573,23 @@ func TestToggleAllBlocks(t *testing.T) {
 	}
 }
 
-func TestCursorLineBold(t *testing.T) {
+func TestCursorLine(t *testing.T) {
 	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
 	lipgloss.SetColorProfile(termenv.ANSI)
+	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
 	m := newTestModel([]string{"same", "old"}, []string{"same", "new"})
 	for _, layout := range []string{"side by side", "normal"} {
-		row := m.screenLine(m.screen[0], true) // the unchanged line
-		if strings.Contains(row, "\x1b[7m") || !strings.Contains(row, "\x1b[1m") {
-			t.Errorf("%s: cursor line %q, want bold and no reverse video", layout, row)
+		// The unchanged line: its number reversed in the active pane only,
+		// its text bold.
+		row := m.screenLine(m.screen[0], true)
+		if got := reverse.FindAllStringIndex(row, -1); len(got) != 1 || !strings.HasPrefix(row[got[0][1]:], "1") {
+			t.Errorf("%s: cursor line %q, want only the line number reversed", layout, row)
 		}
-		if plain := m.screenLine(m.screen[0], false); strings.Contains(plain, "\x1b[1m") {
-			t.Errorf("%s: line without cursor is bold: %q", layout, plain)
+		if !strings.Contains(row, "\x1b[1msame") {
+			t.Errorf("%s: cursor line %q, want its text bold", layout, row)
+		}
+		if plain := m.screenLine(m.screen[0], false); strings.Contains(plain, "\x1b[1m") || reverse.MatchString(plain) {
+			t.Errorf("%s: line without cursor is highlighted: %q", layout, plain)
 		}
 		press(m, "s")
 	}

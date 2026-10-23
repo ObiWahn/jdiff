@@ -200,7 +200,12 @@ func (d *fileDiff) gutter(row diff.Row, s side, changed, pending bool, nums stri
 			numStyle = t.NumMinus
 		}
 	}
-	return marker + boldIf(numStyle, cursor).Render(nums) + sepStyle.Render("│") + " "
+	if cursor {
+		// The cursor's line numbers stand out in the cursor style, in
+		// their own color.
+		numStyle = t.Cursor.Inherit(numStyle)
+	}
+	return marker + numStyle.Render(nums) + sepStyle.Render("│") + " "
 }
 
 // boldIf returns style, bold when on is set.
