@@ -14,6 +14,10 @@ type Settings struct {
 	// OnlyChangedWhitespaces (only_changed_whitespaces) compares indentation
 	// character by character, so only its added or removed part is marked.
 	OnlyChangedWhitespaces bool `toml:"only_changed_whitespaces"`
+	// WatchInterval (watch_interval) is how often, in seconds, files on disk
+	// are checked for changes and reloaded: both files of a comparison, or
+	// the current file of the file list and its neighbors. 0 turns it off.
+	WatchInterval float64 `toml:"watch_interval"`
 	Toggles
 }
 
@@ -43,6 +47,7 @@ func Default() Settings {
 		Context:                3,
 		CollapseUnchanged:      true,
 		OnlyChangedWhitespaces: true,
+		WatchInterval:          1,
 		Toggles: Toggles{
 			SideBySide:      true,
 			Preview:         true,

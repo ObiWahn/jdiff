@@ -236,3 +236,25 @@ func TestDir(t *testing.T) {
 		t.Errorf("Dir() = %q, %v without XDG_CONFIG_HOME", dir, err)
 	}
 }
+
+func TestWatchInterval(t *testing.T) {
+	for _, tt := range []struct {
+		main    string
+		want    float64
+		warning string
+	}{
+		{"", 1, ""},
+		{"watch_interval = 0.25", 0.25, ""},
+		{"watch_interval = 0", 0, ""},
+		{"watch_interval = -2", 0, "watch_interval -2 is negative"},
+	} {
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if w := c.Warning(); c.Settings.WatchInterval != tt.want || (tt.warning == "") != (w == "") ||
+			!strings.Contains(w, tt.warning) {
+			t.Errorf("%q: interval %v, warning %q; want %v and %q", tt.main, c.Settings.WatchInterval, w, tt.want, tt.warning)
+		}
+	}
+}

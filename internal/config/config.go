@@ -78,6 +78,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			return nil, err
 		}
 		c.Settings = m.Settings
+		if iv := c.Settings.WatchInterval; iv < 0 {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
+			c.Settings.WatchInterval = 0
+		}
 		// state.toml holds only the toggles.
 		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
 			return nil, err

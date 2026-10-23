@@ -68,7 +68,8 @@ func main() {
 }
 
 // load opens the file selector for two directories, as passed by
-// git difftool --dir-diff, and the diff view for two files.
+// git difftool --dir-diff, and the diff view for two files; both reload
+// files that change on disk.
 func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 	oldInfo, errOld := os.Stat(oldPath)
 	newInfo, errNew := os.Stat(newPath)
@@ -80,15 +81,15 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 		return ui.NewApp(cfg, files), nil
 	}
 
-	oldLines, err := source.ReadLines(oldPath)
-	if err != nil {
+	f := source.File{Path: newPath, OldFile: oldPath, NewFile: newPath, InOld: true, InNew: true}
+	var err error
+	if f.Old, f.OldStamp, err = source.Read(oldPath); err != nil {
 		return nil, fmt.Errorf("%s: %w", oldPath, err)
 	}
-	newLines, err := source.ReadLines(newPath)
-	if err != nil {
+	if f.New, f.NewStamp, err = source.Read(newPath); err != nil {
 		return nil, fmt.Errorf("%s: %w", newPath, err)
 	}
-	return ui.New(cfg, oldPath, newPath, oldLines, newLines), nil
+	return ui.NewWatched(cfg, f), nil
 }
 
 // loadLog opens the commit list for the commits git log selects with args.

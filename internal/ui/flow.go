@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
 )
 
@@ -265,6 +266,32 @@ func (f *Flow) build() {
 		}
 	}
 	f.cursor = max(min(f.cursor, len(f.rows)-1), 0)
+}
+
+// refresh runs reload, which may reload files, and rebuilds the rows. The
+// cursor stays on its screen row and, in a reloaded file, on its line.
+func (f *Flow) refresh(reload func()) {
+	var cur flowRow
+	var d *fileDiff
+	var row diff.Row
+	reloads := 0
+	if f.cursor < len(f.rows) && f.rows[f.cursor].kind == flowDiff {
+		cur = f.rows[f.cursor]
+		d = f.parts[cur.part].app.files[cur.file].diff
+		row, reloads = d.rows[d.view[cur.line].row], d.reloads
+	}
+	f.keepScreenRow(func() {
+		reload()
+		f.relocate()
+		if d == nil || d.reloads == reloads {
+			return
+		}
+		if v := d.follow(row, true); v >= 0 {
+			if i := f.findDiff(cur.part, cur.file, v, cur.sub); i >= 0 {
+				f.cursor = i
+			}
+		}
+	})
 }
 
 // relocate rebuilds the rows, keeping the cursor on its row, or on the

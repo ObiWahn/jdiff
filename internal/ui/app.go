@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -48,6 +49,18 @@ func (e *entry) name() string {
 // paneNames returns the names shown above the panes of the file's diff.
 func (e *entry) paneNames() [2]string {
 	return [2]string{"a/" + e.PathInOld(), "b/" + e.Path}
+}
+
+// refresh reloads the sides of e that changed on disk, see refreshFile.
+func (e *entry) refresh() string {
+	if e.Binary {
+		return ""
+	}
+	msg := refreshFile(&e.File, e.diff, e.view)
+	if msg != "" {
+		e.updateStats()
+	}
+	return msg
 }
 
 func (e *entry) updateStats() {
@@ -131,7 +144,34 @@ func (a *App) setMsg(msg string) {
 	}
 }
 
-func (a *App) Init() tea.Cmd { return nil }
+// Init starts watching the files, outside the log.
+func (a *App) Init() tea.Cmd {
+	if a.inLog() {
+		return nil
+	}
+	return watchTick(a.cfg)
+}
+
+// refresh reloads the files around the cursor that changed on disk: the
+// current one and its neighbors.
+func (a *App) refresh() {
+	var msgs []string
+	reload := func() {
+		for i := max(a.cursor-1, 0); i <= min(a.cursor+1, len(a.files)-1); i++ {
+			if msg := a.files[i].refresh(); msg != "" {
+				msgs = append(msgs, msg)
+			}
+		}
+	}
+	if a.flowShown() {
+		a.flow.refresh(reload)
+	} else {
+		reload()
+	}
+	if len(msgs) > 0 {
+		a.setMsg(strings.Join(msgs, "; "))
+	}
+}
 
 // flowShown reports whether the flow view is shown instead of a diff view.
 // Inside the log, the log shows its own flow view.
@@ -142,6 +182,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width, a.height = msg.Width, msg.Height
 		a.scrollToCursor()
+	case watchTickMsg:
+		a.refresh()
+		return a, watchTick(a.cfg)
 	case switchFileMsg:
 		a.switchFile(int(msg))
 		return a, nil

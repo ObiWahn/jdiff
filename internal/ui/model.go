@@ -8,6 +8,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/source"
 )
 
 // Model is the Bubble Tea model of the diff view: a single file view of a
@@ -35,12 +36,21 @@ type Model struct {
 	canBack       bool // shown from the file selector, which handles backspace
 	commitNav     bool // shown from the log, which switches commits
 
-	msg string
+	msg   string
+	watch *source.File // the files on disk, reloaded when they change; nil when not watched
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
 func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
 	return newModel(newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines}))
+}
+
+// NewWatched returns a model comparing the sides of f, which it reloads
+// when they change on disk (see watch_interval).
+func NewWatched(cfg *config.Config, f source.File) *Model {
+	m := New(cfg, f.OldFile, f.NewFile, f.Old, f.New)
+	m.watch = &f
+	return m
 }
 
 // newModel returns the single file view of d.
@@ -56,7 +66,12 @@ func newModel(d *fileDiff) *Model {
 	return m
 }
 
-func (m *Model) Init() tea.Cmd { return nil }
+func (m *Model) Init() tea.Cmd {
+	if m.watch != nil {
+		return watchTick(m.cfg)
+	}
+	return nil
+}
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.syncLayout()
@@ -65,6 +80,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.keepScreenRow(func() { m.width, m.height = msg.Width, msg.Height })
 	case tea.KeyMsg:
 		return m, pressKeys(msg, m.key)
+	case watchTickMsg:
+		if msg := refreshFile(m.watch, m.fileDiff, m); msg != "" {
+			m.msg = msg
+		}
+		return m, watchTick(m.cfg)
 	}
 	return m, nil
 }
@@ -179,15 +199,8 @@ func (m *Model) cursorAfterChange() int {
 	if m.cursor >= len(m.screenView) || len(m.view) == 0 {
 		return 0
 	}
-	r := m.screenRows[m.screenView[m.cursor].row]
-	for _, s := range []side{left, right} {
-		line := lineOf(r, s)
-		if line >= 0 && m.screenReloads != m.reloads && s == m.reloadSide {
-			line = m.moved[line]
-		}
-		if line >= 0 {
-			return m.viewOf[m.rowOf[s][line]]
-		}
+	if v := m.follow(m.screenRows[m.screenView[m.cursor].row], m.screenReloads != m.reloads); v >= 0 {
+		return v
 	}
 	return min(m.cursor, len(m.view)-1)
 }

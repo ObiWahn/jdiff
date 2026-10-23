@@ -150,6 +150,22 @@ func (d *fileDiff) reload(s side, lines []string) (dropped int) {
 	return dropped
 }
 
+// follow returns the displayed row that now shows a line of r, a row before
+// the diff changed: its left line, else its right one, through the last
+// reload when reloaded is set. It returns -1 when neither line is left.
+func (d *fileDiff) follow(r diff.Row, reloaded bool) int {
+	for _, s := range []side{left, right} {
+		line := lineOf(r, s)
+		if line >= 0 && reloaded && s == d.reloadSide {
+			line = d.moved[line]
+		}
+		if line >= 0 {
+			return d.viewOf[d.rowOf[s][line]]
+		}
+	}
+	return -1
+}
+
 // lineMap maps the indices of old to those of the same lines in new, -1
 // for lines that are not in new. It keeps the order of the lines.
 func lineMap(old, new []string) []int {
