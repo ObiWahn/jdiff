@@ -37,7 +37,7 @@ type Toggles struct {
 	// not only changed whitespace; w toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
 	// FullMessages (full_messages) shows the whole commit message in the
-	// flow view of the log; off, only the subject. m toggles it.
+	// flow view of the log; off, only the subject. c toggles it.
 	FullMessages bool `toml:"full_messages"`
 }
 

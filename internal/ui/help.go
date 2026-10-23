@@ -60,10 +60,10 @@ var bindings = []binding{
 	{"", "  the keys of the diff view, and:"},
 	{"n p", "next, previous file bar"},
 	{"N P", "next, previous commit bar"},
-	{"m", "full or short commit messages"},
+	{"c", "full or short commit messages"},
 	{"f", "single file view"},
 	{"", "Everywhere"},
-	{"", "  f m s v w are saved in ~/.config/jdiff/state.toml"},
+	{"", "  c f s v w are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
 }

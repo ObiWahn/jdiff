@@ -174,7 +174,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.keepScreenRow(f.relocate)
 	case "w":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
-	case "m":
+	case "c":
 		if f.inLog() {
 			f.msg = toggle(f.cfg, &f.cfg.Settings.FullMessages)
 			f.keepScreenRow(f.relocate)

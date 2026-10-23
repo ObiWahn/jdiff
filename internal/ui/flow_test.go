@@ -330,8 +330,8 @@ func TestFlowPageKeysKeepScreenRow(t *testing.T) {
 
 func TestFlowMessageToggleOnlyInLog(t *testing.T) {
 	a := newFlowApp()
-	pressApp(a, "f", "m")
+	pressApp(a, "f", "c")
 	if !a.cfg.Settings.FullMessages {
-		t.Errorf("m outside the log toggled the commit messages")
+		t.Errorf("c outside the log toggled the commit messages")
 	}
 }
