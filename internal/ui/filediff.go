@@ -97,12 +97,72 @@ type fileDiff struct {
 
 	pending *mark        // first half of an anchor being created
 	replace *diff.Anchor // anchor waiting for confirmation to replace conflicts
+
+	// The last reload: it replaced the lines of side reloadSide, moved maps
+	// their old indices to the new ones, -1 for lines gone. reloads counts
+	// the reloads.
+	reloads    int
+	reloadSide side
+	moved      []int
 }
 
 func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDiff {
 	d := &fileDiff{cfg: cfg, names: names, lines: lines, foldOpen: map[int]bool{}}
 	d.align()
 	return d
+}
+
+// reload replaces the lines of side s by lines, the file's new content on
+// disk. Lines that are unchanged keep their anchors and folds; anchors on
+// lines that are gone are dropped and counted. A pending mark or replace
+// prompt is cancelled. Views follow their cursor line through moved, so
+// they must catch up before the next reload.
+func (d *fileDiff) reload(s side, lines []string) (dropped int) {
+	moved := lineMap(d.lines[s], lines)
+	var anchors []diff.Anchor
+	for _, an := range d.anchors {
+		n := moved[anchorLine(an, s)]
+		if n < 0 {
+			dropped++
+			continue
+		}
+		if s == left {
+			an.Left = n
+		} else {
+			an.Right = n
+		}
+		anchors = append(anchors, an)
+	}
+	d.anchors = anchors
+	if s == left {
+		open := map[int]bool{}
+		for line, o := range d.foldOpen {
+			if n := moved[line]; n >= 0 {
+				open[n] = o
+			}
+		}
+		d.foldOpen = open
+	}
+	d.pending, d.replace = nil, nil
+	d.lines[s] = lines
+	d.reloads, d.reloadSide, d.moved = d.reloads+1, s, moved
+	d.align()
+	return dropped
+}
+
+// lineMap maps the indices of old to those of the same lines in new, -1
+// for lines that are not in new. It keeps the order of the lines.
+func lineMap(old, new []string) []int {
+	moved := make([]int, len(old))
+	for i := range moved {
+		moved[i] = -1
+	}
+	for _, r := range diff.Align(old, new, nil, diff.Options{}) {
+		if r.Kind == diff.Equal {
+			moved[r.Left] = r.Right
+		}
+	}
+	return moved
 }
 
 // act runs the anchor and fold key k (enter, esc, space or ctrl+space) at

@@ -19,8 +19,9 @@ type Model struct {
 	screenOf      []int   // view index -> first screen line
 	screenUnified bool    // layout screen was built for: normal, not side by side
 	// The displayed rows screen was built for, to find the cursor's line
-	// again when another view changed them.
+	// again when another view or a reload changed them.
 	screenChanges int
+	screenReloads int
 	screenView    []vrow
 	screenRows    []diff.Row
 
@@ -154,11 +155,11 @@ func (m *Model) realign() {
 func (m *Model) buildScreen() {
 	m.screenUnified = m.unified()
 	m.screen, m.screenOf = m.screenLines(m.screenUnified)
-	m.screenChanges, m.screenView, m.screenRows = m.changes, m.view, m.rows
+	m.screenChanges, m.screenReloads, m.screenView, m.screenRows = m.changes, m.reloads, m.view, m.rows
 }
 
-// syncLayout rebuilds the screen lines when another view changed the diff,
-// keeping the cursor on its line, or when the layout was switched, here or
+// syncLayout rebuilds the screen lines when another view or a reload changed
+// the diff, keeping the cursor on its line, or when the layout was switched, here or
 // in another view, keeping the cursor on its screen row.
 func (m *Model) syncLayout() {
 	switch {
@@ -172,17 +173,23 @@ func (m *Model) syncLayout() {
 }
 
 // cursorAfterChange returns the displayed row that shows the line of the
-// cursor's row in the rows screen was built for.
+// cursor's row in the rows screen was built for: its old line, else its new
+// one, followed through a reload since.
 func (m *Model) cursorAfterChange() int {
 	if m.cursor >= len(m.screenView) || len(m.view) == 0 {
 		return 0
 	}
 	r := m.screenRows[m.screenView[m.cursor].row]
-	s, line := left, r.Left
-	if line < 0 {
-		s, line = right, r.Right
+	for _, s := range []side{left, right} {
+		line := lineOf(r, s)
+		if line >= 0 && m.screenReloads != m.reloads && s == m.reloadSide {
+			line = m.moved[line]
+		}
+		if line >= 0 {
+			return m.viewOf[m.rowOf[s][line]]
+		}
 	}
-	return m.viewOf[m.rowOf[s][line]]
+	return min(m.cursor, len(m.view)-1)
 }
 
 // pos returns the screen line of the cursor.

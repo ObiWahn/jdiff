@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // ErrBinary is returned for files that contain NUL bytes.
@@ -22,6 +23,25 @@ type File struct {
 	// InOld and InNew report whether the file exists on that side.
 	InOld, InNew bool
 	Binary       bool
+	// OldFile and NewFile are the paths of the sides on disk, empty for
+	// files from git; OldStamp and NewStamp identify the versions read.
+	OldFile, NewFile   string
+	OldStamp, NewStamp Stamp
+}
+
+// Stamp identifies a version of a file on disk.
+type Stamp struct {
+	ModTime time.Time
+	Size    int64
+}
+
+// StampOf returns the stamp of the file at path, following symlinks.
+func StampOf(path string) (Stamp, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return Stamp{}, err
+	}
+	return Stamp{info.ModTime(), info.Size()}, nil
 }
 
 // PathInOld returns the path of the file on the old side.
@@ -34,11 +54,23 @@ func (f File) PathInOld() string {
 
 // ReadLines reads a text file into lines without their line terminators.
 func ReadLines(path string) ([]string, error) {
+	lines, _, err := Read(path)
+	return lines, err
+}
+
+// Read reads a text file like ReadLines and returns the stamp of the version
+// read. The stamp is taken first, so a change while reading shows later.
+func Read(path string) ([]string, Stamp, error) {
+	st, err := StampOf(path)
+	if err != nil {
+		return nil, Stamp{}, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, Stamp{}, err
 	}
-	return SplitLines(data)
+	lines, err := SplitLines(data)
+	return lines, st, err
 }
 
 // SplitLines splits text into lines without their line terminators, or
@@ -78,13 +110,15 @@ func LoadDirs(oldDir, newDir string) ([]File, error) {
 	for _, p := range paths {
 		f := File{Path: p, InOld: inOld[p], InNew: inNew[p]}
 		if f.InOld {
-			if f.Old, err = ReadLines(filepath.Join(oldDir, p)); err != nil && !errors.Is(err, ErrBinary) {
+			f.OldFile = filepath.Join(oldDir, p)
+			if f.Old, f.OldStamp, err = Read(f.OldFile); err != nil && !errors.Is(err, ErrBinary) {
 				return nil, err
 			}
 			f.Binary = f.Binary || errors.Is(err, ErrBinary)
 		}
 		if f.InNew {
-			if f.New, err = ReadLines(filepath.Join(newDir, p)); err != nil && !errors.Is(err, ErrBinary) {
+			f.NewFile = filepath.Join(newDir, p)
+			if f.New, f.NewStamp, err = Read(f.NewFile); err != nil && !errors.Is(err, ErrBinary) {
 				return nil, err
 			}
 			f.Binary = f.Binary || errors.Is(err, ErrBinary)

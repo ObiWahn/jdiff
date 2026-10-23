@@ -82,4 +82,38 @@ func TestLoadDirs(t *testing.T) {
 	if f := byPath("sub/new.go"); f.InOld || !f.InNew {
 		t.Errorf("sub/new.go = %+v", f)
 	}
+
+	// The sides on disk and the versions read, the link followed.
+	f := byPath("linked.go")
+	st, err := StampOf(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.OldFile != filepath.Join(oldDir, "linked.go") || f.NewFile != filepath.Join(newDir, "linked.go") ||
+		f.NewStamp != st || f.OldStamp.Size != 4 {
+		t.Errorf("linked.go: files %q %q, stamps %+v %+v, want the link's target %+v",
+			f.OldFile, f.NewFile, f.OldStamp, f.NewStamp, st)
+	}
+	if f := byPath("gone.go"); f.NewFile != "" || f.NewStamp != (Stamp{}) {
+		t.Errorf("gone.go has a new side on disk: %q %+v", f.NewFile, f.NewStamp)
+	}
+}
+
+func TestStampChanges(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "f")
+	write(t, p, "a\n")
+	lines, st, err := Read(p)
+	if err != nil || !slices.Equal(lines, []string{"a"}) {
+		t.Fatalf("Read = %q, %v", lines, err)
+	}
+	if again, _ := StampOf(p); again != st {
+		t.Errorf("stamp changed without a write: %+v, then %+v", st, again)
+	}
+	write(t, p, "a\nb\n")
+	if again, _ := StampOf(p); again == st {
+		t.Errorf("stamp unchanged after a write: %+v", st)
+	}
+	if _, err := StampOf(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Errorf("StampOf of a missing file succeeded")
+	}
 }

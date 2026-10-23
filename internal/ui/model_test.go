@@ -609,3 +609,71 @@ func TestCursorLine(t *testing.T) {
 		press(m, "s")
 	}
 }
+
+func TestReloadCarriesAnchors(t *testing.T) {
+	m := newTestModel(numbered("x", 10), numbered("x", 10))
+	d := m.fileDiff
+	d.addAnchor(diff.Anchor{Left: 3, Right: 5}, right)
+	d.addAnchor(diff.Anchor{Left: 7, Right: 8}, right)
+
+	// Two lines inserted above both anchors on the right: they move along.
+	if dropped := d.reload(right, append([]string{"new1", "new2"}, numbered("x", 10)...)); dropped != 0 {
+		t.Errorf("insert: %d anchors dropped, want 0", dropped)
+	}
+	if want := []diff.Anchor{{Left: 3, Right: 7}, {Left: 7, Right: 10}}; !slices.Equal(d.anchors, want) {
+		t.Errorf("insert: anchors %v, want %v", d.anchors, want)
+	}
+	// The line of the second anchor changed: that anchor is dropped.
+	lines := slices.Clone(d.lines[right])
+	lines[10] = "changed"
+	if dropped := d.reload(right, lines); dropped != 1 || !slices.Equal(d.anchors, []diff.Anchor{{Left: 3, Right: 7}}) {
+		t.Errorf("change: %d dropped, anchors %v; want 1 and L4↔R8 kept", dropped, d.anchors)
+	}
+	for _, r := range d.rows {
+		if r.Anchored && (r.Left != 3 || r.Right != 7) {
+			t.Errorf("rows not realigned: anchored row %+v", r)
+		}
+	}
+}
+
+func TestReloadCancelsMarkAndKeepsFolds(t *testing.T) {
+	// Changes at both ends; the fold between them starts at left line 4, x3.
+	a := append(append([]string{"old"}, numbered("x", 20)...), "old2")
+	m := newTestModel(a, append(append([]string{"new"}, numbered("x", 20)...), "new2"))
+	d := m.fileDiff
+	press(m, " ") // open the fold
+	if len(folds(d.view)) != 0 {
+		t.Fatalf("fold not opened: %v", folds(d.view))
+	}
+	d.pending = &mark{left, 20}
+	// Lines inserted into the change at the top on the left: the open fold
+	// now starts at left line 7, still x3.
+	d.reload(left, append([]string{"y0", "y1", "y2"}, a...))
+	if d.pending != nil || d.replace != nil {
+		t.Errorf("reload kept the mark %v or prompt %v", d.pending, d.replace)
+	}
+	if got := folds(d.view); len(got) != 0 {
+		t.Errorf("the opened fold closed after the reload: %v", got)
+	}
+}
+
+func TestViewFollowsItsLineThroughReload(t *testing.T) {
+	m := newTestModel(numbered("x", 40), numbered("x", 40))
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	moveTo(t, m, left, 30)
+	m.reload(left, append(numbered("new", 5), numbered("x", 40)...))
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if l, r := m.lineAt(left, m.cursor), m.lineAt(right, m.cursor); l != 35 || r != 30 {
+		t.Errorf("cursor on L%d R%d after 5 lines were inserted above left line 30, want L35 R30", l, r)
+	}
+	// A changed line under the cursor: the cursor goes by the other side.
+	moveTo(t, m, left, 20)
+	lines := slices.Clone(m.lines[left])
+	lines[20] = "changed"
+	m.reload(left, lines)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if line := m.lineAt(right, m.cursor); line != 15 {
+		t.Errorf("cursor on right line %d, want 15, the old partner of the changed line", line)
+	}
+}
