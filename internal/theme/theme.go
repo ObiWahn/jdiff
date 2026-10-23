@@ -1,4 +1,7 @@
-// Package theme builds jdiff's styles from delta's git config settings.
+// Package theme builds jdiff's styles. A theme comes from a source, as a
+// Spec: jdiff's defaults, delta's git config settings or a theme file;
+// Resolve turns it into the styles, with the defaults for what it leaves
+// unset.
 //
 // jdiff renders in 16 color mode: every color is an ANSI color, so the
 // terminal palette decides the actual colors. Hex and 256 colors in a theme
@@ -39,9 +42,6 @@ type Theme struct {
 
 // Default returns the theme without any configuration.
 func Default() *Theme { return Resolve(Builtin()) }
-
-// Load builds the theme from cfg with the given features (see Features).
-func Load(cfg Config, features []string) *Theme { return Resolve(FromGit(cfg, features)) }
 
 // Resolve builds the theme that sp defines. Options sp leaves unset or sets
 // to an invalid value take their default; invalid values are reported in

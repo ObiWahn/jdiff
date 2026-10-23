@@ -87,7 +87,7 @@ func TestFeatures(t *testing.T) {
 	}
 }
 
-func TestLoadPriority(t *testing.T) {
+func TestGitThemePriority(t *testing.T) {
 	cfg := Config{
 		"delta.features":                   "low high",
 		"delta.low.minus-style":            "yellow",
@@ -100,7 +100,7 @@ func TestLoadPriority(t *testing.T) {
 		"jdiff.anchor-style":               "cyan",
 		"delta.high.file-decoration-style": `"#434C5E" ul`,
 	}
-	th := Load(cfg, Features(cfg, "", ""))
+	th := Resolve(FromGit(cfg, Features(cfg, "", "")))
 	checks := []struct {
 		name string
 		got  lipgloss.Style
@@ -131,7 +131,7 @@ func TestLoadPriority(t *testing.T) {
 	}
 }
 
-func TestLoadIndentAndWarnings(t *testing.T) {
+func TestResolveIndentAndWarnings(t *testing.T) {
 	th := Default()
 	if th.MinusIndent.GetForeground() != lipgloss.Color("9") || th.PlusIndent.GetForeground() != lipgloss.Color("10") {
 		t.Errorf("default indent styles = %v %v, want the emph colors",
@@ -143,7 +143,7 @@ func TestLoadIndentAndWarnings(t *testing.T) {
 		"delta.minus-style":        "notacolor",
 		"jdiff.minus-indent-style": "normal bright-black",
 	}
-	th = Load(cfg, nil)
+	th = Resolve(FromGit(cfg, nil))
 	if th.PlusIndent.GetBackground() != lipgloss.Color("22") {
 		t.Errorf("plus indent should follow plus-emph-style, got %v", th.PlusIndent.GetBackground())
 	}
@@ -156,13 +156,13 @@ func TestLoadIndentAndWarnings(t *testing.T) {
 	}
 }
 
-func TestLoadInvalidJdiffStylesKeepDefaults(t *testing.T) {
-	th := Load(Config{
+func TestResolveInvalidJdiffStylesKeepDefaults(t *testing.T) {
+	th := Resolve(FromGit(Config{
 		"jdiff.filler-style":       "notacolor",
 		"jdiff.whitespace-style":   "notacolor",
 		"jdiff.minus-indent-style": "notacolor",
 		"jdiff.plus-indent-style":  "notacolor",
-	}, nil)
+	}, nil))
 	def := Default()
 	if th.Filler.GetForeground() != def.Decoration.GetForeground() ||
 		th.Whitespace.GetForeground() != def.Decoration.GetForeground() {
