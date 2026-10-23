@@ -434,7 +434,7 @@ func TestUnifiedCursor(t *testing.T) {
 	}
 }
 
-func TestUnifiedNoMarks(t *testing.T) {
+func TestUnifiedShowsAnchors(t *testing.T) {
 	m := newUnifiedTestModel()
 	press(m, "s")
 	moveTo(t, m, left, 1)
@@ -447,9 +447,63 @@ func TestUnifiedNoMarks(t *testing.T) {
 		!strings.HasPrefix(lines[3], "◆  2│ alpha gamma") {
 		t.Errorf("anchored lines in the normal layout: %q", lines[2:4])
 	}
-	press(m, "j", "enter")
-	if m.pending != nil || m.msg != "marks need the side by side view (s)" {
-		t.Errorf("enter in the normal layout: pending %v msg %q", m.pending, m.msg)
+}
+
+// cursorLine returns the screen line under the cursor without styles.
+func cursorLine(m *Model) string {
+	return ansi.Strip(m.screenLine(m.screen[m.pos()], false))
+}
+
+func TestUnifiedMarks(t *testing.T) {
+	m := newUnifiedTestModel()
+	// An unchanged line without a pending mark takes the old side.
+	press(m, "enter")
+	if m.pending == nil || *m.pending != (mark{left, 0}) {
+		t.Fatalf("enter on an unchanged line: pending %v, want L1", m.pending)
+	}
+	press(m, "esc")
+
+	// A removed line takes the old side; the mark shows as ●.
+	press(m, "j", "j", "j", "j", "enter")
+	if m.pending == nil || *m.pending != (mark{left, 3}) || !strings.HasPrefix(cursorLine(m), "●4  │ gone") {
+		t.Fatalf("enter on the removed line: pending %v, line %q", m.pending, cursorLine(m))
+	}
+	// An unchanged line then takes the other side: new line 3.
+	press(m, "k", "enter")
+	if len(m.anchors) != 1 || m.anchors[0] != (diff.Anchor{Left: 3, Right: 2}) {
+		t.Fatalf("anchors %v, want L4↔R3", m.anchors)
+	}
+	// The cursor stays on the line picked last.
+	if m.sub != 1 || !strings.HasPrefix(cursorLine(m), "◆  3│ keep") {
+		t.Errorf("cursor after anchoring on %q (sub %d), want the new line 3", cursorLine(m), m.sub)
+	}
+	// Enter on it removes the anchor and keeps the cursor on that line.
+	press(m, "enter")
+	if len(m.anchors) != 0 || m.lineAt(right, m.cursor) != 2 {
+		t.Errorf("removing: anchors %v, cursor on R%d", m.anchors, m.lineAt(right, m.cursor)+1)
+	}
+}
+
+func TestAnchorKeepsLastPickOnScreenRow(t *testing.T) {
+	// 4 lines that only match when anchored by hand, amid 80 equal lines
+	// shown unfolded, so the view can scroll either way.
+	a, b := numbered("x", 40), numbered("x", 40)
+	a = append(a, "old1", "old2", "old3", "target")
+	b = append(b, "new1", "renamed target", "new3", "new4")
+	a, b = append(a, numbered("y", 40)...), append(b, numbered("y", 40)...)
+	cfg := config.Default()
+	cfg.Settings.CollapseUnchanged = false
+	m := New(cfg, "old", "new", a, b)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	moveTo(t, m, left, 43)
+	press(m, "enter")
+	moveTo(t, m, right, 41)
+	m.scrollToCursor()
+	row := m.pos() - m.top
+	press(m, "enter")
+	if len(m.anchors) != 1 || m.lineAt(right, m.cursor) != 41 || m.pos()-m.top != row {
+		t.Errorf("anchors %v, cursor on R%d at screen row %d, want R42 at %d",
+			m.anchors, m.lineAt(right, m.cursor)+1, m.pos()-m.top, row)
 	}
 }
 

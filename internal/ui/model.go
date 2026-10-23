@@ -224,11 +224,11 @@ func (m *Model) key(k string) tea.Cmd {
 }
 
 // enter implements the anchor workflow: mark a line, then pick its partner
-// in the other pane. Enter on an anchored line removes that anchor.
+// in the other pane. Enter on an anchored line removes that anchor. In the
+// normal layout the line under the cursor decides the side.
 func (m *Model) enter() {
 	if m.screenUnified {
-		m.msg = "marks need the side by side view (s)"
-		return
+		m.active = m.unifiedSide()
 	}
 	line := m.lineAt(m.active, m.cursor)
 	if line < 0 {
@@ -242,7 +242,7 @@ func (m *Model) enter() {
 		m.keepScreenRow(func() {
 			m.removeAnchor(an)
 			m.realign()
-			m.cursor = m.viewOf[m.rowOf[m.active][line]]
+			m.cursor, m.sub = m.viewOf[m.rowOf[m.active][line]], int(m.active)
 		})
 		m.msg = "removed anchor " + anchorName(an)
 		return
@@ -283,11 +283,32 @@ func (m *Model) addAnchor(an diff.Anchor) {
 	})
 	m.anchors = slices.Insert(m.anchors, i, an)
 	m.pending = nil
+	// The line picked last keeps its place; the rest aligns around it.
 	m.keepScreenRow(func() {
 		m.realign()
-		m.cursor = m.viewOf[m.rowOf[left][an.Left]]
+		m.cursor, m.sub = m.viewOf[m.rowOf[left][an.Left]], int(m.active)
 	})
 	m.msg = "anchored " + anchorName(an)
+}
+
+// unifiedSide returns the side of the line under the cursor in the normal
+// layout. An unchanged line belongs to both: it takes the side opposite a
+// pending mark, else the old side.
+func (m *Model) unifiedSide() side {
+	if m.cursor >= len(m.view) || m.view[m.cursor].hidden > 0 {
+		return m.active
+	}
+	switch r := m.rows[m.view[m.cursor].row]; {
+	case r.Kind == diff.Delete:
+		return left
+	case r.Kind == diff.Insert:
+		return right
+	case r.Kind == diff.Change && r.Left >= 0 && r.Right >= 0:
+		return side(min(m.sub, 1))
+	case m.pending != nil:
+		return m.pending.side.other()
+	}
+	return left
 }
 
 func (m *Model) removeAnchor(an diff.Anchor) {

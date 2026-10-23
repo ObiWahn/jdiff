@@ -99,6 +99,8 @@ func (m *Model) unifiedLine(v, sub int, cursor bool) string {
 
 	marker := " "
 	switch {
+	case m.isPending(row) && (row.Kind == diff.Equal || m.pending.side == s):
+		marker = t.Pending.Render("●")
 	case row.Anchored:
 		marker = t.Anchor.Render("◆")
 	case changed && s == left:
@@ -141,13 +143,13 @@ func (m *Model) bodyRow(v int, cursor bool) string {
 }
 
 // paneTitles renders names above the panes of a view width columns wide,
-// the name of the active pane highlighted.
+// the name of the active pane in bold, the other one faint.
 func paneTitles(t *theme.Theme, names [2]string, active side, width int) string {
 	w := (width - 1) / 2
 	title := func(s side) string {
-		style := t.Title
+		style := lipgloss.NewStyle().Bold(true)
 		if s != active {
-			style = style.Faint(true).Underline(false)
+			style = lipgloss.NewStyle().Faint(true)
 		}
 		return pad(style.Render(ansi.Truncate(" "+names[s], w, "…")), w, lipgloss.NewStyle())
 	}

@@ -123,8 +123,8 @@ func TestLoadPriority(t *testing.T) {
 	if th.ModifiedLabel != "[*]" || th.AddedLabel != "added:" {
 		t.Errorf("labels = %q %q", th.ModifiedLabel, th.AddedLabel)
 	}
-	if !th.Title.GetUnderline() {
-		t.Errorf("title not underlined by file-decoration-style ul")
+	if th.Title.GetUnderline() {
+		t.Errorf("title underlined by file-decoration-style ul; jdiff draws no underlines")
 	}
 	if len(th.Warnings) != 0 {
 		t.Errorf("warnings: %v", th.Warnings)

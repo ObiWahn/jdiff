@@ -512,7 +512,7 @@ func (f *Flow) header() string {
 	var b strings.Builder
 	if f.load != nil {
 		c := f.parts[p].commit
-		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Underline(false).Render(c.Subject)
+		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}
 	if file >= 0 {

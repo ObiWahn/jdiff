@@ -47,6 +47,7 @@ var bindings = []binding{
 	{"tab", "switch pane"},
 	{"enter", "mark a line, then its partner: anchor"},
 	{"", "  enter on an anchored line removes the anchor"},
+	{"", "  normal layout: unchanged lines take the side opposite the mark"},
 	{"esc", "cancel the mark"},
 	{"s", "side by side or normal layout"},
 	{"f", "flow view"},

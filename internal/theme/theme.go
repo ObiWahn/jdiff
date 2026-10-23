@@ -122,8 +122,9 @@ func Load(cfg Config, features []string) *Theme {
 	t.NumLeft = delta("line-numbers-left-style")
 	t.NumRight = delta("line-numbers-right-style")
 
+	// Only the color of the decoration is used: jdiff draws no underlines.
 	decoration := delta("file-decoration-style")
-	t.Title = delta("file-style").Underline(decoration.GetUnderline())
+	t.Title = delta("file-style")
 	t.Decoration = lipgloss.NewStyle().Foreground(decoration.GetForeground())
 	t.Hint = delta("inline-hint-style")
 
