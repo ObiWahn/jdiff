@@ -17,8 +17,8 @@ type token struct {
 // Intraline returns the parts of a and b that differ, at word granularity.
 // Leading whitespace is its own token, so an indentation change emphasizes
 // just the indentation; with splitIndent each indentation character is a
-// token, and a run of whitespace in place of another one in the line keeps
-// their common start, so only the added or removed part is emphasized. Both
+// token, and runs of whitespace next to the same unchanged words keep what
+// they have in common, so only the added or removed part is emphasized. Both
 // results are nil when the lines are too different for emphasis to be
 // useful.
 func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
@@ -36,37 +36,75 @@ func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
 	for _, p := range pairs {
 		ma[p.a], mb[p.b] = true, true
 	}
-	// same holds the bytes at the start of an unmatched token that are the
-	// same as on the other side.
-	sa, sb := make([]int, len(ta)), make([]int, len(tb))
+	// keep holds the bytes at the start and the end of an unmatched token
+	// that are the same as on the other side.
+	ka, kb := make([]kept, len(ta)), make([]kept, len(tb))
 	if splitIndent {
 		prev := pair{-1, -1}
 		for _, p := range append(pairs, pair{len(ta), len(tb)}) {
-			// One whitespace token on each side between two matches.
-			if i, j := prev.a+1, prev.b+1; p.a == i+1 && p.b == j+1 && isSpace(ta[i].text) && isSpace(tb[j].text) {
-				n := 0
-				for n < len(ta[i].text) && n < len(tb[j].text) && ta[i].text[n] == tb[j].text[n] {
-					n++
-				}
-				sa[i], sb[j] = n, n
-			}
+			keepWhitespace(ta[prev.a+1:p.a], tb[prev.b+1:p.b], ka[prev.a+1:p.a], kb[prev.b+1:p.b])
 			prev = p
 		}
 	}
 
-	changedA, totalA := contentBytes(ta, ma, sa)
-	changedB, totalB := contentBytes(tb, mb, sb)
+	changedA, totalA := contentBytes(ta, ma, ka)
+	changedB, totalB := contentBytes(tb, mb, kb)
 	if total := totalA + totalB; total > 0 &&
 		float64(changedA+changedB)/float64(total) > maxLineDistance {
 		return nil, nil
 	}
-	return spans(ta, ma, sa), spans(tb, mb, sb)
+	return spans(ta, ma, ka), spans(tb, mb, kb)
+}
+
+// kept is the unchanged start and end of a token, in bytes.
+type kept struct{ start, end int }
+
+// keepWhitespace finds what the unmatched tokens a and b between the same
+// two matches have in common in whitespace, into ka and kb: a whitespace
+// run that starts both keeps their common start, one that ends both their
+// common end, as words inserted into padding take its place. A run that is
+// all of one side pairs with the run of the other that has more in common.
+func keepWhitespace(a, b []token, ka, kb []kept) {
+	if len(a) == 0 || len(b) == 0 {
+		return
+	}
+	common := func(x, y string, fromEnd bool) int {
+		n := 0
+		for n < len(x) && n < len(y) {
+			i, j := n, n
+			if fromEnd {
+				i, j = len(x)-1-n, len(y)-1-n
+			}
+			if x[i] != y[j] {
+				break
+			}
+			n++
+		}
+		return n
+	}
+	first, last := 0, 0
+	if isSpace(a[0].text) && isSpace(b[0].text) {
+		first = common(a[0].text, b[0].text, false)
+	}
+	la, lb := len(a)-1, len(b)-1
+	if isSpace(a[la].text) && isSpace(b[lb].text) {
+		last = common(a[la].text, b[lb].text, true)
+	}
+	switch {
+	case la > 0 && lb > 0: // distinct first and last runs: both
+		ka[0].start, kb[0].start = first, first
+		ka[la].end, kb[lb].end = last, last
+	case last > first:
+		ka[la].end, kb[lb].end = last, last
+	default:
+		ka[0].start, kb[0].start = first, first
+	}
 }
 
 // contentBytes counts the changed and total bytes, leaving out indentation so
-// that re-indented lines do not look unrelated. same is the unchanged start
-// of each token, see Intraline.
-func contentBytes(ts []token, matched []bool, same []int) (changed, total int) {
+// that re-indented lines do not look unrelated. keep is the unchanged start
+// and end of each token, see keepWhitespace.
+func contentBytes(ts []token, matched []bool, keep []kept) (changed, total int) {
 	indent := true
 	for i, t := range ts {
 		if indent = indent && isSpace(t.text); indent {
@@ -74,25 +112,25 @@ func contentBytes(ts []token, matched []bool, same []int) (changed, total int) {
 		}
 		total += len(t.text)
 		if !matched[i] {
-			changed += len(t.text) - same[i]
+			changed += max(len(t.text)-keep[i].start-keep[i].end, 0)
 		}
 	}
 	return changed, total
 }
 
 // spans returns the parts of the tokens ts that changed: the unmatched ones
-// past their unchanged start same.
-func spans(ts []token, matched []bool, same []int) []Span {
+// without their unchanged start and end keep.
+func spans(ts []token, matched []bool, keep []kept) []Span {
 	var out []Span
 	for i, t := range ts {
-		start := t.start + same[i]
-		if matched[i] || start == t.end {
+		start, end := t.start+keep[i].start, t.end-keep[i].end
+		if matched[i] || start >= end {
 			continue
 		}
 		if n := len(out); n > 0 && out[n-1].End == start {
-			out[n-1].End = t.end
+			out[n-1].End = end
 		} else {
-			out = append(out, Span{start, t.end})
+			out = append(out, Span{start, end})
 		}
 	}
 	return out

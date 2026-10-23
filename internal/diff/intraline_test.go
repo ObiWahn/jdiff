@@ -31,6 +31,13 @@ func TestIntraline(t *testing.T) {
 			"#   <no arguments>   interactive bash (ROS not sourced)",
 			true, []Span{{21, 30}, {47, 63}}, nil},
 		{"inner spaces whole without split", "a  b", "a b", false, []Span{{1, 3}}, []Span{{1, 2}}},
+		// Words inserted into padding: the padding they took is marked,
+		// below them, not the padding both lines keep.
+		{"split: words into padding",
+			`#   run                       interactive bash in /opt/xtn (then e.g. "./run_build bell")`,
+			`#   run / run shell           interactive bash in /opt/xtn (then e.g. "make bell")`,
+			true, []Span{{7, 19}, {71, 82}}, []Span{{7, 19}, {71, 75}}},
+		{"split: words removed from padding", "x a   y", "x     y", true, []Span{{1, 3}}, []Span{{1, 3}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
