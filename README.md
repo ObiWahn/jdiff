@@ -87,6 +87,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | Key | Action |
 |---|---|
 | `j` `k`, `n` `p` | move |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
 | `g` `G` | first, last file |
 | `enter` | show the diff of the file |
 | `'`*letter* | open the file of a jump mark |
@@ -96,7 +97,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `s` | side by side or normal preview |
 | `w` | show all whitespace or only changed |
 | `r` | reflow: wrap long lines or cut them |
-| `backspace` | back to the commits |
+| `backspace` | back to the commits (in the log) |
 
 ### Diff view
 
@@ -105,10 +106,10 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `j` `k` | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
 | `g` `G` | top, bottom |
-| `h` `l` | scroll left, right |
+| `h` `l` | scroll left, right, unless lines are wrapped |
 | `]` `[` | next, previous change |
 | `n` `p` | next, previous file |
-| `N` `P` | next, previous commit |
+| `N` `P` | next, previous commit (in the log) |
 | `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `tab` | switch pane |
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
