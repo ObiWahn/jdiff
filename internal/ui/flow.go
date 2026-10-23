@@ -148,19 +148,19 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "right", "l":
 		f.xoff += 8
 	case "]", "[":
-		if !f.search(direction(k == "]"), f.changeStart) {
+		if !f.search(direction(k == "]"), f.changeStart, true) && f.msg == "" {
 			f.msg = "no more changes"
 		}
 	case "n", "p":
-		if f.search(direction(k == "n"), f.isKind(flowFile, 0)) {
+		if f.search(direction(k == "n"), f.isKind(flowFile, 0), true) {
 			f.barToTop()
-		} else {
+		} else if f.msg == "" {
 			f.msg = ends(k == "n", "last file", "first file")
 		}
 	case "N", "P":
 		switch {
 		case !f.inLog():
-		case f.search(direction(k == "N"), f.isKind(flowCommit, 0)):
+		case f.search(direction(k == "N"), f.isKind(flowCommit, 0), false):
 			f.barToTop()
 		default:
 			f.msg = ends(k == "N", "oldest commit", "newest commit")
@@ -178,6 +178,13 @@ func (f *Flow) key(k string) tea.Cmd {
 		if f.inLog() {
 			f.msg = toggle(f.cfg, &f.cfg.Settings.FullMessages)
 			f.keepScreenRow(f.relocate)
+		}
+	case "C":
+		if f.inLog() {
+			f.msg = toggle(f.cfg, &f.cfg.Settings.StayInCommit)
+			if f.msg == "" && f.cfg.Settings.StayInCommit {
+				f.msg = "staying in commit " + f.parts[f.rows[f.cursor].part].commit.Short
+			}
 		}
 	}
 	return nil
@@ -418,8 +425,34 @@ func (f *Flow) loadVisible() {
 // commits loaded.
 func (f *Flow) moveCursor(delta int) {
 	f.loadAhead(delta)
-	f.cursor = max(min(f.cursor+delta, len(f.rows)-1), 0)
+	f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
 	f.scrollToCursor()
+}
+
+// bounds returns the first and last row the cursor may go to: those of its
+// commit while stay_in_commit is set, else all.
+func (f *Flow) bounds() (lo, hi int) {
+	lo, hi = 0, len(f.rows)-1
+	if !f.inLog() || !f.cfg.Settings.StayInCommit || len(f.rows) == 0 {
+		return lo, hi
+	}
+	p := f.rows[f.cursor].part
+	for lo = f.cursor; lo > 0 && f.rows[lo-1].part == p; lo-- {
+	}
+	for hi = f.cursor; hi < len(f.rows)-1 && f.rows[hi+1].part == p; hi++ {
+	}
+	return lo, hi
+}
+
+// confine returns row i, or the nearest row within the bounds with a
+// warning that the cursor stays in its commit.
+func (f *Flow) confine(i int) int {
+	lo, hi := f.bounds()
+	if i >= lo && i <= hi {
+		return i
+	}
+	f.msg = "stays in commit " + f.parts[f.rows[f.cursor].part].commit.Short + " (C)"
+	return max(min(i, hi), lo)
 }
 
 // scroll moves the window by delta rows, as far as it can, and the cursor
@@ -429,7 +462,7 @@ func (f *Flow) scroll(delta int) {
 	f.loadAhead(delta)
 	top := f.top
 	f.top = max(min(f.top+delta, len(f.rows)-f.bodyHeight()), 0)
-	f.cursor = max(min(f.cursor+f.top-top, len(f.rows)-1), 0)
+	f.cursor = f.confine(max(min(f.cursor+f.top-top, len(f.rows)-1), 0))
 	f.scrollToCursor()
 }
 
@@ -451,11 +484,16 @@ func (f *Flow) loadAhead(delta int) {
 }
 
 // search moves the cursor to the next row in direction dir for which ok
-// holds, loading commits on the way, and reports whether there is one.
-func (f *Flow) search(dir int, ok func(int) bool) bool {
+// holds, loading commits on the way, and reports whether there is one. With
+// stay set it does not leave the bounds; reaching them sets a warning.
+func (f *Flow) search(dir int, ok func(int) bool, stay bool) bool {
 	for {
 		loaded := false
 		for i := f.cursor + dir; i >= 0 && i < len(f.rows); i += dir {
+			if lo, hi := f.bounds(); stay && (i < lo || i > hi) {
+				f.confine(i)
+				return false
+			}
 			if p := f.rows[i].part; f.inLog() && f.unloaded(p) {
 				f.loadPart(p)
 				loaded = true
@@ -600,7 +638,11 @@ func (f *Flow) status() string {
 	p, file, _ := f.position()
 	var where []string
 	if f.inLog() {
-		where = append(where, fmt.Sprintf("commit %d/%d", p+1, len(f.parts)))
+		c := fmt.Sprintf("commit %d/%d", p+1, len(f.parts))
+		if f.cfg.Settings.StayInCommit {
+			c += " (C)"
+		}
+		where = append(where, c)
 	}
 	if file >= 0 {
 		files := f.parts[p].app.files

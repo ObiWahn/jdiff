@@ -61,9 +61,10 @@ var bindings = []binding{
 	{"n p", "next, previous file bar"},
 	{"N P", "next, previous commit bar"},
 	{"c", "full or short commit messages"},
+	{"C", "stay in the current commit (N P still switch)"},
 	{"f", "single file view"},
 	{"", "Everywhere"},
-	{"", "  c f s v w are saved in ~/.config/jdiff/state.toml"},
+	{"", "  c C f s v w are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
 }

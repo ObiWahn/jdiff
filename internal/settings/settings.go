@@ -39,6 +39,10 @@ type Toggles struct {
 	// FullMessages (full_messages) shows the whole commit message in the
 	// flow view of the log; off, only the subject. c toggles it.
 	FullMessages bool `toml:"full_messages"`
+	// StayInCommit (stay_in_commit) keeps the cursor of the flow view of the
+	// log in the current commit: moves out of it stop with a warning, N and
+	// P still switch commits. C toggles it.
+	StayInCommit bool `toml:"stay_in_commit"`
 }
 
 // Default returns the default settings.

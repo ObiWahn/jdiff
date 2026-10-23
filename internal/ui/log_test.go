@@ -406,3 +406,48 @@ func TestFlowMessageToggle(t *testing.T) {
 		t.Errorf("c again: %d header rows, cursor on %v; want 6 and still the subject", headerRows(), r)
 	}
 }
+
+func TestFlowStayInCommit(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f", "C") // on the bar of c3
+	f := l.flow
+	part := func() int { return f.rows[f.cursor].part }
+	last := 0
+	for i, r := range f.rows {
+		if r.part == 0 {
+			last = i
+		}
+	}
+	if !l.cfg.Settings.StayInCommit || f.msg != "staying in commit c3" {
+		t.Fatalf("C: setting %v, msg %q", l.cfg.Settings.StayInCommit, f.msg)
+	}
+	pressLog(l, "G")
+	if f.cursor != last || f.msg != "stays in commit c3 (C)" {
+		t.Errorf("G: cursor %d (last row of c3: %d), msg %q", f.cursor, last, f.msg)
+	}
+	for _, k := range []string{"j", "n", "]", "pgdown"} {
+		pressLog(l, k)
+		if f.cursor != last || f.msg != "stays in commit c3 (C)" {
+			t.Errorf("%s at the end of c3: cursor %d, msg %q; want %d and the warning", k, f.cursor, f.msg, last)
+		}
+	}
+	if !strings.Contains(ansi.Strip(l.View()), "commit 1/4 (C)") {
+		t.Errorf("status lacks (C)")
+	}
+	// N and P still switch; the commit switched to is the one to stay in.
+	pressLog(l, "N")
+	if part() != 1 {
+		t.Fatalf("N: on commit %d, want 1", part())
+	}
+	first := f.cursor
+	for _, k := range []string{"k", "pgup", "g"} {
+		pressLog(l, k)
+		if f.cursor != first || f.msg != "stays in commit c2 (C)" {
+			t.Errorf("%s at the start of c2: cursor %d, msg %q; want %d and the warning", k, f.cursor, f.msg, first)
+		}
+	}
+	pressLog(l, "C", "k")
+	if l.cfg.Settings.StayInCommit || part() != 0 {
+		t.Errorf("C off, k: setting %v, on commit %d; want off and back in c3", l.cfg.Settings.StayInCommit, part())
+	}
+}
