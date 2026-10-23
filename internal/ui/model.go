@@ -143,8 +143,34 @@ func (m *Model) key(k string) tea.Cmd {
 		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
 	case "enter", "esc", " ", "ctrl+@":
 		m.act(k)
+	case "o":
+		return m.jump()
 	}
 	return nil
+}
+
+// jump moves the cursor to the other end of the moved line under it, which
+// keeps its screen row. An end in another file is shown by the file
+// selector.
+func (m *Model) jump() tea.Cmd {
+	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenUnified)
+	if !ok {
+		m.msg = msg
+		return nil
+	}
+	if end.file != m.groupIndex {
+		j := jumpMsg{end, m.pos() - m.top, msg}
+		return func() tea.Msg { return j }
+	}
+	m.show(m.spotOf(end.side, end.line), m.pos()-m.top)
+	m.msg = msg
+	return nil
+}
+
+// show puts the cursor on at, at screen row screenRow.
+func (m *Model) show(at spot, screenRow int) {
+	m.active = at.side
+	m.place(at.v, at.sub, screenRow)
 }
 
 // act runs an anchor or fold key on the diff at the cursor, which stays on

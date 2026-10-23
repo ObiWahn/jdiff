@@ -18,6 +18,15 @@ type switchCommitMsg int
 // its list when it shows the flow view.
 type backMsg struct{}
 
+// jumpMsg asks the file selector to show the line of the other end of moved
+// code in another file: end, in the file of the group with index end.file,
+// at screen row screenRow, with message msg.
+type jumpMsg struct {
+	end       moveEnd
+	screenRow int
+	msg       string
+}
+
 // toggleFlowMsg asks the log or the file selector to switch between the diff
 // view of one file and the flow view of all files.
 type toggleFlowMsg struct{}

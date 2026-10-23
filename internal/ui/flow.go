@@ -167,6 +167,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "enter", "esc", " ", "ctrl+@":
 		f.delegate(k)
+	case "o":
+		f.jump()
 	case "s":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.SideBySide)
 		f.keepScreenRow(f.relocate)
@@ -223,6 +225,36 @@ func (f *Flow) delegate(k string) {
 		f.marked = d
 	} else if f.marked == d {
 		f.marked = nil
+	}
+}
+
+// jump moves the cursor to the other end of the moved line under it, in this
+// or another file of the commit; it keeps its screen row.
+func (f *Flow) jump() {
+	if len(f.rows) == 0 || f.rows[f.cursor].kind != flowDiff {
+		f.msg = "not moved"
+		return
+	}
+	r := f.rows[f.cursor]
+	app := f.parts[r.part].app
+	d := app.files[r.file].diff
+	end, msg, ok := d.otherEnd(spot{r.line, r.sub, f.active}, d.unified())
+	f.msg = msg
+	if !ok {
+		return
+	}
+	for i, e := range app.files {
+		if e.diff == nil || e.diff.groupIndex != end.file {
+			continue
+		}
+		at := e.diff.spotOf(end.side, end.line)
+		f.keepScreenRow(func() {
+			if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
+				f.cursor = j
+			}
+		})
+		f.active = at.side
+		return
 	}
 }
 

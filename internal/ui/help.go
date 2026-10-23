@@ -47,6 +47,7 @@ var bindings = []binding{
 	{"space", "fold or unfold unchanged code"},
 	{"ctrl+space", "fold or unfold all of the file"},
 	{"tab", "switch pane"},
+	{"o", "other end of moved code (magenta: moved away, cyan: moved here)"},
 	{"enter", "mark a line, then its partner: anchor"},
 	{"", "  enter on an anchored line removes the anchor"},
 	{"", "  normal layout: unchanged lines take the side opposite the mark"},

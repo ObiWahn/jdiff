@@ -190,6 +190,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case watchTickMsg:
 		a.refresh()
 		return a, watchTick(a.cfg)
+	case jumpMsg:
+		a.jump(msg)
+		return a, nil
 	case switchFileMsg:
 		a.switchFile(int(msg))
 		return a, nil
@@ -348,6 +351,24 @@ func (a *App) toggleFlow() {
 	}
 	a.openFile()
 	a.open.view.takeOver(a.flow, line, screenRow)
+}
+
+// jump opens the file of j's end of moved code with the cursor on its line.
+func (a *App) jump(j jumpMsg) {
+	for i, e := range a.files {
+		if e.diff == nil || e.diff.groupIndex != j.end.file {
+			continue
+		}
+		if a.open != nil {
+			a.open.updateStats()
+		}
+		a.cursor = i
+		a.scrollToCursor()
+		a.openFile()
+		a.open.view.show(e.diff.spotOf(j.end.side, j.end.line), j.screenRow)
+		a.open.view.msg = j.msg
+		return
+	}
 }
 
 // switchFile opens the next (dir > 0) or previous file that can be shown.
