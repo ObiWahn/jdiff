@@ -37,141 +37,109 @@ type Theme struct {
 	Warnings []string
 }
 
-// Defaults for 16 color mode. Unlike delta's defaults they use foreground
-// colors only, since ANSI backgrounds are too loud for whole lines.
-var deltaDefaults = map[string]string{
-	"minus-style":              "red",
-	"minus-emph-style":         "bright-red bold",
-	"plus-style":               "green",
-	"plus-emph-style":          "bright-green bold",
-	"zero-style":               "normal",
-	"line-numbers-minus-style": "red",
-	"line-numbers-plus-style":  "green",
-	"line-numbers-zero-style":  "normal",
-	"line-numbers-left-style":  "blue",
-	"line-numbers-right-style": "blue",
-	"file-style":               "blue",
-	"file-decoration-style":    "blue ul",
-	"inline-hint-style":        "blue",
-	"file-added-label":         "added:",
-	"file-removed-label":       "removed:",
-	"file-modified-label":      "",
-	"file-renamed-label":       "renamed:",
-}
-
-var jdiffDefaults = map[string]string{
-	"anchor-style":  "yellow bold",
-	"pending-style": "magenta bold",
-	"cursor-style":  "reverse bold",
-	// Bars with a background, so file and commit borders stand out.
-	"file-bar-style":    "bold bright-white blue",
-	"commit-bar-style":  "bold black yellow",
-	"commit-hash-style": "yellow",
-	"branch-style":      "yellow bold",
-}
-
-// jdiffKeys are the style keys of the [jdiff] git config section; all
-// others are delta's.
-var jdiffKeys = []string{"filler-style", "whitespace-style", "minus-indent-style", "plus-indent-style"}
-
-// IsJdiffKey reports whether key is a [jdiff] key rather than a delta one.
-func IsJdiffKey(key string) bool {
-	_, ok := jdiffDefaults[key]
-	return ok || slices.Contains(jdiffKeys, key)
-}
-
 // Default returns the theme without any configuration.
-func Default() *Theme { return Load(Config{}, nil) }
+func Default() *Theme { return Resolve(Builtin()) }
 
 // Load builds the theme from cfg with the given features (see Features).
-func Load(cfg Config, features []string) *Theme {
+func Load(cfg Config, features []string) *Theme { return Resolve(FromGit(cfg, features)) }
+
+// Resolve builds the theme that sp defines. Options sp leaves unset or sets
+// to an invalid value take their default; invalid values are reported in
+// Warnings.
+func Resolve(sp Spec) *Theme {
+	def := Builtin()
 	t := &Theme{}
-	str := func(key string) string {
-		if v, ok := lookup(cfg, features, key); ok {
-			return v
+	name := func(key string) string {
+		if IsJdiffKey(key) {
+			return "jdiff." + key
 		}
-		return deltaDefaults[key]
+		return "delta." + key
 	}
-	warn := func(name string, err error) {
+	val := func(v, d *string) string {
+		if v != nil {
+			return *v
+		}
+		return *d
+	}
+	warn := func(key string, err error) {
 		// Options that default to another one may report its error again.
-		if w := fmt.Sprintf("%s: %v", name, err); !slices.Contains(t.Warnings, w) {
+		if w := fmt.Sprintf("%s: %v", name(key), err); !slices.Contains(t.Warnings, w) {
 			t.Warnings = append(t.Warnings, w)
 		}
 	}
-	parse := func(name, s, fallback string) lipgloss.Style {
-		st, err := ParseStyle(s, cfg)
+	parse := func(key, s, fallback string) lipgloss.Style {
+		st, err := ParseStyle(s, sp.Colors)
 		if err != nil {
-			warn(name, err)
+			warn(key, err)
 			st, _ = ParseStyle(fallback, nil)
 		}
 		return st
 	}
-	delta := func(key string) lipgloss.Style {
-		return parse("delta."+key, str(key), deltaDefaults[key])
-	}
-	// deltaOr returns a delta option that defaults to another option.
-	deltaOr := func(key, fallbackKey string) lipgloss.Style {
-		if v, ok := lookup(cfg, features, key); ok {
-			return parse("delta."+key, v, str(fallbackKey))
+	// style returns option key with value v and default d.
+	style := func(key string, v, d *string) lipgloss.Style {
+		if v != nil {
+			return parse(key, *v, *d)
 		}
-		return delta(fallbackKey)
+		return parse(key, *d, "")
 	}
-	jdiff := func(key string) lipgloss.Style {
-		def := jdiffDefaults[key]
-		if v, ok := cfg["jdiff."+key]; ok {
-			return parse("jdiff."+key, v, def)
+	// styleOr returns option key with value v, which defaults to option
+	// fbKey with value fv and default fd.
+	styleOr := func(key string, v *string, fbKey string, fv, fd *string) lipgloss.Style {
+		if v != nil {
+			return parse(key, *v, val(fv, fd))
 		}
-		return parse("jdiff."+key, def, "")
+		return style(fbKey, fv, fd)
 	}
-	// jdiffOr returns a jdiff option that defaults to another style, also
-	// when it is invalid.
-	jdiffOr := func(key string, def lipgloss.Style) lipgloss.Style {
-		v, ok := cfg["jdiff."+key]
-		if !ok {
-			return def
+	// styleOrStyle returns option key with value v, which defaults to the
+	// style d, also when it is invalid.
+	styleOrStyle := func(key string, v *string, d lipgloss.Style) lipgloss.Style {
+		if v == nil {
+			return d
 		}
-		st, err := ParseStyle(v, cfg)
+		st, err := ParseStyle(*v, sp.Colors)
 		if err != nil {
-			warn("jdiff."+key, err)
-			return def
+			warn(key, err)
+			return d
 		}
 		return st
 	}
 
-	t.Minus, t.MinusEmph = delta("minus-style"), delta("minus-emph-style")
-	t.Plus, t.PlusEmph = delta("plus-style"), delta("plus-emph-style")
-	t.MinusNonEmph = deltaOr("minus-non-emph-style", "minus-style")
-	t.PlusNonEmph = deltaOr("plus-non-emph-style", "plus-style")
-	t.Zero = delta("zero-style")
+	t.Minus = style("minus-style", sp.MinusStyle, def.MinusStyle)
+	t.MinusEmph = style("minus-emph-style", sp.MinusEmphStyle, def.MinusEmphStyle)
+	t.Plus = style("plus-style", sp.PlusStyle, def.PlusStyle)
+	t.PlusEmph = style("plus-emph-style", sp.PlusEmphStyle, def.PlusEmphStyle)
+	t.MinusNonEmph = styleOr("minus-non-emph-style", sp.MinusNonEmphStyle, "minus-style", sp.MinusStyle, def.MinusStyle)
+	t.PlusNonEmph = styleOr("plus-non-emph-style", sp.PlusNonEmphStyle, "plus-style", sp.PlusStyle, def.PlusStyle)
+	t.Zero = style("zero-style", sp.ZeroStyle, def.ZeroStyle)
 
-	t.NumMinus = delta("line-numbers-minus-style")
-	t.NumPlus = delta("line-numbers-plus-style")
-	t.NumZero = delta("line-numbers-zero-style")
-	t.NumLeft = delta("line-numbers-left-style")
-	t.NumRight = delta("line-numbers-right-style")
+	t.NumMinus = style("line-numbers-minus-style", sp.LineNumbersMinusStyle, def.LineNumbersMinusStyle)
+	t.NumPlus = style("line-numbers-plus-style", sp.LineNumbersPlusStyle, def.LineNumbersPlusStyle)
+	t.NumZero = style("line-numbers-zero-style", sp.LineNumbersZeroStyle, def.LineNumbersZeroStyle)
+	t.NumLeft = style("line-numbers-left-style", sp.LineNumbersLeftStyle, def.LineNumbersLeftStyle)
+	t.NumRight = style("line-numbers-right-style", sp.LineNumbersRightStyle, def.LineNumbersRightStyle)
 
 	// Only the color of the decoration is used: jdiff draws no underlines.
-	decoration := delta("file-decoration-style")
-	t.Title = delta("file-style")
+	decoration := style("file-decoration-style", sp.FileDecorationStyle, def.FileDecorationStyle)
+	t.Title = style("file-style", sp.FileStyle, def.FileStyle)
 	t.Decoration = lipgloss.NewStyle().Foreground(decoration.GetForeground())
-	t.Hint = delta("inline-hint-style")
+	t.Hint = style("inline-hint-style", sp.InlineHintStyle, def.InlineHintStyle)
 
-	t.AddedLabel = str("file-added-label")
-	t.RemovedLabel = str("file-removed-label")
-	t.ModifiedLabel = str("file-modified-label")
-	t.RenamedLabel = str("file-renamed-label")
+	t.AddedLabel = val(sp.FileAddedLabel, def.FileAddedLabel)
+	t.RemovedLabel = val(sp.FileRemovedLabel, def.FileRemovedLabel)
+	t.ModifiedLabel = val(sp.FileModifiedLabel, def.FileModifiedLabel)
+	t.RenamedLabel = val(sp.FileRenamedLabel, def.FileRenamedLabel)
 
-	t.Anchor = jdiff("anchor-style")
-	t.Pending = jdiff("pending-style")
-	t.Cursor = jdiff("cursor-style")
-	t.FileBar = jdiff("file-bar-style")
-	t.CommitBar = jdiff("commit-bar-style")
-	t.CommitHash = jdiff("commit-hash-style")
-	t.Branch = jdiff("branch-style")
-	t.Filler = jdiffOr("filler-style", t.Decoration)
-	t.Whitespace = jdiffOr("whitespace-style", t.Decoration)
+	t.Anchor = style("anchor-style", sp.AnchorStyle, def.AnchorStyle)
+	t.Pending = style("pending-style", sp.PendingStyle, def.PendingStyle)
+	t.Cursor = style("cursor-style", sp.CursorStyle, def.CursorStyle)
+	t.FileBar = style("file-bar-style", sp.FileBarStyle, def.FileBarStyle)
+	t.CommitBar = style("commit-bar-style", sp.CommitBarStyle, def.CommitBarStyle)
+	t.CommitHash = style("commit-hash-style", sp.CommitHashStyle, def.CommitHashStyle)
+	t.Branch = style("branch-style", sp.BranchStyle, def.BranchStyle)
+	t.Filler = styleOrStyle("filler-style", sp.FillerStyle, t.Decoration)
+	t.Whitespace = styleOrStyle("whitespace-style", sp.WhitespaceStyle, t.Decoration)
 	// Changed whitespace is drawn as · and →, by default like changed words.
-	t.MinusIndent = jdiffOr("minus-indent-style", t.MinusEmph)
-	t.PlusIndent = jdiffOr("plus-indent-style", t.PlusEmph)
+	t.MinusIndent = styleOrStyle("minus-indent-style", sp.MinusIndentStyle, t.MinusEmph)
+	t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)
 	return t
 }

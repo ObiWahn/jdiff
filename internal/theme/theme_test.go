@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseStyle(t *testing.T) {
-	cfg := Config{"delta.my-red": "#ff0000"}
+	named := map[string]string{"my-red": "#ff0000"}
 	tests := []struct {
 		in     string
 		fg, bg lipgloss.TerminalColor
@@ -28,7 +28,7 @@ func TestParseStyle(t *testing.T) {
 		{"", lipgloss.NoColor{}, lipgloss.NoColor{}, false, false},
 	}
 	for _, tt := range tests {
-		st, err := ParseStyle(tt.in, cfg)
+		st, err := ParseStyle(tt.in, named)
 		if err != nil {
 			t.Errorf("ParseStyle(%q): %v", tt.in, err)
 			continue

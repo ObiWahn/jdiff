@@ -16,9 +16,9 @@ var ansiNames = map[string]int{
 
 // ParseStyle parses a delta style string: attributes, then an optional
 // foreground and background color. Color words that are neither a known
-// color nor "normal" are looked up as delta.<word> in cfg, like delta does.
+// color nor "normal" are looked up in named, like delta does.
 // Words that only matter to delta (omit, raw, box, ...) are ignored.
-func ParseStyle(s string, cfg Config) (lipgloss.Style, error) {
+func ParseStyle(s string, named map[string]string) (lipgloss.Style, error) {
 	style := lipgloss.NewStyle()
 	colors := 0
 	for _, word := range strings.Fields(strings.ToLower(s)) {
@@ -40,7 +40,7 @@ func ParseStyle(s string, cfg Config) (lipgloss.Style, error) {
 			style = style.Strikethrough(true)
 		case "hidden", "omit", "raw", "line-number", "file", "omit-code-fragment", "box", "ol", "none":
 		default:
-			c, err := parseColor(word, cfg)
+			c, err := parseColor(word, named)
 			if err != nil {
 				return lipgloss.NewStyle(), fmt.Errorf("style %q: %w", s, err)
 			}
@@ -65,7 +65,7 @@ func ParseStyle(s string, cfg Config) (lipgloss.Style, error) {
 // parseColor returns the color for word, or "" for no color. Colors beyond
 // the 16 ANSI ones are passed on as-is; the 16 color profile maps them to
 // the nearest ANSI color when rendering.
-func parseColor(word string, cfg Config) (lipgloss.Color, error) {
+func parseColor(word string, named map[string]string) (lipgloss.Color, error) {
 	switch word {
 	case "normal", "auto", "syntax":
 		return "", nil
@@ -84,7 +84,7 @@ func parseColor(word string, cfg Config) (lipgloss.Color, error) {
 	if isHexColor(word) {
 		return lipgloss.Color(word), nil
 	}
-	if v, ok := cfg["delta."+word]; ok && !strings.HasPrefix(word, "delta.") {
+	if v, ok := named[word]; ok && !strings.HasPrefix(word, "delta.") {
 		// A named color defined elsewhere in the config; no further nesting.
 		return parseColor(strings.ToLower(strings.TrimSpace(v)), nil)
 	}
