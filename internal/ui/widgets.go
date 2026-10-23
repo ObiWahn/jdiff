@@ -84,6 +84,58 @@ func scrollWindow(cursor, top, h, n int) int {
 	return max(min(top, n-h), 0)
 }
 
+// list is the state of the commit and the file list: n items below a
+// heading and an empty line, the box below them while preview is set, and the
+// status bar.
+type list struct {
+	cursor, top   int
+	n             int
+	preview       *bool // the setting that shows the box
+	width, height int
+}
+
+// listHeight is the height of the list below the heading and an empty line.
+func (li *list) listHeight() int {
+	h, _ := splitList(li.height, li.n, *li.preview)
+	return h
+}
+
+// boxHeight is the height of the box below the list, 0 when it is hidden.
+func (li *list) boxHeight() int {
+	_, h := splitList(li.height, li.n, *li.preview)
+	return h
+}
+
+func (li *list) moveCursor(delta int) {
+	li.cursor = max(min(li.cursor+delta, li.n-1), 0)
+	li.scrollToCursor()
+}
+
+func (li *list) scrollToCursor() {
+	li.top = scrollWindow(li.cursor, li.top, li.listHeight(), li.n)
+}
+
+// render renders the list: head, the shown items as drawn by item, which
+// renders the selected one bold through st, the box as drawn by box when it
+// is shown, and status.
+func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lipgloss.Style) lipgloss.Style) string,
+	box func(height int) string, status string) string {
+	var b strings.Builder
+	b.WriteString(ansi.Truncate(head, li.width, "…") + "\n\n")
+	for i := li.top; i < li.top+li.listHeight(); i++ {
+		if i < li.n {
+			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == li.cursor) }
+			b.WriteString(ansi.Truncate(item(i, st), li.width, "…"))
+		}
+		b.WriteString("\n")
+	}
+	if h := li.boxHeight(); h > 0 && li.cursor < li.n {
+		b.WriteString("\n" + box(h))
+	}
+	b.WriteString(ansi.Truncate(t.Hint.Render(status), li.width, ""))
+	return b.String()
+}
+
 // pad fills s with spaces in style up to width columns.
 func pad(s string, width int, style lipgloss.Style) string {
 	if n := width - ansi.StringWidth(s); n > 0 {
@@ -98,4 +150,10 @@ func count(sign string, n, width int) string {
 		return strings.Repeat(" ", width)
 	}
 	return fmt.Sprintf("%*s", width, sign+fmt.Sprint(n))
+}
+
+// counts renders the added and removed line counts in columns addW and remW
+// digits wide, in st of the plus and minus styles.
+func counts(t *theme.Theme, st func(lipgloss.Style) lipgloss.Style, added, removed, addW, remW int) string {
+	return st(t.Plus).Render(count("+", added, addW+1)) + " " + st(t.Minus).Render(count("-", removed, remW+1))
 }

@@ -31,13 +31,10 @@ type Log struct {
 	load   LoadFunc
 
 	commits []*commitEntry
-	cursor  int
-	top     int
-	open    *commitEntry // commit whose files are shown, nil for the list
-	flow    *Flow        // all commits one after the other
-
-	width, height int
-	msg           string
+	list
+	open *commitEntry // commit whose files are shown, nil for the list
+	flow *Flow        // all commits one after the other
+	msg  string
 }
 
 // NewLog returns the commit list for commits, newest first, of branch.
@@ -49,6 +46,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 		l.commits = append(l.commits, e)
 		parts = append(parts, &flowPart{commit: e, header: commitHeader(c)})
 	}
+	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
 	l.flow = newFlow(cfg, parts, l.app)
 	if len(commits) == 0 {
 		l.msg = "no commits"
@@ -79,14 +77,7 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toggleFlowMsg:
 		l.toggleFlow()
 		if w := saveState(l.cfg); w != "" {
-			switch {
-			case l.flowShown():
-				l.flow.msg = w
-			case l.open != nil:
-				l.open.app.setMsg(w)
-			default:
-				l.msg = w
-			}
+			l.setMsg(w)
 		}
 		return l, nil
 	}
@@ -253,26 +244,16 @@ func (l *Log) switchCommit(dir int) {
 	}
 }
 
-func (l *Log) moveCursor(delta int) {
-	l.cursor = max(min(l.cursor+delta, len(l.commits)-1), 0)
-	l.scrollToCursor()
-}
-
-// listHeight is the height of the list below the branch and an empty line.
-func (l *Log) listHeight() int {
-	list, _ := splitList(l.height, len(l.commits), l.cfg.Settings.Preview)
-	return list
-}
-
-// boxHeight is the height of the message box below the list, 0 when it is
-// hidden.
-func (l *Log) boxHeight() int {
-	_, box := splitList(l.height, len(l.commits), l.cfg.Settings.Preview)
-	return box
-}
-
-func (l *Log) scrollToCursor() {
-	l.top = scrollWindow(l.cursor, l.top, l.listHeight(), len(l.commits))
+// setMsg shows msg in the status bar of whatever is displayed.
+func (l *Log) setMsg(msg string) {
+	switch {
+	case l.flowShown():
+		l.flow.msg = msg
+	case l.open != nil:
+		l.open.app.setMsg(msg)
+	default:
+		l.msg = msg
+	}
 }
 
 // maxAuthorWidth caps the author column.
@@ -302,36 +283,22 @@ func (l *Log) View() string {
 	fixedW += 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
 	subjW = max(min(subjW, l.width-fixedW), 1)
 
-	var b strings.Builder
 	head := " " + t.Branch.Render(l.branch) + " " +
 		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
-	b.WriteString(ansi.Truncate(head, l.width, "…") + "\n\n")
-	for i := l.top; i < l.top+l.listHeight(); i++ {
-		if i < len(l.commits) {
-			c := l.commits[i]
-			// The selected commit is drawn bold.
-			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == l.cursor) }
-			counts := st(t.Plus).Render(count("+", c.Added, addW+1)) + " " +
-				st(t.Minus).Render(count("-", c.Removed, remW+1))
-			author := fmt.Sprintf("%-*s", authW, ansi.Truncate(c.Author, maxAuthorWidth, "…"))
-			subject := ansi.Truncate(c.Subject, subjW, "…")
-			subject += strings.Repeat(" ", subjW-ansi.StringWidth(subject))
-			line := " " + st(t.CommitHash).Render(c.Short) + "  " + counts + "  " +
-				st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
-				st(t.Decoration).Render(c.Date)
-			b.WriteString(ansi.Truncate(line, l.width, "…"))
-		}
-		b.WriteString("\n")
-	}
-	if h := l.boxHeight(); h > 0 && l.cursor < len(l.commits) {
-		b.WriteString("\n" + l.messageBox(l.commits[l.cursor].Commit, h))
+	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
+		c := l.commits[i]
+		author := fmt.Sprintf("%-*s", authW, ansi.Truncate(c.Author, maxAuthorWidth, "…"))
+		subject := ansi.Truncate(c.Subject, subjW, "…")
+		subject += strings.Repeat(" ", subjW-ansi.StringWidth(subject))
+		return " " + st(t.CommitHash).Render(c.Short) + "  " + counts(t, st, c.Added, c.Removed, addW, remW) + "  " +
+			st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
+			st(t.Decoration).Render(c.Date)
 	}
 	status := l.msg
 	if status == "" {
 		status = "enter open · f flow · v message · ? help · q quit"
 	}
-	b.WriteString(ansi.Truncate(t.Hint.Render(status), l.width, ""))
-	return b.String()
+	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, status)
 }
 
 // messageBox renders the full message of c in a box height lines high,

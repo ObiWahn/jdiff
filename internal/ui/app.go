@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -67,13 +66,10 @@ type App struct {
 	cfg    *config.Config
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
-	cursor int
-	top    int
-	open   *entry // file whose diff view is shown, nil for the list
-	flow   *Flow  // flow view outside the log, created on first use
-
-	width, height int
-	msg           string
+	list
+	open *entry // file whose diff view is shown, nil for the list
+	flow *Flow  // flow view outside the log, created on first use
+	msg  string
 }
 
 // NewApp returns the file selector for files.
@@ -88,6 +84,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 		e.updateStats()
 		a.files = append(a.files, e)
 	}
+	a.list = list{n: len(a.files), preview: &cfg.Settings.Preview}
 	if len(files) == 0 {
 		a.msg = "no changed files"
 	}
@@ -313,24 +310,6 @@ func (a *App) switchFile(dir int) {
 	a.setMsg(ends(dir > 0, "last file", "first file"))
 }
 
-func (a *App) moveCursor(delta int) {
-	a.cursor = max(min(a.cursor+delta, len(a.files)-1), 0)
-	a.scrollToCursor()
-}
-
-// listHeight is the height of the list below the heading and an empty line.
-func (a *App) listHeight() int {
-	list, _ := splitList(a.height, len(a.files), a.cfg.Settings.Preview)
-	return list
-}
-
-// boxHeight is the height of the diff preview below the list, 0 when it is
-// hidden.
-func (a *App) boxHeight() int {
-	_, box := splitList(a.height, len(a.files), a.cfg.Settings.Preview)
-	return box
-}
-
 // preview renders the diff of e in a box height lines high, starting with
 // the context of the first change.
 func (a *App) preview(e *entry, height int) string {
@@ -359,10 +338,6 @@ func (a *App) preview(e *entry, height int) string {
 	return box(t, a.width, height, title, lines)
 }
 
-func (a *App) scrollToCursor() {
-	a.top = scrollWindow(a.cursor, a.top, a.listHeight(), len(a.files))
-}
-
 func (a *App) View() string {
 	if a.flowShown() {
 		return a.flow.View()
@@ -384,7 +359,6 @@ func (a *App) View() string {
 		lblW = max(lblW, ansi.StringWidth(e.label(t)))
 	}
 
-	var b strings.Builder
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
 	bold := lipgloss.NewStyle().Bold(true)
@@ -393,27 +367,16 @@ func (a *App) View() string {
 		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n\n")
 
-	for i := a.top; i < a.top+a.listHeight(); i++ {
-		if i < len(a.files) {
-			e := a.files[i]
-			// The selected file is drawn bold.
-			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == a.cursor) }
-			counts := st(t.Plus).Render(count("+", e.added, addW+1)) + " " +
-				st(t.Minus).Render(count("-", e.removed, remW+1))
-			if e.Binary {
-				counts = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
-			}
-			lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
-			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+st(lipgloss.NewStyle()).Render(e.name()), a.width, "…"))
+	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
+		e := a.files[i]
+		cnt := counts(t, st, e.added, e.removed, addW, remW)
+		if e.Binary {
+			cnt = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 		}
-		b.WriteString("\n")
+		lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
+		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	if h := a.boxHeight(); h > 0 && a.cursor < len(a.files) {
-		b.WriteString("\n" + a.preview(a.files[a.cursor], h))
-	}
-
 	status := a.msg
 	if status == "" {
 		status = "enter open · f flow · v preview · ? help · q quit"
@@ -421,6 +384,5 @@ func (a *App) View() string {
 			status = "enter open · N/P commit · backspace commits · ? help · q quit"
 		}
 	}
-	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))
-	return b.String()
+	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, status)
 }
