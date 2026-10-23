@@ -34,7 +34,8 @@ type flowRow struct {
 // flowPart is one commit of the log, or all files outside the log.
 type flowPart struct {
 	commit *commitEntry // nil outside the log
-	header []string     // commit header lines, the first one is the bar
+	full   []string     // commit header lines with the whole message, the first one is the bar
+	short  []string     // commit header lines with the subject only
 	app    *App         // the files, nil until loaded
 	err    string       // why the files could not be loaded
 }
@@ -73,11 +74,16 @@ func newFlow(cfg *config.Config, parts []*flowPart, load func(int) (*App, error)
 // flowOfApp returns the flow view of the files of a, outside the log.
 func flowOfApp(a *App) *Flow { return newFlow(a.cfg, []*flowPart{{app: a}}, nil) }
 
-// commitHeader returns the header lines of c: the bar, then the message
-// indented as git log does.
-func commitHeader(c gitsrc.Commit) []string {
+// newCommitPart returns the part of the flow view for commit e.
+func newCommitPart(e *commitEntry) *flowPart {
+	return &flowPart{commit: e, full: commitHeader(e.Commit, true), short: commitHeader(e.Commit, false)}
+}
+
+// commitHeader returns the header lines of c: the bar, then the message, or
+// with full unset its subject only, indented as git log does.
+func commitHeader(c gitsrc.Commit, full bool) []string {
 	h := []string{fmt.Sprintf("commit %s · %s · %s", c.Short, c.Author, c.Date), "", "    " + c.Subject}
-	if c.Body != "" {
+	if full && c.Body != "" {
 		h = append(h, "")
 		for l := range strings.SplitSeq(c.Body, "\n") {
 			h = append(h, strings.TrimRight("    "+l, " "))
@@ -87,6 +93,14 @@ func commitHeader(c gitsrc.Commit) []string {
 }
 
 func (f *Flow) Init() tea.Cmd { return nil }
+
+// commitLines returns the header lines of part as currently shown.
+func (f *Flow) commitLines(part *flowPart) []string {
+	if f.cfg.Settings.FullMessages {
+		return part.full
+	}
+	return part.short
+}
 
 func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -157,6 +171,11 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.keepScreenRow(f.relocate)
 	case "w":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
+	case "m":
+		if f.inLog() {
+			f.msg = toggle(f.cfg, &f.cfg.Settings.FullMessages)
+			f.keepScreenRow(f.relocate)
+		}
 	}
 	return nil
 }
@@ -222,7 +241,7 @@ func (f *Flow) build() {
 		f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 	}
 	for p, part := range f.parts {
-		for i := range part.header {
+		for i := range f.commitLines(part) {
 			add(flowCommit, p, -1, i)
 		}
 		if part.err != "" || (part.app != nil && len(part.app.files) == 0) {
@@ -258,6 +277,10 @@ func (f *Flow) relocate() {
 	}
 	f.build()
 	i := f.find(cur)
+	if i < 0 && cur.kind == flowCommit {
+		// A message line no longer shown: on to the subject.
+		i = f.find(flowRow{flowCommit, cur.part, -1, 2, 0})
+	}
 	if cur.kind == flowDiff {
 		i = f.findDiff(cur.part, cur.file, cur.line, cur.sub)
 	}
@@ -567,7 +590,7 @@ func (f *Flow) row(i int) string {
 
 	switch r.kind {
 	case flowCommit:
-		line := part.header[r.line]
+		line := f.commitLines(part)[r.line]
 		switch r.line {
 		case 0:
 			return mark + bar(" "+line, t.CommitBar)

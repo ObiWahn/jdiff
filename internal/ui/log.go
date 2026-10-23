@@ -44,7 +44,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 	for _, c := range commits {
 		e := &commitEntry{Commit: c}
 		l.commits = append(l.commits, e)
-		parts = append(parts, &flowPart{commit: e, header: commitHeader(c)})
+		parts = append(parts, newCommitPart(e))
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
 	l.flow = newFlow(cfg, parts, l.app)

@@ -32,6 +32,9 @@ type Toggles struct {
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
 	// not only changed whitespace; w toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
+	// FullMessages (full_messages) shows the whole commit message in the
+	// flow view of the log; off, only the subject. m toggles it.
+	FullMessages bool `toml:"full_messages"`
 }
 
 // Default returns the default settings.
@@ -44,6 +47,7 @@ func Default() Settings {
 			SideBySide:      true,
 			Preview:         true,
 			ShowWhitespaces: false,
+			FullMessages:    true,
 		},
 	}
 }

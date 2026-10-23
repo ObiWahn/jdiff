@@ -375,3 +375,34 @@ func TestFlowCursorRowsInverted(t *testing.T) {
 		t.Errorf("rows checked: %v, want commit, file and note rows", kinds)
 	}
 }
+
+func TestFlowMessageToggle(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f") // on the bar of c3, the only commit with a body
+	headerRows := func() int {
+		n := 0
+		for _, r := range l.flow.rows {
+			if r.kind == flowCommit && r.part == 0 {
+				n++
+			}
+		}
+		return n
+	}
+	if n := headerRows(); n != 6 || !l.cfg.Settings.FullMessages {
+		t.Fatalf("c3 header: %d rows, full %v; want 6 with the body", n, l.cfg.Settings.FullMessages)
+	}
+	pressLog(l, "j", "j", "j", "j") // on the body line
+	pressLog(l, "m")
+	if r := l.flow.rows[l.flow.cursor]; headerRows() != 4 || l.cfg.Settings.FullMessages ||
+		r.kind != flowCommit || r.line != 2 {
+		t.Errorf("m: %d header rows, full %v, cursor on %v; want 4, off and the subject",
+			headerRows(), l.cfg.Settings.FullMessages, r)
+	}
+	if strings.Contains(ansi.Strip(l.View()), "body c3") {
+		t.Errorf("short messages still show the body")
+	}
+	pressLog(l, "m")
+	if r := l.flow.rows[l.flow.cursor]; headerRows() != 6 || r.kind != flowCommit || r.line != 2 {
+		t.Errorf("m again: %d header rows, cursor on %v; want 6 and still the subject", headerRows(), r)
+	}
+}

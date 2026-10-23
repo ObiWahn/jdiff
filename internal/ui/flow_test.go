@@ -327,3 +327,11 @@ func TestFlowPageKeysKeepScreenRow(t *testing.T) {
 		t.Errorf("pgdown at the end: top %d, screen row %d; want %d and %d", a.flow.top, a.flow.cursor-a.flow.top, last, row)
 	}
 }
+
+func TestFlowMessageToggleOnlyInLog(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f", "m")
+	if !a.cfg.Settings.FullMessages {
+		t.Errorf("m outside the log toggled the commit messages")
+	}
+}

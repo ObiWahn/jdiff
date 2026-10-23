@@ -201,6 +201,7 @@ func TestSaveState(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Settings.Flow, c.Settings.Preview, c.Settings.Context = true, false, 7
+	c.Settings.FullMessages = false
 	if err := c.SaveState(); err != nil {
 		t.Fatal(err)
 	}
@@ -208,15 +209,16 @@ func TestSaveState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := string(data); !strings.Contains(s, "flow = true") || strings.Contains(s, "context") {
+	if s := string(data); !strings.Contains(s, "flow = true") || !strings.Contains(s, "full_messages = false") ||
+		strings.Contains(s, "context") {
 		t.Errorf("state.toml:\n%s", s)
 	}
 	c, err = Load(dir, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Settings.Flow || c.Settings.Preview || c.Settings.Context != 3 {
-		t.Errorf("reloaded %+v, want flow on, preview off, context default", c.Settings)
+	if !c.Settings.Flow || c.Settings.Preview || c.Settings.FullMessages || c.Settings.Context != 3 {
+		t.Errorf("reloaded %+v, want flow on, preview off, short messages, context default", c.Settings)
 	}
 	if Default().SaveState() != nil {
 		t.Errorf("SaveState without a directory should do nothing")
