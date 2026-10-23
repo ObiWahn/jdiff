@@ -110,7 +110,7 @@ func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
 	pending := d.isPending(row) && (row.Kind == diff.Equal || d.pending.side == s)
 	line := lineOf(row, s)
 	_, moved := d.movedTo(s, line)
-	gutter := d.gutter(row, s, changed, pending, moved, nums, t.Decoration, cursor)
+	gutter := d.gutter(row, s, changed, pending, moved, nums, t.Decoration, cursor, cursor)
 	return gutter + d.content(s, row, line, max(lo.width-2*nw-4, 0), cursor, moved, lo.xoff)
 }
 
@@ -151,7 +151,8 @@ func (d *fileDiff) fold(v int, cursor bool, width int) string {
 }
 
 // cell renders side s of displayed row v: marker, line number, separator and
-// the line content. The cursor shows on the line number of the active side.
+// the line content. On the cursor row both sides are bold, and the line
+// number of the active side is in the cursor style.
 func (d *fileDiff) cell(s side, v, width, numWidth int, cursor bool, lo layout) string {
 	t := d.cfg.Theme
 	row := d.rows[d.view[v].row]
@@ -161,8 +162,6 @@ func (d *fileDiff) cell(s side, v, width, numWidth int, cursor bool, lo layout) 
 	if s == right {
 		sepStyle = t.NumRight
 	}
-	// The cursor shows on the active side.
-	cursor = cursor && s == lo.active
 
 	num := strings.Repeat(" ", numWidth)
 	if line >= 0 {
@@ -170,7 +169,7 @@ func (d *fileDiff) cell(s side, v, width, numWidth int, cursor bool, lo layout) 
 	}
 	pending := d.pending != nil && d.pending.side == s && d.pending.line == line && line >= 0
 	_, moved := d.movedTo(s, line)
-	gutter := d.gutter(row, s, changed, pending, moved, num, sepStyle, cursor)
+	gutter := d.gutter(row, s, changed, pending, moved, num, sepStyle, cursor, cursor && s == lo.active)
 
 	contentWidth := max(width-numWidth-3, 0)
 	if line < 0 {
@@ -183,9 +182,11 @@ func (d *fileDiff) cell(s side, v, width, numWidth int, cursor bool, lo layout) 
 // gutter renders what precedes a line of side s in row: the marker, the line
 // numbers nums and the separator in sepStyle. The marker is ● when pending
 // holds, ◆ on anchors and - or + on changed lines, in the moved style for
-// moved ones; changed lines also have their side's number style.
+// moved ones; changed lines also have their side's number style. On the
+// cursor line marker and numbers are bold, with active the numbers are in
+// the cursor style.
 func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved bool, nums string, sepStyle lipgloss.Style,
-	cursor bool) string {
+	cursor, active bool) string {
 	t := d.cfg.Theme
 	lineStyle, _, _, _ := d.sideStyles(s)
 	if moved {
@@ -209,10 +210,12 @@ func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved bool, nu
 			numStyle = t.NumMinus
 		}
 	}
-	if cursor {
+	if active {
 		// The cursor's line numbers stand out in the cursor style, in
 		// their own color.
 		numStyle = t.Cursor.Inherit(numStyle)
+	} else {
+		numStyle = boldIf(numStyle, cursor)
 	}
 	return marker + numStyle.Render(nums) + sepStyle.Render("│") + " "
 }

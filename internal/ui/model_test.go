@@ -600,8 +600,13 @@ func TestCursorLine(t *testing.T) {
 		if got := reverse.FindAllStringIndex(row, -1); len(got) != 1 || !strings.HasPrefix(row[got[0][1]:], "1") {
 			t.Errorf("%s: cursor line %q, want only the line number reversed", layout, row)
 		}
-		if !strings.Contains(row, "\x1b[1msame") {
-			t.Errorf("%s: cursor line %q, want its text bold", layout, row)
+		// Side by side the text is bold on both sides, and so is the line
+		// number of the inactive side.
+		if want := map[string]int{"side by side": 2, "normal": 1}[layout]; strings.Count(row, "\x1b[1msame") != want {
+			t.Errorf("%s: cursor line %q, want its text bold %d times", layout, row, want)
+		}
+		if layout == "side by side" && !strings.Contains(row, "\x1b[1m1\x1b") {
+			t.Errorf("side by side: cursor line %q, want the inactive line number bold", row)
 		}
 		if plain := m.screenLine(m.screen[0], false); strings.Contains(plain, "\x1b[1m") || reverse.MatchString(plain) {
 			t.Errorf("%s: line without cursor is highlighted: %q", layout, plain)
