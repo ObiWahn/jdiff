@@ -38,6 +38,33 @@ type lineStyles struct {
 	hidden lipgloss.Style
 }
 
+// painter draws text in a style as lipgloss renders it, without the cost of
+// a lipgloss render for each run of a line: the escape sequences come from
+// rendering a sample once. Underlined and struck through styles are
+// rendered by lipgloss, which styles their spaces apart.
+type painter struct {
+	style       lipgloss.Style
+	open, close string
+	slow        bool
+}
+
+func newPainter(st lipgloss.Style) painter {
+	p := painter{style: st, slow: st.GetUnderline() || st.GetStrikethrough()}
+	if !p.slow {
+		out := st.Render("x")
+		i := strings.Index(out, "x")
+		p.open, p.close = out[:i], out[i+1:]
+	}
+	return p
+}
+
+func (p painter) paint(s string) string {
+	if p.slow {
+		return p.style.Render(s)
+	}
+	return p.open + s + p.close
+}
+
 // hiddenSymbol stands for characters that are not visible text, a space or
 // a tab: control and format characters, among them those that change the
 // direction of text and could reorder what is shown, and unusual spaces.
@@ -45,6 +72,9 @@ const hiddenSymbol = "☠"
 
 // hiddenChar reports whether r is drawn as hiddenSymbol.
 func hiddenChar(r rune) bool {
+	if r < utf8.RuneSelf { // ASCII: only control characters
+		return r != '\t' && (r < 0x20 || r == 0x7f)
+	}
 	return r != '\t' && (unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) || unicode.IsSpace(r) && r != ' ')
 }
 
@@ -304,7 +334,12 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	default:
 		st.base = lineStyle
 	}
-	content := highlight(d.lines[s][line], spans, st)
+	// The pieces of a wrapped line are drawn from one highlight of it.
+	key := highlightKey{line, d.aligns, cursor, moved, d.cfg.Settings, t}
+	if c := &d.highlighted[s]; !c.ok || c.key != key {
+		*c = highlightCache{key, highlight(d.lines[s][line], spans, st), true}
+	}
+	content := d.highlighted[s].out
 	plain := lipgloss.NewStyle()
 	if !cut { // a piece of a wrapped line
 		return pad(ansi.Cut(content, from, from+width), width, plain)
@@ -354,13 +389,15 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 	}
 	var b strings.Builder
 	col := 0
-	render := func(part string, style lipgloss.Style, visible bool) {
+	pBase, pEmph, pSpace, pWS := newPainter(st.base), newPainter(st.emph), newPainter(st.space), newPainter(st.ws)
+	pTrailing, pHidden := newPainter(st.trailing), newPainter(st.hidden)
+	render := func(part string, p painter, visible bool) {
 		if part == "" {
 			return
 		}
-		var p strings.Builder
-		expand(&p, part, &col, visible)
-		b.WriteString(style.Render(p.String()))
+		var e strings.Builder
+		expand(&e, part, &col, visible)
+		b.WriteString(p.paint(e.String()))
 	}
 	lead := true // in the line's indentation
 	at := 0      // where the part rendered next starts in text
@@ -389,7 +426,7 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 			if c == 2 {
 				lead = false
 				at += i
-				render(run, st.hidden, false)
+				render(run, pHidden, false)
 				part = part[i:]
 				continue
 			}
@@ -399,17 +436,17 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 			at += i
 			switch {
 			case trailing && st.showTrailing:
-				render(run, st.trailing, true)
+				render(run, pTrailing, true)
 			case ws && emph && !st.plainSpace && mark:
-				render(part[:i], st.space, true)
+				render(part[:i], pSpace, true)
 			case ws && st.showAll:
-				render(part[:i], st.ws, true)
+				render(part[:i], pWS, true)
 			case ws:
-				render(part[:i], st.base, false)
+				render(part[:i], pBase, false)
 			case emph:
-				render(part[:i], st.emph, false)
+				render(part[:i], pEmph, false)
 			default:
-				render(part[:i], st.base, false)
+				render(part[:i], pBase, false)
 			}
 			part = part[i:]
 		}

@@ -9,6 +9,8 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
+	"jdiff/internal/theme"
 )
 
 type side int
@@ -121,11 +123,29 @@ type fileDiff struct {
 	moved      []int
 
 	widths [2][]int // the columns each line takes when drawn, per side
+	// highlighted is the line drawn last, per side, see content.
+	highlighted [2]highlightCache
 
 	markPath   string     // the file's path in marks
 	aligns     int        // counts the alignments
 	group      *moveGroup // the files searched for moved code with this one
 	groupIndex int        // the index of this file in group
+}
+
+// highlightKey is what the highlight of a line depends on: the line, its row
+// in the alignment, the cursor on it, whether it moved, the settings and the
+// theme.
+type highlightKey struct {
+	line, aligns  int
+	cursor, moved bool
+	settings      settings.Settings
+	theme         *theme.Theme
+}
+
+type highlightCache struct {
+	key highlightKey
+	out string
+	ok  bool
 }
 
 func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDiff {
