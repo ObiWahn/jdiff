@@ -126,6 +126,9 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
+	case "v":
+		l.cfg.Settings.Preview = !l.cfg.Settings.Preview
+		l.scrollToCursor()
 	}
 	return nil
 }
@@ -198,8 +201,7 @@ func (l *Log) app(i int) (*App, error) {
 		if err != nil {
 			return nil, err
 		}
-		e.app = newApp(l.cfg, files, true)
-		e.app.title = e.Short + " " + e.Subject + ": "
+		e.app = newApp(l.cfg, files, &e.Commit)
 	}
 	return e.app, nil
 }
@@ -264,28 +266,16 @@ func (l *Log) moveCursor(delta int) {
 }
 
 // listHeight is the height of the list below the branch and an empty line.
-// It takes at most half of the room left by them and the status bar, the
-// rest goes to the message box.
 func (l *Log) listHeight() int {
-	room := max(l.height-3, 1)
-	if l.boxHeight() == 0 {
-		return room
-	}
-	return room - l.boxHeight()
+	list, _ := splitList(l.height, len(l.commits), l.cfg.Settings.Preview)
+	return list
 }
 
-// minBoxHeight fits the borders and one line of the message.
-const minBoxHeight = 3
-
-// boxHeight is the height of the message box below the list, 0 when the
-// window is too small for it.
+// boxHeight is the height of the message box below the list, 0 when it is
+// hidden.
 func (l *Log) boxHeight() int {
-	room := max(l.height-3, 1)
-	h := room - max(min(len(l.commits), room/2), 1)
-	if h < minBoxHeight {
-		return 0
-	}
-	return h
+	_, box := splitList(l.height, len(l.commits), l.cfg.Settings.Preview)
+	return box
 }
 
 func (l *Log) scrollToCursor() {
@@ -347,28 +337,25 @@ func (l *Log) View() string {
 		b.WriteString("\n")
 	}
 	if h := l.boxHeight(); h > 0 && l.cursor < len(l.commits) {
-		b.WriteString(l.messageBox(l.commits[l.cursor].Commit, h))
+		b.WriteString("\n" + l.messageBox(l.commits[l.cursor].Commit, h))
 	}
 	status := l.msg
 	if status == "" {
-		status = "enter open · f flow · j/k move · q quit"
+		status = "enter open · f flow · v message · j/k move · q quit"
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), l.width, ""))
 	return b.String()
 }
 
 // messageBox renders the full message of c in a box height lines high,
-// with the hash in the top border. Lines that do not fit are cut.
+// with the hash in the top border. A last … line marks a cut message.
 func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 	t := l.cfg.Theme
-	border := t.Decoration
-	inner := max(l.width-4, 0) // border and a space on each side
-
-	lines := []string{t.Zero.Bold(true).Render(ansi.Truncate(c.Subject, inner, "…"))}
+	lines := []string{t.Zero.Bold(true).Render(c.Subject)}
 	if c.Body != "" {
 		lines = append(lines, "")
 		for line := range strings.SplitSeq(c.Body, "\n") {
-			lines = append(lines, t.Zero.Render(ansi.Truncate(line, inner, "…")))
+			lines = append(lines, t.Zero.Render(line))
 		}
 	}
 	if n := height - 2; len(lines) > n {
@@ -377,19 +364,5 @@ func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 			lines[n-1] = t.Hint.Render("…")
 		}
 	}
-
-	hash := ansi.Truncate(" "+c.Hash+" ", max(l.width-4, 0), "")
-	top := border.Render("╭─") + t.CommitHash.Render(hash) +
-		border.Render(strings.Repeat("─", max(l.width-3-ansi.StringWidth(hash), 0))+"╮")
-	var b strings.Builder
-	b.WriteString(top + "\n")
-	for i := range height - 2 {
-		line := ""
-		if i < len(lines) {
-			line = lines[i]
-		}
-		b.WriteString(border.Render("│") + " " + pad(line, inner, lipgloss.NewStyle()) + " " + border.Render("│") + "\n")
-	}
-	b.WriteString(border.Render("╰"+strings.Repeat("─", max(l.width-2, 0))+"╯") + "\n")
-	return b.String()
+	return box(t, l.width, height, t.CommitHash.Render(" "+c.Hash+" "), lines)
 }

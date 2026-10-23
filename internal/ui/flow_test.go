@@ -192,3 +192,25 @@ func TestFlowHeaderFollowsFile(t *testing.T) {
 		t.Errorf("top line on c.go: %q", top)
 	}
 }
+
+func TestAppDiffPreview(t *testing.T) {
+	a := newFlowApp() // height 20: 17 rows, 3 for the list, 13 for the box
+	view := ansi.Strip(a.View())
+	lines := strings.Split(view, "\n")
+	if len(lines) != 20 || a.listHeight() != 3 || a.boxHeight() != 13 {
+		t.Fatalf("%d lines, list %d box %d:\n%s", len(lines), a.listHeight(), a.boxHeight(), view)
+	}
+	// The preview starts with the context of the first change.
+	if !strings.HasPrefix(lines[6], "╭─ a.go ─") || !strings.Contains(lines[7], "  7│ x6") ||
+		!strings.Contains(lines[10], "+10│ new9") {
+		t.Errorf("preview of a.go:\n%s", view)
+	}
+	pressApp(a, "j")
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "╭─ b.bin ─") || !strings.Contains(view, "│ binary file") {
+		t.Errorf("preview of b.bin:\n%s", view)
+	}
+	pressApp(a, "v")
+	if a.boxHeight() != 0 || a.listHeight() != 17 || strings.Contains(ansi.Strip(a.View()), "╭─") {
+		t.Errorf("v should hide the preview: list %d box %d", a.listHeight(), a.boxHeight())
+	}
+}

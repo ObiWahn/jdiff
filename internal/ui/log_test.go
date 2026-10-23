@@ -284,17 +284,21 @@ func TestLogListColumns(t *testing.T) {
 func TestLogMessageBox(t *testing.T) {
 	l, _ := newTestLog()
 	l.commits[0].Body = "first line\nsecond line\nthird line"
-	// Height 12: 9 rows below the branch, 4 for the list, 5 for the box.
+	// Height 12: 9 rows below the branch, 4 for the list, 1 empty, 4 for
+	// the box.
 	view := ansi.Strip(l.View())
 	lines := strings.Split(view, "\n")
-	if len(lines) != 12 || l.listHeight() != 4 || l.boxHeight() != 5 {
+	if len(lines) != 12 || l.listHeight() != 4 || l.boxHeight() != 4 {
 		t.Fatalf("%d lines, list %d box %d:\n%s", len(lines), l.listHeight(), l.boxHeight(), view)
 	}
-	box := lines[6:11]
-	if !strings.HasPrefix(box[0], "╭─ c3 ─") || !strings.HasPrefix(box[4], "╰─") {
+	if lines[6] != "" {
+		t.Errorf("no empty line between list and box: %q", lines[6])
+	}
+	box := lines[7:11]
+	if !strings.HasPrefix(box[0], "╭─ c3 ─") || !strings.HasPrefix(box[3], "╰─") {
 		t.Errorf("box borders: %q", box)
 	}
-	for i, want := range []string{"│ subject c3", "│", "│ …"} {
+	for i, want := range []string{"│ subject c3", "│ …"} {
 		if !strings.HasPrefix(box[i+1], want) || !strings.HasSuffix(box[i+1], "│") {
 			t.Errorf("box line %d = %q, want %q", i+1, box[i+1], want)
 		}
@@ -304,7 +308,7 @@ func TestLogMessageBox(t *testing.T) {
 	pressLog(l, "j")
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	view = ansi.Strip(l.View())
-	if l.listHeight() != 4 || l.boxHeight() != 23 || !strings.Contains(view, "│ subject c2") {
+	if l.listHeight() != 4 || l.boxHeight() != 22 || !strings.Contains(view, "│ subject c2") {
 		t.Errorf("height 30: list %d box %d:\n%s", l.listHeight(), l.boxHeight(), view)
 	}
 
@@ -312,5 +316,30 @@ func TestLogMessageBox(t *testing.T) {
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 7})
 	if l.boxHeight() != 0 || l.listHeight() != 4 {
 		t.Errorf("height 7: list %d box %d", l.listHeight(), l.boxHeight())
+	}
+}
+
+func TestLogFileListHeading(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "enter") // c3 has two files
+	if top := topLines(l, 3); top[0] != " c3 subject c3  +2 -2" || top[1] != "" || !strings.Contains(top[2], "a.go") {
+		t.Errorf("file list top lines %q, want hash, subject and counts, an empty line, then a.go", top)
+	}
+}
+
+func TestLogPreviewToggleShared(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "v")
+	if l.boxHeight() != 0 || strings.Contains(ansi.Strip(l.View()), "╭─") {
+		t.Fatalf("v should hide the message box")
+	}
+	// The file list of a commit follows the same setting.
+	pressLog(l, "enter")
+	if strings.Contains(ansi.Strip(l.View()), "╭─") {
+		t.Errorf("file list shows a preview after v on the commit list")
+	}
+	pressLog(l, "v")
+	if !strings.Contains(ansi.Strip(l.View()), "╭─ a.go ─") {
+		t.Errorf("v in the file list should show the preview:\n%s", ansi.Strip(l.View()))
 	}
 }

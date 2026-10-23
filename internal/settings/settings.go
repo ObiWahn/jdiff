@@ -19,6 +19,9 @@ type Settings struct {
 	// Flow (flow) shows all files one after the other instead of one file
 	// at a time; f toggles it.
 	Flow bool
+	// Preview (preview) shows a box below the commit and file lists with
+	// the selected commit's message or file's diff; v toggles it.
+	Preview bool
 }
 
 // Default returns the default settings.
@@ -28,5 +31,6 @@ func Default() Settings {
 		CollapseUnchanged:      true,
 		ShowWhitespaces:        false,
 		OnlyChangedWhitespaces: true,
+		Preview:                true,
 	}
 }

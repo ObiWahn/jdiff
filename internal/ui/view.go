@@ -255,6 +255,47 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 	return b.String()
 }
 
+// minBoxHeight fits the borders and one line.
+const minBoxHeight = 3
+
+// splitList divides a screen height high between a heading, an empty line,
+// a list of n items, the box below it when shown and the status bar. The
+// list takes at most half of the room and the box, after an empty line, the
+// rest; box is 0 when hidden, for an empty list or when the screen is too
+// small for it.
+func splitList(height, n int, showBox bool) (list, box int) {
+	room := max(height-3, 1)
+	if !showBox || n == 0 {
+		return room, 0
+	}
+	list = max(min(n, room/2), 1)
+	box = room - list - 1
+	if box < minBoxHeight {
+		return room, 0
+	}
+	return list, box
+}
+
+// box renders lines in a rounded box width columns wide and height lines
+// high, with title in the top border. Lines that do not fit are cut.
+func box(t *theme.Theme, width, height int, title string, lines []string) string {
+	border := t.Decoration
+	inner := max(width-4, 0) // border and a space on each side
+	title = ansi.Truncate(title, inner, "")
+	var b strings.Builder
+	b.WriteString(border.Render("╭─") + title +
+		border.Render(strings.Repeat("─", max(width-3-ansi.StringWidth(title), 0))+"╮") + "\n")
+	for i := range height - 2 {
+		line := ""
+		if i < len(lines) {
+			line = ansi.Truncate(lines[i], inner, "…")
+		}
+		b.WriteString(border.Render("│") + " " + pad(line, inner, lipgloss.NewStyle()) + " " + border.Render("│") + "\n")
+	}
+	b.WriteString(border.Render("╰"+strings.Repeat("─", max(width-2, 0))+"╯") + "\n")
+	return b.String()
+}
+
 // pad fills s with spaces in style up to width columns.
 func pad(s string, width int, style lipgloss.Style) string {
 	if n := width - ansi.StringWidth(s); n > 0 {

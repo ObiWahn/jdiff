@@ -5,10 +5,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
 )
@@ -67,8 +69,8 @@ func (e *entry) updateStats() {
 // is opened directly.
 type App struct {
 	cfg    *config.Config
-	inLog  bool   // part of the log: backspace and n/p go to the log
-	title  string // shown before the file count
+	inLog  bool           // part of the log: backspace and n/p go to the log
+	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	cursor int
 	top    int
@@ -80,12 +82,12 @@ type App struct {
 }
 
 // NewApp returns the file selector for files.
-func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, false) }
+func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, nil) }
 
-// newApp returns the file selector for files, as part of the log when
-// inLog is set.
-func newApp(cfg *config.Config, files []source.File, inLog bool) *App {
-	a := &App{cfg: cfg, inLog: inLog}
+// newApp returns the file selector for files, as part of the log for the
+// files of commit when it is set.
+func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
+	a := &App{cfg: cfg, inLog: commit != nil, commit: commit}
 	for _, f := range files {
 		e := &entry{File: f}
 		e.updateStats()
@@ -209,6 +211,9 @@ func (a *App) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
+	case "v":
+		a.cfg.Settings.Preview = !a.cfg.Settings.Preview
+		a.scrollToCursor()
 	}
 	return nil
 }
@@ -317,7 +322,42 @@ func (a *App) moveCursor(delta int) {
 	a.scrollToCursor()
 }
 
-func (a *App) listHeight() int { return max(a.height-2, 1) }
+// listHeight is the height of the list below the heading and an empty line.
+func (a *App) listHeight() int {
+	list, _ := splitList(a.height, len(a.files), a.cfg.Settings.Preview)
+	return list
+}
+
+// boxHeight is the height of the diff preview below the list, 0 when it is
+// hidden.
+func (a *App) boxHeight() int {
+	_, box := splitList(a.height, len(a.files), a.cfg.Settings.Preview)
+	return box
+}
+
+// preview renders the diff of e in a box height lines high, starting with
+// the context of the first change.
+func (a *App) preview(e *entry, height int) string {
+	t := a.cfg.Theme
+	title := lipgloss.NewStyle().Bold(true).Render(" " + e.name() + " ")
+	if e.Binary {
+		return box(t, a.width, height, title, []string{t.Hint.Render("binary file")})
+	}
+	m := a.viewOf(e)
+	m.width = max(a.width-4, 0)
+	start := 0
+	for v := range m.view {
+		if m.changeStart(v) {
+			start = max(v-a.cfg.Settings.Context, 0)
+			break
+		}
+	}
+	var lines []string
+	for v := start; v < len(m.view) && len(lines) < height-2; v++ {
+		lines = append(lines, m.bodyRow(v, false))
+	}
+	return box(t, a.width, height, title, lines)
+}
 
 func (a *App) scrollToCursor() {
 	h := a.listHeight()
@@ -353,32 +393,38 @@ func (a *App) View() string {
 	var b strings.Builder
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
-	head := t.Title.Render(fmt.Sprintf(" %s%d files changed", a.title, len(a.files))) + ", " +
-		t.Plus.Render(fmt.Sprintf("+%d", added)) + ", " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n")
+	bold := lipgloss.NewStyle().Bold(true)
+	head := " " + bold.Render(fmt.Sprintf("%d files changed", len(a.files)))
+	if c := a.commit; c != nil {
+		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
+	}
+	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
+	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n\n")
 
 	for i := a.top; i < a.top+a.listHeight(); i++ {
 		if i < len(a.files) {
 			e := a.files[i]
-			counts := t.Plus.Render(count("+", e.added, addW+1)) + " " +
-				t.Minus.Render(count("-", e.removed, remW+1))
+			// The selected file is drawn bold.
+			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == a.cursor) }
+			counts := st(t.Plus).Render(count("+", e.added, addW+1)) + " " +
+				st(t.Minus).Render(count("-", e.removed, remW+1))
 			if e.Binary {
-				counts = t.Filler.Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
+				counts = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 			}
-			lbl := fmt.Sprintf(" %-*s ", lblW, e.label(t))
-			if i == a.cursor {
-				lbl = t.Cursor.Render(lbl)
-			}
-			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+e.name(), a.width, "…"))
+			lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
+			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+st(lipgloss.NewStyle()).Render(e.name()), a.width, "…"))
 		}
 		b.WriteString("\n")
+	}
+	if h := a.boxHeight(); h > 0 && a.cursor < len(a.files) {
+		b.WriteString("\n" + a.preview(a.files[a.cursor], h))
 	}
 
 	status := a.msg
 	if status == "" {
-		status = "enter open · f flow · j/k move · q quit"
+		status = "enter open · f flow · v preview · j/k move · q quit"
 		if a.inLog {
-			status = "enter open · f flow · j/k move · n/p commit · backspace commits · q quit"
+			status = "enter open · f flow · v preview · j/k move · n/p commit · backspace commits · q quit"
 		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))

@@ -26,7 +26,7 @@ func pressApp(a *App, keys ...string) { pressRoot(a, keys...) }
 func TestAppListShowsCounts(t *testing.T) {
 	a := newTestApp()
 	view := ansi.Strip(a.View())
-	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", "3 files changed, +3, -1"} {
+	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", " 3 files changed  +3 -1\n\n"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("list view lacks %q:\n%s", want, view)
 		}
