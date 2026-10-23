@@ -73,6 +73,17 @@ func box(t *theme.Theme, width, height int, title string, lines []string) string
 	return b.String()
 }
 
+// scrollWindow returns the first shown item of a window h items high over n
+// items: top, moved as little as needed to show cursor.
+func scrollWindow(cursor, top, h, n int) int {
+	if cursor < top {
+		top = cursor
+	} else if cursor >= top+h {
+		top = cursor - h + 1
+	}
+	return max(min(top, n-h), 0)
+}
+
 // pad fills s with spaces in style up to width columns.
 func pad(s string, width int, style lipgloss.Style) string {
 	if n := width - ansi.StringWidth(s); n > 0 {

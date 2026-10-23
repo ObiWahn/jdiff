@@ -69,7 +69,6 @@ func (e *entry) updateStats() {
 // is opened directly.
 type App struct {
 	cfg    *config.Config
-	inLog  bool           // part of the log: backspace and N/P go to the log
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	cursor int
@@ -87,7 +86,7 @@ func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, f
 // newApp returns the file selector for files, as part of the log for the
 // files of commit when it is set.
 func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
-	a := &App{cfg: cfg, inLog: commit != nil, commit: commit}
+	a := &App{cfg: cfg, commit: commit}
 	for _, f := range files {
 		e := &entry{File: f}
 		e.updateStats()
@@ -104,6 +103,10 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	}
 	return a
 }
+
+// inLog reports whether a is part of the log: backspace and N/P go to the
+// log.
+func (a *App) inLog() bool { return a.commit != nil }
 
 // single reports whether there is exactly one file and it can be shown.
 func (a *App) single() bool { return len(a.files) == 1 && !a.files[0].Binary }
@@ -137,7 +140,7 @@ func (a *App) Init() tea.Cmd { return nil }
 
 // flowShown reports whether the flow view is shown instead of a diff view.
 // Inside the log, the log shows its own flow view.
-func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog }
+func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog() }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -169,7 +172,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
 			a.open.updateStats()
 			a.open = nil
-			if a.inLog && a.single() {
+			if a.inLog() && a.single() {
 				return a, func() tea.Msg { return backMsg{} }
 			}
 			return a, nil
@@ -178,11 +181,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if k, ok := msg.(tea.KeyMsg); ok {
-		for _, name := range keyNames(k) {
-			if cmd := a.key(name); cmd != nil {
-				return a, cmd
-			}
-		}
+		return a, pressKeys(k, a.key)
 	}
 	return a, nil
 }
@@ -190,43 +189,36 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) key(k string) tea.Cmd {
 	a.msg = ""
 	page := max(a.listHeight()-1, 1)
+	if delta, ok := motion(k, page, len(a.files)); ok {
+		a.moveCursor(delta)
+		return nil
+	}
 	switch k {
 	case "q", "ctrl+c":
 		return tea.Quit
-	case "up", "k", "p":
+	case "p":
 		a.moveCursor(-1)
-	case "down", "j", "n":
+	case "n":
 		a.moveCursor(1)
-	case "pgup", "ctrl+b":
-		a.moveCursor(-page)
-	case "pgdown", "ctrl+f":
-		a.moveCursor(page)
-	case "home", "g":
-		a.moveCursor(-len(a.files))
-	case "end", "G":
-		a.moveCursor(len(a.files))
 	case "enter":
 		a.openFile()
 	case "backspace":
-		if a.inLog {
+		if a.inLog() {
 			return func() tea.Msg { return backMsg{} }
 		}
 	case "N", "P":
-		if a.inLog {
+		if a.inLog() {
 			return switchCommit(k)
 		}
 	case "f":
 		return toggleFlow
 	case "v":
-		a.cfg.Settings.Preview = !a.cfg.Settings.Preview
+		a.msg = toggle(a.cfg, &a.cfg.Settings.Preview)
 		a.scrollToCursor()
-		a.msg = saveState(a.cfg)
 	case "s":
-		a.cfg.Settings.SideBySide = !a.cfg.Settings.SideBySide
-		a.msg = saveState(a.cfg)
+		a.msg = toggle(a.cfg, &a.cfg.Settings.SideBySide)
 	case "w":
-		a.cfg.Settings.ShowWhitespaces = !a.cfg.Settings.ShowWhitespaces
-		a.msg = saveState(a.cfg)
+		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowWhitespaces)
 	}
 	return nil
 }
@@ -237,7 +229,7 @@ func (a *App) viewOf(e *entry) *Model {
 		names := e.paneNames()
 		e.view = New(a.cfg, names[left], names[right], e.Old, e.New)
 		e.view.canBack = true
-		e.view.commitNav = a.inLog
+		e.view.commitNav = a.inLog()
 	}
 	return e.view
 }
@@ -246,7 +238,7 @@ func (a *App) openFile() {
 	if a.cursor >= len(a.files) {
 		return
 	}
-	if a.cfg.Settings.Flow && !a.inLog {
+	if a.cfg.Settings.Flow && !a.inLog() {
 		a.showFlow(a.cursor, -1, 0, 0)
 		return
 	}
@@ -322,11 +314,7 @@ func (a *App) switchFile(dir int) {
 			return
 		}
 	}
-	if dir > 0 {
-		a.setMsg("last file")
-	} else {
-		a.setMsg("first file")
-	}
+	a.setMsg(ends(dir > 0, "last file", "first file"))
 }
 
 func (a *App) moveCursor(delta int) {
@@ -376,13 +364,7 @@ func (a *App) preview(e *entry, height int) string {
 }
 
 func (a *App) scrollToCursor() {
-	h := a.listHeight()
-	if a.cursor < a.top {
-		a.top = a.cursor
-	} else if a.cursor >= a.top+h {
-		a.top = a.cursor - h + 1
-	}
-	a.top = max(min(a.top, len(a.files)-h), 0)
+	a.top = scrollWindow(a.cursor, a.top, a.listHeight(), len(a.files))
 }
 
 func (a *App) View() string {
@@ -439,7 +421,7 @@ func (a *App) View() string {
 	status := a.msg
 	if status == "" {
 		status = "enter open · f flow · v preview · ? help · q quit"
-		if a.inLog {
+		if a.inLog() {
 			status = "enter open · N/P commit · backspace commits · ? help · q quit"
 		}
 	}

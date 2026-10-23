@@ -93,11 +93,7 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		f.keepScreenRow(func() { f.width, f.height = msg.Width, msg.Height })
 	case tea.KeyMsg:
-		for _, k := range keyNames(msg) {
-			if cmd = f.key(k); cmd != nil {
-				break
-			}
-		}
+		cmd = pressKeys(msg, f.key)
 	}
 	f.loadVisible()
 	return f, cmd
@@ -110,6 +106,10 @@ func (f *Flow) key(k string) tea.Cmd {
 	}
 	f.msg = ""
 	page := max(f.bodyHeight()-1, 1)
+	if delta, ok := motion(k, page, far); ok {
+		f.moveCursor(delta)
+		return nil
+	}
 	switch k {
 	case "q", "ctrl+c":
 		return tea.Quit
@@ -119,22 +119,10 @@ func (f *Flow) key(k string) tea.Cmd {
 		return func() tea.Msg { return backMsg{} }
 	case "tab":
 		f.active = f.active.other()
-	case "up", "k":
-		f.moveCursor(-1)
-	case "down", "j":
-		f.moveCursor(1)
-	case "pgup", "ctrl+b":
-		f.moveCursor(-page)
-	case "pgdown", "ctrl+f":
-		f.moveCursor(page)
 	case "ctrl+u":
 		f.moveCursor(-page / 2)
 	case "ctrl+d":
 		f.moveCursor(page / 2)
-	case "home", "g":
-		f.moveCursor(-far)
-	case "end", "G":
-		f.moveCursor(far)
 	case "left", "h":
 		f.xoff = max(f.xoff-8, 0)
 	case "right", "l":
@@ -160,12 +148,10 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "enter", "esc", " ", "ctrl+@":
 		f.delegate(k)
 	case "s":
-		f.cfg.Settings.SideBySide = !f.cfg.Settings.SideBySide
+		f.msg = toggle(f.cfg, &f.cfg.Settings.SideBySide)
 		f.keepScreenRow(f.relocate)
-		f.msg = saveState(f.cfg)
 	case "w":
-		f.cfg.Settings.ShowWhitespaces = !f.cfg.Settings.ShowWhitespaces
-		f.msg = saveState(f.cfg)
+		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
 	}
 	return nil
 }
@@ -460,13 +446,7 @@ func (f *Flow) keepScreenRow(fn func()) {
 }
 
 func (f *Flow) scrollToCursor() {
-	h := f.bodyHeight()
-	if f.cursor < f.top {
-		f.top = f.cursor
-	} else if f.cursor >= f.top+h {
-		f.top = f.cursor - h + 1
-	}
-	f.top = max(min(f.top, len(f.rows)-h), 0)
+	f.top = scrollWindow(f.cursor, f.top, f.bodyHeight(), len(f.rows))
 }
 
 func (f *Flow) help() string {

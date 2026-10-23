@@ -101,11 +101,7 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, cmd
 	}
 	if k, ok := msg.(tea.KeyMsg); ok {
-		for _, name := range keyNames(k) {
-			if cmd := l.key(name); cmd != nil {
-				return l, cmd
-			}
-		}
+		return l, pressKeys(k, l.key)
 	}
 	return l, nil
 }
@@ -113,21 +109,13 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (l *Log) key(k string) tea.Cmd {
 	l.msg = ""
 	page := max(l.listHeight()-1, 1)
+	if delta, ok := motion(k, page, len(l.commits)); ok {
+		l.moveCursor(delta)
+		return nil
+	}
 	switch k {
 	case "q", "ctrl+c":
 		return tea.Quit
-	case "up", "k":
-		l.moveCursor(-1)
-	case "down", "j":
-		l.moveCursor(1)
-	case "pgup", "ctrl+b":
-		l.moveCursor(-page)
-	case "pgdown", "ctrl+f":
-		l.moveCursor(page)
-	case "home", "g":
-		l.moveCursor(-len(l.commits))
-	case "end", "G":
-		l.moveCursor(len(l.commits))
 	case "enter":
 		if l.cfg.Settings.Flow {
 			l.showFlow(-1, -1, 0, 0)
@@ -137,9 +125,8 @@ func (l *Log) key(k string) tea.Cmd {
 	case "f":
 		return toggleFlow
 	case "v":
-		l.cfg.Settings.Preview = !l.cfg.Settings.Preview
+		l.msg = toggle(l.cfg, &l.cfg.Settings.Preview)
 		l.scrollToCursor()
-		l.msg = saveState(l.cfg)
 	}
 	return nil
 }
@@ -255,11 +242,7 @@ func (l *Log) switchCommit(dir int) {
 	}
 	i := l.cursor + dir
 	if i < 0 || i >= len(l.commits) {
-		if dir > 0 {
-			app.setMsg("oldest commit")
-		} else {
-			app.setMsg("newest commit")
-		}
+		app.setMsg(ends(dir > 0, "oldest commit", "newest commit"))
 		return
 	}
 	if app.open != nil {
@@ -289,13 +272,7 @@ func (l *Log) boxHeight() int {
 }
 
 func (l *Log) scrollToCursor() {
-	h := l.listHeight()
-	if l.cursor < l.top {
-		l.top = l.cursor
-	} else if l.cursor >= l.top+h {
-		l.top = l.cursor - h + 1
-	}
-	l.top = max(min(l.top, len(l.commits)-h), 0)
+	l.top = scrollWindow(l.cursor, l.top, l.listHeight(), len(l.commits))
 }
 
 // maxAuthorWidth caps the author column.

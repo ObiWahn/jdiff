@@ -36,11 +36,15 @@ func saveState(cfg *config.Config) string {
 // switchCommit returns the command asking the log for the next (N) or
 // previous (P) commit.
 func switchCommit(k string) tea.Cmd {
-	dir := switchCommitMsg(1)
-	if k == "P" {
-		dir = -1
-	}
+	dir := switchCommitMsg(direction(k == "N"))
 	return func() tea.Msg { return dir }
+}
+
+// toggle flips setting, one of the toggles of cfg, and saves them, returning
+// a message when that fails, else "".
+func toggle(cfg *config.Config, setting *bool) string {
+	*setting = !*setting
+	return saveState(cfg)
 }
 
 // keyNames returns the key presses of msg. Bubble Tea delivers runes read
@@ -55,6 +59,36 @@ func keyNames(msg tea.KeyMsg) []string {
 		out[i] = string(r)
 	}
 	return out
+}
+
+// pressKeys passes the key presses of msg to key until it returns a command.
+func pressKeys(msg tea.KeyMsg, key func(string) tea.Cmd) tea.Cmd {
+	for _, k := range keyNames(msg) {
+		if cmd := key(k); cmd != nil {
+			return cmd
+		}
+	}
+	return nil
+}
+
+// motion returns how many rows the cursor moves on k, page rows for a page
+// and far to the first or last row, and whether k moves it.
+func motion(k string, page, far int) (int, bool) {
+	switch k {
+	case "up", "k":
+		return -1, true
+	case "down", "j":
+		return 1, true
+	case "pgup", "ctrl+b":
+		return -page, true
+	case "pgdown", "ctrl+f":
+		return page, true
+	case "home", "g":
+		return -far, true
+	case "end", "G":
+		return far, true
+	}
+	return 0, false
 }
 
 func direction(forward bool) int {

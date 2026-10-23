@@ -100,11 +100,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.keepScreenRow(func() { m.width, m.height = msg.Width, msg.Height })
 	case tea.KeyMsg:
-		for _, k := range keyNames(msg) {
-			if cmd := m.key(k); cmd != nil {
-				return m, cmd
-			}
-		}
+		return m, pressKeys(msg, m.key)
 	}
 	return m, nil
 }
@@ -128,27 +124,19 @@ func (m *Model) key(k string) tea.Cmd {
 	}
 
 	page := max(m.bodyHeight()-1, 1)
+	if delta, ok := motion(k, page, len(m.screen)); ok {
+		m.moveCursor(delta)
+		return nil
+	}
 	switch k {
 	case "q", "ctrl+c":
 		return tea.Quit
 	case "tab":
 		m.active = m.active.other()
-	case "up", "k":
-		m.moveCursor(-1)
-	case "down", "j":
-		m.moveCursor(1)
-	case "pgup", "ctrl+b":
-		m.moveCursor(-page)
-	case "pgdown", "ctrl+f":
-		m.moveCursor(page)
 	case "ctrl+u":
 		m.moveCursor(-page / 2)
 	case "ctrl+d":
 		m.moveCursor(page / 2)
-	case "home", "g":
-		m.moveCursor(-len(m.screen))
-	case "end", "G":
-		m.moveCursor(len(m.screen))
 	case "left", "h":
 		m.xoff = max(m.xoff-8, 0)
 	case "right", "l":
@@ -159,10 +147,7 @@ func (m *Model) key(k string) tea.Cmd {
 		m.nextChange(-1)
 	case "n", "p":
 		if m.canBack {
-			dir := switchFileMsg(1)
-			if k == "p" {
-				dir = -1
-			}
+			dir := switchFileMsg(direction(k == "n"))
 			return func() tea.Msg { return dir }
 		}
 	case "N", "P":
@@ -174,12 +159,10 @@ func (m *Model) key(k string) tea.Cmd {
 			return toggleFlow
 		}
 	case "s":
-		m.cfg.Settings.SideBySide = !m.cfg.Settings.SideBySide
+		m.msg = toggle(m.cfg, &m.cfg.Settings.SideBySide)
 		m.syncLayout()
-		m.msg = saveState(m.cfg)
 	case "w":
-		m.cfg.Settings.ShowWhitespaces = !m.cfg.Settings.ShowWhitespaces
-		m.msg = saveState(m.cfg)
+		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
 	case "esc":
 		if m.pending != nil {
 			m.pending = nil
@@ -275,7 +258,7 @@ func (m *Model) unifiedSide() side {
 		return left
 	case r.Kind == diff.Insert:
 		return right
-	case r.Kind == diff.Change && r.Left >= 0 && r.Right >= 0:
+	case r.Kind == diff.Change:
 		return side(min(m.sub, 1))
 	case m.pending != nil:
 		return m.pending.side.other()
@@ -368,7 +351,7 @@ func (m *Model) rowLines(v int, unified bool) int {
 	if !unified || m.view[v].hidden > 0 {
 		return 1
 	}
-	if r := m.rows[m.view[v].row]; r.Kind != diff.Equal && r.Left >= 0 && r.Right >= 0 {
+	if m.rows[m.view[v].row].Kind == diff.Change {
 		return 2
 	}
 	return 1
@@ -394,10 +377,7 @@ func (m *Model) syncLayout() {
 	if m.screenUnified == m.unified() {
 		return
 	}
-	offset := m.pos() - m.top
-	m.buildScreen()
-	m.top = m.pos() - offset
-	m.scrollToCursor()
+	m.keepScreenRow(m.buildScreen)
 }
 
 // pos returns the screen line of the cursor.
@@ -550,13 +530,7 @@ func (m *Model) keepScreenRow(f func()) {
 }
 
 func (m *Model) scrollToCursor() {
-	h := m.bodyHeight()
-	if p := m.pos(); p < m.top {
-		m.top = p
-	} else if p >= m.top+h {
-		m.top = p - h + 1
-	}
-	m.top = max(min(m.top, len(m.screen)-h), 0)
+	m.top = scrollWindow(m.pos(), m.top, m.bodyHeight(), len(m.screen))
 }
 
 func sideName(s side) string {
