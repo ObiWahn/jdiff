@@ -51,12 +51,20 @@ func (e *entry) paneNames() [2]string {
 	return [2]string{"a/" + e.PathInOld(), "b/" + e.Path}
 }
 
-// refresh reloads the sides of e that changed on disk, see refreshFile.
-func (e *entry) refresh() string {
+// refresh reloads the sides of e that changed on disk, see refreshFile. Its
+// diff view and after, unless nil, follow each reload of its diff.
+func (e *entry) refresh(after func(*fileDiff)) string {
 	if e.Binary {
 		return ""
 	}
-	msg := refreshFile(&e.File, e.diff, e.view)
+	msg := refreshFile(&e.File, e.diff, func() {
+		if e.view != nil {
+			e.view.syncLayout()
+		}
+		if after != nil {
+			after(e.diff)
+		}
+	})
 	if msg != "" {
 		e.updateStats()
 	}
@@ -162,9 +170,9 @@ func (a *App) Init() tea.Cmd {
 // current one and its neighbors.
 func (a *App) refresh() {
 	var msgs []string
-	reload := func() {
+	reload := func(after func(*fileDiff)) {
 		for i := max(a.cursor-1, 0); i <= min(a.cursor+1, len(a.files)-1); i++ {
-			if msg := a.files[i].refresh(); msg != "" {
+			if msg := a.files[i].refresh(after); msg != "" {
 				msgs = append(msgs, msg)
 			}
 		}
@@ -172,7 +180,7 @@ func (a *App) refresh() {
 	if a.flowShown() {
 		a.flow.refresh(reload)
 	} else {
-		reload()
+		reload(nil)
 	}
 	if len(msgs) > 0 {
 		a.setMsg(strings.Join(msgs, "; "))

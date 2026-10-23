@@ -369,25 +369,37 @@ func (f *Flow) build() {
 	f.cursor = max(min(f.cursor, len(f.rows)-1), 0)
 }
 
-// refresh runs reload, which may reload files, and rebuilds the rows. The
-// cursor stays on its screen row and, in a reloaded file, on its line.
-func (f *Flow) refresh(reload func()) {
+// refresh runs reload, which may reload files, calling its argument after
+// each reload of a diff, and rebuilds the rows. The cursor stays on its
+// screen row and, in a reloaded file, on its line.
+func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 	var cur flowRow
 	var d *fileDiff
 	var row diff.Row
-	reloads := 0
+	reloads, lost := 0, false
 	if f.cursor < len(f.rows) && f.rows[f.cursor].kind == flowDiff {
 		cur = f.rows[f.cursor]
 		d = f.parts[cur.part].app.files[cur.file].diff
 		row, reloads = d.rows[d.view[cur.line].row], d.reloads
 	}
 	f.keepScreenRow(func() {
-		reload()
+		// The cursor's row is followed through each reload: a diff may
+		// reload both sides, and each reload maps only its own side.
+		reload(func(rd *fileDiff) {
+			if rd != d || lost {
+				return
+			}
+			if i := d.rowAfterReload(row); i >= 0 {
+				row = d.rows[i]
+			} else {
+				lost = true
+			}
+		})
 		f.relocate()
-		if d == nil || d.reloads == reloads {
+		if d == nil || d.reloads == reloads || lost {
 			return
 		}
-		if v := d.follow(row, true); v >= 0 {
+		if v := d.follow(row, false); v >= 0 {
 			if i := f.findDiff(cur.part, cur.file, v, cur.sub); i >= 0 {
 				f.cursor = i
 			}

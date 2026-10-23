@@ -192,6 +192,24 @@ func TestFlowFollowsReloadedLine(t *testing.T) {
 	}
 }
 
+func TestFlowFollowsLineWhenBothSidesReload(t *testing.T) {
+	a, newDir := newWatchedApp(t)
+	oldDir := filepath.Dir(a.files[0].OldFile)
+	pressApp(a, "f")
+	d := a.files[0].diff
+	at := d.reveal(left, 9) // the last unchanged line, x9 on both sides
+	a.flow.show(0, 0, at.v, at.sub, 5)
+	// In one tick the old side shrinks past the cursor's line and the new
+	// side gets a line on top.
+	writeLines(t, filepath.Join(oldDir, "a.txt"), numbered("x", 1))
+	writeLines(t, filepath.Join(newDir, "a.txt"), append([]string{"new top"}, append(numbered("x", 10), "added")...))
+	a.Update(watchTickMsg{})
+	_, file, line := a.flow.position()
+	if got := d.lineAt(right, line); file != 0 || got != 10 {
+		t.Errorf("flow cursor on file %d right line %d, want file 0 line 10: x9 moved down by one", file, got)
+	}
+}
+
 func TestWatchSeesQuickSameSizeChange(t *testing.T) {
 	m, dir := newWatchedModel(t, []string{"aaa"}, []string{"bbb"})
 	path := filepath.Join(dir, "new.txt")

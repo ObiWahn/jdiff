@@ -159,13 +159,26 @@ func (d *fileDiff) reload(s side, lines []string) (dropped int) {
 // the diff changed: its left line, else its right one, through the last
 // reload when reloaded is set. It returns -1 when neither line is left.
 func (d *fileDiff) follow(r diff.Row, reloaded bool) int {
+	if i := d.rowNow(r, reloaded); i >= 0 {
+		return d.viewOf[i]
+	}
+	return -1
+}
+
+// rowAfterReload returns the index of the row that now holds a line of r, a
+// row before the last reload, as follow does, or -1.
+func (d *fileDiff) rowAfterReload(r diff.Row) int { return d.rowNow(r, true) }
+
+// rowNow returns the index of the row that now holds the left line of r,
+// else its right one, through the last reload when reloaded is set, or -1.
+func (d *fileDiff) rowNow(r diff.Row, reloaded bool) int {
 	for _, s := range []side{left, right} {
 		line := lineOf(r, s)
 		if line >= 0 && reloaded && s == d.reloadSide {
 			line = d.moved[line]
 		}
 		if line >= 0 {
-			return d.viewOf[d.rowOf[s][line]]
+			return d.rowOf[s][line]
 		}
 	}
 	return -1

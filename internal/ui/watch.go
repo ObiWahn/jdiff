@@ -31,12 +31,13 @@ func watchTick(cfg *config.Config) tea.Cmd {
 }
 
 // refreshFile reloads the sides of f that changed on disk into f and into
-// its diff d, unless nil, which view m, unless nil, follows. It returns the
+// its diff d, unless nil, calling after, unless nil, after each reload of d
+// so that views follow their cursor line before the next one. It returns the
 // message to show, "" when nothing changed. A side changed when its stamp
 // did, or, while its modification time is recent, its content. A side that
 // cannot be read is checked again next time; a side that became binary keeps
 // its content.
-func refreshFile(f *source.File, d *fileDiff, m *Model) string {
+func refreshFile(f *source.File, d *fileDiff, after func()) string {
 	type sideFile struct {
 		path  string
 		stamp *source.Stamp
@@ -66,8 +67,8 @@ func refreshFile(f *source.File, d *fileDiff, m *Model) string {
 		*sf.stamp, *sf.lines, reloaded = st, lines, true
 		if d != nil {
 			dropped += d.reload(side(s), lines)
-			if m != nil {
-				m.syncLayout()
+			if after != nil {
+				after()
 			}
 		}
 	}

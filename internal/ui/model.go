@@ -86,7 +86,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m, pressKeys(msg, m.key)
 	case watchTickMsg:
-		if msg := refreshFile(m.watch, m.fileDiff, m); msg != "" {
+		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
 		return m, watchTick(m.cfg)
