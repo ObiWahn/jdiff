@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 
@@ -81,7 +82,8 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 		return ui.NewApp(cfg, files), nil
 	}
 
-	f := source.File{Path: newPath, OldFile: oldPath, NewFile: newPath, InOld: true, InNew: true}
+	// Path names the file in messages; the panes show the paths as given.
+	f := source.File{Path: filepath.Base(newPath), OldFile: oldPath, NewFile: newPath, InOld: true, InNew: true}
 	var err error
 	if f.Old, f.OldStamp, err = source.Read(oldPath); err != nil {
 		return nil, fmt.Errorf("%s: %w", oldPath, err)
