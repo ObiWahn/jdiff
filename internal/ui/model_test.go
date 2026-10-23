@@ -182,9 +182,9 @@ func numbered(prefix string, n int) []string {
 	return out
 }
 
-func folds(m *Model) []vrow {
+func folds(view []vrow) []vrow {
 	var out []vrow
-	for _, v := range m.view {
+	for _, v := range view {
 		if v.hidden > 0 {
 			out = append(out, v)
 		}
@@ -199,7 +199,7 @@ func TestFoldUnchanged(t *testing.T) {
 	m := newTestModel(a, b)
 
 	// Context 3: rows 0-16 and 24-40 are folded around the change at row 20.
-	if got, want := folds(m), []vrow{{0, 17, 0}, {24, 17, 1}}; !slices.Equal(got, want) {
+	if got, want := folds(m.view), []vrow{{0, 17, 0}, {24, 17, 1}}; !slices.Equal(got, want) {
 		t.Fatalf("folds = %v, want %v", got, want)
 	}
 	if len(m.view) != 9 {
@@ -213,7 +213,7 @@ func TestFoldUnchanged(t *testing.T) {
 	press(m, "]")
 	changeRow := m.view[m.cursor].row
 	press(m, " ")
-	if got, want := folds(m), []vrow{{0, 17, 0}}; !slices.Equal(got, want) {
+	if got, want := folds(m.view), []vrow{{0, 17, 0}}; !slices.Equal(got, want) {
 		t.Fatalf("after space: folds = %v, want only the upper one", got)
 	}
 	if m.view[m.cursor].row != changeRow {
@@ -221,19 +221,19 @@ func TestFoldUnchanged(t *testing.T) {
 	}
 	// Space again closes the same block.
 	press(m, " ")
-	if got := len(folds(m)); got != 2 {
+	if got := len(folds(m.view)); got != 2 {
 		t.Fatalf("after second space: %d folds, want 2", got)
 	}
 
 	// On a fold row, space opens that fold; inside an open block, space
 	// closes it and the cursor lands on the fold row.
 	press(m, "g", " ")
-	if got, want := folds(m), []vrow{{24, 17, 1}}; !slices.Equal(got, want) {
+	if got, want := folds(m.view), []vrow{{24, 17, 1}}; !slices.Equal(got, want) {
 		t.Fatalf("after space on the first fold: folds = %v, want %v", got, want)
 	}
 	press(m, "j", "j", " ")
-	if m.cursor != 0 || m.view[0].hidden == 0 || len(folds(m)) != 2 {
-		t.Errorf("closing from inside: cursor %d, view[0] %v, folds %v", m.cursor, m.view[0], folds(m))
+	if m.cursor != 0 || m.view[0].hidden == 0 || len(folds(m.view)) != 2 {
+		t.Errorf("closing from inside: cursor %d, view[0] %v, folds %v", m.cursor, m.view[0], folds(m.view))
 	}
 	press(m, "enter")
 	if m.pending != nil {
@@ -246,7 +246,7 @@ func TestFoldShortRunsAndAnchors(t *testing.T) {
 	a := append(append(numbered("x", 4), "old1"), append(numbered("y", 7), "old2")...)
 	b := append(append(numbered("x", 4), "new1"), append(numbered("y", 7), "new2")...)
 	m := newTestModel(a, b)
-	if got, want := folds(m), []vrow(nil); !slices.Equal(got, want) {
+	if got, want := folds(m.view), []vrow(nil); !slices.Equal(got, want) {
 		t.Errorf("folds = %v, want none", got)
 	}
 
@@ -255,7 +255,7 @@ func TestFoldShortRunsAndAnchors(t *testing.T) {
 	m = newTestModel(a, b)
 	m.anchors = []diff.Anchor{{Left: 15, Right: 15}}
 	m.realign()
-	if got, want := folds(m), []vrow{{0, 12, 0}, {19, 11, 1}}; !slices.Equal(got, want) {
+	if got, want := folds(m.view), []vrow{{0, 12, 0}, {19, 11, 1}}; !slices.Equal(got, want) {
 		t.Errorf("folds = %v, want %v", got, want)
 	}
 }
@@ -265,11 +265,11 @@ func TestCollapseUnchangedSetting(t *testing.T) {
 	cfg.Settings.CollapseUnchanged = false
 	a, b := numbered("x", 30), append(numbered("x", 30), "new")
 	m := New(cfg, "old", "new", a, b)
-	if len(folds(m)) != 0 || len(m.blocks) != 1 {
-		t.Errorf("collapse_unchanged=false: %d folds, %d blocks, want 0 and 1", len(folds(m)), len(m.blocks))
+	if len(folds(m.view)) != 0 || len(m.blocks) != 1 {
+		t.Errorf("collapse_unchanged=false: %d folds, %d blocks, want 0 and 1", len(folds(m.view)), len(m.blocks))
 	}
 	press(m, " ")
-	if len(folds(m)) != 1 {
+	if len(folds(m.view)) != 1 {
 		t.Errorf("space did not fold: %v", m.view)
 	}
 }
@@ -294,8 +294,8 @@ func TestCursorKeepsScreenRow(t *testing.T) {
 	m.cursor = m.viewOf[m.rowOf[left][100]]
 	m.top = m.cursor - 7
 	press(m, " ")
-	if got := screenRow(m); got != 7 || len(folds(m)) != 1 {
-		t.Errorf("after folding below: screen row %d, %d folds, want 7 and 1", got, len(folds(m)))
+	if got := screenRow(m); got != 7 || len(folds(m.view)) != 1 {
+		t.Errorf("after folding below: screen row %d, %d folds, want 7 and 1", got, len(folds(m.view)))
 	}
 	// Folding the block above the cursor must not move it either.
 	m.cursor = m.viewOf[m.rowOf[left][118]]
@@ -515,23 +515,23 @@ func TestToggleAllBlocks(t *testing.T) {
 	b := slices.Clone(a)
 	b[9], b[39] = "new9", "new39"
 	m := newTestModel(a, b)
-	if len(folds(m)) != 3 {
-		t.Fatalf("%d folds at start, want 3", len(folds(m)))
+	if len(folds(m.view)) != 3 {
+		t.Fatalf("%d folds at start, want 3", len(folds(m.view)))
 	}
 	press(m, "]", "ctrl+space")
-	if len(folds(m)) != 0 {
-		t.Errorf("ctrl+space with folds: %d folds left", len(folds(m)))
+	if len(folds(m.view)) != 0 {
+		t.Errorf("ctrl+space with folds: %d folds left", len(folds(m.view)))
 	}
 	line := m.lineAt(left, m.cursor)
 	press(m, "ctrl+space")
-	if len(folds(m)) != 3 || m.lineAt(left, m.cursor) != line {
+	if len(folds(m.view)) != 3 || m.lineAt(left, m.cursor) != line {
 		t.Errorf("ctrl+space without folds: %d folds, cursor on line %d, want 3 and %d",
-			len(folds(m)), m.lineAt(left, m.cursor), line)
+			len(folds(m.view)), m.lineAt(left, m.cursor), line)
 	}
 	// One open block is enough to fold all, one folded block to unfold all.
 	press(m, " ", "ctrl+space")
-	if len(folds(m)) != 0 {
-		t.Errorf("ctrl+space with one fold opened: %d folds, want all opened", len(folds(m)))
+	if len(folds(m.view)) != 0 {
+		t.Errorf("ctrl+space with one fold opened: %d folds, want all opened", len(folds(m.view)))
 	}
 }
 

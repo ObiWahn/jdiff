@@ -173,10 +173,8 @@ func (l *Log) toggleFlow() {
 		app.cursor = file
 		app.scrollToCursor()
 	}
-	if app.open != nil && line >= 0 && app.open.Path == path {
-		m := app.open.view
-		m.active = l.flow.active
-		m.place(line, l.flow.cursorSub(), screenRow)
+	if app.open != nil && app.open.Path == path {
+		app.open.view.takeOver(l.flow, line, screenRow)
 	}
 }
 

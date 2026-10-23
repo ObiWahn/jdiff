@@ -14,11 +14,13 @@ import (
 	"jdiff/internal/theme"
 )
 
-// entry is one file in the selector. Its diff view is created on first open
-// and kept, so anchors survive going back to the list.
+// entry is one file in the selector. Its diff is created on first use and
+// its diff view on first open; both are kept, so anchors survive going back
+// to the list.
 type entry struct {
 	source.File
 	added, removed int
+	diff           *fileDiff
 	view           *Model
 }
 
@@ -53,8 +55,8 @@ func (e *entry) updateStats() {
 		return
 	}
 	rows := diff.Align(e.Old, e.New, nil, diff.Options{})
-	if e.view != nil {
-		rows = e.view.rows
+	if e.diff != nil {
+		rows = e.diff.rows
 	}
 	e.added, e.removed = diff.Stats(rows)
 }
@@ -216,11 +218,18 @@ func (a *App) key(k string) tea.Cmd {
 	return nil
 }
 
+// diffOf returns the diff of e, creating it on first use.
+func (a *App) diffOf(e *entry) *fileDiff {
+	if e.diff == nil {
+		e.diff = newFileDiff(a.cfg, e.paneNames(), [2][]string{e.Old, e.New})
+	}
+	return e.diff
+}
+
 // viewOf returns the diff view of e, creating it on first use.
 func (a *App) viewOf(e *entry) *Model {
 	if e.view == nil {
-		names := e.paneNames()
-		e.view = New(a.cfg, names[left], names[right], e.Old, e.New)
+		e.view = newModel(a.diffOf(e))
 		e.view.canBack = true
 		e.view.commitNav = a.inLog()
 	}
@@ -290,10 +299,7 @@ func (a *App) toggleFlow() {
 		return
 	}
 	a.openFile()
-	if m := a.open.view; line >= 0 {
-		m.active = a.flow.active
-		m.place(line, a.flow.cursorSub(), screenRow)
-	}
+	a.open.view.takeOver(a.flow, line, screenRow)
 }
 
 // switchFile opens the next (dir > 0) or previous file that can be shown.
@@ -318,22 +324,26 @@ func (a *App) preview(e *entry, height int) string {
 	if e.Binary {
 		return box(t, a.width, height, title, []string{t.Hint.Render("binary file")})
 	}
-	m := a.viewOf(e)
-	m.width = max(a.width-4, 0)
-	m.syncLayout()
+	d := a.diffOf(e)
 	start := 0
-	for v := range m.view {
-		if m.changeStart(v) {
+	for v := range d.view {
+		if d.changeStart(v) {
 			start = max(v-a.cfg.Settings.Context, 0)
 			break
 		}
 	}
-	if len(m.view) == 0 { // empty on both sides
+	if len(d.view) == 0 { // empty on both sides
 		return box(t, a.width, height, title, nil)
 	}
+	// The preview is scrolled like the file's diff view.
+	lo := layout{width: max(a.width-4, 0), unified: d.unified()}
+	if e.view != nil {
+		lo.xoff, lo.active = e.view.xoff, e.view.active
+	}
+	screen, screenOf := d.screenLines(lo.unified)
 	var lines []string
-	for i := m.screenOf[start]; i < len(m.screen) && len(lines) < height-2; i++ {
-		lines = append(lines, m.screenLine(m.screen[i], false))
+	for i := screenOf[start]; i < len(screen) && len(lines) < height-2; i++ {
+		lines = append(lines, d.render(screen[i], false, lo))
 	}
 	return box(t, a.width, height, title, lines)
 }

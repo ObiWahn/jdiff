@@ -41,11 +41,11 @@ type flowPart struct {
 // far moves the cursor to the first or last row.
 const far = 1 << 30
 
-// Flow is the Bubble Tea model of the flow view: the diff views of all files
-// one after the other, each starting with a bar, and in the log each commit
-// starting with its message. Files share their diff views with the single
-// file view, so anchors and folds carry over. Commits are loaded once they
-// come near the cursor.
+// Flow is the Bubble Tea model of the flow view: the diffs of all files one
+// after the other, each starting with a bar, and in the log each commit
+// starting with its message. Files share their diffs with the single file
+// view, so anchors and folds carry over; cursor and scrolling are the
+// flow's own. Commits are loaded once they come near the cursor.
 type Flow struct {
 	cfg   *config.Config
 	parts []*flowPart
@@ -56,8 +56,8 @@ type Flow struct {
 	top       int
 	xoff      int
 	active    side
-	marked    *Model // diff view holding a pending mark
-	replacing *Model // diff view waiting for confirmation to replace anchors
+	marked    *fileDiff // diff holding a pending mark
+	replacing *fileDiff // diff waiting for confirmation to replace anchors
 
 	width, height int
 	msg           string
@@ -156,8 +156,8 @@ func (f *Flow) key(k string) tea.Cmd {
 	return nil
 }
 
-// delegate passes an anchor or fold key to the diff view of the file under
-// the cursor.
+// delegate runs an anchor or fold key on the diff of the file under the
+// cursor.
 func (f *Flow) delegate(k string) {
 	if k == "esc" && f.replacing == nil && f.marked != nil && f.marked.pending != nil {
 		// The mark may be in another file than the cursor.
@@ -176,38 +176,36 @@ func (f *Flow) delegate(k string) {
 	}
 	r := f.rows[f.cursor]
 	e := f.parts[r.part].app.files[r.file]
-	m := e.view
-	if k == "enter" && f.marked != m {
+	d := e.diff
+	if k == "enter" && f.marked != d {
 		f.dropMark()
 	}
-	m.syncLayout()
-	m.cursor, m.sub, m.active, m.msg = r.line, r.sub, f.active, ""
+	var at spot
 	f.keepScreenRow(func() {
-		m.key(k)
+		at, f.msg = d.act(k, spot{r.line, r.sub, f.active}, d.unified())
 		e.updateStats()
 		f.build()
-		if i := f.findDiff(r.part, r.file, m.cursor, m.sub); i >= 0 {
+		if i := f.findDiff(r.part, r.file, at.v, at.sub); i >= 0 {
 			f.cursor = i
 		}
 	})
-	f.active, f.msg = m.active, m.msg
+	f.active = at.side
 	f.replacing = nil
-	if m.replace != nil {
-		f.replacing = m
+	if d.replace != nil {
+		f.replacing = d
 	}
-	if m.pending != nil {
-		f.marked = m
-	} else if f.marked == m {
+	if d.pending != nil {
+		f.marked = d
+	} else if f.marked == d {
 		f.marked = nil
 	}
 }
 
 // dropMark cancels a pending mark; the caller rebuilds the rows.
 func (f *Flow) dropMark() {
-	if m := f.marked; m != nil && m.pending != nil {
-		m.pending = nil
-		m.buildView()
-		m.cursor = min(m.cursor, max(len(m.view)-1, 0))
+	if d := f.marked; d != nil && d.pending != nil {
+		d.pending = nil
+		d.buildView()
 	}
 	f.marked = nil
 }
@@ -234,9 +232,9 @@ func (f *Flow) build() {
 				add(flowNote, p, i, 0)
 				continue
 			}
-			m := part.app.viewOf(e)
-			for v := range m.view {
-				for s := range m.rowLines(v, m.unified()) {
+			d := part.app.diffOf(e)
+			for v := range d.view {
+				for s := range d.rowLines(v, d.unified()) {
 					f.rows = append(f.rows, flowRow{flowDiff, p, i, v, s})
 				}
 			}
@@ -384,7 +382,7 @@ func (f *Flow) isKind(k flowKind, line int) func(int) bool {
 
 func (f *Flow) changeStart(i int) bool {
 	r := f.rows[i]
-	return r.kind == flowDiff && r.sub == 0 && f.parts[r.part].app.files[r.file].view.changeStart(r.line)
+	return r.kind == flowDiff && r.sub == 0 && f.parts[r.part].app.files[r.file].diff.changeStart(r.line)
 }
 
 // show puts the cursor on line sub of diff row line of file in part, on
@@ -503,8 +501,8 @@ func (f *Flow) status() string {
 	if file >= 0 {
 		files := f.parts[p].app.files
 		where = append(where, fmt.Sprintf("file %d/%d", file+1, len(files)))
-		if m := files[file].view; m != nil {
-			where = append(where, fmt.Sprintf("anchors %d", len(m.anchors)))
+		if d := files[file].diff; d != nil {
+			where = append(where, fmt.Sprintf("anchors %d", len(d.anchors)))
 		}
 	}
 	left := f.msg
@@ -564,8 +562,6 @@ func (f *Flow) row(i int) string {
 		}
 		return mark + t.Hint.Render(ansi.Truncate("  "+text, w, "…"))
 	}
-	m := part.app.files[r.file].view
-	m.width, m.xoff, m.active = f.width, f.xoff, f.active
-	m.syncLayout()
-	return m.screenLine(sline{r.line, r.sub}, i == f.cursor)
+	d := part.app.files[r.file].diff
+	return d.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, d.unified()})
 }

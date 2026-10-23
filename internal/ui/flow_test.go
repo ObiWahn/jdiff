@@ -89,7 +89,7 @@ func TestFlowNavigation(t *testing.T) {
 
 	// ] and [ go from change to change across files, skipping the binary.
 	pressApp(a, "]", "]")
-	if _, f, l := a.flow.position(); f != 0 || !a.files[0].view.changeStart(l) {
+	if _, f, l := a.flow.position(); f != 0 || !a.files[0].diff.changeStart(l) {
 		t.Errorf("] ]: file %d line %d, want the second change of a.go", f, l)
 	}
 	pressApp(a, "]")
@@ -101,7 +101,7 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("] after the last change: msg %q", a.flow.msg)
 	}
 	pressApp(a, "[")
-	if _, f, l := a.flow.position(); f != 0 || !a.files[0].view.changeStart(l) {
+	if _, f, l := a.flow.position(); f != 0 || !a.files[0].diff.changeStart(l) {
 		t.Errorf("[ from c.go: file %d line %d, want the second change of a.go", f, l)
 	}
 
@@ -125,7 +125,7 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("k from the bar of b.bin: file %d line %d, want the last row of a.go", f, l)
 	}
 	pressApp(a, "G")
-	if _, f, l := a.flow.position(); f != 2 || l != len(a.files[2].view.view)-1 {
+	if _, f, l := a.flow.position(); f != 2 || l != len(a.files[2].diff.view)-1 {
 		t.Errorf("G: file %d line %d, want the last row of c.go", f, l)
 	}
 }
@@ -136,7 +136,7 @@ func TestFlowAnchorShared(t *testing.T) {
 	// Mark the changed line on the left, then pick its partner on the right
 	// of the same row.
 	pressApp(a, "enter", "enter")
-	m := a.files[0].view
+	m := a.files[0].diff
 	if len(m.anchors) != 1 || !strings.HasPrefix(a.flow.msg, "anchored L10↔R10") {
 		t.Fatalf("anchors %v, msg %q", m.anchors, a.flow.msg)
 	}
@@ -152,15 +152,15 @@ func TestFlowAnchorShared(t *testing.T) {
 func TestFlowMarkMovesBetweenFiles(t *testing.T) {
 	a := newFlowApp()
 	pressApp(a, "f", "]", "enter")
-	if a.files[0].view.pending == nil {
+	if a.files[0].diff.pending == nil {
 		t.Fatalf("enter did not mark a line in a.go")
 	}
 	pressApp(a, "]", "]", "enter")
-	if a.files[0].view.pending != nil || a.files[2].view.pending == nil {
+	if a.files[0].diff.pending != nil || a.files[2].diff.pending == nil {
 		t.Errorf("marking in c.go should drop the mark in a.go")
 	}
 	pressApp(a, "G", "esc")
-	if a.files[2].view.pending != nil || a.flow.msg != "mark cancelled" {
+	if a.files[2].diff.pending != nil || a.flow.msg != "mark cancelled" {
 		t.Errorf("esc away from the mark: msg %q", a.flow.msg)
 	}
 }
@@ -260,8 +260,48 @@ func TestFlowToggleAllBlocks(t *testing.T) {
 	pressApp(a, "f", "]")
 	rows := len(a.flow.rows)
 	pressApp(a, "ctrl+space")
-	if len(folds(a.files[0].view)) != 0 || len(a.flow.rows) <= rows {
+	if len(folds(a.files[0].diff.view)) != 0 || len(a.flow.rows) <= rows {
 		t.Errorf("ctrl+space in the flow: %d folds in a.go, %d rows (was %d)",
-			len(folds(a.files[0].view)), len(a.flow.rows), rows)
+			len(folds(a.files[0].diff.view)), len(a.flow.rows), rows)
+	}
+}
+
+func TestFlowHandsOverOnlyItsFile(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		modified("a.go", []string{"1", "2", "3"}, []string{"1", "x", "3"}),
+		modified("b.go", []string{"p", "q", "r"}, []string{"p", "y", "r"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	press := func(keys ...string) {
+		for _, k := range keys {
+			pressApp(a, k)
+			a.View() // drawing the flow must not change the diff views
+		}
+	}
+	press("enter", "f", "j", "j", "l", "l", "f")
+	if m := a.open.view; a.open.Path != "a.go" || m.xoff != 16 {
+		t.Fatalf("leaving the flow on a.go: file %s xoff %d, want a.go and 16", a.open.Path, m.xoff)
+	}
+	press("n")
+	if m := a.open.view; a.open.Path != "b.go" || m.xoff != 0 {
+		t.Errorf("n to b.go: file %s xoff %d, want b.go and its own 0", a.open.Path, m.xoff)
+	}
+}
+
+func TestFlowChangesKeepOtherViewsOnTheirLine(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "enter", "]", "]") // a.go on its change at line 25
+	if line := a.open.view.lineAt(left, a.open.view.cursor); line != 24 {
+		t.Fatalf("a.go cursor on line %d, want 24", line)
+	}
+	// Unfolding all of a.go in the flow moves its rows; leave the flow on c.go.
+	pressApp(a, "f", "ctrl+space", "n", "n", "f")
+	if a.open.Path != "c.go" {
+		t.Fatalf("left the flow on %s, want c.go", a.open.Path)
+	}
+	pressApp(a, "p")
+	if m := a.open.view; a.open.Path != "a.go" || m.lineAt(left, m.cursor) != 24 || len(folds(m.view)) != 0 {
+		t.Errorf("back to a.go: file %s line %d, %d folds; want a.go, 24, unfolded",
+			a.open.Path, m.lineAt(left, m.cursor), len(folds(m.view)))
 	}
 }
