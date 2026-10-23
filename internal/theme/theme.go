@@ -70,6 +70,16 @@ var jdiffDefaults = map[string]string{
 	"branch-style":      "yellow bold",
 }
 
+// jdiffKeys are the style keys of the [jdiff] git config section; all
+// others are delta's.
+var jdiffKeys = []string{"filler-style", "whitespace-style", "minus-indent-style", "plus-indent-style"}
+
+// IsJdiffKey reports whether key is a [jdiff] key rather than a delta one.
+func IsJdiffKey(key string) bool {
+	_, ok := jdiffDefaults[key]
+	return ok || slices.Contains(jdiffKeys, key)
+}
+
 // Default returns the theme without any configuration.
 func Default() *Theme { return Load(Config{}, nil) }
 

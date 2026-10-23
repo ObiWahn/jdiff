@@ -15,7 +15,6 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
-	"jdiff/internal/settings"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
 	"jdiff/internal/ui"
@@ -45,14 +44,17 @@ func main() {
 	if lipgloss.ColorProfile() != termenv.Ascii {
 		lipgloss.SetColorProfile(termenv.ANSI)
 	}
+	dir, err := config.Dir()
+	if err != nil {
+		dir = "" // no home: defaults only
+	}
 	gitCfg := theme.ReadGitConfig()
-	cfg := &config.Config{
-		Theme:    theme.Load(gitCfg, theme.Features(gitCfg, os.Getenv("DELTA_FEATURES"), *features)),
-		Settings: settings.Default(),
+	cfg, err := config.Load(dir, gitCfg, theme.Features(gitCfg, os.Getenv("DELTA_FEATURES"), *features))
+	if err != nil {
+		fatal(err)
 	}
 
 	var m tea.Model
-	var err error
 	if isLog {
 		m, err = loadLog(cfg, flag.Args()[1:])
 	} else {

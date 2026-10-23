@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -158,5 +160,26 @@ func TestSpaceDoesNotNavigateLists(t *testing.T) {
 	pressLog(l, " ")
 	if l.cursor != 0 || l.open != nil {
 		t.Errorf("space in the commit list: cursor %d open %v", l.cursor, l.open)
+	}
+}
+
+func TestTogglesSaveState(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := NewApp(cfg, []source.File{{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+		{Path: "b.go", New: []string{"new"}, InNew: true}})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "v", "s", "w", "f")
+	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"flow = true", "side_by_side = false", "preview = false", "show_whitespaces = true"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("state.toml lacks %q:\n%s", want, data)
+		}
 	}
 }

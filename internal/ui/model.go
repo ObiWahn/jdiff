@@ -58,6 +58,15 @@ type toggleFlowMsg struct{}
 
 func toggleFlow() tea.Msg { return toggleFlowMsg{} }
 
+// saveState writes the toggles to state.toml, returning a message when that
+// fails, else "".
+func saveState(cfg *config.Config) string {
+	if err := cfg.SaveState(); err != nil {
+		return "state: " + err.Error()
+	}
+	return ""
+}
+
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
 	cfg   *config.Config
@@ -104,8 +113,8 @@ func New(cfg *config.Config, oldName, newName string, oldLines, newLines []strin
 	if slices.Equal(oldLines, newLines) {
 		m.msg = "files are identical"
 	}
-	if len(cfg.Theme.Warnings) > 0 {
-		m.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
+	if w := cfg.Warning(); w != "" {
+		m.msg = w
 	}
 	return m
 }
@@ -208,6 +217,10 @@ func (m *Model) key(k string) tea.Cmd {
 	case "s":
 		m.cfg.Settings.SideBySide = !m.cfg.Settings.SideBySide
 		m.syncLayout()
+		m.msg = saveState(m.cfg)
+	case "w":
+		m.cfg.Settings.ShowWhitespaces = !m.cfg.Settings.ShowWhitespaces
+		m.msg = saveState(m.cfg)
 	case "esc":
 		if m.pending != nil {
 			m.pending = nil

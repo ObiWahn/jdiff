@@ -162,6 +162,10 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "s":
 		f.cfg.Settings.SideBySide = !f.cfg.Settings.SideBySide
 		f.keepScreenRow(f.relocate)
+		f.msg = saveState(f.cfg)
+	case "w":
+		f.cfg.Settings.ShowWhitespaces = !f.cfg.Settings.ShowWhitespaces
+		f.msg = saveState(f.cfg)
 	}
 	return nil
 }

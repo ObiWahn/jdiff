@@ -1,30 +1,31 @@
 // Package settings holds jdiff's user settings.
 package settings
 
-// Settings are the user-configurable options. They are fixed defaults for
-// now and meant to be read from a config file later.
+// Settings are the user-configurable options, read from main.toml and,
+// for the toggles, state.toml (see package config); the TOML keys are given
+// in brackets.
 type Settings struct {
-	// Context is the number of unchanged lines kept visible around changes
+	// Context (context) is the number of unchanged lines kept visible around changes
 	// while unchanged code is collapsed.
-	Context int
+	Context int `toml:"context"`
 	// CollapseUnchanged (collapse_unchanged) starts the diff view with
 	// unchanged code collapsed.
-	CollapseUnchanged bool
+	CollapseUnchanged bool `toml:"collapse_unchanged"`
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
-	// not only changed whitespace.
-	ShowWhitespaces bool
+	// not only changed whitespace; w toggles it.
+	ShowWhitespaces bool `toml:"show_whitespaces"`
 	// OnlyChangedWhitespaces (only_changed_whitespaces) compares indentation
 	// character by character, so only its added or removed part is marked.
-	OnlyChangedWhitespaces bool
+	OnlyChangedWhitespaces bool `toml:"only_changed_whitespaces"`
 	// Flow (flow) shows all files one after the other instead of one file
 	// at a time; f toggles it.
-	Flow bool
+	Flow bool `toml:"flow"`
 	// Preview (preview) shows a box below the commit and file lists with
 	// the selected commit's message or file's diff; v toggles it.
-	Preview bool
+	Preview bool `toml:"preview"`
 	// SideBySide (side_by_side) shows the old and new file next to each
 	// other; off, they are shown in one column like git diff. s toggles it.
-	SideBySide bool
+	SideBySide bool `toml:"side_by_side"`
 }
 
 // Default returns the default settings.

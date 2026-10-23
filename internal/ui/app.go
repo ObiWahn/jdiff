@@ -96,8 +96,8 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	if len(files) == 0 {
 		a.msg = "no changed files"
 	}
-	if len(cfg.Theme.Warnings) > 0 {
-		a.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
+	if w := cfg.Warning(); w != "" {
+		a.msg = w
 	}
 	if a.single() {
 		a.openFile()
@@ -123,9 +123,12 @@ func (a *App) openPath(path string) bool {
 
 // setMsg shows msg in the status bar of whatever is displayed.
 func (a *App) setMsg(msg string) {
-	if a.open != nil {
+	switch {
+	case a.flowShown():
+		a.flow.msg = msg
+	case a.open != nil:
 		a.open.view.msg = msg
-	} else {
+	default:
 		a.msg = msg
 	}
 }
@@ -146,6 +149,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case toggleFlowMsg:
 		a.toggleFlow()
+		if w := saveState(a.cfg); w != "" {
+			a.setMsg(w)
+		}
 		return a, nil
 	case backMsg: // from the flow view
 		a.open = nil
@@ -214,8 +220,13 @@ func (a *App) key(k string) tea.Cmd {
 	case "v":
 		a.cfg.Settings.Preview = !a.cfg.Settings.Preview
 		a.scrollToCursor()
+		a.msg = saveState(a.cfg)
 	case "s":
 		a.cfg.Settings.SideBySide = !a.cfg.Settings.SideBySide
+		a.msg = saveState(a.cfg)
+	case "w":
+		a.cfg.Settings.ShowWhitespaces = !a.cfg.Settings.ShowWhitespaces
+		a.msg = saveState(a.cfg)
 	}
 	return nil
 }

@@ -53,8 +53,8 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 	if len(commits) == 0 {
 		l.msg = "no commits"
 	}
-	if len(cfg.Theme.Warnings) > 0 {
-		l.msg = "theme: " + strings.Join(cfg.Theme.Warnings, "; ")
+	if w := cfg.Warning(); w != "" {
+		l.msg = w
 	}
 	return l
 }
@@ -78,6 +78,16 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	case toggleFlowMsg:
 		l.toggleFlow()
+		if w := saveState(l.cfg); w != "" {
+			switch {
+			case l.flowShown():
+				l.flow.msg = w
+			case l.open != nil:
+				l.open.app.setMsg(w)
+			default:
+				l.msg = w
+			}
+		}
 		return l, nil
 	}
 	if l.flowShown() {
@@ -129,6 +139,7 @@ func (l *Log) key(k string) tea.Cmd {
 	case "v":
 		l.cfg.Settings.Preview = !l.cfg.Settings.Preview
 		l.scrollToCursor()
+		l.msg = saveState(l.cfg)
 	}
 	return nil
 }

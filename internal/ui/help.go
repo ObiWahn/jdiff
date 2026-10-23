@@ -32,6 +32,7 @@ var bindings = []binding{
 	{"f", "flow view of all files"},
 	{"v", "show or hide the diff preview"},
 	{"s", "side by side or normal preview"},
+	{"w", "show all whitespace or only changed"},
 	{"backspace", "back to the commits"},
 	{"", "Diff view"},
 	{"j k", "move"},
@@ -50,6 +51,7 @@ var bindings = []binding{
 	{"", "  normal layout: unchanged lines take the side opposite the mark"},
 	{"esc", "cancel the mark"},
 	{"s", "side by side or normal layout"},
+	{"w", "show all whitespace or only changed"},
 	{"f", "flow view"},
 	{"backspace", "back to the list"},
 	{"", "Flow view"},
@@ -58,6 +60,7 @@ var bindings = []binding{
 	{"N P", "next, previous commit bar"},
 	{"f", "single file view"},
 	{"", "Everywhere"},
+	{"", "  f s v w are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
 }
