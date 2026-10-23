@@ -94,19 +94,6 @@ func (m *Model) unifiedLine(v, sub int, cursor bool) string {
 	}
 	nw := m.numWidth()
 	changed := row.Kind != diff.Equal
-	lineStyle, _, _, _ := m.sideStyles(s)
-
-	marker := " "
-	switch {
-	case m.isPending(row) && (row.Kind == diff.Equal || m.pending.side == s):
-		marker = t.Pending.Render("●")
-	case row.Anchored:
-		marker = boldIf(t.Anchor, cursor).Render("◆")
-	case changed && s == left:
-		marker = boldIf(lineStyle, cursor).Render("-")
-	case changed:
-		marker = boldIf(lineStyle, cursor).Render("+")
-	}
 	number := func(line int, of side) string {
 		if line < 0 || (changed && of != s) {
 			return strings.Repeat(" ", nw)
@@ -114,19 +101,9 @@ func (m *Model) unifiedLine(v, sub int, cursor bool) string {
 		return fmt.Sprintf("%*d", nw, line+1)
 	}
 	nums := number(row.Left, left) + " " + number(row.Right, right)
-	numStyle := t.NumZero
-	switch {
-	case changed && s == left:
-		numStyle = t.NumMinus
-	case changed:
-		numStyle = t.NumPlus
-	}
-	gutter := marker + boldIf(numStyle, cursor).Render(nums) + t.Decoration.Render("│") + " "
-	line := row.Right
-	if s == left {
-		line = row.Left
-	}
-	return gutter + m.content(s, row, line, max(m.width-2*nw-4, 0), cursor)
+	pending := m.isPending(row) && (row.Kind == diff.Equal || m.pending.side == s)
+	gutter := m.gutter(row, s, changed, pending, nums, t.Decoration, cursor)
+	return gutter + m.content(s, row, lineOf(row, s), max(m.width-2*nw-4, 0), cursor)
 }
 
 // bodyRow renders displayed row v side by side, marked as the cursor row
@@ -171,20 +148,39 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 	row := m.rows[m.view[v].row]
 	line := m.lineAt(s, v)
 	changed := row.Kind != diff.Equal && line >= 0
-	lineStyle, _, _, _ := m.sideStyles(s)
-	numStyle, sepStyle := t.NumMinus, t.NumLeft
+	sepStyle := t.NumLeft
 	if s == right {
-		numStyle, sepStyle = t.NumPlus, t.NumRight
-	}
-	if !changed {
-		numStyle = t.NumZero
+		sepStyle = t.NumRight
 	}
 	// The cursor shows on the active side.
 	cursor = cursor && s == m.active
 
+	num := strings.Repeat(" ", numWidth)
+	if line >= 0 {
+		num = fmt.Sprintf("%*d", numWidth, line+1)
+	}
+	pending := m.pending != nil && m.pending.side == s && m.pending.line == line && line >= 0
+	gutter := m.gutter(row, s, changed, pending, num, sepStyle, cursor)
+
+	contentWidth := max(width-numWidth-3, 0)
+	if line < 0 {
+		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
+	}
+
+	return gutter + m.content(s, row, line, contentWidth, cursor)
+}
+
+// gutter renders what precedes a line of side s in row: the marker, the line
+// numbers nums and the separator in sepStyle. The marker is ● when pending
+// holds, ◆ on anchors and - or + on changed lines, which also have their
+// side's number style.
+func (m *Model) gutter(row diff.Row, s side, changed, pending bool, nums string, sepStyle lipgloss.Style, cursor bool) string {
+	t := m.cfg.Theme
+	lineStyle, _, _, _ := m.sideStyles(s)
+	numStyle := t.NumZero
 	marker := " "
 	switch {
-	case m.pending != nil && m.pending.side == s && m.pending.line == line && line >= 0:
+	case pending:
 		marker = t.Pending.Render("●")
 	case row.Anchored:
 		marker = boldIf(t.Anchor, cursor).Render("◆")
@@ -193,19 +189,13 @@ func (m *Model) cell(s side, v, width, numWidth int, cursor bool) string {
 	case changed:
 		marker = boldIf(lineStyle, cursor).Render("+")
 	}
-
-	num := strings.Repeat(" ", numWidth)
-	if line >= 0 {
-		num = fmt.Sprintf("%*d", numWidth, line+1)
+	if changed {
+		numStyle = t.NumPlus
+		if s == left {
+			numStyle = t.NumMinus
+		}
 	}
-	gutter := marker + boldIf(numStyle, cursor).Render(num) + sepStyle.Render("│") + " "
-
-	contentWidth := max(width-numWidth-3, 0)
-	if line < 0 {
-		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
-	}
-
-	return gutter + m.content(s, row, line, contentWidth, cursor)
+	return marker + boldIf(numStyle, cursor).Render(nums) + sepStyle.Render("│") + " "
 }
 
 // boldIf returns style, bold when on is set.
@@ -225,14 +215,12 @@ func (m *Model) content(s side, row diff.Row, line, width int, cursor bool) stri
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
 		showAll: m.cfg.Settings.ShowWhitespaces}
 	var spans []diff.Span
-	switch {
-	case row.Kind == diff.Equal:
-	case row.Kind != diff.Change:
-		st.base = lineStyle
-	case s == left:
-		st.base, st.emph, st.space, spans = nonEmph, emph, indent, row.LeftEmph
+	switch row.Kind {
+	case diff.Equal:
+	case diff.Change:
+		st.base, st.emph, st.space, spans = nonEmph, emph, indent, emphOf(row, s)
 	default:
-		st.base, st.emph, st.space, spans = nonEmph, emph, indent, row.RightEmph
+		st.base = lineStyle
 	}
 	content := highlight(m.lines[s][line], spans, st)
 	content = ansi.Cut(content, m.xoff, m.xoff+width)

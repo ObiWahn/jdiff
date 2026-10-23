@@ -21,6 +21,30 @@ const (
 
 func (s side) other() side { return 1 - s }
 
+// lineOf returns the line of side s shown in r, or -1.
+func lineOf(r diff.Row, s side) int {
+	if s == left {
+		return r.Left
+	}
+	return r.Right
+}
+
+// emphOf returns the emphasized parts of the line of side s in r.
+func emphOf(r diff.Row, s side) []diff.Span {
+	if s == left {
+		return r.LeftEmph
+	}
+	return r.RightEmph
+}
+
+// anchorLine returns the line of side s that an anchors.
+func anchorLine(an diff.Anchor, s side) int {
+	if s == left {
+		return an.Left
+	}
+	return an.Right
+}
+
 // mark is a line chosen as the first half of a new anchor.
 type mark struct {
 	side side
@@ -272,7 +296,7 @@ func (m *Model) removeAnchor(an diff.Anchor) {
 
 func (m *Model) anchorAt(s side, line int) (diff.Anchor, bool) {
 	for _, an := range m.anchors {
-		if (s == left && an.Left == line) || (s == right && an.Right == line) {
+		if anchorLine(an, s) == line {
 			return an, true
 		}
 	}
@@ -408,13 +432,7 @@ func (m *Model) blockOpen(b block) bool {
 }
 
 func (m *Model) isPending(r diff.Row) bool {
-	if m.pending == nil {
-		return false
-	}
-	if m.pending.side == left {
-		return r.Left == m.pending.line
-	}
-	return r.Right == m.pending.line
+	return m.pending != nil && lineOf(r, m.pending.side) == m.pending.line
 }
 
 // toggleNearestBlock folds or unfolds the block of unchanged rows under the
@@ -478,11 +496,7 @@ func (m *Model) lineAt(s side, v int) int {
 	if v < 0 || v >= len(m.view) || m.view[v].hidden > 0 {
 		return -1
 	}
-	if r := m.rows[m.view[v].row]; s == left {
-		return r.Left
-	} else {
-		return r.Right
-	}
+	return lineOf(m.rows[m.view[v].row], s)
 }
 
 // moveCursor moves the cursor by delta screen lines.
