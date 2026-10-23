@@ -97,6 +97,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `s` | side by side or normal preview |
 | `w` | show all whitespace or only changed |
 | `r` | reflow: wrap long lines or cut them |
+| `b` | bold or plain changed words |
 | `backspace` | back to the commits (in the log) |
 
 ### Diff view
@@ -120,6 +121,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `s` | side by side or normal layout |
 | `w` | show all whitespace or only changed |
 | `r` | reflow: wrap long lines or cut them |
+| `b` | bold or plain changed words |
 | `f` | flow view |
 | `backspace` | back to the list |
 
@@ -172,6 +174,7 @@ flow = false
 preview = true
 show_whitespaces = false
 wrap = false
+bold_changes = true
 full_messages = true
 stay_in_commit = false
 ```

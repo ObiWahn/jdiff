@@ -40,6 +40,10 @@ type Toggles struct {
 	// lines; off, they are cut and h and l scroll them. r (reflow) toggles
 	// it.
 	Wrap bool `toml:"wrap"`
+	// BoldChanges (bold_changes) draws changed words and whitespace bold
+	// where the theme says so; off, without bold, which terminals often
+	// draw brighter. b toggles it.
+	BoldChanges bool `toml:"bold_changes"`
 	// FullMessages (full_messages) shows the whole commit message in the
 	// flow view of the log; off, only the subject. c toggles it.
 	FullMessages bool `toml:"full_messages"`
@@ -60,6 +64,7 @@ func Default() Settings {
 			SideBySide:      true,
 			Preview:         true,
 			ShowWhitespaces: false,
+			BoldChanges:     true,
 			FullMessages:    true,
 		},
 	}

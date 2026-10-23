@@ -305,6 +305,8 @@ func (a *App) key(k string) tea.Cmd {
 		a.msg = toggle(a.cfg, &a.cfg.Settings.SideBySide)
 	case "w":
 		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowWhitespaces)
+	case "b":
+		a.msg = toggle(a.cfg, &a.cfg.Settings.BoldChanges)
 	case "r":
 		a.msg = toggle(a.cfg, &a.cfg.Settings.Wrap)
 	}

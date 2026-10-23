@@ -790,3 +790,53 @@ func TestWrapFollowsResize(t *testing.T) {
 		t.Errorf("narrower: line wider than the view: %q", line)
 	}
 }
+
+func TestBoldChangesToggle(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	bold := regexp.MustCompile(`\x1b\[(\d+;)*1(;\d+)*m`)
+	// emph returns the escape sequence that styles the changed word "c".
+	word := regexp.MustCompile(`(\x1b\[[0-9;]*m)c\x1b\[0m`)
+	emph := func(row string) string {
+		if m := word.FindStringSubmatch(row); m != nil {
+			return m[1]
+		}
+		return ""
+	}
+	m := newTestModel([]string{"same", "x := compute(a, b)"}, []string{"same", "x := compute(a, c)"})
+	row := m.screenLine(m.screen[1], false)
+	if !bold.MatchString(emph(row)) {
+		t.Fatalf("changed word %q in %q, want bold by default", emph(row), row)
+	}
+	color := strings.TrimPrefix(strings.TrimPrefix(bold.FindString(emph(row)), "\x1b["), "1;")
+
+	press(m, "b")
+	if m.cfg.Settings.BoldChanges {
+		t.Fatal("b did not turn off bold_changes")
+	}
+	row = m.screenLine(m.screen[1], false)
+	if bold.MatchString(row) {
+		t.Errorf("b: changed line %q is still bold", row)
+	}
+	if !strings.Contains(emph(row), strings.TrimSuffix(color, "m")) {
+		t.Errorf("b: changed word %q lost its color %q", emph(row), color)
+	}
+	if cur := m.screenLine(m.screen[0], true); !strings.Contains(cur, "\x1b[1msame") {
+		t.Errorf("b: cursor line %q, want it still bold", cur)
+	}
+	press(m, "b")
+	if !m.cfg.Settings.BoldChanges || !bold.MatchString(emph(m.screenLine(m.screen[1], false))) {
+		t.Error("b again: changed word not bold")
+	}
+
+	// The file list and the flow view toggle the same setting.
+	a := newFlowApp()
+	pressApp(a, "b")
+	if a.cfg.Settings.BoldChanges {
+		t.Error("b in the file list did not toggle bold_changes")
+	}
+	pressApp(a, "f", "b")
+	if !a.cfg.Settings.BoldChanges {
+		t.Error("b in the flow view did not toggle bold_changes")
+	}
+}

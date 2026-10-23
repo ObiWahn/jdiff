@@ -158,6 +158,8 @@ func (m *Model) key(k string) tea.Cmd {
 		m.syncLayout()
 	case "w":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
+	case "b":
+		m.msg = toggle(m.cfg, &m.cfg.Settings.BoldChanges)
 	case "r":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.Wrap)
 		m.syncLayout()

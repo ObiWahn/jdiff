@@ -13,7 +13,7 @@ import (
 func TestHelpPopup(t *testing.T) {
 	a := newTestApp()
 	h := WithHelp(config.Default(), a)
-	h.Update(tea.WindowSizeMsg{Width: 80, Height: 60})
+	h.Update(tea.WindowSizeMsg{Width: 80, Height: 70}) // room for all bindings
 	pressRoot(h, "?")
 	view := ansi.Strip(h.View())
 	for _, want := range []string{"╭─ keys ─", "Commit list", "File list", "Diff view", "Flow view",
@@ -22,8 +22,8 @@ func TestHelpPopup(t *testing.T) {
 			t.Errorf("help lacks %q:\n%s", want, view)
 		}
 	}
-	if lines := strings.Split(view, "\n"); len(lines) != 60 {
-		t.Errorf("help view has %d lines, want the screen's 60", len(lines))
+	if lines := strings.Split(view, "\n"); len(lines) != 70 {
+		t.Errorf("help view has %d lines, want the screen's 70", len(lines))
 	}
 	// Keys do not reach the page while the popup is open.
 	pressRoot(h, "j", "enter")
