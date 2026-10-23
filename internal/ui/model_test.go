@@ -368,12 +368,12 @@ func TestHighlightVisibleWhitespace(t *testing.T) {
 		showAll bool
 		want    string
 	}{
-		{"  x()", []diff.Span{{0, 2}}, false, "··x()"},
-		{"\t\tx", []diff.Span{{1, 2}}, false, "    →   x"},
-		{"a  b", []diff.Span{{1, 4}}, false, "a··b"},
+		{"  x()", []diff.Span{{Start: 0, End: 2}}, false, "··x()"},
+		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, false, "    →   x"},
+		{"a  b", []diff.Span{{Start: 1, End: 4}}, false, "a··b"},
 		{"\tx y", nil, false, "    x y"},
 		{"\tx y ", nil, true, "→   x·y·"},
-		{"\t\tx", []diff.Span{{1, 2}}, true, "→   →   x"},
+		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, true, "→   →   x"},
 	}
 	for _, tt := range tests {
 		st := lineStyles{showAll: tt.showAll}
