@@ -57,14 +57,6 @@ type mainFile struct {
 	Theme string `toml:"theme"`
 }
 
-// stateFile is the content of state.toml: the settings toggled by keys.
-type stateFile struct {
-	Flow            bool `toml:"flow"`
-	SideBySide      bool `toml:"side_by_side"`
-	Preview         bool `toml:"preview"`
-	ShowWhitespaces bool `toml:"show_whitespaces"`
-}
-
 // Load reads the files in dir over the default settings, and builds the
 // theme from delta's git config gitCfg with features and the theme file.
 // Missing files are skipped and unknown keys reported by Warning; files
@@ -83,12 +75,10 @@ func Load(dir string, gitCfg theme.Config, features []string) (*Config, error) {
 	}
 	c.Settings = m.Settings
 
-	st := c.state()
-	if err := c.decode(c.statePath, &st); err != nil {
+	// state.toml holds only the toggles.
+	if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
 		return nil, err
 	}
-	c.Settings.Flow, c.Settings.SideBySide = st.Flow, st.SideBySide
-	c.Settings.Preview, c.Settings.ShowWhitespaces = st.Preview, st.ShowWhitespaces
 
 	if m.Theme != "" {
 		styles := map[string]string{}
@@ -136,11 +126,6 @@ func (c *Config) decode(path string, v any) error {
 	return nil
 }
 
-func (c *Config) state() stateFile {
-	s := c.Settings
-	return stateFile{Flow: s.Flow, SideBySide: s.SideBySide, Preview: s.Preview, ShowWhitespaces: s.ShowWhitespaces}
-}
-
 // SaveState writes the toggled settings to state.toml, through a temporary
 // file so that the file is never left half written.
 func (c *Config) SaveState() error {
@@ -149,7 +134,7 @@ func (c *Config) SaveState() error {
 	}
 	var b bytes.Buffer
 	b.WriteString("# Written by jdiff: the toggles as last set, over main.toml.\n")
-	if err := toml.NewEncoder(&b).Encode(c.state()); err != nil {
+	if err := toml.NewEncoder(&b).Encode(c.Settings.Toggles); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(c.statePath), 0o755); err != nil {
