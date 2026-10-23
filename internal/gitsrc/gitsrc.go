@@ -194,13 +194,19 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		stdin.Close()
 	}()
 
+	// fail stops git, which may be blocked writing output no longer read.
+	fail := func(err error) ([]blob, error) {
+		cmd.Process.Kill()
+		cmd.Wait()
+		return nil, err
+	}
+
 	rd := bufio.NewReader(stdout)
 	blobs := make([]blob, len(specs))
 	for i := range specs {
 		header, err := rd.ReadString('\n')
 		if err != nil {
-			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: %w", err)
+			return fail(fmt.Errorf("git cat-file: %w", err))
 		}
 		// "<oid> <type> <size>" or "<object> missing"
 		f := strings.Fields(header)
@@ -210,13 +216,11 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		}
 		size, err := strconv.Atoi(f[2])
 		if err != nil {
-			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: bad header %q", header)
+			return fail(fmt.Errorf("git cat-file: bad header %q", header))
 		}
 		data := make([]byte, size+1) // content and trailing newline
 		if _, err := io.ReadFull(rd, data); err != nil {
-			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: %w", err)
+			return fail(fmt.Errorf("git cat-file: %w", err))
 		}
 		blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}
 	}

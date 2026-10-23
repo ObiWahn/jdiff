@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 )
 
 // newRepo creates a repository with this history, oldest first:
@@ -149,5 +150,30 @@ func TestLogErrors(t *testing.T) {
 	r := newRepo(t)
 	if _, err := r.Log([]string{"no-such-rev"}); err == nil {
 		t.Error("Log with a bad revision succeeded")
+	}
+}
+
+// TestCatFilesErrorStopsGit checks that a bad reply from git cat-file is
+// reported even while git keeps writing output that is no longer read.
+func TestCatFilesErrorStopsGit(t *testing.T) {
+	dir := t.TempDir()
+	fake := "#!/usr/bin/env bash\necho 'x blob notasize'\nexec yes\n"
+	if err := os.WriteFile(filepath.Join(dir, "git"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := Repo{}.catFiles([]string{"HEAD:a.txt"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("want an error for the bad header")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("catFiles hangs after a bad header")
 	}
 }
