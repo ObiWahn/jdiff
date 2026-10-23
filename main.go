@@ -30,7 +30,8 @@ func main() {
 			"to them.")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--features NAMES] OLD NEW\n"+
-			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n", os.Args[0])
+			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
+			"       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -38,8 +39,11 @@ func main() {
 		fmt.Println(resolveVersion())
 		return
 	}
-	isLog := flag.NArg() > 0 && flag.Arg(0) == "log"
-	if !isLog && flag.NArg() != 2 {
+	mode := ""
+	if flag.NArg() > 0 && (flag.Arg(0) == "log" || flag.Arg(0) == "diff") {
+		mode = flag.Arg(0)
+	}
+	if mode == "" && flag.NArg() != 2 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -64,9 +68,12 @@ func main() {
 	cfg.LoadMarks(repo)
 
 	var m tea.Model
-	if isLog {
+	switch mode {
+	case "log":
 		m, err = loadLog(cfg, flag.Args()[1:])
-	} else {
+	case "diff":
+		m, err = loadDiff(cfg, flag.Args()[1:])
+	default:
 		m, err = load(cfg, flag.Arg(0), flag.Arg(1))
 	}
 	if err != nil {
@@ -115,6 +122,16 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 		return nil, fmt.Errorf("no commits")
 	}
 	return ui.NewLog(cfg, repo.Branch(), commits, repo.Files, repo.Counts), nil
+}
+
+// loadDiff opens the file selector for the files git diff compares with
+// args; files of the working tree are reloaded when they change on disk.
+func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
+	files, err := gitsrc.Repo{}.Diff(args)
+	if err != nil {
+		return nil, err
+	}
+	return ui.NewApp(cfg, files), nil
 }
 
 func fatal(err error) {

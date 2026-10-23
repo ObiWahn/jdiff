@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -180,6 +181,117 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 		}
 		if f.InNew {
 			f.New, f.Binary = lines(blobs[2*i+1], f.Binary)
+		}
+	}
+	return files, nil
+}
+
+// Diff returns the files git diff compares with args, the arguments of git
+// diff: the working tree against the index without any, --cached for the
+// index against HEAD, commits and paths. Sides in the working tree, which
+// git names by the zero id, are read from disk and set OldFile or NewFile,
+// so that they can be watched. Unmerged files are left out.
+func (r Repo) Diff(args []string) ([]source.File, error) {
+	top, err := r.TopLevel()
+	if err != nil {
+		return nil, err
+	}
+	// Paths relative to the top, also with diff.relative set.
+	out, err := r.git(append([]string{"diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M"},
+		args...)...)
+	if err != nil {
+		return nil, err
+	}
+
+	// A side of a file, in the order of the files and old before new: a
+	// blob, or the working copy for the zero id.
+	type sideOf struct {
+		blob int // index into specs, -1 for the working copy
+		path string
+	}
+	var files []source.File
+	var sides []sideOf
+	var specs []string
+	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	for i := 0; i+1 < len(tokens); {
+		// ":oldmode newmode oldid newid status", then the path or paths.
+		meta := strings.Fields(strings.TrimPrefix(tokens[i], ":"))
+		if len(meta) != 5 {
+			return nil, fmt.Errorf("git diff: unexpected entry %q", tokens[i])
+		}
+		f := source.File{Path: tokens[i+1], InOld: true, InNew: true}
+		i += 2
+		switch meta[4][0] {
+		case 'A':
+			f.InOld = false
+		case 'D':
+			f.InNew = false
+		case 'R', 'C':
+			if i >= len(tokens) {
+				return nil, fmt.Errorf("git diff: truncated rename of %s", f.Path)
+			}
+			f.OldPath, f.Path = f.Path, tokens[i]
+			i++
+		case 'U':
+			continue
+		}
+		files = append(files, f)
+		for _, sd := range []struct {
+			in   bool
+			id   string
+			path string
+		}{{f.InOld, meta[2], f.PathInOld()}, {f.InNew, meta[3], f.Path}} {
+			if !sd.in {
+				continue
+			}
+			s := sideOf{blob: -1, path: sd.path}
+			if strings.Trim(sd.id, "0") != "" {
+				s.blob = len(specs)
+				specs = append(specs, sd.id)
+			}
+			sides = append(sides, s)
+		}
+	}
+
+	blobs, err := r.catFiles(specs)
+	if err != nil {
+		return nil, err
+	}
+	n := 0
+	for i := range files {
+		f := &files[i]
+		for _, old := range []bool{true, false} {
+			if (old && !f.InOld) || (!old && !f.InNew) {
+				continue
+			}
+			sd := sides[n]
+			n++
+			var content []string
+			binary := false
+			if sd.blob >= 0 {
+				content, binary = lines(blobs[sd.blob], false)
+			} else {
+				path := filepath.Join(top, filepath.FromSlash(sd.path))
+				l, stamp, err := source.Read(path)
+				switch {
+				case errors.Is(err, source.ErrBinary):
+					binary = true
+				case err != nil:
+					return nil, err
+				}
+				content = l
+				if old {
+					f.OldFile, f.OldStamp = path, stamp
+				} else {
+					f.NewFile, f.NewStamp = path, stamp
+				}
+			}
+			f.Binary = f.Binary || binary
+			if old {
+				f.Old = content
+			} else {
+				f.New = content
+			}
 		}
 	}
 	return files, nil

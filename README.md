@@ -8,7 +8,7 @@ It reads [delta](https://github.com/dandavison/delta)'s git config, so an existi
 
 ## What it can do
 
-- **Compare two files**, two directories (`git difftool --dir-diff`), or the commits of `git log`.
+- **Compare two files**, two directories (`git difftool --dir-diff`), what `git diff` shows (`jdiff diff`, e.g. `--cached` for the index), or the commits of `git log`.
 - **Side by side or normal layout:** two panes or one column like `git diff`; `s` switches between them.
 - **Word-level highlighting** of changed lines. Indentation changes are shown character by character, so only the added or removed part is marked.
 - **Anchors:** mark a line with `enter`, then its partner in the other pane. jdiff realigns around it. Anchors that would cross are offered for replacement.
@@ -45,6 +45,7 @@ The other make targets: `make test`, `make vet`, `make fmt`, `make fmt-check` an
 jdiff OLD NEW                 # compare two files
 jdiff DIR1 DIR2               # compare two directories
 jdiff log [GIT LOG ARGS]      # browse commits, e.g. jdiff log -20 or jdiff log main..topic
+jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdiff diff --cached (the index), jdiff diff HEAD
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 

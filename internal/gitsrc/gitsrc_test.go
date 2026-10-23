@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"jdiff/internal/source"
 )
 
 // newRepo creates a repository with this history, oldest first:
@@ -114,6 +116,96 @@ func TestCounts(t *testing.T) {
 	}
 	if _, err := r.Counts([]string{"no-such-commit"}); err == nil {
 		t.Error("Counts of an unknown commit succeeded")
+	}
+}
+
+// gitIn runs git with args in dir, failing the test on an error.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.com"}, args...)...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+func TestDiff(t *testing.T) {
+	r := newRepo(t)
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(r.Dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	byPath := func(files []source.File) map[string]source.File {
+		out := map[string]source.File{}
+		for _, f := range files {
+			out[f.Path] = f
+		}
+		return out
+	}
+	diff := func(args ...string) map[string]source.File {
+		t.Helper()
+		files, err := r.Diff(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return byPath(files)
+	}
+
+	// Nothing changed: no files, no error.
+	if files := diff(); len(files) != 0 {
+		t.Errorf("clean tree: %v", files)
+	}
+	// Staged: a.txt changed and c.txt renamed to e.txt; then a.txt changed
+	// once more in the working tree, and d.txt removed from it.
+	write("a.txt", "one\nstaged\n")
+	gitIn(t, r.Dir, "add", "a.txt")
+	gitIn(t, r.Dir, "mv", "c.txt", "e.txt")
+	write("a.txt", "one\nstaged\nworking\n")
+	if err := os.Remove(filepath.Join(r.Dir, "d.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Working tree against the index.
+	files := diff()
+	a := files["a.txt"]
+	if !slices.Equal(a.Old, []string{"one", "staged"}) || !slices.Equal(a.New, []string{"one", "staged", "working"}) {
+		t.Errorf("unstaged a.txt = %+v", a)
+	}
+	if a.OldFile != "" || a.NewFile != filepath.Join(r.Dir, "a.txt") || a.NewStamp.Size == 0 {
+		t.Errorf("unstaged a.txt: old file %q, new file %q, stamp %+v; want the working copy, watched", a.OldFile, a.NewFile, a.NewStamp)
+	}
+	if d := files["d.txt"]; !d.InOld || d.InNew || !slices.Equal(d.Old, []string{"side"}) {
+		t.Errorf("deleted d.txt = %+v", d)
+	}
+	if _, ok := files["e.txt"]; ok || len(files) != 2 {
+		t.Errorf("unstaged files %v, want a.txt and d.txt only", files)
+	}
+
+	// The index against HEAD.
+	files = diff("--cached")
+	if a := files["a.txt"]; !slices.Equal(a.Old, []string{"one", "2", "three"}) || !slices.Equal(a.New, []string{"one", "staged"}) ||
+		a.NewFile != "" {
+		t.Errorf("staged a.txt = %+v", a)
+	}
+	if e := files["e.txt"]; e.OldPath != "c.txt" || !slices.Equal(e.Old, e.New) || len(e.New) != 5 {
+		t.Errorf("staged e.txt = %+v, want the rename from c.txt", e)
+	}
+
+	// The working tree against HEAD, a path, and reversed.
+	if a := diff("HEAD")["a.txt"]; !slices.Equal(a.Old, []string{"one", "2", "three"}) || len(a.New) != 3 || a.NewFile == "" {
+		t.Errorf("a.txt against HEAD = %+v", a)
+	}
+	if files := diff("--", "a.txt"); len(files) != 1 {
+		t.Errorf("path a.txt: %v", files)
+	}
+	if a := diff("-R")["a.txt"]; a.OldFile == "" || a.NewFile != "" || len(a.Old) != 3 {
+		t.Errorf("reversed a.txt = %+v, want the working copy as the old side", a)
+	}
+
+	if _, err := r.Diff([]string{"no-such-rev"}); err == nil {
+		t.Error("Diff with a bad revision succeeded")
 	}
 }
 
