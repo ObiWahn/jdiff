@@ -16,9 +16,9 @@ import (
 type Model struct {
 	*fileDiff
 
-	screen        []sline // screen lines of the displayed rows
-	screenOf      []int   // view index -> first screen line
-	screenUnified bool    // layout screen was built for: normal, not side by side
+	screen      []sline // screen lines of the displayed rows
+	screenOf    []int   // view index -> first screen line
+	screenShape shape   // what screen was built for
 	// The displayed rows screen was built for, to find the cursor's line
 	// again when another view or a reload changed them.
 	screenChanges int
@@ -82,7 +82,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.syncLayout()
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.keepScreenRow(func() { m.width, m.height = msg.Width, msg.Height })
+		m.keepScreenRow(func() {
+			m.width, m.height = msg.Width, msg.Height
+			m.syncLayout() // wrapped lines take other pieces
+		})
 	case tea.KeyMsg:
 		return m, pressKeys(msg, m.key)
 	case watchTickMsg:
@@ -155,6 +158,9 @@ func (m *Model) key(k string) tea.Cmd {
 		m.syncLayout()
 	case "w":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
+	case "r":
+		m.msg = toggle(m.cfg, &m.cfg.Settings.Wrap)
+		m.syncLayout()
 	case "enter", "esc", " ", "ctrl+@":
 		m.act(k)
 	case "o":
@@ -194,7 +200,7 @@ func (m *Model) showMark(letter string, mk config.Mark, screenRow int) {
 		m.msg = markMsg(letter, "the new file is empty")
 		return
 	}
-	m.show(m.reveal(right, line), screenRow)
+	m.show(m.reveal(right, line, m.shape()), screenRow)
 	m.msg = markMsg(letter, note)
 }
 
@@ -202,7 +208,7 @@ func (m *Model) showMark(letter string, mk config.Mark, screenRow int) {
 // keeps its screen row. An end in another file is shown by the file
 // selector.
 func (m *Model) jump() tea.Cmd {
-	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenUnified)
+	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenShape)
 	if !ok {
 		m.msg = msg
 		return nil
@@ -211,7 +217,7 @@ func (m *Model) jump() tea.Cmd {
 		j := jumpMsg{end, m.pos() - m.top, msg}
 		return func() tea.Msg { return j }
 	}
-	m.show(m.spotOf(end.side, end.line), m.pos()-m.top)
+	m.show(m.spotOf(end.side, end.line, m.screenShape), m.pos()-m.top)
 	m.msg = msg
 	return nil
 }
@@ -229,7 +235,7 @@ func (m *Model) act(k string) {
 	m.keepScreenRow(func() {
 		changes := m.changes
 		var at spot
-		at, msg = m.fileDiff.act(k, spot{m.cursor, m.sub, m.active}, m.screenUnified)
+		at, msg = m.fileDiff.act(k, spot{m.cursor, m.sub, m.active}, m.screenShape)
 		if m.changes != changes {
 			m.buildScreen()
 		}
@@ -247,25 +253,36 @@ func (m *Model) realign() {
 	m.cursor = min(m.cursor, max(len(m.view)-1, 0))
 }
 
+// shape returns the shape of the screen lines for the current layout and
+// width.
+func (m *Model) shape() shape { return newShape(m.cfg, m.width) }
+
 // buildScreen computes the screen lines of the displayed rows for the
-// current layout.
+// current layout and width.
 func (m *Model) buildScreen() {
-	m.screenUnified = m.unified()
-	m.screen, m.screenOf = m.screenLines(m.screenUnified)
+	m.screenShape = m.shape()
+	m.screen, m.screenOf = m.screenLines(m.screenShape)
 	m.screenChanges, m.screenReloads, m.screenView, m.screenRows = m.changes, m.reloads, m.view, m.rows
 }
 
 // syncLayout rebuilds the screen lines when another view or a reload changed
-// the diff, keeping the cursor on its line, or when the layout was switched, here or
-// in another view, keeping the cursor on its screen row.
+// the diff, keeping the cursor on its line, or when the layout was switched,
+// here or in another view, or wrapped lines need other pieces, keeping the
+// cursor on its line, piece and screen row.
 func (m *Model) syncLayout() {
 	switch {
 	case m.screenChanges != m.changes:
 		m.cursor = m.cursorAfterChange()
 		m.buildScreen()
 		m.scrollToCursor()
-	case m.screenUnified != m.unified():
-		m.keepScreenRow(m.buildScreen)
+	case m.screenShape != m.shape():
+		from := m.screenShape
+		m.keepScreenRow(func() {
+			m.buildScreen()
+			if m.cursor < len(m.view) {
+				m.sub = m.convertSub(m.cursor, m.sub, from, m.screenShape, m.active)
+			}
+		})
 	}
 }
 
@@ -287,7 +304,7 @@ func (m *Model) pos() int {
 	if m.cursor >= len(m.view) {
 		return 0
 	}
-	return m.screenOf[m.cursor] + min(m.sub, m.rowLines(m.cursor, m.screenUnified)-1)
+	return m.screenOf[m.cursor] + min(m.sub, m.rowLines(m.cursor, m.screenShape)-1)
 }
 
 // place puts the cursor on line sub of displayed row v at screen row

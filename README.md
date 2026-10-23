@@ -23,6 +23,7 @@ It reads [delta](https://github.com/dandavison/delta)'s git config, so an existi
 - **Live reload:** outside the log, files on disk are watched (by default every second). When a file changes, its diff is updated, and anchors, folds and the cursor follow their lines.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
 - **Whitespace:** `w` draws all whitespace as `·` and `→`, not only changed whitespace.
+- **Line wrap (reflow):** `r` wraps long lines onto further lines, marked `↪`, instead of cutting them; off, `h` and `l` scroll them.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
 
 ## Install
@@ -87,6 +88,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `v` | show or hide the diff preview |
 | `s` | side by side or normal preview |
 | `w` | show all whitespace or only changed |
+| `r` | reflow: wrap long lines or cut them |
 | `backspace` | back to the commits |
 
 ### Diff view
@@ -109,6 +111,7 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `'`*letter* | jump to a mark, when its file is in this diff |
 | `s` | side by side or normal layout |
 | `w` | show all whitespace or only changed |
+| `r` | reflow: wrap long lines or cut them |
 | `f` | flow view |
 | `backspace` | back to the list |
 
@@ -160,6 +163,7 @@ side_by_side = true
 flow = false
 preview = true
 show_whitespaces = false
+wrap = false
 full_messages = true
 stay_in_commit = false
 ```

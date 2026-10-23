@@ -36,6 +36,10 @@ type Toggles struct {
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
 	// not only changed whitespace; w toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
+	// Wrap (wrap) wraps lines longer than their pane onto further screen
+	// lines; off, they are cut and h and l scroll them. r (reflow) toggles
+	// it.
+	Wrap bool `toml:"wrap"`
 	// FullMessages (full_messages) shows the whole commit message in the
 	// flow view of the log; off, only the subject. c toggles it.
 	FullMessages bool `toml:"full_messages"`

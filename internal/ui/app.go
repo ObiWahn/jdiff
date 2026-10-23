@@ -305,6 +305,8 @@ func (a *App) key(k string) tea.Cmd {
 		a.msg = toggle(a.cfg, &a.cfg.Settings.SideBySide)
 	case "w":
 		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowWhitespaces)
+	case "r":
+		a.msg = toggle(a.cfg, &a.cfg.Settings.Wrap)
 	}
 	return nil
 }
@@ -419,7 +421,7 @@ func (a *App) jump(j jumpMsg) {
 		return
 	}
 	a.openIndex(i)
-	a.open.view.show(a.open.diff.spotOf(j.end.side, j.end.line), j.screenRow)
+	a.open.view.show(a.open.diff.spotOf(j.end.side, j.end.line, a.open.view.shape()), j.screenRow)
 	a.open.view.msg = j.msg
 }
 
@@ -454,11 +456,12 @@ func (a *App) preview(e *entry, height int) string {
 		return box(t, a.width, height, title, nil)
 	}
 	// The preview is scrolled like the file's diff view.
-	lo := layout{width: max(a.width-4, 0), unified: d.unified()}
+	lo := layout{width: max(a.width-4, 0)}
+	lo.shape = newShape(a.cfg, lo.width)
 	if e.view != nil {
 		lo.xoff, lo.active = e.view.xoff, e.view.active
 	}
-	screen, screenOf := d.screenLines(lo.unified)
+	screen, screenOf := d.screenLines(lo.shape)
 	var lines []string
 	for i := screenOf[start]; i < len(screen) && len(lines) < height-2; i++ {
 		lines = append(lines, d.render(screen[i], false, lo))

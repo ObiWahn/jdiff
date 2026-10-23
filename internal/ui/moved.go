@@ -67,12 +67,12 @@ type moveEnd struct {
 }
 
 // otherEnd returns the other end of the moved line under the cursor at, in
-// the normal layout when unified, and the message to show there, which says
-// where the cursor came from. ok is false when the line did not move.
-func (d *fileDiff) otherEnd(at spot, unified bool) (end moveEnd, msg string, ok bool) {
+// the screen lines of sh, and the message to show there, which says where
+// the cursor came from. ok is false when the line did not move.
+func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool) {
 	s := at.side
-	if unified {
-		s = d.unifiedSide(at)
+	if sh.unified {
+		s = d.unifiedSide(at, sh)
 	}
 	line := d.lineAt(s, at.v)
 	r, ok := d.movedTo(s, line)
@@ -86,13 +86,9 @@ func (d *fileDiff) otherEnd(at spot, unified bool) (end moveEnd, msg string, ok 
 	return moveEnd{r.File, s.other(), r.Line}, fmt.Sprintf("%s %s:%d", how, d.group.names[d.groupIndex], line+1), true
 }
 
-// spotOf returns the cursor on line of side s of d, in the normal layout on
-// the screen line of that side.
-func (d *fileDiff) spotOf(s side, line int) spot {
+// spotOf returns the cursor on the start of line of side s of d in the
+// screen lines of sh (see firstSub).
+func (d *fileDiff) spotOf(s side, line int, sh shape) spot {
 	v := d.viewOf[d.rowOf[s][line]]
-	sub := 0
-	if d.rows[d.view[v].row].Kind == diff.Change {
-		sub = int(s)
-	}
-	return spot{v, sub, s}
+	return spot{v, d.firstSub(v, s, sh), s}
 }

@@ -618,8 +618,8 @@ func TestCursorLine(t *testing.T) {
 func TestReloadCarriesAnchors(t *testing.T) {
 	m := newTestModel(numbered("x", 10), numbered("x", 10))
 	d := m.fileDiff
-	d.addAnchor(diff.Anchor{Left: 3, Right: 5}, right)
-	d.addAnchor(diff.Anchor{Left: 7, Right: 8}, right)
+	d.addAnchor(diff.Anchor{Left: 3, Right: 5}, right, shape{})
+	d.addAnchor(diff.Anchor{Left: 7, Right: 8}, right, shape{})
 
 	// Two lines inserted above both anchors on the right: they move along.
 	if dropped := d.reload(right, append([]string{"new1", "new2"}, numbered("x", 10)...)); dropped != 0 {
@@ -693,5 +693,100 @@ func TestHeaderFocus(t *testing.T) {
 	press(m, "s") // the normal layout: one column, no pane has the focus
 	if h := m.header(); strings.Contains(h, "\x1b[2m") || !strings.Contains(h, "\x1b[1m old") || !strings.Contains(h, "\x1b[1m new") {
 		t.Errorf("normal layout: header %q, want both names bold", h)
+	}
+}
+
+// wrapLines returns 30 numbered lines, every third one long enough to wrap
+// in a view 80 columns wide.
+func wrapLines(prefix string) []string {
+	lines := numbered(prefix, 30)
+	for i := 0; i < len(lines); i += 3 {
+		lines[i] = strings.Repeat("word ", 40) + lines[i]
+	}
+	return lines
+}
+
+// cursorRow returns the screen row of the cursor of m, counting the pieces
+// of wrapped lines.
+func cursorRow(m *Model) int { return m.pos() - m.top }
+
+func TestWrapKeepsCursorLine(t *testing.T) {
+	b := wrapLines("x")
+	b[12] = "changed " + b[12]
+	m := newTestModel(wrapLines("x"), b)
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	moveTo(t, m, right, 15)
+	m.scrollToCursor()
+	row, lines := cursorRow(m), len(m.screen)
+
+	press(m, "r")
+	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row {
+		t.Errorf("r: cursor on line %d at screen row %d, want line 15 at row %d", m.lineAt(right, m.cursor), cursorRow(m), row)
+	}
+	if len(m.screen) <= lines || !strings.Contains(ansi.Strip(m.View()), "↪") {
+		t.Errorf("r: %d screen lines, %d before; long lines should wrap with ↪", len(m.screen), lines)
+	}
+	if line := rawText(m.View(), 80); line != "" {
+		t.Errorf("r: line wider than the view: %q", line)
+	}
+	// The cursor moves through the pieces of a wrapped line.
+	moveTo(t, m, right, 18)
+	m.sub = 0
+	press(m, "j")
+	if m.lineAt(right, m.cursor) != 18 || m.sub != 1 {
+		t.Errorf("j on wrapped line 18: line %d sub %d, want its second piece", m.lineAt(right, m.cursor), m.sub)
+	}
+	moveTo(t, m, right, 15)
+	m.sub = 0
+	m.scrollToCursor()
+	row = cursorRow(m)
+	press(m, "r")
+	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row || len(m.screen) != lines {
+		t.Errorf("r off: cursor on line %d at row %d with %d screen lines, want line 15 at row %d with %d",
+			m.lineAt(right, m.cursor), cursorRow(m), len(m.screen), row, lines)
+	}
+}
+
+func TestWrapKeepsSideInNormalLayout(t *testing.T) {
+	a, b := wrapLines("x"), wrapLines("x")
+	b[6] = "changed " + b[6] // a changed row of two wrapped lines
+	m := newTestModel(a, b)
+	press(m, "s")
+	moveTo(t, m, right, 6)
+	m.sub = 1 // the new line of the changed row
+	press(m, "r")
+	if s, piece := m.unifiedPiece(m.cursor, m.sub, m.screenShape); s != right || piece != 0 {
+		t.Fatalf("r: cursor on side %d piece %d, want the new line's first piece", s, piece)
+	}
+	press(m, "j", "enter")
+	if s, piece := m.unifiedPiece(m.cursor, m.sub, m.screenShape); s != right || piece != 1 {
+		t.Errorf("enter on the new line's second piece: cursor on side %d piece %d, want it to stay", s, piece)
+	}
+	if m.pending == nil || m.pending.side != right || m.pending.line != 6 {
+		t.Errorf("enter on a piece of new line 6 marked %+v", m.pending)
+	}
+	press(m, "esc", "r")
+	if m.lineAt(right, m.cursor) != 6 || m.sub != 1 {
+		t.Errorf("r off: cursor on line %d sub %d, want the new line 6, sub 1", m.lineAt(right, m.cursor), m.sub)
+	}
+}
+
+func TestWrapFollowsResize(t *testing.T) {
+	m := newTestModel(wrapLines("x"), wrapLines("y"))
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	press(m, "r")
+	moveTo(t, m, right, 15)
+	m.sub = 0
+	m.scrollToCursor()
+	lines := len(m.screen)
+	m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
+	if m.lineAt(right, m.cursor) != 15 || len(m.screen) <= lines {
+		t.Errorf("narrower: cursor on line %d, %d screen lines (%d before); want line 15 and more pieces",
+			m.lineAt(right, m.cursor), len(m.screen), lines)
+	}
+	if line := rawText(m.View(), 50); line != "" {
+		t.Errorf("narrower: line wider than the view: %q", line)
 	}
 }

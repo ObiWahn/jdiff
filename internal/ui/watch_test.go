@@ -53,7 +53,7 @@ func TestWatchedModelReloads(t *testing.T) {
 	}
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
-	m.fileDiff.addAnchor(diff.Anchor{Left: 20, Right: 20}, right)
+	m.fileDiff.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
 	m.realign()
 	moveTo(t, m, right, 25)
 
@@ -197,7 +197,7 @@ func TestFlowFollowsLineWhenBothSidesReload(t *testing.T) {
 	oldDir := filepath.Dir(a.files[0].OldFile)
 	pressApp(a, "f")
 	d := a.files[0].diff
-	at := d.reveal(left, 9) // the last unchanged line, x9 on both sides
+	at := d.reveal(left, 9, a.flow.built) // the last unchanged line, x9 on both sides
 	a.flow.show(0, 0, at.v, at.sub, 5)
 	// In one tick the old side shrinks past the cursor's line and the new
 	// side gets a line on top.

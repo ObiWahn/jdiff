@@ -269,8 +269,8 @@ func TestFlowAndPreviewLayout(t *testing.T) {
 	}
 	// The single file view follows, on the same line of the row.
 	pressApp(a, "f")
-	if m := a.open.view; !m.screenUnified || m.cursor != line || m.sub != 1 {
-		t.Errorf("f: normal %v cursor %d.%d, want %d.1", m.screenUnified, m.cursor, m.sub, line)
+	if m := a.open.view; !m.screenShape.unified || m.cursor != line || m.sub != 1 {
+		t.Errorf("f: normal %v cursor %d.%d, want %d.1", m.screenShape.unified, m.cursor, m.sub, line)
 	}
 }
 
@@ -352,5 +352,57 @@ func TestFlowMessageToggleOnlyInLog(t *testing.T) {
 	pressApp(a, "f", "c")
 	if !a.cfg.Settings.FullMessages {
 		t.Errorf("c outside the log toggled the commit messages")
+	}
+}
+
+func TestWrapInFlowKeepsCursorLine(t *testing.T) {
+	b := wrapLines("x")
+	b[12] = "changed " + b[12]
+	a := NewApp(config.Default(), []source.File{modified("a.go", wrapLines("x"), b)})
+	a.cfg.Settings.CollapseUnchanged = false
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	d := a.files[0].diff
+	d.buildView()
+	at := d.spotOf(right, 15, a.open.view.shape())
+	a.open.view.show(at, 8)
+	line := func() int { _, _, l := a.flow.position(); return d.lineAt(right, l) }
+
+	pressApp(a, "f", "r")
+	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
+		t.Errorf("flow, r: cursor on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
+	}
+	if !strings.Contains(ansi.Strip(a.View()), "↪") {
+		t.Errorf("flow, r: no wrapped lines:\n%s", ansi.Strip(a.View()))
+	}
+	pressApp(a, "f") // back to the diff view, still wrapped
+	if m := a.open.view; m.lineAt(right, m.cursor) != 15 || cursorRow(m) != 8 {
+		t.Errorf("f: diff view on line %d at screen row %d, want line 15 at row 8", m.lineAt(right, m.cursor), cursorRow(m))
+	}
+	pressApp(a, "r", "f") // unwrapped in the diff view, then flow
+	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
+		t.Errorf("r, f: flow on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
+	}
+}
+
+func TestFlowRebuildsAfterDiffView(t *testing.T) {
+	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"r"}} {
+		a := newFlowApp()
+		pressApp(a, "f", "f", "enter") // the flow is built, then the diff view of a.go
+		pressApp(a, keys...)
+		pressApp(a, "f")
+		want := 0
+		for _, e := range a.files {
+			want++ // the bar
+			if e.Binary {
+				want++
+				continue
+			}
+			for v := range e.diff.view {
+				want += e.diff.rowLines(v, a.flow.built)
+			}
+		}
+		if len(a.flow.rows) != want {
+			t.Errorf("%v in the diff view, then f: %d flow rows, the diffs have %d", keys, len(a.flow.rows), want)
+		}
 	}
 }

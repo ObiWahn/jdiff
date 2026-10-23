@@ -79,9 +79,9 @@ func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
 	return max(min(want, len(lines)-1), 0), "line changed", true
 }
 
-// reveal returns the cursor on line of side s of d, unfolding the block of
-// unchanged rows the line is in.
-func (d *fileDiff) reveal(s side, line int) spot {
+// reveal returns the cursor on line of side s of d in the screen lines of
+// sh, unfolding the block of unchanged rows the line is in.
+func (d *fileDiff) reveal(s side, line int, sh shape) spot {
 	row := d.rowOf[s][line]
 	for _, b := range d.blocks {
 		if row >= b.start && row < b.end && !d.blockOpen(b) {
@@ -90,7 +90,7 @@ func (d *fileDiff) reveal(s side, line int) spot {
 			break
 		}
 	}
-	return d.spotOf(s, line)
+	return d.spotOf(s, line, sh)
 }
 
 // markMsg returns the message for having jumped to mark letter.

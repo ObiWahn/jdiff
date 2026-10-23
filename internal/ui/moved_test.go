@@ -64,7 +64,7 @@ func TestAnchorEndsMove(t *testing.T) {
 		t.Fatal("block not found as moved")
 	}
 	// Anchoring the block to its new place lines it up: it is no longer a move.
-	m.addAnchor(diff.Anchor{Left: 0, Right: 4}, right)
+	m.addAnchor(diff.Anchor{Left: 0, Right: 4}, right, shape{})
 	if _, ok := m.movedTo(left, 0); ok {
 		t.Error("anchored line still marked as moved")
 	}

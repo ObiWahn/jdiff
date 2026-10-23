@@ -55,6 +55,7 @@ type Flow struct {
 	load  func(part int) (*App, error) // loads the files of a commit, nil outside the log
 
 	rows      []flowRow
+	built     shape // what the rows of the diffs were built for
 	cursor    int
 	top       int
 	xoff      int
@@ -108,7 +109,10 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		f.keepScreenRow(func() { f.width, f.height = msg.Width, msg.Height })
+		f.keepScreenRow(func() {
+			f.width, f.height = msg.Width, msg.Height
+			f.relocate() // wrapped lines take other pieces
+		})
 	case tea.KeyMsg:
 		cmd = pressKeys(msg, f.key)
 	}
@@ -190,6 +194,9 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.keepScreenRow(f.relocate)
 	case "w":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
+	case "r":
+		f.msg = toggle(f.cfg, &f.cfg.Settings.Wrap)
+		f.keepScreenRow(f.relocate)
 	case "c":
 		if f.inLog() {
 			f.msg = toggle(f.cfg, &f.cfg.Settings.FullMessages)
@@ -232,7 +239,7 @@ func (f *Flow) delegate(k string) {
 	}
 	var at spot
 	f.keepScreenRow(func() {
-		at, f.msg = d.act(k, spot{r.line, r.sub, f.active}, d.unified())
+		at, f.msg = d.act(k, spot{r.line, r.sub, f.active}, f.built)
 		e.updateStats()
 		f.build()
 		if i := f.findDiff(r.part, r.file, at.v, at.sub); i >= 0 {
@@ -261,7 +268,7 @@ func (f *Flow) jump() {
 	r := f.rows[f.cursor]
 	app := f.parts[r.part].app
 	d := app.files[r.file].diff
-	end, msg, ok := d.otherEnd(spot{r.line, r.sub, f.active}, d.unified())
+	end, msg, ok := d.otherEnd(spot{r.line, r.sub, f.active}, f.built)
 	f.msg = msg
 	if !ok {
 		return
@@ -270,7 +277,7 @@ func (f *Flow) jump() {
 	if i < 0 {
 		return
 	}
-	at := app.files[i].diff.spotOf(end.side, end.line)
+	at := app.files[i].diff.spotOf(end.side, end.line, f.built)
 	f.keepScreenRow(func() {
 		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
 			f.cursor = j
@@ -316,7 +323,7 @@ func (f *Flow) gotoMark(letter string) {
 		return
 	}
 	f.keepScreenRow(func() {
-		at := d.reveal(right, line)
+		at := d.reveal(right, line, f.built)
 		f.build() // a fold may have opened
 		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
 			f.cursor = j
@@ -337,6 +344,7 @@ func (f *Flow) dropMark() {
 // build computes the rows from the parts.
 func (f *Flow) build() {
 	f.rows = f.rows[:0]
+	f.built = newShape(f.cfg, f.width)
 	add := func(k flowKind, part, file, line int) {
 		f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 	}
@@ -358,7 +366,7 @@ func (f *Flow) build() {
 			}
 			d := part.app.diffOf(e)
 			for v := range d.view {
-				for s := range d.rowLines(v, d.unified()) {
+				for s := range d.rowLines(v, f.built) {
 					f.rows = append(f.rows, flowRow{flowDiff, p, i, v, s})
 				}
 			}
@@ -405,14 +413,16 @@ func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 	})
 }
 
-// relocate rebuilds the rows, keeping the cursor on its row, or on the
-// first line of its diff row when the layout changed.
+// relocate rebuilds the rows, keeping the cursor on its row: with wrapped
+// lines on the same piece of the same line, else on the first line of its
+// diff row when the layout changed.
 func (f *Flow) relocate() {
 	var cur flowRow
 	ok := f.cursor < len(f.rows)
 	if ok {
 		cur = f.rows[f.cursor]
 	}
+	from := f.built
 	f.build()
 	i := f.find(cur)
 	if i < 0 && cur.kind == flowCommit {
@@ -420,7 +430,11 @@ func (f *Flow) relocate() {
 		i = f.find(flowRow{flowCommit, cur.part, -1, 2, 0})
 	}
 	if cur.kind == flowDiff {
-		i = f.findDiff(cur.part, cur.file, cur.line, cur.sub)
+		sub := cur.sub
+		if d := f.parts[cur.part].app.files[cur.file].diff; cur.line < len(d.view) {
+			sub = d.convertSub(cur.line, cur.sub, from, f.built, f.active)
+		}
+		i = f.findDiff(cur.part, cur.file, cur.line, sub)
 	}
 	if ok && i >= 0 {
 		f.cursor = i
@@ -606,6 +620,8 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	if f.inLog() && f.unloaded(part) {
 		f.loadPart(part)
 	}
+	// While hidden, diff views may have changed the diffs or the layout.
+	f.build()
 	f.adopt(part, file)
 	i := f.find(flowRow{flowCommit, part, -1, 0, 0})
 	switch {
@@ -849,5 +865,5 @@ func (f *Flow) row(i int) string {
 		return mark + text("  "+note, t.Hint)
 	}
 	d := part.app.files[r.file].diff
-	return d.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, d.unified()})
+	return d.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, f.built})
 }
