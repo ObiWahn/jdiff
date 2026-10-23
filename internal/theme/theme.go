@@ -28,6 +28,8 @@ type Theme struct {
 	Anchor, Pending, Cursor, Filler lipgloss.Style
 	Whitespace                      lipgloss.Style // unchanged whitespace when shown
 	FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
+	CommitHash                      lipgloss.Style // commit hashes in the log
+	Branch                          lipgloss.Style // branch above the commit list
 
 	AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
@@ -62,8 +64,10 @@ var jdiffDefaults = map[string]string{
 	"pending-style": "magenta bold",
 	"cursor-style":  "reverse bold",
 	// Bars with a background, so file and commit borders stand out.
-	"file-bar-style":   "bold bright-white blue",
-	"commit-bar-style": "bold black yellow",
+	"file-bar-style":    "bold bright-white blue",
+	"commit-bar-style":  "bold black yellow",
+	"commit-hash-style": "yellow",
+	"branch-style":      "yellow bold",
 }
 
 // Default returns the theme without any configuration.
@@ -133,6 +137,8 @@ func Load(cfg Config, features []string) *Theme {
 	t.Cursor = jdiff("cursor-style", jdiffDefaults["cursor-style"])
 	t.FileBar = jdiff("file-bar-style", jdiffDefaults["file-bar-style"])
 	t.CommitBar = jdiff("commit-bar-style", jdiffDefaults["commit-bar-style"])
+	t.CommitHash = jdiff("commit-hash-style", jdiffDefaults["commit-hash-style"])
+	t.Branch = jdiff("branch-style", jdiffDefaults["branch-style"])
 	t.Filler, t.Whitespace = t.Decoration, t.Decoration
 	if _, ok := cfg["jdiff.filler-style"]; ok {
 		t.Filler = jdiff("filler-style", "")

@@ -42,6 +42,15 @@ func (e *entry) name() string {
 	return e.Path
 }
 
+// paneNames returns the names shown above the panes of the file's diff.
+func (e *entry) paneNames() [2]string {
+	oldPath := e.Path
+	if e.OldPath != "" {
+		oldPath = e.OldPath
+	}
+	return [2]string{"a/" + oldPath, "b/" + e.Path}
+}
+
 func (e *entry) updateStats() {
 	if e.Binary {
 		return
@@ -207,11 +216,8 @@ func (a *App) key(k string) tea.Cmd {
 // viewOf returns the diff view of e, creating it on first use.
 func (a *App) viewOf(e *entry) *Model {
 	if e.view == nil {
-		oldPath := e.Path
-		if e.OldPath != "" {
-			oldPath = e.OldPath
-		}
-		e.view = New(a.cfg, "a/"+oldPath, "b/"+e.Path, e.Old, e.New)
+		names := e.paneNames()
+		e.view = New(a.cfg, names[left], names[right], e.Old, e.New)
 		e.view.canBack = true
 		e.view.commitNav = a.inLog
 	}

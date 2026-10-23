@@ -175,3 +175,20 @@ func TestFlowFoldKeepsScreenRow(t *testing.T) {
 			len(a.flow.rows), rows, a.flow.cursor-a.flow.top, screenRow)
 	}
 }
+
+// topLines returns the first n lines of the view of m.
+func topLines(m tea.Model, n int) []string {
+	return strings.SplitN(ansi.Strip(m.View()), "\n", n+1)[:n]
+}
+
+func TestFlowHeaderFollowsFile(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f")
+	if top := topLines(a, 1)[0]; !strings.Contains(top, "a/a.go") || !strings.Contains(top, "│ b/a.go") {
+		t.Errorf("top line on a.go: %q", top)
+	}
+	pressApp(a, "N", "N")
+	if top := topLines(a, 1)[0]; !strings.Contains(top, "a/c.go") || !strings.Contains(top, "│ b/c.go") {
+		t.Errorf("top line on c.go: %q", top)
+	}
+}

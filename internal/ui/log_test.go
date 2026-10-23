@@ -24,8 +24,9 @@ func modified(path string, old, new []string) source.File {
 //	c1: changes only c.go
 //	c0: cannot be loaded
 //
-// Only c3 has a message body. In the flow view c3 takes the 10 rows of the
-// screen: 6 header rows and two files of a bar and one row each.
+// Only c3 has a message body. In the flow view c3 takes 10 rows, more than
+// the 9 below the commit and file lines: 6 header rows and two files of a
+// bar and one row each.
 func newTestLog() (*Log, map[string]int) {
 	loads := map[string]int{}
 	files := map[string][]source.File{
@@ -46,7 +47,7 @@ func newTestLog() (*Log, map[string]int) {
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
 	commits[0].Body = "body c3"
-	l := NewLog(config.Default(), commits, load)
+	l := NewLog(config.Default(), "main", commits, load)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return l, loads
 }
@@ -64,13 +65,16 @@ func shownFile(l *Log) string {
 func TestLogListShowsCommits(t *testing.T) {
 	l, loads := newTestLog()
 	view := ansi.Strip(l.View())
-	for _, want := range []string{"4 commits", "c3", "2026-10-22", "+12 -3", "subject c1"} {
+	for _, want := range []string{"main (4 commits)", "c3", "2026-10-22", "+12 -3", "subject c1"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("log view lacks %q:\n%s", want, view)
 		}
 	}
 	if len(loads) != 0 {
 		t.Errorf("commits loaded before opening: %v", loads)
+	}
+	if top := topLines(l, 3); top[0] != " main (4 commits)" || top[1] != "" || !strings.HasPrefix(top[2], " c3 ") {
+		t.Errorf("top lines %q, want the branch, an empty line, then c3", top)
 	}
 }
 
@@ -241,5 +245,19 @@ func TestLogFlowFromDiff(t *testing.T) {
 	pressLog(l, "N", "j", "f")
 	if shownFile(l) != "b.go" || l.open.app.open.view.cursor != 0 {
 		t.Errorf("f on the row of b.go: shown %q", shownFile(l))
+	}
+}
+
+func TestLogFlowHeader(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f")
+	top := topLines(l, 2)
+	if !strings.Contains(top[0], "c3 subject c3") || strings.Contains(top[1], "a/") {
+		t.Errorf("on the commit bar: %q", top)
+	}
+	pressLog(l, "N", "j")
+	top = topLines(l, 2)
+	if !strings.Contains(top[0], "c3 subject c3") || !strings.Contains(top[1], "a/a.go") {
+		t.Errorf("in a.go: %q", top)
 	}
 }

@@ -130,6 +130,21 @@ func TestFiles(t *testing.T) {
 	}
 }
 
+func TestBranch(t *testing.T) {
+	r := newRepo(t)
+	if b := r.Branch(); b != "main" {
+		t.Errorf("Branch() = %q, want main", b)
+	}
+	cmd := exec.Command("git", "checkout", "-q", "--detach")
+	cmd.Dir = r.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout --detach: %v\n%s", err, out)
+	}
+	if b := r.Branch(); b != "detached HEAD" {
+		t.Errorf("Branch() detached = %q", b)
+	}
+}
+
 func TestLogErrors(t *testing.T) {
 	r := newRepo(t)
 	if _, err := r.Log([]string{"no-such-rev"}); err == nil {

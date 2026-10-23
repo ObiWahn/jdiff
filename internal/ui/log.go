@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -25,8 +26,9 @@ type commitEntry struct {
 // Log is the Bubble Tea model of the commit list. Enter shows the files of
 // a commit; n/p step through commits from the deeper views.
 type Log struct {
-	cfg  *config.Config
-	load LoadFunc
+	cfg    *config.Config
+	branch string // shown above the commit list
+	load   LoadFunc
 
 	commits []*commitEntry
 	cursor  int
@@ -38,9 +40,9 @@ type Log struct {
 	msg           string
 }
 
-// NewLog returns the commit list for commits, newest first.
-func NewLog(cfg *config.Config, commits []gitsrc.Commit, load LoadFunc) *Log {
-	l := &Log{cfg: cfg, load: load}
+// NewLog returns the commit list for commits, newest first, of branch.
+func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load LoadFunc) *Log {
+	l := &Log{cfg: cfg, branch: branch, load: load}
 	var parts []*flowPart
 	for _, c := range commits {
 		e := &commitEntry{Commit: c}
@@ -261,7 +263,8 @@ func (l *Log) moveCursor(delta int) {
 	l.scrollToCursor()
 }
 
-func (l *Log) listHeight() int { return max(l.height-2, 1) }
+// listHeight is the height of the list below the branch and an empty line.
+func (l *Log) listHeight() int { return max(l.height-3, 1) }
 
 func (l *Log) scrollToCursor() {
 	h := l.listHeight()
@@ -295,19 +298,19 @@ func (l *Log) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(ansi.Truncate(t.Title.Render(fmt.Sprintf(" %d commits", len(l.commits))), l.width, "…") + "\n")
+	head := " " + t.Branch.Render(l.branch) + " " +
+		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
+	b.WriteString(ansi.Truncate(head, l.width, "…") + "\n\n")
 	for i := l.top; i < l.top+l.listHeight(); i++ {
 		if i < len(l.commits) {
 			c := l.commits[i]
-			hash := " " + c.Short + " "
-			if i == l.cursor {
-				hash = t.Cursor.Render(hash)
-			}
-			counts := t.Plus.Render(count("+", c.Added, addW+1)) + " " +
-				t.Minus.Render(count("-", c.Removed, remW+1))
+			// The selected commit is drawn bold.
+			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == l.cursor) }
+			counts := st(t.Plus).Render(count("+", c.Added, addW+1)) + " " +
+				st(t.Minus).Render(count("-", c.Removed, remW+1))
 			author := fmt.Sprintf("%-*s", authW, ansi.Truncate(c.Author, maxAuthorWidth, "…"))
-			line := hash + " " + t.Decoration.Render(c.Date) + " " + counts + "  " +
-				t.Decoration.Render(author) + "  " + c.Subject
+			line := " " + st(t.CommitHash).Render(c.Short) + "  " + st(t.Decoration).Render(c.Date) + " " +
+				counts + "  " + st(t.Decoration).Render(author) + "  " + st(lipgloss.NewStyle()).Render(c.Subject)
 			b.WriteString(ansi.Truncate(line, l.width, "…"))
 		}
 		b.WriteString("\n")

@@ -422,7 +422,16 @@ func (f *Flow) position() (part, file, line int) {
 	return r.part, r.file, line
 }
 
-func (f *Flow) bodyHeight() int { return max(f.height-2, 1) }
+// headerLines is the number of lines above the rows: the commit in the log,
+// and the file names.
+func (f *Flow) headerLines() int {
+	if f.load != nil {
+		return 2
+	}
+	return 1
+}
+
+func (f *Flow) bodyHeight() int { return max(f.height-1-f.headerLines(), 1) }
 
 func (f *Flow) keepScreenRow(fn func()) {
 	offset := f.cursor - f.top
@@ -454,7 +463,7 @@ func (f *Flow) View() string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(f.title() + "\n")
+	b.WriteString(f.header())
 	for i := f.top; i < f.top+f.bodyHeight(); i++ {
 		if i < len(f.rows) {
 			b.WriteString(f.row(i))
@@ -465,20 +474,21 @@ func (f *Flow) View() string {
 	return b.String()
 }
 
-// title names the commit and file of the cursor.
-func (f *Flow) title() string {
+// header renders the lines above the rows: in the log the commit of the
+// cursor, then the names of its file as in the single file view.
+func (f *Flow) header() string {
+	t := f.cfg.Theme
 	p, file, _ := f.position()
-	var names []string
-	if p < len(f.parts) {
-		part := f.parts[p]
-		if c := part.commit; c != nil {
-			names = append(names, c.Short+" "+c.Subject)
-		}
-		if file >= 0 {
-			names = append(names, part.app.files[file].name())
-		}
+	var b strings.Builder
+	if f.load != nil {
+		c := f.parts[p].commit
+		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Underline(false).Render(c.Subject)
+		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}
-	return ansi.Truncate(f.cfg.Theme.Title.Render(" "+strings.Join(names, " · ")), f.width, "…")
+	if file >= 0 {
+		b.WriteString(paneTitles(t, f.parts[p].app.files[file].paneNames(), f.active, f.width))
+	}
+	return b.String() + "\n"
 }
 
 func (f *Flow) status() string {

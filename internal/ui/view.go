@@ -70,10 +70,7 @@ func (m *Model) numWidth() int {
 }
 
 // header renders the file names above both panes.
-func (m *Model) header() string {
-	w := m.paneWidth()
-	return m.title(left, w) + m.cfg.Theme.Decoration.Render("│") + m.title(right, w)
-}
+func (m *Model) header() string { return paneTitles(m.cfg.Theme, m.names, m.active, m.width) }
 
 // bodyRow renders displayed row v, marked as the cursor row when cursor is
 // set.
@@ -85,12 +82,18 @@ func (m *Model) bodyRow(v int, cursor bool) string {
 	return m.cell(left, v, w, nw, cursor) + m.cfg.Theme.Decoration.Render("│") + m.cell(right, v, w, nw, cursor)
 }
 
-func (m *Model) title(s side, width int) string {
-	style := m.cfg.Theme.Title
-	if s != m.active {
-		style = style.Faint(true).Underline(false)
+// paneTitles renders names above the panes of a view width columns wide,
+// the name of the active pane highlighted.
+func paneTitles(t *theme.Theme, names [2]string, active side, width int) string {
+	w := (width - 1) / 2
+	title := func(s side) string {
+		style := t.Title
+		if s != active {
+			style = style.Faint(true).Underline(false)
+		}
+		return pad(style.Render(ansi.Truncate(" "+names[s], w, "…")), w, lipgloss.NewStyle())
 	}
-	return pad(style.Render(ansi.Truncate(" "+m.names[s], width, "…")), width, lipgloss.NewStyle())
+	return title(left) + t.Decoration.Render("│") + title(right)
 }
 
 func (m *Model) status() string {

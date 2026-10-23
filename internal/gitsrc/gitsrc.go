@@ -87,6 +87,15 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 	return commits, nil
 }
 
+// Branch returns the name of the checked out branch, or "detached HEAD".
+func (r Repo) Branch() string {
+	out, err := r.git("symbolic-ref", "--short", "-q", "HEAD")
+	if err != nil {
+		return "detached HEAD"
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // Files returns the files c changed against its first parent, or against
 // the empty tree for a root commit, with their contents.
 func (r Repo) Files(c Commit) ([]source.File, error) {
