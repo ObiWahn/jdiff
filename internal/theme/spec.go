@@ -57,6 +57,8 @@ type Spec struct {
 	WhitespaceStyle  *string `toml:"whitespace-style" git:"jdiff"`   // unset: file-decoration-style's color
 	MinusIndentStyle *string `toml:"minus-indent-style" git:"jdiff"` // unset: minus-emph-style
 	PlusIndentStyle  *string `toml:"plus-indent-style" git:"jdiff"`  // unset: plus-emph-style
+	MinusMovedStyle  *string `toml:"minus-moved-style" git:"jdiff"`  // removed lines that moved elsewhere
+	PlusMovedStyle   *string `toml:"plus-moved-style" git:"jdiff"`   // added lines that moved here
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`
@@ -123,6 +125,9 @@ func Builtin() Spec {
 		CommitBarStyle:  str("bold black yellow"),
 		CommitHashStyle: str("yellow"),
 		BranchStyle:     str("yellow bold"),
+		// Moved code as git colors it by default.
+		MinusMovedStyle: str("magenta"),
+		PlusMovedStyle:  str("cyan"),
 	}
 }
 

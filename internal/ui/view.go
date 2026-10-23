@@ -106,8 +106,10 @@ func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
 	}
 	nums := number(row.Left, left) + " " + number(row.Right, right)
 	pending := d.isPending(row) && (row.Kind == diff.Equal || d.pending.side == s)
-	gutter := d.gutter(row, s, changed, pending, nums, t.Decoration, cursor)
-	return gutter + d.content(s, row, lineOf(row, s), max(lo.width-2*nw-4, 0), cursor, lo.xoff)
+	line := lineOf(row, s)
+	_, moved := d.movedTo(s, line)
+	gutter := d.gutter(row, s, changed, pending, moved, nums, t.Decoration, cursor)
+	return gutter + d.content(s, row, line, max(lo.width-2*nw-4, 0), cursor, moved, lo.xoff)
 }
 
 // bodyRow renders displayed row v side by side, marked as the cursor row
@@ -165,23 +167,28 @@ func (d *fileDiff) cell(s side, v, width, numWidth int, cursor bool, lo layout) 
 		num = fmt.Sprintf("%*d", numWidth, line+1)
 	}
 	pending := d.pending != nil && d.pending.side == s && d.pending.line == line && line >= 0
-	gutter := d.gutter(row, s, changed, pending, num, sepStyle, cursor)
+	_, moved := d.movedTo(s, line)
+	gutter := d.gutter(row, s, changed, pending, moved, num, sepStyle, cursor)
 
 	contentWidth := max(width-numWidth-3, 0)
 	if line < 0 {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	return gutter + d.content(s, row, line, contentWidth, cursor, lo.xoff)
+	return gutter + d.content(s, row, line, contentWidth, cursor, moved, lo.xoff)
 }
 
 // gutter renders what precedes a line of side s in row: the marker, the line
 // numbers nums and the separator in sepStyle. The marker is ● when pending
-// holds, ◆ on anchors and - or + on changed lines, which also have their
-// side's number style.
-func (d *fileDiff) gutter(row diff.Row, s side, changed, pending bool, nums string, sepStyle lipgloss.Style, cursor bool) string {
+// holds, ◆ on anchors and - or + on changed lines, in the moved style for
+// moved ones; changed lines also have their side's number style.
+func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved bool, nums string, sepStyle lipgloss.Style,
+	cursor bool) string {
 	t := d.cfg.Theme
 	lineStyle, _, _, _ := d.sideStyles(s)
+	if moved {
+		lineStyle = d.movedStyle(s)
+	}
 	numStyle := t.NumZero
 	marker := " "
 	switch {
@@ -216,18 +223,29 @@ func boldIf(style lipgloss.Style, on bool) lipgloss.Style {
 	return style
 }
 
+// movedStyle returns the style of moved lines of side s.
+func (d *fileDiff) movedStyle(s side) lipgloss.Style {
+	if s == left {
+		return d.cfg.Theme.MinusMoved
+	}
+	return d.cfg.Theme.PlusMoved
+}
+
 // content renders line of side s, shown in row, width columns wide with
 // changes emphasized and scrolled by xoff columns. On the cursor line
-// unchanged text is bold.
-func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor bool, xoff int) string {
+// unchanged text is bold; a moved line is drawn in the moved style, without
+// emphasis.
+func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved bool, xoff int) string {
 	t := d.cfg.Theme
 	lineStyle, nonEmph, emph, indent := d.sideStyles(s)
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
 		showAll: d.cfg.Settings.ShowWhitespaces}
 	var spans []diff.Span
-	switch row.Kind {
-	case diff.Equal:
-	case diff.Change:
+	switch {
+	case row.Kind == diff.Equal:
+	case moved:
+		st.base = d.movedStyle(s)
+	case row.Kind == diff.Change:
 		st.base, st.emph, st.space, spans = nonEmph, emph, indent, emphOf(row, s)
 	default:
 		st.base = lineStyle

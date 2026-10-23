@@ -42,7 +42,9 @@ type Model struct {
 
 // New returns a model comparing oldLines (left) with newLines (right).
 func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
-	return newModel(newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines}))
+	d := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
+	(&moveGroup{}).add(d, newName)
+	return newModel(d)
 }
 
 // NewWatched returns a model comparing the sides of f, which it reloads

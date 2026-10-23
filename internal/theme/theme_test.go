@@ -178,3 +178,14 @@ func TestResolveInvalidJdiffStylesKeepDefaults(t *testing.T) {
 		t.Errorf("warnings %v, want one per invalid style", th.Warnings)
 	}
 }
+
+func TestMovedStyles(t *testing.T) {
+	th := Default()
+	if th.MinusMoved.GetForeground() != lipgloss.Color("5") || th.PlusMoved.GetForeground() != lipgloss.Color("6") {
+		t.Errorf("moved styles %v %v, want magenta and cyan", th.MinusMoved.GetForeground(), th.PlusMoved.GetForeground())
+	}
+	th = Resolve(FromGit(Config{"jdiff.plus-moved-style": "bright-cyan bold"}, nil))
+	if th.PlusMoved.GetForeground() != lipgloss.Color("14") || !th.PlusMoved.GetBold() {
+		t.Errorf("jdiff.plus-moved-style: %v, want bright cyan bold", th.PlusMoved.GetForeground())
+	}
+}

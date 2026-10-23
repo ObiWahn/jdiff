@@ -104,6 +104,10 @@ type fileDiff struct {
 	reloads    int
 	reloadSide side
 	moved      []int
+
+	aligns     int        // counts the alignments
+	group      *moveGroup // the files searched for moved code with this one
+	groupIndex int        // the index of this file in group
 }
 
 func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDiff {
@@ -321,6 +325,7 @@ func (d *fileDiff) align() {
 			d.rowOf[right][r.Right] = i
 		}
 	}
+	d.aligns++
 	d.buildView()
 }
 

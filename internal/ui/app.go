@@ -94,8 +94,13 @@ func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, f
 // files of commit when it is set.
 func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
 	a := &App{cfg: cfg, commit: commit}
+	// The files are searched for moved code together.
+	group := &moveGroup{}
 	for _, f := range files {
 		e := &entry{File: f}
+		if !e.Binary {
+			group.add(a.diffOf(e), e.Path)
+		}
 		e.updateStats()
 		a.files = append(a.files, e)
 	}

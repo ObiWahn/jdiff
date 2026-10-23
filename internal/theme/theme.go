@@ -30,6 +30,7 @@ type Theme struct {
 
 	Anchor, Pending, Cursor, Filler lipgloss.Style
 	Whitespace                      lipgloss.Style // unchanged whitespace when shown
+	MinusMoved, PlusMoved           lipgloss.Style // moved code: removed here, added there
 	FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
 	CommitHash                      lipgloss.Style // commit hashes in the log
 	Branch                          lipgloss.Style // branch above the commit list
@@ -139,6 +140,8 @@ func Resolve(sp Spec) *Theme {
 	t.CommitBar = style("commit-bar-style", sp.CommitBarStyle, def.CommitBarStyle)
 	t.CommitHash = style("commit-hash-style", sp.CommitHashStyle, def.CommitHashStyle)
 	t.Branch = style("branch-style", sp.BranchStyle, def.BranchStyle)
+	t.MinusMoved = style("minus-moved-style", sp.MinusMovedStyle, def.MinusMovedStyle)
+	t.PlusMoved = style("plus-moved-style", sp.PlusMovedStyle, def.PlusMovedStyle)
 	t.Filler = styleOrStyle("filler-style", sp.FillerStyle, t.Decoration)
 	t.Whitespace = styleOrStyle("whitespace-style", sp.WhitespaceStyle, t.Decoration)
 	// Changed whitespace is drawn as · and →, by default like changed words.
