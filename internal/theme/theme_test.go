@@ -155,3 +155,26 @@ func TestLoadIndentAndWarnings(t *testing.T) {
 			th.Minus.GetForeground(), th.Warnings)
 	}
 }
+
+func TestLoadInvalidJdiffStylesKeepDefaults(t *testing.T) {
+	th := Load(Config{
+		"jdiff.filler-style":       "notacolor",
+		"jdiff.whitespace-style":   "notacolor",
+		"jdiff.minus-indent-style": "notacolor",
+		"jdiff.plus-indent-style":  "notacolor",
+	}, nil)
+	def := Default()
+	if th.Filler.GetForeground() != def.Decoration.GetForeground() ||
+		th.Whitespace.GetForeground() != def.Decoration.GetForeground() {
+		t.Errorf("filler %v whitespace %v, want the decoration color %v",
+			th.Filler.GetForeground(), th.Whitespace.GetForeground(), def.Decoration.GetForeground())
+	}
+	if th.MinusIndent.GetForeground() != def.MinusEmph.GetForeground() ||
+		th.PlusIndent.GetForeground() != def.PlusEmph.GetForeground() {
+		t.Errorf("indent styles %v %v, want the emph colors",
+			th.MinusIndent.GetForeground(), th.PlusIndent.GetForeground())
+	}
+	if len(th.Warnings) != 4 {
+		t.Errorf("warnings %v, want one per invalid style", th.Warnings)
+	}
+}

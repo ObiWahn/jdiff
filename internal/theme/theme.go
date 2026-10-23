@@ -92,13 +92,16 @@ func Load(cfg Config, features []string) *Theme {
 		}
 		return deltaDefaults[key]
 	}
+	warn := func(name string, err error) {
+		// Options that default to another one may report its error again.
+		if w := fmt.Sprintf("%s: %v", name, err); !slices.Contains(t.Warnings, w) {
+			t.Warnings = append(t.Warnings, w)
+		}
+	}
 	parse := func(name, s, fallback string) lipgloss.Style {
 		st, err := ParseStyle(s, cfg)
 		if err != nil {
-			// Options that default to another one may report its error again.
-			if w := fmt.Sprintf("%s: %v", name, err); !slices.Contains(t.Warnings, w) {
-				t.Warnings = append(t.Warnings, w)
-			}
+			warn(name, err)
 			st, _ = ParseStyle(fallback, nil)
 		}
 		return st
@@ -118,6 +121,20 @@ func Load(cfg Config, features []string) *Theme {
 			return parse("jdiff."+key, v, fallback)
 		}
 		return parse("jdiff."+key, fallback, "")
+	}
+	// jdiffOr returns a jdiff option that defaults to another style, also
+	// when it is invalid.
+	jdiffOr := func(key string, def lipgloss.Style) lipgloss.Style {
+		v, ok := cfg["jdiff."+key]
+		if !ok {
+			return def
+		}
+		st, err := ParseStyle(v, cfg)
+		if err != nil {
+			warn("jdiff."+key, err)
+			return def
+		}
+		return st
 	}
 
 	t.Minus, t.MinusEmph = delta("minus-style"), delta("minus-emph-style")
@@ -150,20 +167,10 @@ func Load(cfg Config, features []string) *Theme {
 	t.CommitBar = jdiff("commit-bar-style", jdiffDefaults["commit-bar-style"])
 	t.CommitHash = jdiff("commit-hash-style", jdiffDefaults["commit-hash-style"])
 	t.Branch = jdiff("branch-style", jdiffDefaults["branch-style"])
-	t.Filler, t.Whitespace = t.Decoration, t.Decoration
-	if _, ok := cfg["jdiff.filler-style"]; ok {
-		t.Filler = jdiff("filler-style", "")
-	}
-	if _, ok := cfg["jdiff.whitespace-style"]; ok {
-		t.Whitespace = jdiff("whitespace-style", "")
-	}
+	t.Filler = jdiffOr("filler-style", t.Decoration)
+	t.Whitespace = jdiffOr("whitespace-style", t.Decoration)
 	// Changed whitespace is drawn as · and →, by default like changed words.
-	t.MinusIndent, t.PlusIndent = t.MinusEmph, t.PlusEmph
-	if _, ok := cfg["jdiff.minus-indent-style"]; ok {
-		t.MinusIndent = jdiff("minus-indent-style", "")
-	}
-	if _, ok := cfg["jdiff.plus-indent-style"]; ok {
-		t.PlusIndent = jdiff("plus-indent-style", "")
-	}
+	t.MinusIndent = jdiffOr("minus-indent-style", t.MinusEmph)
+	t.PlusIndent = jdiffOr("plus-indent-style", t.PlusEmph)
 	return t
 }
