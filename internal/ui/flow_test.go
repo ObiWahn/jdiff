@@ -215,6 +215,17 @@ func TestAppDiffPreview(t *testing.T) {
 	}
 }
 
+func TestAppPreviewOfEmptyFile(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		{Path: "empty", InNew: true},
+		modified("c.go", []string{"old"}, []string{"new"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "╭─ empty ─") {
+		t.Errorf("preview of the empty file:\n%s", view)
+	}
+}
+
 func TestFlowAndPreviewLayout(t *testing.T) {
 	a := newFlowApp()
 	if view := ansi.Strip(a.View()); !strings.Contains(view, "+10│ new9") {

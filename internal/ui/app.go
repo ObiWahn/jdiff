@@ -365,6 +365,9 @@ func (a *App) preview(e *entry, height int) string {
 			break
 		}
 	}
+	if len(m.view) == 0 { // empty on both sides
+		return box(t, a.width, height, title, nil)
+	}
 	var lines []string
 	for i := m.screenOf[start]; i < len(m.screen) && len(lines) < height-2; i++ {
 		lines = append(lines, m.screenLine(m.screen[i], false))
