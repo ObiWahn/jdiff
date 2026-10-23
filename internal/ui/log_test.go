@@ -280,3 +280,37 @@ func TestLogListColumns(t *testing.T) {
 		t.Errorf("narrow line %q", line)
 	}
 }
+
+func TestLogMessageBox(t *testing.T) {
+	l, _ := newTestLog()
+	l.commits[0].Body = "first line\nsecond line\nthird line"
+	// Height 12: 9 rows below the branch, 4 for the list, 5 for the box.
+	view := ansi.Strip(l.View())
+	lines := strings.Split(view, "\n")
+	if len(lines) != 12 || l.listHeight() != 4 || l.boxHeight() != 5 {
+		t.Fatalf("%d lines, list %d box %d:\n%s", len(lines), l.listHeight(), l.boxHeight(), view)
+	}
+	box := lines[6:11]
+	if !strings.HasPrefix(box[0], "╭─ c3 ─") || !strings.HasPrefix(box[4], "╰─") {
+		t.Errorf("box borders: %q", box)
+	}
+	for i, want := range []string{"│ subject c3", "│", "│ …"} {
+		if !strings.HasPrefix(box[i+1], want) || !strings.HasSuffix(box[i+1], "│") {
+			t.Errorf("box line %d = %q, want %q", i+1, box[i+1], want)
+		}
+	}
+
+	// The box shows the selected commit and grows when there is room.
+	pressLog(l, "j")
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	view = ansi.Strip(l.View())
+	if l.listHeight() != 4 || l.boxHeight() != 23 || !strings.Contains(view, "│ subject c2") {
+		t.Errorf("height 30: list %d box %d:\n%s", l.listHeight(), l.boxHeight(), view)
+	}
+
+	// Too small for a box: only the list.
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 7})
+	if l.boxHeight() != 0 || l.listHeight() != 4 {
+		t.Errorf("height 7: list %d box %d", l.listHeight(), l.boxHeight())
+	}
+}
