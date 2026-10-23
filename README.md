@@ -48,26 +48,23 @@ jdiff log [GIT LOG ARGS]      # browse commits, e.g. jdiff log -20 or jdiff log 
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
-As git's difftool, set it up once:
+As git's difftool, with `git jd` (like `git diff`, e.g. `git jd --cached`, `git jd main..topic`) and `git jl` (like `jdiff log`), add to `~/.gitconfig`:
 
 ```gitconfig
 [diff]
-    tool = jdiff
-[difftool]
-    prompt = false
+	tool = jdiff
 [difftool "jdiff"]
-    cmd = jdiff "$LOCAL" "$REMOTE"
+	cmd = jdiff \"$LOCAL\" \"$REMOTE\"
+[difftool]
+	prompt = false
+[alias]
+	# git difftool --dir-diff fails without changes (git 2.47.3 crashes): check first.
+	jd = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
+	jdiff = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
+	jl = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
+	jlog = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
 ```
 
-Then `git difftool -d` opens all changed files in jdiff's file list.
-
-A short alias, `git jd`, takes the same arguments as `git diff` (`git jd`, `git jd --cached`, `git jd main..topic`):
-
-```sh
-git config --global alias.jd '!f() { if git diff --quiet "$@"; then echo "no changes"; else git difftool --dir-diff "$@"; fi; }; f'
-```
-
-The `git diff --quiet` check is needed: without changes, `git difftool --dir-diff` starts no tool and says nothing, and git 2.47.3 even crashes with a segmentation fault. The alias says "no changes" instead.
 Against the working tree, git links your working copy into the comparison, so edits you save while jdiff is open show up live.
 
 ## Keys
@@ -209,11 +206,20 @@ make vet
 make fmt
 ```
 
-To try your build with `git jd` in this repository, point the difftool at it in `.git/config`, which takes precedence over the global setup:
+To use your build in this repository, the same in its `.git/config`, with `bin/jdiff`:
 
 ```gitconfig
+[diff]
+	tool = jdiff
 [difftool "jdiff"]
-    cmd = "$(git rev-parse --show-toplevel)/bin/jdiff" "$LOCAL" "$REMOTE"
+	cmd = \"$(git rev-parse --show-toplevel)/bin/jdiff\" \"$LOCAL\" \"$REMOTE\"
+[difftool]
+	prompt = false
+[alias]
+	jd = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
+	jdiff = "!f() { if git diff --quiet \"$@\"; then echo \"no changes\"; else git difftool --dir-diff \"$@\"; fi; }; f"
+	jl = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
+	jlog = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
 ```
 
 The packages under `internal/`:
