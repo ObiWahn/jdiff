@@ -67,6 +67,7 @@ var bindings = []binding{
 	{"C", "stay in the current commit (N P still switch)"},
 	{"f", "single file view"},
 	{"", "Everywhere"},
+	{"\\", "jump marks: enter jumps, d or del deletes"},
 	{"", "  c C f s v w are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
@@ -91,24 +92,32 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 		h.scroll(0)
 	case tea.KeyMsg:
-		keys := keyNames(msg)
-		if !h.open && !slices.Contains(keys, "?") {
-			break
+		if cmd, ok := popupKeys(msg, h.open, "?", h.key); ok {
+			return h, cmd
 		}
-		if len(keys) == 1 {
-			return h, h.key(keys[0], msg)
-		}
-		// A burst of runes opening or closing the popup: each key goes where
-		// it would have gone pressed alone.
-		for _, k := range keys {
-			if cmd := h.key(k, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}); cmd != nil {
-				return h, cmd
-			}
-		}
-		return h, nil
 	}
 	_, cmd := h.Model.Update(msg)
 	return h, cmd
+}
+
+// popupKeys passes the key presses of msg to key, when the popup is open or
+// they open it with opener, and reports whether it did; else msg is for the
+// page below. A burst of runes is split, so each key goes where it would
+// have gone pressed alone.
+func popupKeys(msg tea.KeyMsg, open bool, opener string, key func(string, tea.KeyMsg) tea.Cmd) (tea.Cmd, bool) {
+	keys := keyNames(msg)
+	if !open && !slices.Contains(keys, opener) {
+		return nil, false
+	}
+	if len(keys) == 1 {
+		return key(keys[0], msg), true
+	}
+	for _, k := range keys {
+		if cmd := key(k, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}); cmd != nil {
+			return cmd, true
+		}
+	}
+	return nil, true
 }
 
 // key handles k, pressed as msg, in the popup, or passes msg to the page.

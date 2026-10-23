@@ -6,6 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+
 	"jdiff/internal/config"
 )
 
@@ -101,4 +104,116 @@ func markMsg(letter, note string) string {
 // notInDiff returns the message for mark letter m outside the diff shown.
 func notInDiff(letter string, m config.Mark) string {
 	return fmt.Sprintf("mark %s: %s is not in this diff", letter, m.Path)
+}
+
+// MarksPopup wraps the top-level model and shows the jump marks of the
+// repository in a popup over it on \: enter jumps to the selected mark, d or
+// del deletes it.
+type MarksPopup struct {
+	tea.Model
+	cfg           *config.Config
+	open          bool
+	cursor, top   int    // the selected mark, the first one shown
+	msg           string // a problem saving the marks
+	width, height int
+}
+
+// WithMarks returns m with the marks popup.
+func WithMarks(cfg *config.Config, m tea.Model) *MarksPopup { return &MarksPopup{Model: m, cfg: cfg} }
+
+func (p *MarksPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		p.width, p.height = msg.Width, msg.Height
+		p.move(0)
+	case tea.KeyMsg:
+		if cmd, ok := popupKeys(msg, p.open, "\\", p.key); ok {
+			return p, cmd
+		}
+	}
+	_, cmd := p.Model.Update(msg)
+	return p, cmd
+}
+
+// key handles k, pressed as msg, in the popup, or passes msg to the page.
+func (p *MarksPopup) key(k string, msg tea.KeyMsg) tea.Cmd {
+	if !p.open {
+		if k == "\\" {
+			p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
+			return nil
+		}
+		_, cmd := p.Model.Update(msg)
+		return cmd
+	}
+	marks := p.cfg.Marks()
+	switch k {
+	case "\\", "esc", "q":
+		p.open = false
+	case "ctrl+c":
+		return tea.Quit
+	case "down", "j":
+		p.move(1)
+	case "up", "k":
+		p.move(-1)
+	case "d", "delete":
+		if p.cursor < len(marks) {
+			if err := p.cfg.DeleteMark(marks[p.cursor].Letter); err != nil {
+				p.msg = "marks: " + err.Error()
+			}
+			p.move(0)
+		}
+	case "enter":
+		if p.cursor < len(marks) {
+			// Jump as ' and the letter do on the page.
+			p.open = false
+			p.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("'")})
+			_, cmd := p.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(marks[p.cursor].Letter)})
+			return cmd
+		}
+	}
+	return nil
+}
+
+// boxHeight is the height of the popup: all marks when they fit, else the
+// screen but a line above and below.
+func (p *MarksPopup) boxHeight() int {
+	return min(max(len(p.cfg.Marks()), 1)+2, max(p.height-2, minBoxHeight))
+}
+
+func (p *MarksPopup) move(delta int) {
+	n := len(p.cfg.Marks())
+	p.cursor = max(min(p.cursor+delta, n-1), 0)
+	p.top = scrollWindow(p.cursor, p.top, p.boxHeight()-2, n)
+}
+
+func (p *MarksPopup) View() string {
+	base := p.Model.View()
+	if !p.open || p.width == 0 {
+		return base
+	}
+	t := p.cfg.Theme
+	marks := p.cfg.Marks()
+	var lines []string
+	widest := 0
+	for i, mk := range marks {
+		line := fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, mk.Path, mk.Line, strings.TrimSpace(mk.Text))
+		widest = max(widest, ansi.StringWidth(line))
+		if i < p.top || len(lines) >= p.boxHeight()-2 {
+			continue
+		}
+		if i == p.cursor {
+			line = t.Cursor.Render(line)
+		}
+		lines = append(lines, line)
+	}
+	if len(marks) == 0 {
+		lines = []string{t.Hint.Render("no marks: m and a letter sets one")}
+		widest = 40
+	}
+	title := t.CommitHash.Render(" marks ") + t.Hint.Render(" enter jump · d delete · esc close ")
+	if p.msg != "" {
+		title = t.CommitHash.Render(" marks ") + t.Hint.Render(" "+p.msg+" ")
+	}
+	w := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
+	return overlay(base, box(t, w, p.boxHeight(), title, lines), w, p.width)
 }

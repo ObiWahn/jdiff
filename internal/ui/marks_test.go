@@ -2,9 +2,11 @@ package ui
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/source"
@@ -124,5 +126,57 @@ func TestFlowMarkStaysInCommit(t *testing.T) {
 	pressLog(l, "'", "a")
 	if r := f.rows[f.cursor]; r.part != 1 || r.kind != flowDiff || r.file != 0 || f.msg != "mark a: line changed" {
 		t.Errorf("' a in c2: row %+v, msg %q; want a.go of c2, whose line 1 is now \"1\"", r, f.msg)
+	}
+}
+
+func TestMarksPopup(t *testing.T) {
+	m := newMarkModel()
+	p := WithMarks(m.cfg, m)
+	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(p, "\\")
+	if view := ansi.Strip(p.View()); !strings.Contains(view, "no marks") {
+		t.Errorf("empty popup:\n%s", view)
+	}
+	pressRoot(p, "esc", "ctrl+space")
+	moveTo(t, m, right, 10)
+	pressRoot(p, "m", "a")
+	moveTo(t, m, right, 30)
+	pressRoot(p, "m", "b", "g")
+
+	pressRoot(p, "\\")
+	view := ansi.Strip(p.View())
+	for _, want := range []string{"╭─ marks ", "a  new:11  x10", "b  new:31  x30"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("popup lacks %q:\n%s", want, view)
+		}
+	}
+	// Keys do not reach the page while the popup is open.
+	pressRoot(p, "j", "d")
+	if _, ok := m.cfg.Mark("b"); ok || m.cursor != 0 {
+		t.Errorf("j d: mark b %v, page cursor %d; want b deleted and the page untouched", ok, m.cursor)
+	}
+	pressRoot(p, "enter")
+	if p.open || m.lineAt(right, m.cursor) != 10 || m.msg != "mark a" {
+		t.Errorf("enter: popup open %v, right line %d, msg %q; want closed on mark a", p.open, m.lineAt(right, m.cursor), m.msg)
+	}
+	pressRoot(p, "\\", "q")
+	if p.open || strings.Contains(ansi.Strip(p.View()), "╭─ marks") {
+		t.Error("q did not close the popup")
+	}
+}
+
+func TestMarksPopupJumpsToAnotherFile(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		modified("a.go", numbered("a", 30), append(numbered("a", 30), "added")),
+		modified("b.go", numbered("b", 30), append(numbered("b", 30), "added")),
+	})
+	p := WithMarks(a.cfg, a)
+	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if err := a.cfg.SetMark("k", config.Mark{Path: "b.go", Line: 13, Text: "b12"}); err != nil {
+		t.Fatal(err)
+	}
+	pressRoot(p, "enter", "\\", "enter") // in a.go, then the mark in b.go
+	if a.open.Path != "b.go" || a.open.view.lineAt(right, a.open.view.cursor) != 12 {
+		t.Errorf("enter on a mark in b.go: file %s, line %d", a.open.Path, a.open.view.lineAt(right, a.open.view.cursor))
 	}
 }
