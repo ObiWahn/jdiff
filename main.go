@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/settings"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
@@ -23,7 +24,8 @@ func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	features := flag.String("features", "", "delta features (themes) to use instead of delta.features")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [--version] [--features NAMES] OLD NEW\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--features NAMES] OLD NEW\n"+
+			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -31,7 +33,8 @@ func main() {
 		fmt.Println(resolveVersion())
 		return
 	}
-	if flag.NArg() != 2 {
+	isLog := flag.NArg() > 0 && flag.Arg(0) == "log"
+	if !isLog && flag.NArg() != 2 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -44,7 +47,13 @@ func main() {
 	cfg := theme.ReadGitConfig()
 	th := theme.Load(cfg, theme.Features(cfg, os.Getenv("DELTA_FEATURES"), *features))
 
-	m, err := load(th, flag.Arg(0), flag.Arg(1))
+	var m tea.Model
+	var err error
+	if isLog {
+		m, err = loadLog(th, flag.Args()[1:])
+	} else {
+		m, err = load(th, flag.Arg(0), flag.Arg(1))
+	}
 	if err != nil {
 		fatal(err)
 	}
@@ -75,6 +84,19 @@ func load(th *theme.Theme, oldPath, newPath string) (tea.Model, error) {
 		return nil, fmt.Errorf("%s: %w", newPath, err)
 	}
 	return ui.New(th, settings.Default(), oldPath, newPath, oldLines, newLines), nil
+}
+
+// loadLog opens the commit list for the commits git log selects with args.
+func loadLog(th *theme.Theme, args []string) (tea.Model, error) {
+	repo := gitsrc.Repo{}
+	commits, err := repo.Log(args)
+	if err != nil {
+		return nil, err
+	}
+	if len(commits) == 0 {
+		return nil, fmt.Errorf("no commits")
+	}
+	return ui.NewLog(th, settings.Default(), commits, repo.Files), nil
 }
 
 func fatal(err error) {

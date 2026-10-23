@@ -14,9 +14,10 @@ import (
 // ErrBinary is returned for files that contain NUL bytes.
 var ErrBinary = errors.New("binary file")
 
-// File is one file of a directory comparison.
+// File is one file of a comparison.
 type File struct {
-	Path     string // relative to both directories, slash separated
+	Path     string // relative to both sides, slash separated
+	OldPath  string // the old path of a renamed file, else empty
 	Old, New []string
 	// InOld and InNew report whether the file exists on that side.
 	InOld, InNew bool
@@ -29,6 +30,12 @@ func ReadLines(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return SplitLines(data)
+}
+
+// SplitLines splits text into lines without their line terminators, or
+// returns ErrBinary for data containing NUL bytes.
+func SplitLines(data []byte) ([]string, error) {
 	if bytes.IndexByte(data, 0) >= 0 {
 		return nil, ErrBinary
 	}

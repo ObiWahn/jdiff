@@ -40,6 +40,13 @@ type block struct{ start, end int }
 // file.
 type switchFileMsg int
 
+// switchCommitMsg asks the log to show the next (1, older) or previous (-1)
+// commit.
+type switchCommitMsg int
+
+// backMsg asks the log to return to the commit list.
+type backMsg struct{}
+
 // Model is the Bubble Tea model of the diff view.
 type Model struct {
 	theme    *theme.Theme
@@ -63,6 +70,7 @@ type Model struct {
 
 	width, height int
 	canBack       bool // shown from the file selector, which handles backspace
+	commitNav     bool // shown from the log, which switches commits
 
 	pending *mark        // first half of an anchor being created
 	replace *diff.Anchor // anchor waiting for confirmation to replace conflicts
@@ -166,13 +174,17 @@ func (m *Model) key(k string) tea.Cmd {
 		m.nextChange(1)
 	case "[":
 		m.nextChange(-1)
-	case "n", "p":
+	case "N", "P":
 		if m.canBack {
 			dir := switchFileMsg(1)
-			if k == "p" {
+			if k == "P" {
 				dir = -1
 			}
 			return func() tea.Msg { return dir }
+		}
+	case "n", "p":
+		if m.commitNav {
+			return switchCommit(k)
 		}
 	case "esc":
 		if m.pending != nil {
@@ -432,6 +444,16 @@ func (m *Model) scrollToCursor() {
 		m.top = m.cursor - h + 1
 	}
 	m.top = max(min(m.top, len(m.view)-h), 0)
+}
+
+// switchCommit returns the command asking the log for the next (n) or
+// previous (p) commit.
+func switchCommit(k string) tea.Cmd {
+	dir := switchCommitMsg(1)
+	if k == "p" {
+		dir = -1
+	}
+	return func() tea.Msg { return dir }
 }
 
 func sideName(s side) string {

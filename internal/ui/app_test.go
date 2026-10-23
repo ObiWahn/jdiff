@@ -105,17 +105,51 @@ func TestAppKeyBurst(t *testing.T) {
 
 func TestAppNextPrevFile(t *testing.T) {
 	a := newTestApp()
-	pressApp(a, "enter", "n")
+	pressApp(a, "enter", "N")
 	if a.open == nil || a.open.Path != "b.go" || a.cursor != 1 {
-		t.Fatalf("n: open %v cursor %d, want b.go", a.open, a.cursor)
+		t.Fatalf("N: open %v cursor %d, want b.go", a.open, a.cursor)
 	}
 	// c.bin is binary and skipped: b.go is the last file that can be shown.
-	pressApp(a, "n")
+	pressApp(a, "N")
 	if a.open.Path != "b.go" || !strings.Contains(a.open.view.msg, "last file") {
-		t.Errorf("n on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
+		t.Errorf("N on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
 	}
-	pressApp(a, "p")
+	pressApp(a, "P")
 	if a.open.Path != "a.go" || a.cursor != 0 {
-		t.Errorf("p: open %s cursor %d, want a.go", a.open.Path, a.cursor)
+		t.Errorf("P: open %s cursor %d, want a.go", a.open.Path, a.cursor)
+	}
+	// Without a log, n and p do nothing.
+	pressApp(a, "n")
+	if a.open.Path != "a.go" {
+		t.Errorf("n outside the log switched to %s", a.open.Path)
+	}
+}
+
+func TestAppSingleFileOpensDirectly(t *testing.T) {
+	a := NewApp(theme.Default(), settings.Default(), []source.File{
+		{Path: "only.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+	})
+	if a.open == nil || a.open.Path != "only.go" {
+		t.Fatalf("single file not opened directly")
+	}
+	// Outside the log, backspace still shows the list.
+	pressApp(a, "backspace")
+	if a.open != nil {
+		t.Errorf("backspace did not show the list")
+	}
+}
+
+func TestAppRenameLabel(t *testing.T) {
+	a := NewApp(theme.Default(), settings.Default(), []source.File{
+		{Path: "new.go", OldPath: "old.go", Old: []string{"x"}, New: []string{"x", "y"}, InOld: true, InNew: true},
+		{Path: "other.go", New: []string{"z"}, InNew: true},
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "renamed:") || !strings.Contains(view, "old.go → new.go") {
+		t.Errorf("rename not shown:\n%s", view)
+	}
+	pressApp(a, "enter")
+	if a.open.view.names != [2]string{"a/old.go", "b/new.go"} {
+		t.Errorf("diff titles = %v", a.open.view.names)
 	}
 }

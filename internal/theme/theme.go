@@ -28,7 +28,7 @@ type Theme struct {
 	Anchor, Pending, Cursor, Filler lipgloss.Style
 	Whitespace                      lipgloss.Style // unchanged whitespace when shown
 
-	AddedLabel, RemovedLabel, ModifiedLabel string
+	AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
 	// Warnings lists settings that could not be used.
 	Warnings []string
@@ -53,6 +53,7 @@ var deltaDefaults = map[string]string{
 	"file-added-label":         "added:",
 	"file-removed-label":       "removed:",
 	"file-modified-label":      "",
+	"file-renamed-label":       "renamed:",
 }
 
 var jdiffDefaults = map[string]string{
@@ -121,6 +122,7 @@ func Load(cfg Config, features []string) *Theme {
 	t.AddedLabel = str("file-added-label")
 	t.RemovedLabel = str("file-removed-label")
 	t.ModifiedLabel = str("file-modified-label")
+	t.RenamedLabel = str("file-renamed-label")
 
 	t.Anchor = jdiff("anchor-style", jdiffDefaults["anchor-style"])
 	t.Pending = jdiff("pending-style", jdiffDefaults["pending-style"])

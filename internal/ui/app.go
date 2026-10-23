@@ -24,12 +24,22 @@ type entry struct {
 // label returns the status label, using delta's file labels.
 func (e *entry) label(th *theme.Theme) string {
 	switch {
+	case e.OldPath != "":
+		return th.RenamedLabel
 	case !e.InOld:
 		return th.AddedLabel
 	case !e.InNew:
 		return th.RemovedLabel
 	}
 	return th.ModifiedLabel
+}
+
+// name returns the path shown for the file, "old → new" for renames.
+func (e *entry) name() string {
+	if e.OldPath != "" {
+		return e.OldPath + " → " + e.Path
+	}
+	return e.Path
 }
 
 func (e *entry) updateStats() {
@@ -44,10 +54,13 @@ func (e *entry) updateStats() {
 }
 
 // App is the Bubble Tea model of the file selector. It shows the diff view
-// of the selected file and returns to the list on backspace.
+// of the selected file and returns to the list on backspace. A single file
+// is opened directly.
 type App struct {
 	theme    *theme.Theme
 	settings settings.Settings
+	inLog    bool   // part of the log: backspace and n/p go to the log
+	title    string // shown before the file count
 	files    []*entry
 	cursor   int
 	top      int
@@ -71,7 +84,35 @@ func NewApp(th *theme.Theme, st settings.Settings, files []source.File) *App {
 	if len(th.Warnings) > 0 {
 		a.msg = "theme: " + strings.Join(th.Warnings, "; ")
 	}
+	if a.single() {
+		a.openFile()
+	}
 	return a
+}
+
+// single reports whether there is exactly one file and it can be shown.
+func (a *App) single() bool { return len(a.files) == 1 && !a.files[0].Binary }
+
+// openPath opens the file with the given path and reports whether it could.
+func (a *App) openPath(path string) bool {
+	for i, e := range a.files {
+		if e.Path == path && !e.Binary {
+			a.cursor = i
+			a.scrollToCursor()
+			a.openFile()
+			return true
+		}
+	}
+	return false
+}
+
+// setMsg shows msg in the status bar of whatever is displayed.
+func (a *App) setMsg(msg string) {
+	if a.open != nil {
+		a.open.view.msg = msg
+	} else {
+		a.msg = msg
+	}
 }
 
 func (a *App) Init() tea.Cmd { return nil }
@@ -89,6 +130,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
 			a.open.updateStats()
 			a.open = nil
+			if a.inLog && a.single() {
+				return a, func() tea.Msg { return backMsg{} }
+			}
 			return a, nil
 		}
 		_, cmd := a.open.view.Update(msg)
@@ -124,6 +168,14 @@ func (a *App) key(k string) tea.Cmd {
 		a.moveCursor(len(a.files))
 	case "enter":
 		a.openFile()
+	case "backspace":
+		if a.inLog {
+			return func() tea.Msg { return backMsg{} }
+		}
+	case "n", "p":
+		if a.inLog {
+			return switchCommit(k)
+		}
 	}
 	return nil
 }
@@ -138,9 +190,15 @@ func (a *App) openFile() {
 		return
 	}
 	if e.view == nil {
-		e.view = New(a.theme, a.settings, "a/"+e.Path, "b/"+e.Path, e.Old, e.New)
+		oldPath := e.Path
+		if e.OldPath != "" {
+			oldPath = e.OldPath
+		}
+		e.view = New(a.theme, a.settings, "a/"+oldPath, "b/"+e.Path, e.Old, e.New)
 		e.view.canBack = true
 	}
+	// inLog may be set after NewApp opened a single file.
+	e.view.commitNav = a.inLog
 	e.view.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
 	a.open = e
 }
@@ -157,9 +215,9 @@ func (a *App) switchFile(dir int) {
 		}
 	}
 	if dir > 0 {
-		a.open.view.msg = "last file"
+		a.setMsg("last file")
 	} else {
-		a.open.view.msg = "first file"
+		a.setMsg("first file")
 	}
 }
 
@@ -201,7 +259,7 @@ func (a *App) View() string {
 	var b strings.Builder
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
-	head := t.Title.Render(fmt.Sprintf(" %d files changed", len(a.files))) + ", " +
+	head := t.Title.Render(fmt.Sprintf(" %s%d files changed", a.title, len(a.files))) + ", " +
 		t.Plus.Render(fmt.Sprintf("+%d", added)) + ", " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 	b.WriteString(ansi.Truncate(head, a.width, "…") + "\n")
 
@@ -217,14 +275,17 @@ func (a *App) View() string {
 			if i == a.cursor {
 				lbl = t.Cursor.Render(lbl)
 			}
-			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+e.Path, a.width, "…"))
+			b.WriteString(ansi.Truncate(lbl+" "+counts+"  "+e.name(), a.width, "…"))
 		}
 		b.WriteString("\n")
 	}
 
 	status := a.msg
 	if status == "" {
-		status = "enter open · backspace back to list · j/k move · q quit"
+		status = "enter open · j/k move · q quit"
+		if a.inLog {
+			status = "enter open · j/k move · n/p commit · backspace commits · q quit"
+		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))
 	return b.String()
