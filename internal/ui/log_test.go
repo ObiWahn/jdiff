@@ -2,11 +2,14 @@ package ui
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
@@ -341,5 +344,34 @@ func TestLogPreviewToggleShared(t *testing.T) {
 	pressLog(l, "v")
 	if !strings.Contains(ansi.Strip(l.View()), "╭─ a.go ─") {
 		t.Errorf("v in the file list should show the preview:\n%s", ansi.Strip(l.View()))
+	}
+}
+
+func TestFlowCursorRowsInverted(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
+	l, _ := newTestLog()
+	pressLog(l, "f", "G") // load all commits
+	f := l.flow
+	kinds := map[flowKind]bool{}
+	for i, r := range f.rows {
+		if r.kind == flowDiff {
+			continue
+		}
+		f.cursor = i
+		row := f.row(i)
+		// The first column marks the cursor; the row's text is inverted too.
+		if strings.TrimSpace(ansi.Strip(row)) != "" && len(reverse.FindAllString(row, -1)) < 2 {
+			t.Errorf("cursor on row %d (%v): %q, want its text inverted", i, r, row)
+		}
+		f.cursor = (i + 1) % len(f.rows)
+		if row := f.row(i); reverse.MatchString(row) {
+			t.Errorf("row %d (%v) without the cursor is inverted: %q", i, r, row)
+		}
+		kinds[r.kind] = true
+	}
+	if !kinds[flowCommit] || !kinds[flowFile] || !kinds[flowNote] {
+		t.Errorf("rows checked: %v, want commit, file and note rows", kinds)
 	}
 }

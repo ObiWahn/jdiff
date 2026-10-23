@@ -573,6 +573,21 @@ func TestToggleAllBlocks(t *testing.T) {
 	}
 }
 
+func TestCursorOnFold(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	m := newTestModel(append(numbered("x", 20), "old"), append(numbered("x", 20), "new"))
+	if m.view[0].hidden == 0 {
+		t.Fatalf("first row %v, want a fold", m.view[0])
+	}
+	if row := m.screenLine(m.screen[0], true); !regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m ⋯ 17 unchanged lines ⋯ `).MatchString(row) {
+		t.Errorf("fold under the cursor %q, want its label inverted", row)
+	}
+	if row := m.screenLine(m.screen[0], false); strings.Contains(row, "\x1b[7") || strings.Contains(row, ";7m") {
+		t.Errorf("fold without the cursor is inverted: %q", row)
+	}
+}
+
 func TestCursorLine(t *testing.T) {
 	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
 	lipgloss.SetColorProfile(termenv.ANSI)

@@ -138,7 +138,7 @@ func (m *Model) status() string {
 func (d *fileDiff) fold(v int, cursor bool, width int) string {
 	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", d.view[v].hidden)
 	if cursor {
-		label = lipgloss.NewStyle().Bold(true).Render(label)
+		label = d.cfg.Theme.Cursor.Render(label)
 	}
 	side := max(width-ansi.StringWidth(label), 0)
 	line := d.cfg.Theme.Decoration.Render(strings.Repeat("─", side/2)) + label +

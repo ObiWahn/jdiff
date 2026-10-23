@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -533,55 +534,69 @@ func (f *Flow) status() string {
 	return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))
 }
 
-// row renders row i. Diff rows are drawn by the file's diff view with the
-// flow's pane, scroll offset and width; other rows show the cursor in the
-// first column.
+// row renders row i. Diff rows are drawn by the file's diff with the flow's
+// pane, scroll offset and width; other rows show the cursor in the first
+// column and in their text, in the cursor style.
 func (f *Flow) row(i int) string {
 	t := f.cfg.Theme
 	r := f.rows[i]
 	part := f.parts[r.part]
+	cursor := i == f.cursor
 	mark := " "
-	if i == f.cursor {
+	if cursor {
 		mark = t.Cursor.Render(" ")
 	}
 	w := max(f.width-1, 0)
-	fill := func(s string) string {
+	// bar renders s across the row in st.
+	bar := func(s string, st lipgloss.Style) string {
 		s = ansi.Truncate(s, w, "…")
-		return s + strings.Repeat(" ", max(w-ansi.StringWidth(s), 0))
+		if cursor {
+			st = t.Cursor.Inherit(st)
+		}
+		return st.Render(s + strings.Repeat(" ", max(w-ansi.StringWidth(s), 0)))
+	}
+	// text renders s in st, on the cursor row past its indentation.
+	text := func(s string, st lipgloss.Style) string {
+		s = ansi.Truncate(s, w, "…")
+		if !cursor {
+			return st.Render(s)
+		}
+		body := strings.TrimLeft(s, " ")
+		return st.Render(s[:len(s)-len(body)]) + t.Cursor.Inherit(st).Render(body)
 	}
 
 	switch r.kind {
 	case flowCommit:
-		text := part.header[r.line]
+		line := part.header[r.line]
 		switch r.line {
 		case 0:
-			return mark + t.CommitBar.Render(fill(" "+text))
+			return mark + bar(" "+line, t.CommitBar)
 		case 2:
-			return mark + t.Zero.Bold(true).Render(ansi.Truncate(text, w, "…"))
+			return mark + text(line, t.Zero.Bold(true))
 		}
-		return mark + t.Zero.Render(ansi.Truncate(text, w, "…"))
+		return mark + text(line, t.Zero)
 	case flowFile:
 		e := part.app.files[r.file]
-		text := " "
+		line := " "
 		if lbl := e.label(t); lbl != "" {
-			text += lbl + " "
+			line += lbl + " "
 		}
-		text += e.name()
+		line += e.name()
 		if e.Binary {
-			text += "   binary"
+			line += "   binary"
 		} else if e.added > 0 || e.removed > 0 {
-			text += fmt.Sprintf("   +%d -%d", e.added, e.removed)
+			line += fmt.Sprintf("   +%d -%d", e.added, e.removed)
 		}
-		return mark + t.FileBar.Render(fill(text))
+		return mark + bar(line, t.FileBar)
 	case flowNote:
-		text := "no changed files"
+		note := "no changed files"
 		switch {
 		case r.file >= 0:
-			text = "binary file"
+			note = "binary file"
 		case part.err != "":
-			text = part.err
+			note = part.err
 		}
-		return mark + t.Hint.Render(ansi.Truncate("  "+text, w, "…"))
+		return mark + text("  "+note, t.Hint)
 	}
 	d := part.app.files[r.file].diff
 	return d.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, d.unified()})
