@@ -75,8 +75,12 @@ func (m *Model) key(k string) tea.Cmd {
 	}
 
 	page := max(m.bodyHeight()-1, 1)
-	if delta, ok := motion(k, page, len(m.screen)); ok {
-		m.moveCursor(delta)
+	if delta, paging, ok := motion(k, page, len(m.screen)); ok {
+		if paging {
+			m.scroll(delta)
+		} else {
+			m.moveCursor(delta)
+		}
 		return nil
 	}
 	switch k {
@@ -85,9 +89,9 @@ func (m *Model) key(k string) tea.Cmd {
 	case "tab":
 		m.active = m.active.other()
 	case "ctrl+u":
-		m.moveCursor(-page / 2)
+		m.scroll(-page / 2)
 	case "ctrl+d":
-		m.moveCursor(page / 2)
+		m.scroll(page / 2)
 	case "left", "h":
 		m.xoff = max(m.xoff-8, 0)
 	case "right", "l":
@@ -216,6 +220,17 @@ func (m *Model) moveCursor(delta int) {
 	s := m.screen[max(min(m.pos()+delta, len(m.screen)-1), 0)]
 	m.cursor, m.sub = s.v, s.sub
 	m.scrollToCursor()
+}
+
+// scroll moves the window by delta screen lines, as far as it can, and the
+// cursor along, so that the cursor keeps its screen row.
+func (m *Model) scroll(delta int) {
+	if len(m.screen) == 0 {
+		return
+	}
+	top := m.top
+	m.top = max(min(m.top+delta, len(m.screen)-m.bodyHeight()), 0)
+	m.moveCursor(m.top - top)
 }
 
 // nextChange moves the cursor to the start of the next (dir > 0) or previous

@@ -184,7 +184,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) key(k string) tea.Cmd {
 	a.msg = ""
 	page := max(a.listHeight()-1, 1)
-	if delta, ok := motion(k, page, len(a.files)); ok {
+	if delta, _, ok := motion(k, page, len(a.files)); ok {
 		a.moveCursor(delta)
 		return nil
 	}

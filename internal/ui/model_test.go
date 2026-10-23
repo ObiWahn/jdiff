@@ -33,6 +33,18 @@ func keyMsg(k string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyBackspace}
 	case "ctrl+space":
 		return tea.KeyMsg{Type: tea.KeyCtrlAt}
+	case "pgup":
+		return tea.KeyMsg{Type: tea.KeyPgUp}
+	case "pgdown":
+		return tea.KeyMsg{Type: tea.KeyPgDown}
+	case "ctrl+b":
+		return tea.KeyMsg{Type: tea.KeyCtrlB}
+	case "ctrl+f":
+		return tea.KeyMsg{Type: tea.KeyCtrlF}
+	case "ctrl+u":
+		return tea.KeyMsg{Type: tea.KeyCtrlU}
+	case "ctrl+d":
+		return tea.KeyMsg{Type: tea.KeyCtrlD}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }
@@ -276,6 +288,31 @@ func TestCollapseUnchangedSetting(t *testing.T) {
 
 // screenRow returns the screen row of the cursor within the diff body.
 func screenRow(m *Model) int { return m.cursor - m.top }
+
+func TestPageKeysKeepScreenRow(t *testing.T) {
+	m := newTestModel(numbered("a", 100), numbered("b", 100)) // all changed: no folds
+	press(m, "j", "j", "j", "j", "j")
+	for _, k := range []string{"pgdown", "ctrl+d", "ctrl+f", "pgup", "ctrl+u", "ctrl+b"} {
+		top := m.top
+		press(m, k)
+		if m.pos()-m.top != 5 || m.top == top {
+			t.Errorf("%s: screen row %d, top %d (was %d); want row 5 and the window moved", k, m.pos()-m.top, m.top, top)
+		}
+	}
+	// Where the window stops, the cursor stops too.
+	for range 10 {
+		press(m, "pgdown")
+	}
+	if last := len(m.screen) - m.bodyHeight(); m.top != last || m.pos()-m.top != 5 {
+		t.Errorf("pgdown at the end: top %d, screen row %d; want %d and 5", m.top, m.pos()-m.top, last)
+	}
+	for range 10 {
+		press(m, "pgup")
+	}
+	if m.top != 0 || m.pos() != 5 {
+		t.Errorf("pgup at the start: top %d, cursor %d; want 0 and 5", m.top, m.pos())
+	}
+}
 
 func TestCursorKeepsScreenRow(t *testing.T) {
 	// Changes every 20 lines, so folding changes the rows above the cursor.

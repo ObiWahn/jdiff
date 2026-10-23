@@ -106,8 +106,12 @@ func (f *Flow) key(k string) tea.Cmd {
 	}
 	f.msg = ""
 	page := max(f.bodyHeight()-1, 1)
-	if delta, ok := motion(k, page, far); ok {
-		f.moveCursor(delta)
+	if delta, paging, ok := motion(k, page, far); ok {
+		if paging {
+			f.scroll(delta)
+		} else {
+			f.moveCursor(delta)
+		}
 		return nil
 	}
 	switch k {
@@ -120,9 +124,9 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "tab":
 		f.active = f.active.other()
 	case "ctrl+u":
-		f.moveCursor(-page / 2)
+		f.scroll(-page / 2)
 	case "ctrl+d":
-		f.moveCursor(page / 2)
+		f.scroll(page / 2)
 	case "left", "h":
 		f.xoff = max(f.xoff-8, 0)
 	case "right", "l":
@@ -330,6 +334,25 @@ func (f *Flow) loadVisible() {
 // screen beyond are loaded first, so it lands where it would with all
 // commits loaded.
 func (f *Flow) moveCursor(delta int) {
+	f.loadAhead(delta)
+	f.cursor = max(min(f.cursor+delta, len(f.rows)-1), 0)
+	f.scrollToCursor()
+}
+
+// scroll moves the window by delta rows, as far as it can, and the cursor
+// along, so that the cursor keeps its screen row. Commits are loaded first,
+// as for moveCursor.
+func (f *Flow) scroll(delta int) {
+	f.loadAhead(delta)
+	top := f.top
+	f.top = max(min(f.top+delta, len(f.rows)-f.bodyHeight()), 0)
+	f.cursor = max(min(f.cursor+f.top-top, len(f.rows)-1), 0)
+	f.scrollToCursor()
+}
+
+// loadAhead loads the commits on the way of a cursor move by delta rows and
+// a screen beyond.
+func (f *Flow) loadAhead(delta int) {
 	h := f.bodyHeight()
 	for {
 		lo, hi := f.cursor, f.cursor+delta+h
@@ -342,8 +365,6 @@ func (f *Flow) moveCursor(delta int) {
 		}
 		f.loadPart(p)
 	}
-	f.cursor = max(min(f.cursor+delta, len(f.rows)-1), 0)
-	f.scrollToCursor()
 }
 
 // search moves the cursor to the next row in direction dir for which ok

@@ -100,7 +100,7 @@ func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (l *Log) key(k string) tea.Cmd {
 	l.msg = ""
 	page := max(l.listHeight()-1, 1)
-	if delta, ok := motion(k, page, len(l.commits)); ok {
+	if delta, _, ok := motion(k, page, len(l.commits)); ok {
 		l.moveCursor(delta)
 		return nil
 	}

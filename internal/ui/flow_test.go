@@ -305,3 +305,25 @@ func TestFlowChangesKeepOtherViewsOnTheirLine(t *testing.T) {
 			a.open.Path, m.lineAt(left, m.cursor), len(folds(m.view)))
 	}
 }
+
+func TestFlowPageKeysKeepScreenRow(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{modified("a.go", numbered("a", 100), numbered("b", 100))})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "f", "j", "j", "j", "j", "j")
+	row := a.flow.cursor - a.flow.top
+	for _, k := range []string{"pgdown", "ctrl+d", "pgup", "ctrl+u"} {
+		top := a.flow.top
+		pressApp(a, k)
+		if a.flow.cursor-a.flow.top != row || a.flow.top == top {
+			t.Errorf("%s: screen row %d, top %d (was %d); want row %d and the window moved",
+				k, a.flow.cursor-a.flow.top, a.flow.top, top, row)
+		}
+	}
+	// Where the window stops, the cursor stops too.
+	for range 10 {
+		pressApp(a, "pgdown")
+	}
+	if last := len(a.flow.rows) - a.flow.bodyHeight(); a.flow.top != last || a.flow.cursor-a.flow.top != row {
+		t.Errorf("pgdown at the end: top %d, screen row %d; want %d and %d", a.flow.top, a.flow.cursor-a.flow.top, last, row)
+	}
+}

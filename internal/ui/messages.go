@@ -72,23 +72,24 @@ func pressKeys(msg tea.KeyMsg, key func(string) tea.Cmd) tea.Cmd {
 }
 
 // motion returns how many rows the cursor moves on k, page rows for a page
-// and far to the first or last row, and whether k moves it.
-func motion(k string, page, far int) (int, bool) {
+// and far to the first or last row, whether k pages, so that views of file
+// content move the window along, and whether k moves the cursor at all.
+func motion(k string, page, far int) (delta int, paging, ok bool) {
 	switch k {
 	case "up", "k":
-		return -1, true
+		return -1, false, true
 	case "down", "j":
-		return 1, true
+		return 1, false, true
 	case "pgup", "ctrl+b":
-		return -page, true
+		return -page, true, true
 	case "pgdown", "ctrl+f":
-		return page, true
+		return page, true, true
 	case "home", "g":
-		return -far, true
+		return -far, false, true
 	case "end", "G":
-		return far, true
+		return far, false, true
 	}
-	return 0, false
+	return 0, false, false
 }
 
 func direction(forward bool) int {
