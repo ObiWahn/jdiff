@@ -840,3 +840,58 @@ func TestBoldChangesToggle(t *testing.T) {
 		t.Error("b in the flow view did not toggle bold_changes")
 	}
 }
+
+// screenTexts returns the screen lines of m without styles and trailing
+// blanks.
+func screenTexts(m *Model) []string {
+	var out []string
+	for _, s := range m.screen {
+		out = append(out, strings.TrimRight(ansi.Strip(m.screenLine(s, false)), " "))
+	}
+	return out
+}
+
+func TestNormalLayoutShowsBlocks(t *testing.T) {
+	m := newTestModel([]string{"same", "old1", "old2", "old3", "end"}, []string{"same", "new1", "new2", "add", "add2", "end"})
+	press(m, "s")
+	// As git diff: the old lines of the block, then the new ones.
+	want := []string{"1 1│ same", "2  │ old1", "3  │ old2", "4  │ old3", "  2│ new1", "  3│ new2", "  4│ add", "  5│ add2", "5 6│ end"}
+	got := screenTexts(m)
+	for i := range want {
+		if i >= len(got) || !strings.HasSuffix(got[i], want[i]) {
+			t.Fatalf("normal layout:\n%s\nwant lines ending in\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+	}
+	// The cursor walks the old block, then the new one, and back.
+	press(m, "g", "]")
+	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != left || m.lineAt(left, m.cursor) != 1 {
+		t.Errorf("]: cursor on side %d line %d, want old1, the top of the block", s, m.lineAt(s, m.cursor))
+	}
+	press(m, "j", "j", "j")
+	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != right || m.lineAt(right, m.cursor) != 1 {
+		t.Errorf("j past the old block: side %d, new line %d; want new1", s, m.lineAt(right, m.cursor))
+	}
+	press(m, "k")
+	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != left || m.lineAt(left, m.cursor) != 3 {
+		t.Errorf("k back: side %d, old line %d; want old3", s, m.lineAt(left, m.cursor))
+	}
+	// Switching the layout keeps the line: new2, side by side and back.
+	press(m, "j", "j")
+	row := cursorRow(m)
+	press(m, "s", "s")
+	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != right || m.lineAt(right, m.cursor) != 2 || cursorRow(m) != row {
+		t.Errorf("s s on new2: side %d new line %d row %d, want new2 at row %d", s, m.lineAt(right, m.cursor), cursorRow(m), row)
+	}
+}
+
+func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
+	// Anchoring X to Y splits the block: an inserted line, then the
+	// anchored change. Its old line X is the block's first screen line.
+	m := newTestModel([]string{"a", "X", "b"}, []string{"a", "ins", "Y", "b"})
+	m.fileDiff.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
+	m.realign()
+	press(m, "s", "g", "]")
+	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│ X") {
+		t.Errorf("]: cursor on %q, want the block's first line, old X:\n%s", got, strings.Join(screenTexts(m), "\n"))
+	}
+}

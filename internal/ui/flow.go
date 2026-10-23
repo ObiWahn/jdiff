@@ -366,11 +366,9 @@ func (f *Flow) build() {
 				add(flowNote, p, i, 0)
 				continue
 			}
-			d := part.app.diffOf(e)
-			for v := range d.view {
-				for s := range d.rowLines(v, f.built) {
-					f.rows = append(f.rows, flowRow{flowDiff, p, i, v, s})
-				}
+			screen, _ := part.app.diffOf(e).screenLines(f.built)
+			for _, s := range screen {
+				f.rows = append(f.rows, flowRow{flowDiff, p, i, s.v, s.sub})
 			}
 		}
 	}
@@ -610,9 +608,13 @@ func (f *Flow) isKind(k flowKind, line int) func(int) bool {
 	return func(i int) bool { return f.rows[i].kind == k && f.rows[i].line == line }
 }
 
+// changeStart reports whether row i starts a block of changed rows.
 func (f *Flow) changeStart(i int) bool {
-	r := f.rows[i]
-	return r.kind == flowDiff && r.sub == 0 && f.parts[r.part].app.files[r.file].diff.changeStart(r.line)
+	changed := func(i int) bool {
+		r := f.rows[i]
+		return r.kind == flowDiff && f.parts[r.part].app.files[r.file].diff.changed(r.line)
+	}
+	return changed(i) && (i == 0 || !changed(i-1))
 }
 
 // show puts the cursor on line sub of diff row line of file in part, on

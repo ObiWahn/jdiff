@@ -89,7 +89,7 @@ func TestFlowNavigation(t *testing.T) {
 
 	// ] and [ go from change to change across files, skipping the binary.
 	pressApp(a, "]", "]")
-	if _, f, l := a.flow.position(); f != 0 || !a.files[0].diff.changeStart(l) {
+	if _, f, l := a.flow.position(); f != 0 || !a.flow.changeStart(a.flow.cursor) {
 		t.Errorf("] ]: file %d line %d, want the second change of a.go", f, l)
 	}
 	pressApp(a, "]")
@@ -101,7 +101,7 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("] after the last change: msg %q", a.flow.msg)
 	}
 	pressApp(a, "[")
-	if _, f, l := a.flow.position(); f != 0 || !a.files[0].diff.changeStart(l) {
+	if _, f, l := a.flow.position(); f != 0 || !a.flow.changeStart(a.flow.cursor) {
 		t.Errorf("[ from c.go: file %d line %d, want the second change of a.go", f, l)
 	}
 
@@ -404,5 +404,27 @@ func TestFlowRebuildsAfterDiffView(t *testing.T) {
 		if len(a.flow.rows) != want {
 			t.Errorf("%v in the diff view, then f: %d flow rows, the diffs have %d", keys, len(a.flow.rows), want)
 		}
+	}
+}
+
+func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		modified("a.go", []string{"same", "old1", "old2", "end"}, []string{"same", "new1", "new2", "end"}),
+		modified("b.go", []string{"x"}, []string{"y"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "s", "f", "g", "]")
+	var got []string
+	for i := a.flow.cursor; i < a.flow.cursor+4; i++ {
+		got = append(got, strings.TrimRight(ansi.Strip(a.flow.row(i)), " "))
+	}
+	for i, want := range []string{"old1", "old2", "new1", "new2"} {
+		if !strings.HasSuffix(got[i], "│ "+want) {
+			t.Fatalf("flow from ]:\n%s\nwant old1 old2 new1 new2", strings.Join(got, "\n"))
+		}
+	}
+	pressApp(a, "]")
+	if _, file, _ := a.flow.position(); file != 1 {
+		t.Errorf("] from a.go's block: file %d, want b.go: a block counts once", file)
 	}
 }

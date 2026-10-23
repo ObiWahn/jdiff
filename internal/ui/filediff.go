@@ -57,8 +57,9 @@ type vrow struct{ row, hidden, block int }
 
 // sline is a screen line of a diff: line sub of displayed row v. Side by
 // side a displayed row is one line, or with wrapping as many as its longer
-// line needs; in the normal layout a changed row shows its removed line,
-// then its added line, each on as many lines as it needs.
+// line needs; in the normal layout a changed row has the lines of its
+// removed line, then of its added line, each as many as it needs, which
+// screenLines puts into the old and the new half of their block.
 type sline struct{ v, sub int }
 
 // block is a foldable run of unchanged rows [start, end).
@@ -526,16 +527,45 @@ func (d *fileDiff) convertSub(v, sub int, from, sh shape, active side) int {
 }
 
 // screenLines returns the screen lines of the displayed rows in sh and the
-// first screen line of each displayed row.
-func (d *fileDiff) screenLines(sh shape) (screen []sline, screenOf []int) {
-	screenOf = make([]int, len(d.view))
-	for v := range d.view {
-		screenOf[v] = len(screen)
-		for s := range d.rowLines(v, sh) {
-			screen = append(screen, sline{v, s})
-		}
+// index of each of them. In the normal layout a block of changed rows shows
+// all its old lines, then all its new ones, as git diff does; so the two
+// lines of a changed row are not next to each other.
+func (d *fileDiff) screenLines(sh shape) (screen []sline, at map[sline]int) {
+	at = make(map[sline]int, len(d.view))
+	add := func(v, sub int) {
+		at[sline{v, sub}] = len(screen)
+		screen = append(screen, sline{v, sub})
 	}
-	return screen, screenOf
+	for v := 0; v < len(d.view); {
+		if !sh.unified || !d.changed(v) {
+			for sub := range d.rowLines(v, sh) {
+				add(v, sub)
+			}
+			v++
+			continue
+		}
+		end := v
+		for end < len(d.view) && d.changed(end) {
+			end++
+		}
+		for _, s := range []side{left, right} {
+			for w := v; w < end; w++ {
+				for sub := range d.rowLines(w, sh) {
+					if of, _ := d.unifiedPiece(w, sub, sh); of == s {
+						add(w, sub)
+					}
+				}
+			}
+		}
+		v = end
+	}
+	return screen, at
+}
+
+// blockStart reports whether screen line i of screen starts a block of
+// changed rows.
+func (d *fileDiff) blockStart(screen []sline, i int) bool {
+	return d.changed(screen[i].v) && (i == 0 || !d.changed(screen[i-1].v))
 }
 
 // blockOpen reports whether b is unfolded. Blocks start closed when
@@ -612,13 +642,10 @@ func (d *fileDiff) lineAt(s side, v int) int {
 	return lineOf(d.rows[d.view[v].row], s)
 }
 
-// changeStart reports whether displayed row v starts a block of non-equal
-// rows.
-func (d *fileDiff) changeStart(v int) bool {
-	changed := func(v int) bool {
-		return d.view[v].hidden == 0 && d.rows[d.view[v].row].Kind != diff.Equal
-	}
-	return changed(v) && (v == 0 || !changed(v-1))
+// changed reports whether displayed row v is a changed row, not unchanged or
+// a fold.
+func (d *fileDiff) changed(v int) bool {
+	return d.view[v].hidden == 0 && d.rows[d.view[v].row].Kind != diff.Equal
 }
 
 func sideName(s side) string {

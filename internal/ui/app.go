@@ -447,13 +447,6 @@ func (a *App) preview(e *entry, height int) string {
 		return box(t, a.width, height, title, []string{t.Hint.Render("binary file")})
 	}
 	d := a.diffOf(e)
-	start := 0
-	for v := range d.view {
-		if d.changeStart(v) {
-			start = max(v-a.cfg.Settings.Context, 0)
-			break
-		}
-	}
 	if len(d.view) == 0 { // empty on both sides
 		return box(t, a.width, height, title, nil)
 	}
@@ -463,9 +456,17 @@ func (a *App) preview(e *entry, height int) string {
 	if e.view != nil {
 		lo.xoff, lo.active = e.view.xoff, e.view.active
 	}
-	screen, screenOf := d.screenLines(lo.shape)
+	screen, at := d.screenLines(lo.shape)
+	from := 0
+	for i := range screen {
+		if d.blockStart(screen, i) {
+			// The rows of context before the block, else its first line.
+			from = min(at[sline{max(screen[i].v-a.cfg.Settings.Context, 0), 0}], i)
+			break
+		}
+	}
 	var lines []string
-	for i := screenOf[start]; i < len(screen) && len(lines) < height-2; i++ {
+	for i := from; i < len(screen) && len(lines) < height-2; i++ {
 		lines = append(lines, d.render(screen[i], false, lo))
 	}
 	return box(t, a.width, height, title, lines)

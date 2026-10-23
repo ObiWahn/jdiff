@@ -16,9 +16,9 @@ import (
 type Model struct {
 	*fileDiff
 
-	screen      []sline // screen lines of the displayed rows
-	screenOf    []int   // view index -> first screen line
-	screenShape shape   // what screen was built for
+	screen      []sline       // screen lines of the displayed rows
+	screenAt    map[sline]int // screen line -> its index in screen
+	screenShape shape         // what screen was built for
 	// The displayed rows screen was built for, to find the cursor's line
 	// again when another view or a reload changed them.
 	screenChanges int
@@ -263,7 +263,7 @@ func (m *Model) shape() shape { return newShape(m.cfg, m.width) }
 // current layout and width.
 func (m *Model) buildScreen() {
 	m.screenShape = m.shape()
-	m.screen, m.screenOf = m.screenLines(m.screenShape)
+	m.screen, m.screenAt = m.screenLines(m.screenShape)
 	m.screenChanges, m.screenReloads, m.screenView, m.screenRows = m.changes, m.reloads, m.view, m.rows
 }
 
@@ -306,7 +306,7 @@ func (m *Model) pos() int {
 	if m.cursor >= len(m.view) {
 		return 0
 	}
-	return m.screenOf[m.cursor] + min(m.sub, m.rowLines(m.cursor, m.screenShape)-1)
+	return m.screenAt[sline{m.cursor, min(m.sub, m.rowLines(m.cursor, m.screenShape)-1)}]
 }
 
 // place puts the cursor on line sub of displayed row v at screen row
@@ -349,12 +349,12 @@ func (m *Model) scroll(delta int) {
 	m.moveCursor(m.top - top)
 }
 
-// nextChange moves the cursor to the start of the next (dir > 0) or previous
-// block of non-equal rows.
+// nextChange moves the cursor to the first line of the next (dir > 0) or
+// previous block of changed rows.
 func (m *Model) nextChange(dir int) {
-	for i := m.cursor + dir; i >= 0 && i < len(m.view); i += dir {
-		if m.changeStart(i) {
-			m.cursor, m.sub = i, 0
+	for i := m.pos() + dir; i >= 0 && i < len(m.screen); i += dir {
+		if m.blockStart(m.screen, i) {
+			m.cursor, m.sub = m.screen[i].v, m.screen[i].sub
 			m.scrollToCursor()
 			return
 		}
