@@ -258,3 +258,71 @@ func TestWatchInterval(t *testing.T) {
 		}
 	}
 }
+
+func TestMarks(t *testing.T) {
+	dir := t.TempDir()
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.LoadMarks("/src/one")
+	if err := c.SetMark("b", Mark{Path: "main.go", Line: 33, Text: "func main() {"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetMark("a", Mark{Path: "ui/flow.go", Line: 120, Text: "func (f *Flow) jump() {"}); err != nil {
+		t.Fatal(err)
+	}
+	c.LoadMarks("/src/two")
+	if err := c.SetMark("a", Mark{Path: "other.go", Line: 1, Text: "package other"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A new session in the first repository sees its marks only.
+	c, _ = Load(dir, nil, "", "")
+	c.LoadMarks("/src/one")
+	got := c.Marks()
+	if len(got) != 2 || got[0].Letter != "a" || got[0].Path != "ui/flow.go" || got[1].Line != 33 {
+		t.Fatalf("marks of /src/one: %+v", got)
+	}
+	if err := c.DeleteMark("a"); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = Load(dir, nil, "", "")
+	c.LoadMarks("/src/one")
+	if _, ok := c.Mark("a"); ok || len(c.Marks()) != 1 {
+		t.Errorf("after deleting a: %+v", c.Marks())
+	}
+	c.LoadMarks("/src/two")
+	if m, ok := c.Mark("a"); !ok || m.Path != "other.go" {
+		t.Errorf("mark a of /src/two: %+v %v, want it untouched", m, ok)
+	}
+}
+
+func TestMarksBrokenFileAndNoDir(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"marks.toml": "[broken"})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.LoadMarks("")
+	if !strings.Contains(c.Warning(), "marks.toml") || len(c.Marks()) != 0 {
+		t.Errorf("broken marks.toml: warning %q, marks %+v", c.Warning(), c.Marks())
+	}
+	// The next change replaces the broken file.
+	if err := c.SetMark("x", Mark{Path: "/abs/f.txt", Line: 2, Text: "two"}); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = Load(dir, nil, "", "")
+	c.LoadMarks("")
+	if m, ok := c.Mark("x"); !ok || m.Path != "/abs/f.txt" {
+		t.Errorf("after replacing the broken file: %+v %v", m, ok)
+	}
+	// Without a configuration directory, marks live in memory only.
+	d := Default()
+	if err := d.SetMark("y", Mark{Path: "p", Line: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := d.Mark("y"); !ok {
+		t.Error("mark without a configuration directory is lost")
+	}
+}

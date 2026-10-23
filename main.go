@@ -53,6 +53,11 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	repo, err := gitsrc.Repo{}.TopLevel()
+	if err != nil {
+		repo = "" // not in a repository: marks with absolute paths
+	}
+	cfg.LoadMarks(repo)
 
 	var m tea.Model
 	if isLog {

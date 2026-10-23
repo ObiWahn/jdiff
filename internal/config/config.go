@@ -33,7 +33,10 @@ type Config struct {
 	Themes   []theme.Spec // all themes found; Theme is the selected one
 
 	warnings  []string // problems with the files
+	dir       string   // the configuration directory, empty for none
 	statePath string   // where SaveState writes, empty for no state file
+
+	marks marksState // jump marks, see LoadMarks
 }
 
 // Default returns the default theme and settings, without files.
@@ -72,6 +75,7 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 	c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
 	name := ""
 	if dir != "" {
+		c.dir = dir
 		c.statePath = filepath.Join(dir, "state.toml")
 		m := mainFile{Settings: c.Settings}
 		if err := c.decode(filepath.Join(dir, "main.toml"), &m); err != nil {
@@ -178,19 +182,25 @@ func (c *Config) SaveState() error {
 	if c.statePath == "" {
 		return nil
 	}
+	return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", c.Settings.Toggles)
+}
+
+// writeTOML writes header and v as TOML to path, through a temporary file
+// so that the file is never left half written.
+func writeTOML(path, header string, v any) error {
 	var b bytes.Buffer
-	b.WriteString("# Written by jdiff: the toggles as last set, over main.toml.\n")
-	if err := toml.NewEncoder(&b).Encode(c.Settings.Toggles); err != nil {
+	b.WriteString(header)
+	if err := toml.NewEncoder(&b).Encode(v); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(c.statePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := c.statePath + ".tmp"
+	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b.Bytes(), 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, c.statePath)
+	return os.Rename(tmp, path)
 }
 
 // Warning returns the problems with the theme and the files, or "".

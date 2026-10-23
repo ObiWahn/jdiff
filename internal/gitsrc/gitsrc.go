@@ -87,6 +87,16 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 	return commits, nil
 }
 
+// TopLevel returns the top directory of the repository, or an error outside
+// one.
+func (r Repo) TopLevel() (string, error) {
+	out, err := r.git("rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // Branch returns the name of the checked out branch, or "detached HEAD".
 func (r Repo) Branch() string {
 	out, err := r.git("symbolic-ref", "--short", "-q", "HEAD")

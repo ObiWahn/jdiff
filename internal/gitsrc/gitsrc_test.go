@@ -177,3 +177,20 @@ func TestCatFilesErrorStopsGit(t *testing.T) {
 		t.Fatal("catFiles hangs after a bad header")
 	}
 }
+
+func TestTopLevel(t *testing.T) {
+	r := newRepo(t)
+	if err := os.MkdirAll(filepath.Join(r.Dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(r.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if top, err := (Repo{Dir: filepath.Join(r.Dir, "sub")}).TopLevel(); err != nil || top != want {
+		t.Errorf("TopLevel from sub = %q, %v; want %q", top, err, want)
+	}
+	if _, err := (Repo{Dir: t.TempDir()}).TopLevel(); err == nil {
+		t.Error("TopLevel outside a repository succeeded")
+	}
+}
