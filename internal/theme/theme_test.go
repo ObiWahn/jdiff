@@ -189,3 +189,16 @@ func TestMovedStyles(t *testing.T) {
 		t.Errorf("jdiff.plus-moved-style: %v, want bright cyan bold", th.PlusMoved.GetForeground())
 	}
 }
+
+func TestHiddenCharStyle(t *testing.T) {
+	if bg := Default().HiddenChar.GetBackground(); bg != lipgloss.Color("1") {
+		t.Errorf("hidden character background %v, want red", bg)
+	}
+}
+
+func TestTrailingWhitespaceStyle(t *testing.T) {
+	// As git marks whitespace errors: a red background.
+	if bg := Default().TrailingWhitespace.GetBackground(); bg != lipgloss.Color("1") {
+		t.Errorf("trailing whitespace background %v, want red", bg)
+	}
+}

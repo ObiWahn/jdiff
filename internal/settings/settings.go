@@ -12,12 +12,19 @@ type Settings struct {
 	// unchanged code collapsed.
 	CollapseUnchanged bool `toml:"collapse_unchanged"`
 	// OnlyChangedWhitespaces (only_changed_whitespaces) compares indentation
-	// character by character, so only its added or removed part is marked.
+	// character by character, and a run of whitespace in place of another
+	// one by its length, so only the added or removed part is marked.
 	OnlyChangedWhitespaces bool `toml:"only_changed_whitespaces"`
 	// WatchInterval (watch_interval) is how often, in seconds, files on disk
 	// are checked for changes and reloaded: both files of a comparison, or
 	// the current file of the file list and its neighbors. 0 turns it off.
 	WatchInterval float64 `toml:"watch_interval"`
+	// LineEnd (line_end) is drawn at the end of lines while all whitespace
+	// is shown; it must be one column wide.
+	LineEnd string `toml:"line_end"`
+	// CREnd (cr_end) is drawn for the \r of a \r\n line end where it
+	// changed, and on all lines while ShowCR is set; one column wide.
+	CREnd string `toml:"cr_end"`
 	Toggles
 }
 
@@ -34,8 +41,20 @@ type Toggles struct {
 	// the selected commit's message or file's diff; v toggles it.
 	Preview bool `toml:"preview"`
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
-	// not only changed whitespace; w toggles it.
+	// not only changed whitespace, and the end of lines as LineEnd; w
+	// toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
+	// MarkWhitespace (mark_whitespace) draws changed whitespace as · and →
+	// in the style of changed words: indentation, tabs and runs of spaces,
+	// not a single space between changed words; off, all changed whitespace
+	// looks like unchanged whitespace. W toggles it.
+	MarkWhitespace bool `toml:"mark_whitespace"`
+	// ShowTrailing (show_trailing) draws whitespace at the end of lines as ·
+	// and → in the trailing whitespace style. t toggles it.
+	ShowTrailing bool `toml:"show_trailing"`
+	// ShowCR (show_cr) draws the \r of all \r\n line ends as CREnd, not
+	// only of changed ones. e toggles it.
+	ShowCR bool `toml:"show_cr"`
 	// Wrap (wrap) wraps lines longer than their pane onto further screen
 	// lines; off, they are cut and h and l scroll them. r (reflow) toggles
 	// it.
@@ -60,10 +79,13 @@ func Default() Settings {
 		CollapseUnchanged:      true,
 		OnlyChangedWhitespaces: true,
 		WatchInterval:          1,
+		LineEnd:                "¶",
+		CREnd:                  "␍",
 		Toggles: Toggles{
 			SideBySide:      true,
 			Preview:         true,
 			ShowWhitespaces: false,
+			MarkWhitespace:  true,
 			BoldChanges:     true,
 			FullMessages:    true,
 		},

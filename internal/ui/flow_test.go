@@ -428,3 +428,17 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 		t.Errorf("] from a.go's block: file %d, want b.go: a block counts once", file)
 	}
 }
+
+func TestFlowLineEndTakesPieceWhenWrapped(t *testing.T) {
+	probe := newTestModel([]string{"x"}, []string{"x"})
+	full := strings.Repeat("x", probe.contentWidth(80, false))
+	a := NewApp(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
+	a.cfg.Settings.CollapseUnchanged = false
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "f", "r")
+	before := len(a.flow.rows)
+	pressApp(a, "w")
+	if len(a.flow.rows) != before+1 {
+		t.Errorf("w with wrapped lines: %d flow rows, %d before; want one more for the full line's ¶", len(a.flow.rows), before)
+	}
+}

@@ -53,7 +53,7 @@ func setMark(cfg *config.Config, d *fileDiff, letter string, v int) string {
 	if line < 0 {
 		return "no line of the new file here"
 	}
-	m := config.Mark{Path: d.markPath, Line: line + 1, Text: d.lines[right][line]}
+	m := config.Mark{Path: d.markPath, Line: line + 1, Text: strings.TrimSuffix(d.lines[right][line], "\r")}
 	if err := cfg.SetMark(letter, m); err != nil {
 		return "marks: " + err.Error()
 	}
@@ -71,7 +71,8 @@ func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
 	want := m.Line - 1
 	for dist := 0; dist < len(lines); dist++ {
 		for _, i := range []int{want - dist, want + dist} {
-			if i >= 0 && i < len(lines) && lines[i] == m.Text {
+			// Without the \r of a \r\n line end, which may have changed.
+			if i >= 0 && i < len(lines) && strings.TrimSuffix(lines[i], "\r") == strings.TrimSuffix(m.Text, "\r") {
 				return i, "", true
 			}
 		}

@@ -205,7 +205,7 @@ func TestMarksPopupExpandsTabs(t *testing.T) {
 	if line := rawText(view, 80); line != "" {
 		t.Errorf("popup line with raw text: %q", line)
 	}
-	if !strings.Contains(ansi.Strip(view), "a   b·c") {
+	if !strings.Contains(ansi.Strip(view), "a   b☠c") {
 		t.Errorf("mark text not shown with its tab expanded:\n%s", ansi.Strip(view))
 	}
 }

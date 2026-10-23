@@ -194,6 +194,14 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.keepScreenRow(f.relocate)
 	case "w":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
+		f.keepScreenRow(f.relocate) // wrapped lines end in line_end, which takes a column
+	case "W":
+		f.msg = toggle(f.cfg, &f.cfg.Settings.MarkWhitespace)
+	case "t":
+		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowTrailing)
+	case "e":
+		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowCR)
+		f.keepScreenRow(f.relocate) // wrapped lines end in ␍, which takes a column
 	case "b":
 		f.msg = toggle(f.cfg, &f.cfg.Settings.BoldChanges)
 	case "r":

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/settings"
 	"jdiff/internal/theme"
@@ -85,6 +86,19 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 		if iv := c.Settings.WatchInterval; iv < 0 {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
 			c.Settings.WatchInterval = 0
+		}
+		// Lines are cut and wrapped by columns: the symbols take one.
+		def := settings.Default()
+		for _, sym := range []struct {
+			key      string
+			v        *string
+			fallback string
+		}{{"line_end", &c.Settings.LineEnd, def.LineEnd}, {"cr_end", &c.Settings.CREnd, def.CREnd}} {
+			if ansi.StringWidth(*sym.v) != 1 {
+				c.warnings = append(c.warnings, fmt.Sprintf("main.toml: %s %q is not one column wide, %q is used",
+					sym.key, *sym.v, sym.fallback))
+				*sym.v = sym.fallback
+			}
 		}
 		// state.toml holds only the toggles.
 		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {

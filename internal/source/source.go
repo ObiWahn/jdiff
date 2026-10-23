@@ -52,7 +52,8 @@ func (f File) PathInOld() string {
 	return f.Path
 }
 
-// ReadLines reads a text file into lines without their line terminators.
+// ReadLines reads a text file into lines without their newlines; the \r of
+// a \r\n line end is kept, so that changed line ends show.
 func ReadLines(path string) ([]string, error) {
 	lines, _, err := Read(path)
 	return lines, err
@@ -73,8 +74,8 @@ func Read(path string) ([]string, Stamp, error) {
 	return lines, st, err
 }
 
-// SplitLines splits text into lines without their line terminators, or
-// returns ErrBinary for data containing NUL bytes.
+// SplitLines splits text into lines without their newlines, keeping the \r
+// of \r\n line ends, or returns ErrBinary for data containing NUL bytes.
 func SplitLines(data []byte) ([]string, error) {
 	if bytes.IndexByte(data, 0) >= 0 {
 		return nil, ErrBinary
@@ -82,11 +83,7 @@ func SplitLines(data []byte) ([]string, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	for i, l := range lines {
-		lines[i] = strings.TrimSuffix(l, "\r")
-	}
-	return lines, nil
+	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n"), nil
 }
 
 // LoadDirs compares the regular files of two directory trees, as handed over

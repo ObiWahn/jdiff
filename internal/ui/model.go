@@ -158,6 +158,14 @@ func (m *Model) key(k string) tea.Cmd {
 		m.syncLayout()
 	case "w":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
+		m.syncLayout() // wrapped lines end in line_end, which takes a column
+	case "W":
+		m.msg = toggle(m.cfg, &m.cfg.Settings.MarkWhitespace)
+	case "t":
+		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowTrailing)
+	case "e":
+		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowCR)
+		m.syncLayout() // wrapped lines end in ␍, which takes a column
 	case "b":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.BoldChanges)
 	case "r":

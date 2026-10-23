@@ -46,19 +46,21 @@ type Spec struct {
 	FileModifiedLabel     *string `toml:"file-modified-label"`
 	FileRenamedLabel      *string `toml:"file-renamed-label"`
 
-	AnchorStyle      *string `toml:"anchor-style" git:"jdiff"`
-	PendingStyle     *string `toml:"pending-style" git:"jdiff"`
-	CursorStyle      *string `toml:"cursor-style" git:"jdiff"`
-	FileBarStyle     *string `toml:"file-bar-style" git:"jdiff"`
-	CommitBarStyle   *string `toml:"commit-bar-style" git:"jdiff"`
-	CommitHashStyle  *string `toml:"commit-hash-style" git:"jdiff"`
-	BranchStyle      *string `toml:"branch-style" git:"jdiff"`
-	FillerStyle      *string `toml:"filler-style" git:"jdiff"`       // unset: file-decoration-style's color
-	WhitespaceStyle  *string `toml:"whitespace-style" git:"jdiff"`   // unset: file-decoration-style's color
-	MinusIndentStyle *string `toml:"minus-indent-style" git:"jdiff"` // unset: minus-emph-style
-	PlusIndentStyle  *string `toml:"plus-indent-style" git:"jdiff"`  // unset: plus-emph-style
-	MinusMovedStyle  *string `toml:"minus-moved-style" git:"jdiff"`  // removed lines that moved elsewhere
-	PlusMovedStyle   *string `toml:"plus-moved-style" git:"jdiff"`   // added lines that moved here
+	AnchorStyle             *string `toml:"anchor-style" git:"jdiff"`
+	PendingStyle            *string `toml:"pending-style" git:"jdiff"`
+	CursorStyle             *string `toml:"cursor-style" git:"jdiff"`
+	FileBarStyle            *string `toml:"file-bar-style" git:"jdiff"`
+	CommitBarStyle          *string `toml:"commit-bar-style" git:"jdiff"`
+	CommitHashStyle         *string `toml:"commit-hash-style" git:"jdiff"`
+	BranchStyle             *string `toml:"branch-style" git:"jdiff"`
+	FillerStyle             *string `toml:"filler-style" git:"jdiff"`              // unset: file-decoration-style's color
+	WhitespaceStyle         *string `toml:"whitespace-style" git:"jdiff"`          // unset: file-decoration-style's color
+	TrailingWhitespaceStyle *string `toml:"trailing-whitespace-style" git:"jdiff"` // shown by t
+	HiddenCharStyle         *string `toml:"hidden-char-style" git:"jdiff"`         // ☠ for invisible characters
+	MinusIndentStyle        *string `toml:"minus-indent-style" git:"jdiff"`        // unset: minus-emph-style
+	PlusIndentStyle         *string `toml:"plus-indent-style" git:"jdiff"`         // unset: plus-emph-style
+	MinusMovedStyle         *string `toml:"minus-moved-style" git:"jdiff"`         // removed lines that moved elsewhere
+	PlusMovedStyle          *string `toml:"plus-moved-style" git:"jdiff"`          // added lines that moved here
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`
@@ -128,6 +130,9 @@ func Builtin() Spec {
 		// Moved code as git colors it by default.
 		MinusMovedStyle: str("magenta"),
 		PlusMovedStyle:  str("cyan"),
+		// Trailing whitespace as git marks whitespace errors.
+		TrailingWhitespaceStyle: str("normal red"),
+		HiddenCharStyle:         str("normal red"),
 	}
 }
 

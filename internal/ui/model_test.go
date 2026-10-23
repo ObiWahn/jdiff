@@ -410,14 +410,244 @@ func TestHighlightVisibleWhitespace(t *testing.T) {
 		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, false, "    →   x"},
 		{"a  b", []diff.Span{{Start: 1, End: 4}}, false, "a··b"},
 		{"\tx y", nil, false, "    x y"},
-		{"\tx y ", nil, true, "→   x·y·"},
-		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, true, "→   →   x"},
+		{"\tx y ", nil, true, "→   x·y·¶"},
+		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, true, "→   →   x¶"},
 	}
 	for _, tt := range tests {
-		st := lineStyles{showAll: tt.showAll}
+		st := lineStyles{showAll: tt.showAll, lineEnd: "¶"}
 		if got := ansi.Strip(highlight(tt.text, tt.spans, st)); got != tt.want {
 			t.Errorf("highlight(%q, %v, showAll %v) = %q, want %q", tt.text, tt.spans, tt.showAll, got, tt.want)
 		}
+	}
+}
+
+func TestHighlightMarksWhitespaceChanges(t *testing.T) {
+	// Changed whitespace is marked when it is indentation, holds a tab or
+	// is more than one space; a single space between changed words is not.
+	tests := []struct {
+		name  string
+		text  string
+		spans []diff.Span
+		want  string
+	}{
+		{"words", "x from y", []diff.Span{{Start: 1, End: 6}}, "x from y"},
+		{"two spaces", "a   b", []diff.Span{{Start: 2, End: 4}}, "a ··b"},
+		{"one tab", "a\tb", []diff.Span{{Start: 1, End: 2}}, "a→  b"},
+		{"one space of indentation", "   x", []diff.Span{{Start: 2, End: 3}}, "  ·x"},
+		{"indentation then a word", " x y", []diff.Span{{Start: 0, End: 4}}, "·x y"},
+	}
+	for _, tt := range tests {
+		if got := ansi.Strip(highlight(tt.text, tt.spans, lineStyles{})); got != tt.want {
+			t.Errorf("%s: highlight(%q, %v) = %q, want %q", tt.name, tt.text, tt.spans, got, tt.want)
+		}
+	}
+}
+
+func TestHighlightTrailingAndLineEnds(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	trailing := lipgloss.NewStyle().Background(lipgloss.Color("1"))
+	tests := []struct {
+		name     string
+		text     string
+		trailing bool // t
+		showAll  bool // w
+		want     string
+	}{
+		{"trailing spaces", "x y  ", true, false, "x y··"},
+		{"trailing tab", "x\t", true, false, "x→  "},
+		{"only whitespace", "  ", true, false, "··"},
+		{"trailing hidden", "x y  ", false, false, "x y  "},
+		{"line end with w", "x y", false, true, "x·y¶"},
+		{"trailing and line end", "x ", true, true, "x·¶"},
+	}
+	for _, tt := range tests {
+		st := lineStyles{trailing: trailing, showTrailing: tt.trailing, showAll: tt.showAll, lineEnd: "¶"}
+		got := highlight(tt.text, nil, st)
+		if ansi.Strip(got) != tt.want {
+			t.Errorf("%s: highlight(%q) = %q, want %q", tt.name, tt.text, ansi.Strip(got), tt.want)
+		}
+		if tt.trailing && !strings.Contains(got, "\x1b[41m") {
+			t.Errorf("%s: trailing whitespace not in its style: %q", tt.name, got)
+		}
+	}
+}
+
+func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
+	m := newTestModel([]string{"x  "}, []string{"y  "})
+	press(m, "t")
+	if !m.cfg.Settings.ShowTrailing || !strings.Contains(ansi.Strip(m.screenLine(m.screen[0], false)), "y··") {
+		t.Errorf("t: setting %v, row %q; want the trailing spaces shown", m.cfg.Settings.ShowTrailing,
+			ansi.Strip(m.screenLine(m.screen[0], false)))
+	}
+	a := newFlowApp()
+	pressApp(a, "t")
+	if !a.cfg.Settings.ShowTrailing {
+		t.Error("t in the file list did not toggle show_trailing")
+	}
+	pressApp(a, "f", "t")
+	if a.cfg.Settings.ShowTrailing {
+		t.Error("t in the flow view did not toggle show_trailing")
+	}
+
+	// With wrapping, a line as wide as its pane gets a piece for ¶ when w
+	// shows line ends.
+	m = newTestModel([]string{"same"}, []string{"same"})
+	press(m, "s", "r")
+	full := strings.Repeat("x", m.contentWidth(m.width, true))
+	m = newTestModel([]string{full}, []string{full})
+	press(m, "s", "r")
+	if len(m.screen) != 1 {
+		t.Fatalf("a line as wide as the pane takes %d screen lines, want 1", len(m.screen))
+	}
+	press(m, "w")
+	if len(m.screen) != 2 || !strings.Contains(ansi.Strip(m.screenLine(m.screen[1], false)), "¶") {
+		t.Errorf("w: %d screen lines, want 2 with ¶ on the second", len(m.screen))
+	}
+}
+
+func TestHighlightCarriageReturn(t *testing.T) {
+	tests := []struct {
+		name    string
+		text    string
+		spans   []diff.Span
+		showCR  bool // e
+		showAll bool // w
+		want    string
+	}{
+		{"unchanged, hidden", "x\r", nil, false, false, "x"},
+		{"unchanged, e", "x\r", nil, true, false, "x␍"},
+		{"e and w", "x\r", nil, true, true, "x␍¶"},
+		{"changed", "x\r", []diff.Span{{Start: 1, End: 2}}, false, false, "x␍"},
+		{"changed with a word", "x y\r", []diff.Span{{Start: 2, End: 4}}, false, false, "x y␍"},
+		{"w only", "x\r", nil, false, true, "x¶"},
+	}
+	for _, tt := range tests {
+		st := lineStyles{showCR: tt.showCR, showAll: tt.showAll, cr: "␍", lineEnd: "¶"}
+		if got := ansi.Strip(highlight(tt.text, tt.spans, st)); got != tt.want {
+			t.Errorf("%s: highlight(%q, %v) = %q, want %q", tt.name, tt.text, tt.spans, got, tt.want)
+		}
+	}
+	// The \r is not trailing whitespace.
+	st := lineStyles{showTrailing: true, cr: "␍"}
+	if got := ansi.Strip(highlight("x  \r", nil, st)); got != "x··" {
+		t.Errorf("trailing spaces before \\r: %q, want x··", got)
+	}
+}
+
+func TestHighlightHiddenChars(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	hidden := lipgloss.NewStyle().Background(lipgloss.Color("1"))
+	for _, text := range []string{
+		"a\u202eb", // right-to-left override: would reorder the text
+		"a\u2066b", // left-to-right isolate
+		"a\u200bb", // zero-width space
+		"a\u00a0b", // no-break space
+		"a\x1bb",   // escape: would start a terminal sequence
+		"a\u3000b", // ideographic space, two columns
+		"a\u00adb", // soft hyphen
+	} {
+		got := highlight(text, nil, lineStyles{hidden: hidden})
+		if ansi.Strip(got) != "a☠b" || !strings.Contains(got, "\x1b[41m☠") {
+			t.Errorf("highlight(%q) = %q, want a☠b with ☠ in the hidden style", text, got)
+		}
+	}
+	if got := printable("x\u202ey"); got != "x☠y" {
+		t.Errorf("printable: %q, want x☠y", got)
+	}
+}
+
+func TestLineEndChangeShows(t *testing.T) {
+	m := newTestModel([]string{"same\r", "x"}, []string{"same\r", "x\r"})
+	if m.rows[1].Kind != diff.Change {
+		t.Fatalf("x against x\\r: row kind %v, want a change", m.rows[1].Kind)
+	}
+	if msg := m.msg; msg == "files are identical" {
+		t.Error("files that differ in a line end are called identical")
+	}
+	row := ansi.Strip(m.screenLine(m.screen[1], false))
+	if !strings.Contains(row, "x␍") || strings.Count(row, "␍") != 1 {
+		t.Errorf("changed line end: %q, want ␍ on the new side only", row)
+	}
+	if strings.Contains(ansi.Strip(m.screenLine(m.screen[0], false)), "␍") {
+		t.Error("unchanged \\r shown without e")
+	}
+	press(m, "e")
+	if !m.cfg.Settings.ShowCR || strings.Count(ansi.Strip(m.screenLine(m.screen[0], false)), "␍") != 2 {
+		t.Errorf("e: %q, want ␍ on both sides of the unchanged line", ansi.Strip(m.screenLine(m.screen[0], false)))
+	}
+
+	// With wrapping, ␍ takes a column only where it is drawn.
+	probe := newTestModel([]string{"x"}, []string{"x"})
+	full := strings.Repeat("x", probe.contentWidth(80, true)) + "\r"
+	m = newTestModel([]string{full, "a"}, []string{full, "b"})
+	press(m, "s", "r")
+	if m.rowLines(0, m.screenShape) != 1 {
+		t.Errorf("hidden ␍: the full line takes %d screen lines, want 1", m.rowLines(0, m.screenShape))
+	}
+	press(m, "e")
+	if m.rowLines(0, m.screenShape) != 2 {
+		t.Errorf("e: the full line takes %d screen lines, want 2 for its ␍", m.rowLines(0, m.screenShape))
+	}
+}
+
+func TestMarksIgnoreCarriageReturn(t *testing.T) {
+	m := newTestModel([]string{"a\r", "b\r"}, []string{"a\r", "b\r", "c\r"})
+	if line, note, _ := m.markLine(config.Mark{Path: "new", Line: 3, Text: "b"}); line != 1 || note != "" {
+		t.Errorf("mark \"b\" in a CRLF file: line %d note %q, want line 2 found by its text", line+1, note)
+	}
+	moveTo(t, m, right, 2)
+	press(m, "m", "q")
+	if mk, _ := m.cfg.Mark("q"); mk.Text != "c" {
+		t.Errorf("mark set on a CRLF line has text %q, want it without \\r", mk.Text)
+	}
+}
+
+func TestHighlightPlainChangedWhitespace(t *testing.T) {
+	// W off: changed whitespace looks like unchanged whitespace, plain or,
+	// with all whitespace shown, as · and → like the rest; words keep their
+	// emphasis.
+	tests := []struct {
+		text    string
+		spans   []diff.Span
+		showAll bool
+		want    string
+	}{
+		{"  x()", []diff.Span{{Start: 0, End: 2}}, false, "  x()"},
+		{"a  b", []diff.Span{{Start: 1, End: 4}}, false, "a  b"},
+		{"\t\tx", []diff.Span{{Start: 1, End: 2}}, true, "→   →   x¶"},
+		{"a  b", []diff.Span{{Start: 1, End: 4}}, true, "a··b¶"},
+	}
+	for _, tt := range tests {
+		st := lineStyles{showAll: tt.showAll, plainSpace: true, lineEnd: "¶"}
+		if got := ansi.Strip(highlight(tt.text, tt.spans, st)); got != tt.want {
+			t.Errorf("plain: highlight(%q, %v, showAll %v) = %q, want %q", tt.text, tt.spans, tt.showAll, got, tt.want)
+		}
+	}
+}
+
+func TestMarkWhitespaceToggle(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.ANSI)
+	m := newTestModel([]string{"a   b"}, []string{"a b"})
+	row := m.screenLine(m.screen[0], false)
+	if !strings.Contains(ansi.Strip(row), "a ··b") {
+		t.Fatalf("the two removed spaces not marked by default: %q", ansi.Strip(row))
+	}
+	press(m, "W")
+	row = m.screenLine(m.screen[0], false)
+	if m.cfg.Settings.MarkWhitespace || strings.Contains(ansi.Strip(row), "·") {
+		t.Errorf("W: setting %v, row %q; want the changed space plain", m.cfg.Settings.MarkWhitespace, ansi.Strip(row))
+	}
+	a := newFlowApp()
+	pressApp(a, "W")
+	if a.cfg.Settings.MarkWhitespace {
+		t.Error("W in the file list did not toggle mark_whitespace")
+	}
+	pressApp(a, "f", "W")
+	if !a.cfg.Settings.MarkWhitespace {
+		t.Error("W in the flow view did not toggle mark_whitespace")
 	}
 }
 

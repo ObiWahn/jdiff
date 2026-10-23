@@ -26,7 +26,9 @@ func TestReadLines(t *testing.T) {
 		{"", nil},
 		{"a", []string{"a"}},
 		{"a\nb\n", []string{"a", "b"}},
-		{"a\r\nb\r\n", []string{"a", "b"}},
+		// \r is kept, so that changed line ends show.
+		{"a\r\nb\r\n", []string{"a\r", "b\r"}},
+		{"a\r\nb\n", []string{"a\r", "b"}},
 		{"a\n\n", []string{"a", ""}},
 	}
 	for _, tt := range tests {

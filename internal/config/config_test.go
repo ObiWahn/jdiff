@@ -259,6 +259,50 @@ func TestWatchInterval(t *testing.T) {
 	}
 }
 
+func TestLineEnd(t *testing.T) {
+	for _, tt := range []struct {
+		main    string
+		want    string
+		warning string
+	}{
+		{"", "¶", ""},
+		{`line_end = "¬"`, "¬", ""},
+		{`line_end = "$"`, "$", ""},
+		{`line_end = "ab"`, "¶", `line_end "ab" is not one column wide`},
+		{`line_end = ""`, "¶", `line_end "" is not one column wide`},
+	} {
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if w := c.Warning(); c.Settings.LineEnd != tt.want || (tt.warning == "") != (w == "") ||
+			!strings.Contains(w, tt.warning) {
+			t.Errorf("%q: line end %q, warning %q; want %q and %q", tt.main, c.Settings.LineEnd, w, tt.want, tt.warning)
+		}
+	}
+}
+
+func TestCREnd(t *testing.T) {
+	for _, tt := range []struct {
+		main    string
+		want    string
+		warning string
+	}{
+		{"", "␍", ""},
+		{`cr_end = "←"`, "←", ""},
+		{`cr_end = "^M"`, "␍", `cr_end "^M" is not one column wide`},
+	} {
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if w := c.Warning(); c.Settings.CREnd != tt.want || (tt.warning == "") != (w == "") ||
+			!strings.Contains(w, tt.warning) {
+			t.Errorf("%q: cr end %q, warning %q; want %q and %q", tt.main, c.Settings.CREnd, w, tt.want, tt.warning)
+		}
+	}
+}
+
 func TestMarks(t *testing.T) {
 	dir := t.TempDir()
 	c, err := Load(dir, nil, "", "")

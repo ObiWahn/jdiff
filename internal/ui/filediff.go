@@ -73,11 +73,14 @@ type spot struct {
 }
 
 // shape is what the screen lines of a diff depend on: the normal layout
-// when unified, and the width of the view when wrap is not 0, at which long
-// lines are wrapped instead of cut.
+// when unified, the width of the view when wrap is not 0, at which long
+// lines are wrapped instead of cut, and with lineEnd the column of the
+// symbol at the end of lines (line_end, one column).
 type shape struct {
 	unified bool
 	wrap    int
+	lineEnd bool
+	cr      bool // the \r of all \r\n line ends is drawn, see crShown
 }
 
 // layout is how a view draws a diff: width columns wide, scrolled by xoff
@@ -133,12 +136,31 @@ func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDi
 	return d
 }
 
-// measure computes the widths of the lines of side s.
+// measure computes the widths of the lines of side s, without the \r of a
+// \r\n line end: see crShown.
 func (d *fileDiff) measure(s side) {
 	d.widths[s] = make([]int, len(d.lines[s]))
 	for i, l := range d.lines[s] {
-		d.widths[s][i] = ansi.StringWidth(printable(l))
+		d.widths[s][i] = ansi.StringWidth(printable(strings.TrimSuffix(l, "\r")))
 	}
+}
+
+// crShown reports whether line of side s ends in a \r that is drawn in sh:
+// where it changed, or on all lines with sh.cr.
+func (d *fileDiff) crShown(s side, line int, sh shape) bool {
+	text := d.lines[s][line]
+	if !strings.HasSuffix(text, "\r") {
+		return false
+	}
+	if sh.cr {
+		return true
+	}
+	for _, sp := range emphOf(d.rows[d.rowOf[s][line]], s) {
+		if sp.End == len(text) {
+			return true
+		}
+	}
+	return false
 }
 
 // reload replaces the lines of side s by lines, the file's new content on
@@ -423,7 +445,7 @@ func (d *fileDiff) buildView() {
 func newShape(cfg *config.Config, width int) shape {
 	sh := shape{unified: !cfg.Settings.SideBySide}
 	if cfg.Settings.Wrap {
-		sh.wrap = width
+		sh.wrap, sh.lineEnd, sh.cr = width, cfg.Settings.ShowWhitespaces, cfg.Settings.ShowCR
 	}
 	return sh
 }
@@ -445,7 +467,14 @@ func (d *fileDiff) pieces(s side, line int, sh shape) int {
 	if sh.wrap == 0 || line < 0 || cw == 0 {
 		return 1
 	}
-	return max((d.widths[s][line]+cw-1)/cw, 1)
+	w := d.widths[s][line]
+	if sh.lineEnd {
+		w++
+	}
+	if d.crShown(s, line, sh) {
+		w++
+	}
+	return max((w+cw-1)/cw, 1)
 }
 
 // rowLines returns the number of screen lines of displayed row v in sh.

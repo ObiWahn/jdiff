@@ -23,6 +23,29 @@ type lineStyles struct {
 	ws    lipgloss.Style // other whitespace, drawn as · and → when showAll
 	// showAll draws all whitespace visibly, not only changed whitespace.
 	showAll bool
+	// plainSpace draws changed whitespace like unchanged whitespace.
+	plainSpace bool
+	// showTrailing draws whitespace at the end of the line visibly in
+	// trailing; with showAll the end of the line is drawn as lineEnd.
+	trailing     lipgloss.Style
+	showTrailing bool
+	lineEnd      string
+	// cr is drawn for the \r of a \r\n line end where it changed, and with
+	// showCR on all lines.
+	cr     string
+	showCR bool
+	// hidden is the style of ☠, drawn for invisible characters.
+	hidden lipgloss.Style
+}
+
+// hiddenSymbol stands for characters that are not visible text, a space or
+// a tab: control and format characters, among them those that change the
+// direction of text and could reorder what is shown, and unusual spaces.
+const hiddenSymbol = "☠"
+
+// hiddenChar reports whether r is drawn as hiddenSymbol.
+func hiddenChar(r rune) bool {
+	return r != '\t' && (unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) || unicode.IsSpace(r) && r != ' ')
 }
 
 // sideStyles returns the styles of side s for whole-line changes, the
@@ -263,7 +286,9 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	t := d.cfg.Theme
 	lineStyle, nonEmph, emph, indent := d.sideStyles(s)
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
-		showAll: d.cfg.Settings.ShowWhitespaces}
+		showAll: d.cfg.Settings.ShowWhitespaces, plainSpace: !d.cfg.Settings.MarkWhitespace,
+		trailing: t.TrailingWhitespace, showTrailing: d.cfg.Settings.ShowTrailing, lineEnd: d.cfg.Settings.LineEnd,
+		cr: d.cfg.Settings.CREnd, showCR: d.cfg.Settings.ShowCR, hidden: t.HiddenChar}
 	var spans []diff.Span
 	switch {
 	case row.Kind == diff.Equal:
@@ -282,10 +307,19 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	return pad(content, width, lipgloss.NewStyle())
 }
 
-// highlight renders text with the given spans emphasized. Whitespace inside
-// spans, and with showAll all whitespace, is drawn visibly: · for a space, →
-// for a tab. Tabs are expanded and control characters made visible.
+// highlight renders text with the given spans emphasized. Changed
+// whitespace (inside spans) is drawn visibly, · for a space and → for a tab,
+// when it is indentation, holds a tab or is more than one space: a single
+// space between changed words is no news. With showTrailing whitespace at
+// the end of the line is drawn visibly in its style, with showAll all
+// whitespace, and the end of the line as lineEnd. The \r of a \r\n line
+// end is drawn as cr where it changed or with showCR, else not at all. Tabs
+// are expanded and hidden characters drawn as ☠ in their style.
 func highlight(text string, spans []diff.Span, st lineStyles) string {
+	cr, changedCR := strings.HasSuffix(text, "\r"), false
+	if cr {
+		text = text[:len(text)-1]
+	}
 	var b strings.Builder
 	col := 0
 	render := func(part string, style lipgloss.Style, visible bool) {
@@ -296,20 +330,50 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 		expand(&p, part, &col, visible)
 		b.WriteString(style.Render(p.String()))
 	}
-	// renderPart splits a part into whitespace and other runs.
+	lead := true // in the line's indentation
+	at := 0      // where the part rendered next starts in text
+	trailFrom := len(strings.TrimRightFunc(text, unicode.IsSpace))
+	// class is the kind of run r belongs to: hidden, whitespace or text.
+	class := func(r rune) int {
+		switch {
+		case hiddenChar(r):
+			return 2
+		case unicode.IsSpace(r):
+			return 1
+		}
+		return 0
+	}
+	// renderPart splits a part into hidden, whitespace and other runs.
 	renderPart := func(part string, emph bool) {
 		for part != "" {
 			r, _ := utf8.DecodeRuneInString(part)
-			ws := unicode.IsSpace(r)
-			i := strings.IndexFunc(part, func(r rune) bool { return unicode.IsSpace(r) != ws })
+			c := class(r)
+			ws := c == 1
+			i := strings.IndexFunc(part, func(r rune) bool { return class(r) != c })
 			if i < 0 {
 				i = len(part)
 			}
+			run := part[:i]
+			if c == 2 {
+				lead = false
+				at += i
+				render(run, st.hidden, false)
+				part = part[i:]
+				continue
+			}
+			mark := lead || strings.ContainsRune(run, '\t') || utf8.RuneCountInString(run) > 1
+			lead = lead && ws
+			trailing := ws && at >= trailFrom
+			at += i
 			switch {
-			case ws && emph:
+			case trailing && st.showTrailing:
+				render(run, st.trailing, true)
+			case ws && emph && !st.plainSpace && mark:
 				render(part[:i], st.space, true)
 			case ws && st.showAll:
 				render(part[:i], st.ws, true)
+			case ws:
+				render(part[:i], st.base, false)
 			case emph:
 				render(part[:i], st.emph, false)
 			default:
@@ -320,16 +384,31 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 	}
 	pos := 0
 	for _, sp := range spans {
+		end := min(sp.End, len(text))
+		changedCR = changedCR || sp.End > len(text)
+		if sp.Start >= end {
+			continue // the \r alone
+		}
 		renderPart(text[pos:sp.Start], false)
-		renderPart(text[sp.Start:sp.End], true)
-		pos = sp.End
+		renderPart(text[sp.Start:end], true)
+		pos = end
 	}
 	renderPart(text[pos:], false)
+	if cr && (changedCR || st.showCR) {
+		style := st.ws
+		if changedCR {
+			style = st.emph
+		}
+		b.WriteString(style.Render(st.cr))
+	}
+	if st.showAll {
+		b.WriteString(st.ws.Render(st.lineEnd))
+	}
 	return b.String()
 }
 
 // expand writes text, which starts at column *col, to b as drawn: tabs
-// expanded to the next tab stop and control characters as ·; with visible
+// expanded to the next tab stop and hidden characters as ☠; with visible
 // set, spaces are drawn as · and tabs start with →. *col advances.
 func expand(b *strings.Builder, text string, col *int, visible bool) {
 	for _, r := range text {
@@ -345,8 +424,8 @@ func expand(b *strings.Builder, text string, col *int, visible bool) {
 		case r == ' ' && visible:
 			b.WriteRune('·')
 			*col++
-		case r < 0x20 || r == 0x7f:
-			b.WriteRune('·')
+		case hiddenChar(r):
+			b.WriteString(hiddenSymbol)
 			*col++
 		default:
 			b.WriteRune(r)

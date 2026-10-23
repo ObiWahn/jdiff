@@ -30,6 +30,8 @@ type Theme struct {
 
 	Anchor, Pending, Cursor, Filler lipgloss.Style
 	Whitespace                      lipgloss.Style // unchanged whitespace when shown
+	TrailingWhitespace              lipgloss.Style // whitespace at the end of lines when shown
+	HiddenChar                      lipgloss.Style // ☠ for invisible and direction changing characters
 	MinusMoved, PlusMoved           lipgloss.Style // moved code: removed here, added there
 	FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
 	CommitHash                      lipgloss.Style // commit hashes in the log
@@ -144,6 +146,8 @@ func Resolve(sp Spec) *Theme {
 	t.PlusMoved = style("plus-moved-style", sp.PlusMovedStyle, def.PlusMovedStyle)
 	t.Filler = styleOrStyle("filler-style", sp.FillerStyle, t.Decoration)
 	t.Whitespace = styleOrStyle("whitespace-style", sp.WhitespaceStyle, t.Decoration)
+	t.TrailingWhitespace = style("trailing-whitespace-style", sp.TrailingWhitespaceStyle, def.TrailingWhitespaceStyle)
+	t.HiddenChar = style("hidden-char-style", sp.HiddenCharStyle, def.HiddenCharStyle)
 	// Changed whitespace is drawn as · and →, by default like changed words.
 	t.MinusIndent = styleOrStyle("minus-indent-style", sp.MinusIndentStyle, t.MinusEmph)
 	t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)

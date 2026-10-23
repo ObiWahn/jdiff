@@ -22,7 +22,7 @@ It reads [delta](https://github.com/dandavison/delta)'s git config, so an existi
   - A mark finds its line again by its text when the file changed.
 - **Live reload:** outside the log, files on disk are watched (by default every second). When a file changes, its diff is updated, and anchors, folds and the cursor follow their lines.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
-- **Whitespace:** `w` draws all whitespace as `·` and `→`, not only changed whitespace.
+- **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
 - **Line wrap (reflow):** `r` wraps long lines onto further lines, marked `↪`, instead of cutting them; off, `h` and `l` scroll them.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
 
@@ -95,7 +95,10 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `f` | flow view of all files |
 | `v` | show or hide the diff preview |
 | `s` | side by side or normal preview |
-| `w` | show all whitespace or only changed |
+| `w` | show all whitespace and line ends or only changed |
+| `W` | mark changed whitespace or not |
+| `t` | show trailing whitespace or not |
+| `e` | show all `\r\n` line ends (`␍`) or only changed |
 | `r` | reflow: wrap long lines or cut them |
 | `b` | bold or plain changed words |
 | `backspace` | back to the commits (in the log) |
@@ -119,7 +122,10 @@ Against the working tree, git links your working copy into the comparison, so ed
 | `m`*letter* | set a jump mark on the line of the new file |
 | `'`*letter* | jump to a mark, when its file is in this diff |
 | `s` | side by side or normal layout |
-| `w` | show all whitespace or only changed |
+| `w` | show all whitespace and line ends or only changed |
+| `W` | mark changed whitespace or not |
+| `t` | show trailing whitespace or not |
+| `e` | show all `\r\n` line ends (`␍`) or only changed |
 | `r` | reflow: wrap long lines or cut them |
 | `b` | bold or plain changed words |
 | `f` | flow view |
@@ -165,14 +171,19 @@ Unknown keys and invalid values are reported in the status bar.
 theme = "desert"                # a file in themes/; without it, delta's git config is the theme
 context = 3                     # unchanged lines kept visible around changes
 collapse_unchanged = true       # start with unchanged code folded
-only_changed_whitespaces = true # compare indentation character by character
+only_changed_whitespaces = true # mark only the added or removed part of whitespace
 watch_interval = 1              # seconds between checks for changed files; 0 turns it off
+line_end = "¶"                  # drawn at the end of lines while w shows all whitespace; one column
+cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 
 # The toggles, also kept in state.toml:
 side_by_side = true
 flow = false
 preview = true
 show_whitespaces = false
+mark_whitespace = true
+show_trailing = false
+show_cr = false
 wrap = false
 bold_changes = true
 full_messages = true
@@ -198,7 +209,7 @@ sand = "#c2b280"
 The options:
 
 - From delta: `minus-style`, `minus-emph-style`, `minus-non-emph-style`, `plus-style`, `plus-emph-style`, `plus-non-emph-style`, `zero-style`, `line-numbers-minus-style`, `line-numbers-plus-style`, `line-numbers-zero-style`, `line-numbers-left-style`, `line-numbers-right-style`, `file-style`, `file-decoration-style`, `inline-hint-style`, `file-added-label`, `file-removed-label`, `file-modified-label`, `file-renamed-label`.
-- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
+- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
 
 Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`, …), then a foreground and a background color, given as a name, `bright-` name, 0–255 or `#rrggbb`. Colors beyond the 16 ANSI colors are mapped to the nearest one.
 
