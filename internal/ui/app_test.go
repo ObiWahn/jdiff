@@ -87,23 +87,23 @@ func TestAppKeyBurst(t *testing.T) {
 
 func TestAppNextPrevFile(t *testing.T) {
 	a := newTestApp()
-	pressApp(a, "enter", "N")
+	pressApp(a, "enter", "n")
 	if a.open == nil || a.open.Path != "b.go" || a.cursor != 1 {
-		t.Fatalf("N: open %v cursor %d, want b.go", a.open, a.cursor)
+		t.Fatalf("n: open %v cursor %d, want b.go", a.open, a.cursor)
 	}
 	// c.bin is binary and skipped: b.go is the last file that can be shown.
-	pressApp(a, "N")
-	if a.open.Path != "b.go" || !strings.Contains(a.open.view.msg, "last file") {
-		t.Errorf("N on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
-	}
-	pressApp(a, "P")
-	if a.open.Path != "a.go" || a.cursor != 0 {
-		t.Errorf("P: open %s cursor %d, want a.go", a.open.Path, a.cursor)
-	}
-	// Without a log, n and p do nothing.
 	pressApp(a, "n")
+	if a.open.Path != "b.go" || !strings.Contains(a.open.view.msg, "last file") {
+		t.Errorf("n on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
+	}
+	pressApp(a, "p")
+	if a.open.Path != "a.go" || a.cursor != 0 {
+		t.Errorf("p: open %s cursor %d, want a.go", a.open.Path, a.cursor)
+	}
+	// Without a log, N and P do nothing.
+	pressApp(a, "N")
 	if a.open.Path != "a.go" {
-		t.Errorf("n outside the log switched to %s", a.open.Path)
+		t.Errorf("N outside the log switched to %s", a.open.Path)
 	}
 }
 
@@ -133,5 +133,17 @@ func TestAppRenameLabel(t *testing.T) {
 	pressApp(a, "enter")
 	if a.open.view.names != [2]string{"a/old.go", "b/new.go"} {
 		t.Errorf("diff titles = %v", a.open.view.names)
+	}
+}
+
+func TestAppListNextPrev(t *testing.T) {
+	a := newTestApp()
+	pressApp(a, "n", "n")
+	if a.open != nil || a.cursor != 2 {
+		t.Errorf("n n in the list: open %v cursor %d, want c.bin selected", a.open, a.cursor)
+	}
+	pressApp(a, "p")
+	if a.cursor != 1 {
+		t.Errorf("p in the list: cursor %d, want b.go", a.cursor)
 	}
 }

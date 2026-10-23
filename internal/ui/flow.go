@@ -143,19 +143,19 @@ func (f *Flow) key(k string) tea.Cmd {
 		if !f.search(direction(k == "]"), f.changeStart) {
 			f.msg = "no more changes"
 		}
-	case "N", "P":
-		if f.search(direction(k == "N"), f.isKind(flowFile, 0)) {
+	case "n", "p":
+		if f.search(direction(k == "n"), f.isKind(flowFile, 0)) {
 			f.barToTop()
 		} else {
-			f.msg = ends(k == "N", "last file", "first file")
+			f.msg = ends(k == "n", "last file", "first file")
 		}
-	case "n", "p":
+	case "N", "P":
 		switch {
 		case f.load == nil: // outside the log
-		case f.search(direction(k == "n"), f.isKind(flowCommit, 0)):
+		case f.search(direction(k == "N"), f.isKind(flowCommit, 0)):
 			f.barToTop()
 		default:
-			f.msg = ends(k == "n", "oldest commit", "newest commit")
+			f.msg = ends(k == "N", "oldest commit", "newest commit")
 		}
 	case "enter", "esc", " ":
 		f.delegate(k)
@@ -451,9 +451,9 @@ func (f *Flow) scrollToCursor() {
 }
 
 func (f *Flow) help() string {
-	h := "f single file · tab pane · enter mark/anchor · space fold · ]/[ change · N/P file · "
+	h := "f single file · tab pane · enter mark/anchor · space fold · ]/[ change · n/p file · "
 	if f.load != nil {
-		h += "n/p commit · "
+		h += "N/P commit · "
 	}
 	return h + "backspace back · q quit"
 }

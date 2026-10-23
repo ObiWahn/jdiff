@@ -24,7 +24,7 @@ type commitEntry struct {
 }
 
 // Log is the Bubble Tea model of the commit list. Enter shows the files of
-// a commit; n/p step through commits from the deeper views.
+// a commit; N/P step through commits from the deeper views.
 type Log struct {
 	cfg    *config.Config
 	branch string // shown above the commit list

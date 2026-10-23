@@ -69,7 +69,7 @@ func (e *entry) updateStats() {
 // is opened directly.
 type App struct {
 	cfg    *config.Config
-	inLog  bool           // part of the log: backspace and n/p go to the log
+	inLog  bool           // part of the log: backspace and N/P go to the log
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	cursor int
@@ -187,9 +187,9 @@ func (a *App) key(k string) tea.Cmd {
 	switch k {
 	case "q", "ctrl+c":
 		return tea.Quit
-	case "up", "k":
+	case "up", "k", "p":
 		a.moveCursor(-1)
-	case "down", "j":
+	case "down", "j", "n":
 		a.moveCursor(1)
 	case "pgup", "ctrl+b":
 		a.moveCursor(-page)
@@ -205,7 +205,7 @@ func (a *App) key(k string) tea.Cmd {
 		if a.inLog {
 			return func() tea.Msg { return backMsg{} }
 		}
-	case "n", "p":
+	case "N", "P":
 		if a.inLog {
 			return switchCommit(k)
 		}
@@ -424,7 +424,7 @@ func (a *App) View() string {
 	if status == "" {
 		status = "enter open · f flow · v preview · j/k move · q quit"
 		if a.inLog {
-			status = "enter open · f flow · v preview · j/k move · n/p commit · backspace commits · q quit"
+			status = "enter open · f flow · v preview · j/k move · N/P commit · backspace commits · q quit"
 		}
 	}
 	b.WriteString(ansi.Truncate(t.Hint.Render(status), a.width, ""))

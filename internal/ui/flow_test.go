@@ -66,7 +66,7 @@ func TestFlowStaysOn(t *testing.T) {
 			t.Errorf("flow view lacks %q:\n%s", want, view)
 		}
 	}
-	pressApp(a, "N")
+	pressApp(a, "n")
 	view = ansi.Strip(a.View())
 	for _, want := range []string{"b.bin   binary", "binary file"} {
 		if !strings.Contains(view, want) {
@@ -105,18 +105,18 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("[ from c.go: file %d line %d, want the second change of a.go", f, l)
 	}
 
-	// N and P go from file bar to file bar.
-	pressApp(a, "N")
+	// n and p go from file bar to file bar.
+	pressApp(a, "n")
 	if !flowAt(a, 1, -1) {
-		t.Errorf("N from a.go should reach the bar of b.bin")
+		t.Errorf("n from a.go should reach the bar of b.bin")
 	}
-	pressApp(a, "N", "N")
+	pressApp(a, "n", "n")
 	if !flowAt(a, 2, -1) || a.flow.msg != "last file" {
-		t.Errorf("N N: msg %q, want the bar of c.go and last file", a.flow.msg)
+		t.Errorf("n n: msg %q, want the bar of c.go and last file", a.flow.msg)
 	}
-	pressApp(a, "P")
+	pressApp(a, "p")
 	if !flowAt(a, 1, -1) {
-		t.Errorf("P from c.go should reach the bar of b.bin")
+		t.Errorf("p from c.go should reach the bar of b.bin")
 	}
 
 	// j and k cross file borders; G goes to the end.
@@ -187,7 +187,7 @@ func TestFlowHeaderFollowsFile(t *testing.T) {
 	if top := topLines(a, 1)[0]; !strings.Contains(top, "a/a.go") || !strings.Contains(top, "│ b/a.go") {
 		t.Errorf("top line on a.go: %q", top)
 	}
-	pressApp(a, "N", "N")
+	pressApp(a, "n", "n")
 	if top := topLines(a, 1)[0]; !strings.Contains(top, "a/c.go") || !strings.Contains(top, "│ b/c.go") {
 		t.Errorf("top line on c.go: %q", top)
 	}

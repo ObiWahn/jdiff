@@ -178,15 +178,15 @@ func (m *Model) key(k string) tea.Cmd {
 		m.nextChange(1)
 	case "[":
 		m.nextChange(-1)
-	case "N", "P":
+	case "n", "p":
 		if m.canBack {
 			dir := switchFileMsg(1)
-			if k == "P" {
+			if k == "p" {
 				dir = -1
 			}
 			return func() tea.Msg { return dir }
 		}
-	case "n", "p":
+	case "N", "P":
 		if m.commitNav {
 			return switchCommit(k)
 		}
@@ -459,11 +459,11 @@ func (m *Model) scrollToCursor() {
 	m.top = max(min(m.top, len(m.view)-h), 0)
 }
 
-// switchCommit returns the command asking the log for the next (n) or
-// previous (p) commit.
+// switchCommit returns the command asking the log for the next (N) or
+// previous (P) commit.
 func switchCommit(k string) tea.Cmd {
 	dir := switchCommitMsg(1)
-	if k == "p" {
+	if k == "P" {
 		dir = -1
 	}
 	return func() tea.Msg { return dir }

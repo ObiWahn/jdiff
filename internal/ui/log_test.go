@@ -121,51 +121,51 @@ func TestLogNextPrevCommit(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "enter", "enter") // c3, a.go
 
-	// n keeps a.go, which c2 changed as well.
-	pressLog(l, "n")
+	// N keeps a.go, which c2 changed as well.
+	pressLog(l, "N")
 	if l.cursor != 1 || shownFile(l) != "a.go" {
-		t.Fatalf("n: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
+		t.Fatalf("N: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
 	}
 	// c1 did not change a.go, but it has a single file.
-	pressLog(l, "n")
+	pressLog(l, "N")
 	if l.cursor != 2 || shownFile(l) != "c.go" {
-		t.Fatalf("n: commit %d shown %q, want c1 c.go", l.cursor, shownFile(l))
+		t.Fatalf("N: commit %d shown %q, want c1 c.go", l.cursor, shownFile(l))
 	}
 	// c0 cannot be loaded: stay and show the error.
-	pressLog(l, "n")
+	pressLog(l, "N")
 	if l.cursor != 2 || !strings.Contains(l.open.app.open.view.msg, "cannot load c0") {
-		t.Errorf("n onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
+		t.Errorf("N onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
 	}
 	// Back via c2 (single file a.go) to c3, which changed a.go as well.
-	pressLog(l, "p", "p")
+	pressLog(l, "P", "P")
 	if l.cursor != 0 || shownFile(l) != "a.go" {
-		t.Errorf("p p: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
+		t.Errorf("P P: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
 	}
-	pressLog(l, "p")
+	pressLog(l, "P")
 	if !strings.Contains(l.open.app.open.view.msg, "newest commit") {
-		t.Errorf("p on the newest commit: msg %q", l.open.app.open.view.msg)
+		t.Errorf("P on the newest commit: msg %q", l.open.app.open.view.msg)
 	}
-	// n/p also work from the file list.
-	pressLog(l, "backspace", "n")
+	// N/P also work from the file list.
+	pressLog(l, "backspace", "N")
 	if l.cursor != 1 || shownFile(l) != "a.go" {
-		t.Errorf("n from the file list: commit %d shown %q", l.cursor, shownFile(l))
+		t.Errorf("N from the file list: commit %d shown %q", l.cursor, shownFile(l))
 	}
 	// The open file a.go is kept when going back to c3.
-	pressLog(l, "p")
+	pressLog(l, "P")
 	if l.cursor != 0 || shownFile(l) != "a.go" {
-		t.Errorf("p back to c3 with a.go open: commit %d shown %q", l.cursor, shownFile(l))
+		t.Errorf("P back to c3 with a.go open: commit %d shown %q", l.cursor, shownFile(l))
 	}
 }
 
 func TestLogFileKeysInCommit(t *testing.T) {
 	l, _ := newTestLog()
-	pressLog(l, "enter", "enter", "N")
+	pressLog(l, "enter", "enter", "n")
 	if shownFile(l) != "b.go" {
-		t.Errorf("N in c3: shown %q, want b.go", shownFile(l))
+		t.Errorf("n in c3: shown %q, want b.go", shownFile(l))
 	}
-	pressLog(l, "P")
+	pressLog(l, "p")
 	if shownFile(l) != "a.go" {
-		t.Errorf("P in c3: shown %q, want a.go", shownFile(l))
+		t.Errorf("p in c3: shown %q, want a.go", shownFile(l))
 	}
 }
 
@@ -208,17 +208,17 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 
 func TestLogFlowCommitKeys(t *testing.T) {
 	l, _ := newTestLog()
-	pressLog(l, "f", "n")
+	pressLog(l, "f", "N")
 	if flowCommitAt(l) != 1 {
-		t.Fatalf("n: flow at %d, want c2", flowCommitAt(l))
+		t.Fatalf("N: flow at %d, want c2", flowCommitAt(l))
 	}
-	pressLog(l, "n", "n", "n")
+	pressLog(l, "N", "N", "N")
 	if flowCommitAt(l) != 3 || l.flow.msg != "oldest commit" {
-		t.Errorf("n past c0: flow at %d msg %q", flowCommitAt(l), l.flow.msg)
+		t.Errorf("N past c0: flow at %d msg %q", flowCommitAt(l), l.flow.msg)
 	}
-	pressLog(l, "p")
+	pressLog(l, "P")
 	if flowCommitAt(l) != 2 {
-		t.Errorf("p: flow at %d, want c1", flowCommitAt(l))
+		t.Errorf("P: flow at %d, want c1", flowCommitAt(l))
 	}
 	pressLog(l, "backspace")
 	if l.open != nil || l.cursor != 2 {
@@ -242,7 +242,7 @@ func TestLogFlowFromDiff(t *testing.T) {
 	if p, f, line := l.flow.position(); !l.flowShown() || p != 0 || f != 0 || line != 0 {
 		t.Fatalf("f in the a.go diff: flow at %d %d %d", p, f, line)
 	}
-	pressLog(l, "N", "j", "f")
+	pressLog(l, "n", "j", "f")
 	if shownFile(l) != "b.go" || l.open.app.open.view.cursor != 0 {
 		t.Errorf("f on the row of b.go: shown %q", shownFile(l))
 	}
@@ -255,7 +255,7 @@ func TestLogFlowHeader(t *testing.T) {
 	if !strings.Contains(top[0], "c3 subject c3") || strings.Contains(top[1], "a/") {
 		t.Errorf("on the commit bar: %q", top)
 	}
-	pressLog(l, "N", "j")
+	pressLog(l, "n", "j")
 	top = topLines(l, 2)
 	if !strings.Contains(top[0], "c3 subject c3") || !strings.Contains(top[1], "a/a.go") {
 		t.Errorf("in a.go: %q", top)
