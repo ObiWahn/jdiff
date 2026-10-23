@@ -116,11 +116,12 @@ func Load(cfg Config, features []string) *Theme {
 		}
 		return delta(fallbackKey)
 	}
-	jdiff := func(key, fallback string) lipgloss.Style {
+	jdiff := func(key string) lipgloss.Style {
+		def := jdiffDefaults[key]
 		if v, ok := cfg["jdiff."+key]; ok {
-			return parse("jdiff."+key, v, fallback)
+			return parse("jdiff."+key, v, def)
 		}
-		return parse("jdiff."+key, fallback, "")
+		return parse("jdiff."+key, def, "")
 	}
 	// jdiffOr returns a jdiff option that defaults to another style, also
 	// when it is invalid.
@@ -160,13 +161,13 @@ func Load(cfg Config, features []string) *Theme {
 	t.ModifiedLabel = str("file-modified-label")
 	t.RenamedLabel = str("file-renamed-label")
 
-	t.Anchor = jdiff("anchor-style", jdiffDefaults["anchor-style"])
-	t.Pending = jdiff("pending-style", jdiffDefaults["pending-style"])
-	t.Cursor = jdiff("cursor-style", jdiffDefaults["cursor-style"])
-	t.FileBar = jdiff("file-bar-style", jdiffDefaults["file-bar-style"])
-	t.CommitBar = jdiff("commit-bar-style", jdiffDefaults["commit-bar-style"])
-	t.CommitHash = jdiff("commit-hash-style", jdiffDefaults["commit-hash-style"])
-	t.Branch = jdiff("branch-style", jdiffDefaults["branch-style"])
+	t.Anchor = jdiff("anchor-style")
+	t.Pending = jdiff("pending-style")
+	t.Cursor = jdiff("cursor-style")
+	t.FileBar = jdiff("file-bar-style")
+	t.CommitBar = jdiff("commit-bar-style")
+	t.CommitHash = jdiff("commit-hash-style")
+	t.Branch = jdiff("branch-style")
 	t.Filler = jdiffOr("filler-style", t.Decoration)
 	t.Whitespace = jdiffOr("whitespace-style", t.Decoration)
 	// Changed whitespace is drawn as · and →, by default like changed words.

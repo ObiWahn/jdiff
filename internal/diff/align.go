@@ -48,7 +48,7 @@ func Align(a, b []string, anchors []Anchor, opt Options) []Row {
 	pa, pb := 0, 0
 	for _, an := range anchors {
 		al.section(pa, an.Left, pb, an.Right)
-		al.pair(an.Left, an.Right, true)
+		al.addPair(an.Left, an.Right, true)
 		pa, pb = an.Left+1, an.Right+1
 	}
 	al.section(pa, len(a), pb, len(b))
@@ -104,7 +104,7 @@ func (al *aligner) section(a0, a1, b0, b1 int) {
 	i, j := a0, b0
 	for _, p := range patience(al.ka[a0:a1], al.kb[b0:b1]) {
 		al.gap(i, a0+p.a, j, b0+p.b)
-		al.pair(a0+p.a, b0+p.b, false)
+		al.addPair(a0+p.a, b0+p.b, false)
 		i, j = a0+p.a+1, b0+p.b+1
 	}
 	al.gap(i, a1, j, b1)
@@ -114,7 +114,7 @@ func (al *aligner) section(a0, a1, b0, b1 int) {
 // changes; the remainder becomes plain deletions or insertions.
 func (al *aligner) gap(i0, i1, j0, j1 int) {
 	for i0 < i1 && j0 < j1 {
-		al.pair(i0, j0, false)
+		al.addPair(i0, j0, false)
 		i0, j0 = i0+1, j0+1
 	}
 	for ; i0 < i1; i0++ {
@@ -125,7 +125,8 @@ func (al *aligner) gap(i0, i1, j0, j1 int) {
 	}
 }
 
-func (al *aligner) pair(l, r int, anchored bool) {
+// addPair appends the row of line l of a next to line r of b.
+func (al *aligner) addPair(l, r int, anchored bool) {
 	row := Row{Kind: Equal, Left: l, Right: r, Anchored: anchored}
 	if al.a[l] != al.b[r] {
 		row.Kind = Change

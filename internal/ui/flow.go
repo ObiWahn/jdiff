@@ -139,7 +139,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "N", "P":
 		switch {
-		case f.load == nil: // outside the log
+		case !f.inLog():
 		case f.search(direction(k == "N"), f.isKind(flowCommit, 0)):
 			f.barToTop()
 		default:
@@ -281,6 +281,10 @@ func (f *Flow) find(r flowRow) int {
 	return -1
 }
 
+// inLog reports whether f shows the commits of the log, rather than the
+// files outside it.
+func (f *Flow) inLog() bool { return f.load != nil }
+
 func (f *Flow) unloaded(part int) bool {
 	p := f.parts[part]
 	return p.app == nil && p.err == ""
@@ -289,7 +293,7 @@ func (f *Flow) unloaded(part int) bool {
 // unloadedIn returns a commit with rows in [a, b] that is not loaded yet, or
 // -1.
 func (f *Flow) unloadedIn(a, b int) int {
-	if f.load == nil {
+	if !f.inLog() {
 		return -1
 	}
 	for i := max(a, 0); i <= min(b, len(f.rows)-1); i++ {
@@ -350,7 +354,7 @@ func (f *Flow) search(dir int, ok func(int) bool) bool {
 	for {
 		loaded := false
 		for i := f.cursor + dir; i >= 0 && i < len(f.rows); i += dir {
-			if p := f.rows[i].part; f.load != nil && f.unloaded(p) {
+			if p := f.rows[i].part; f.inLog() && f.unloaded(p) {
 				f.loadPart(p)
 				loaded = true
 				break
@@ -387,7 +391,7 @@ func (f *Flow) changeStart(i int) bool {
 // the file bar for line -1 and on the commit bar for file -1, at screen row
 // screenRow.
 func (f *Flow) show(part, file, line, sub, screenRow int) {
-	if f.load != nil && f.unloaded(part) {
+	if f.inLog() && f.unloaded(part) {
 		f.loadPart(part)
 	}
 	f.marked, f.replacing = nil, nil
@@ -422,7 +426,7 @@ func (f *Flow) position() (part, file, line int) {
 // headerLines is the number of lines above the rows: the commit in the log,
 // and the file names.
 func (f *Flow) headerLines() int {
-	if f.load != nil {
+	if f.inLog() {
 		return 2
 	}
 	return 1
@@ -451,7 +455,7 @@ func (f *Flow) scrollToCursor() {
 
 func (f *Flow) help() string {
 	h := "f single file · space fold · ]/[ change · n/p file · "
-	if f.load != nil {
+	if f.inLog() {
 		h += "N/P commit · "
 	}
 	return h + "? help · q quit"
@@ -479,7 +483,7 @@ func (f *Flow) header() string {
 	t := f.cfg.Theme
 	p, file, _ := f.position()
 	var b strings.Builder
-	if f.load != nil {
+	if f.inLog() {
 		c := f.parts[p].commit
 		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
@@ -493,7 +497,7 @@ func (f *Flow) header() string {
 func (f *Flow) status() string {
 	p, file, _ := f.position()
 	var where []string
-	if f.load != nil {
+	if f.inLog() {
 		where = append(where, fmt.Sprintf("commit %d/%d", p+1, len(f.parts)))
 	}
 	if file >= 0 {

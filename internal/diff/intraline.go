@@ -84,12 +84,12 @@ func tokenize(s string, splitIndent bool) []token {
 		r, n := utf8.DecodeRuneInString(s[i:])
 		j := i + n
 		class := runeClass(r)
-		if indent = indent && class == 2; indent {
+		if indent = indent && class == classSpace; indent {
 			out = append(out, token{s[i:j], i, j})
 			i = j
 			continue
 		}
-		if class != 0 {
+		if class != classSingle {
 			for j < len(s) {
 				r2, n2 := utf8.DecodeRuneInString(s[j:])
 				if runeClass(r2) != class {
@@ -104,19 +104,26 @@ func tokenize(s string, splitIndent bool) []token {
 	return out
 }
 
-// runeClass returns 1 for word characters, 2 for whitespace and 0 for
-// characters that form a token on their own.
-func runeClass(r rune) int {
+// class is the kind of character a token is made of.
+type class int
+
+const (
+	classSingle class = iota // characters that form a token on their own
+	classWord
+	classSpace
+)
+
+func runeClass(r rune) class {
 	switch {
 	case r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r):
-		return 1
+		return classWord
 	case unicode.IsSpace(r):
-		return 2
+		return classSpace
 	}
-	return 0
+	return classSingle
 }
 
 func isSpace(s string) bool {
 	r, _ := utf8.DecodeRuneInString(s)
-	return runeClass(r) == 2
+	return runeClass(r) == classSpace
 }
