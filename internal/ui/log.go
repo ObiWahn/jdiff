@@ -16,11 +16,27 @@ import (
 // LoadFunc returns the files a commit changed.
 type LoadFunc func(gitsrc.Commit) ([]source.File, error)
 
+// CountFunc returns the line counts of the commits with the given hashes.
+type CountFunc func(hashes []string) (map[string]gitsrc.LineCounts, error)
+
+// countsMsg brings the line counts of the commits hashes, or why they could
+// not be counted.
+type countsMsg struct {
+	hashes []string
+	counts map[string]gitsrc.LineCounts
+	err    error
+}
+
+// countWidth is the width the count columns keep while counts arrive, so
+// that they do not move with each batch.
+const countWidth = 4
+
 // commitEntry is one commit in the log. Its file selector is created on
 // first open and kept, so anchors survive going back to the list.
 type commitEntry struct {
 	gitsrc.Commit
-	app *App
+	counted bool // Added and Removed are known
+	app     *App
 }
 
 // Log is the Bubble Tea model of the commit list. Enter shows the files of
@@ -29,6 +45,12 @@ type Log struct {
 	cfg    *config.Config
 	branch string // shown above the commit list
 	load   LoadFunc
+	// counts counts the lines of the commits shown, in the background; nil
+	// when the commits came counted or counting failed.
+	counts   CountFunc
+	counting bool                    // a count is running
+	byHash   map[string]*commitEntry // the commits by hash
+	minCount int                     // the least width of the count columns
 
 	commits []*commitEntry
 	list
@@ -38,9 +60,14 @@ type Log struct {
 	prefix string // "'" while waiting for the letter of a mark
 }
 
-// NewLog returns the commit list for commits, newest first, of branch.
-func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load LoadFunc) *Log {
-	l := &Log{cfg: cfg, branch: branch, load: load}
+// NewLog returns the commit list for commits, newest first, of branch. With
+// counts, their line counts are counted once they are shown; without, they
+// come with the commits.
+func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load LoadFunc, counts CountFunc) *Log {
+	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1}
+	if counts != nil {
+		l.minCount = countWidth
+	}
 	var parts []*flowPart
 	for _, c := range commits {
 		// Commits are only shown: their text is made printable once.
@@ -50,8 +77,9 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 			body[i] = printable(line)
 		}
 		c.Body = strings.Join(body, "\n")
-		e := &commitEntry{Commit: c}
+		e := &commitEntry{Commit: c, counted: counts == nil}
 		l.commits = append(l.commits, e)
+		l.byHash[c.Hash] = e
 		parts = append(parts, newCommitPart(e))
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
@@ -68,41 +96,91 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 func (l *Log) Init() tea.Cmd { return nil }
 
 func (l *Log) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m, ok := msg.(countsMsg); ok {
+		l.addCounts(m)
+	} else if cmd := l.update(msg); cmd != nil {
+		return l, cmd
+	}
+	return l, l.countShown()
+}
+
+// countShown returns the command counting the lines of the commits on the
+// list's screen and a screen beyond that are not counted yet, or nil when
+// they are, a count is running or the list is not shown.
+func (l *Log) countShown() tea.Cmd {
+	if l.counts == nil || l.counting || l.open != nil || l.height == 0 {
+		return nil
+	}
+	var hashes []string
+	for i := l.top; i < min(l.top+2*l.listHeight(), len(l.commits)); i++ {
+		if e := l.commits[i]; !e.counted {
+			hashes = append(hashes, e.Hash)
+		}
+	}
+	if len(hashes) == 0 {
+		return nil
+	}
+	l.counting = true
+	counts := l.counts
+	return func() tea.Msg {
+		c, err := counts(hashes)
+		return countsMsg{hashes, c, err}
+	}
+}
+
+// addCounts takes the line counts of m. After an error the counts are not
+// tried again: the list stays without them.
+func (l *Log) addCounts(m countsMsg) {
+	l.counting = false
+	if m.err != nil {
+		l.counts = nil
+		l.setMsg("line counts: " + m.err.Error())
+		return
+	}
+	for _, h := range m.hashes {
+		if e := l.byHash[h]; e != nil {
+			c := m.counts[h]
+			e.Added, e.Removed, e.counted = c.Added, c.Removed, true
+		}
+	}
+}
+
+func (l *Log) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		l.width, l.height = msg.Width, msg.Height
 		l.scrollToCursor()
 		if l.flowShown() {
 			l.flow.Update(msg)
-			return l, nil
+			return nil
 		}
 	case backMsg:
 		l.open = nil
-		return l, nil
+		return nil
 	case switchCommitMsg:
 		l.switchCommit(int(msg))
-		return l, nil
+		return nil
 	case toggleFlowMsg:
 		l.toggleFlow()
 		if w := saveState(l.cfg); w != "" {
 			l.setMsg(w)
 		}
-		return l, nil
+		return nil
 	}
 	if l.flowShown() {
 		_, cmd := l.flow.Update(msg)
 		l.cursor, _, _ = l.flow.position()
 		l.scrollToCursor()
-		return l, cmd
+		return cmd
 	}
 	if l.open != nil {
 		_, cmd := l.open.app.Update(msg)
-		return l, cmd
+		return cmd
 	}
 	if k, ok := msg.(tea.KeyMsg); ok {
-		return l, pressKeys(k, l.key)
+		return pressKeys(k, l.key)
 	}
-	return l, nil
+	return nil
 }
 
 func (l *Log) key(k string) tea.Cmd {
@@ -283,7 +361,7 @@ func (l *Log) View() string {
 		return ""
 	}
 	t := l.cfg.Theme
-	addW, remW, authW, subjW, fixedW := 1, 1, 0, 0, 0
+	addW, remW, authW, subjW, fixedW := l.minCount, l.minCount, 0, 0, 0
 	for _, c := range l.commits {
 		addW = max(addW, len(fmt.Sprint(c.Added)))
 		remW = max(remW, len(fmt.Sprint(c.Removed)))

@@ -24,8 +24,11 @@ type Commit struct {
 	Subject        string
 	Body           string // the message after the subject, trimmed
 	Parent         string // first parent, empty for a root commit
-	Added, Removed int    // line counts as reported by git
+	Added, Removed int    // line counts, which Log leaves 0: see Counts
 }
+
+// LineCounts are the lines a commit added and removed.
+type LineCounts struct{ Added, Removed int }
 
 // Repo runs git in a directory; the empty Dir means the current directory.
 type Repo struct{ Dir string }
@@ -45,14 +48,15 @@ func (r Repo) git(args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// Log returns the commits git log selects with args, newest first. Merges
-// are counted against their first parent, as Files compares them.
-// Records start with RS, fields are separated by US and the body, which
-// may span lines, ends with GS before the numstat lines.
+// Log returns the commits git log selects with args, newest first, without
+// their line counts: counting diffs every commit, which takes seconds in a
+// long history, so Counts does it for the commits shown. Records start with
+// RS, fields are separated by US and the body, which may span lines, ends
+// with GS.
 func (r Repo) Log(args []string) ([]Commit, error) {
 	out, err := r.git(append([]string{"log",
 		"--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s%x1f%b%x1d",
-		"--date=short", "--numstat", "--diff-merges=first-parent"}, args...)...)
+		"--date=short"}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +65,7 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 		if rec == "" {
 			continue
 		}
-		header, stat, _ := strings.Cut(rec, "\x1d")
+		header, _, _ := strings.Cut(rec, "\x1d")
 		f := strings.Split(header, "\x1f")
 		if len(f) != 7 {
 			return nil, fmt.Errorf("git log: unexpected record %q", header)
@@ -69,6 +73,30 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 		c := Commit{Hash: f[0], Short: f[1], Author: f[2], Date: f[3], Subject: f[5],
 			Body: strings.TrimSpace(f[6])}
 		c.Parent, _, _ = strings.Cut(f[4], " ")
+		commits = append(commits, c)
+	}
+	return commits, nil
+}
+
+// Counts returns the lines the commits hashes added and removed, by hash.
+// Merges are counted against their first parent, as Files compares them,
+// root commits against the empty tree; binary files are not counted.
+func (r Repo) Counts(hashes []string) (map[string]LineCounts, error) {
+	counts := map[string]LineCounts{}
+	if len(hashes) == 0 {
+		return counts, nil
+	}
+	out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--format=%x1e%H", "--numstat",
+		"--diff-merges=first-parent", "--end-of-options"}, hashes...)...)
+	if err != nil {
+		return nil, err
+	}
+	for rec := range strings.SplitSeq(string(out), "\x1e") {
+		hash, stat, _ := strings.Cut(rec, "\n")
+		if hash == "" {
+			continue
+		}
+		var c LineCounts
 		for line := range strings.SplitSeq(stat, "\n") {
 			// "added<TAB>removed<TAB>path"; binary files show "-".
 			parts := strings.SplitN(line, "\t", 3)
@@ -82,9 +110,9 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 				c.Removed += removed
 			}
 		}
-		commits = append(commits, c)
+		counts[hash] = c
 	}
-	return commits, nil
+	return counts, nil
 }
 
 // TopLevel returns the top directory of the repository, or an error outside

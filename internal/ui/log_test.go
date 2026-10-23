@@ -2,7 +2,10 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -50,7 +53,7 @@ func newTestLog() (*Log, map[string]int) {
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
 	commits[0].Body = "body c3"
-	l := NewLog(config.Default(), "main", commits, load)
+	l := NewLog(config.Default(), "main", commits, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return l, loads
 }
@@ -458,7 +461,7 @@ func TestLogExpandsTabsInCommits(t *testing.T) {
 	load := func(gitsrc.Commit) ([]source.File, error) {
 		return []source.File{modified("a.go", []string{"1"}, []string{"2"})}, nil
 	}
-	l := NewLog(config.Default(), "main", commits, load)
+	l := NewLog(config.Default(), "main", commits, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	if line := rawText(l.View(), 60); line != "" {
 		t.Errorf("commit list line with raw text: %q", line)
@@ -486,5 +489,102 @@ func TestMarkOnCommitListExplains(t *testing.T) {
 	}
 	if l.open != nil || l.cursor != 0 {
 		t.Errorf("the mark letter moved the list: open %v, cursor %d", l.open, l.cursor)
+	}
+}
+
+// newCountingLog returns a log of 100 commits h0 to h99 whose line counts
+// come from a counter, +n+1 -2 for hn, and the hashes it was asked for, per
+// call.
+func newCountingLog(fail bool) (*Log, *[][]string) {
+	var commits []gitsrc.Commit
+	for i := range 100 {
+		h := fmt.Sprintf("h%d", i)
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+	}
+	var asked [][]string
+	counts := func(hashes []string) (map[string]gitsrc.LineCounts, error) {
+		asked = append(asked, hashes)
+		if fail {
+			return nil, errors.New("git broke")
+		}
+		out := map[string]gitsrc.LineCounts{}
+		for _, h := range hashes {
+			n, _ := strconv.Atoi(h[1:])
+			out[h] = gitsrc.LineCounts{Added: n + 1, Removed: 2}
+		}
+		return out, nil
+	}
+	return NewLog(config.Default(), "main", commits, nil, counts), &asked
+}
+
+// listLine returns the line of the commit list that shows commit short.
+func listLine(l *Log, short string) string {
+	for _, line := range strings.Split(ansi.Strip(l.View()), "\n") {
+		if strings.HasPrefix(line, " "+short+" ") {
+			return line
+		}
+	}
+	return ""
+}
+
+func TestLogCountsInBackground(t *testing.T) {
+	l, asked := newCountingLog(false)
+	_, cmd := l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	// The list is drawn before any count: blank count columns.
+	before := listLine(l, "h0")
+	if len(*asked) != 0 || cmd == nil || strings.Contains(before, "+") {
+		t.Fatalf("before counting: asked %v, cmd %v, h0 line %q", *asked, cmd != nil, before)
+	}
+	// While the count runs, keys work and start no second count.
+	if _, cmd2 := l.Update(keyMsg("j")); cmd2 != nil || l.cursor != 1 {
+		t.Errorf("j while counting: cursor %d, cmd %v; want 1 and no second count", l.cursor, cmd2 != nil)
+	}
+	_, cmd = l.Update(cmd())
+	// The 4 commits shown and 4 beyond, at once.
+	if want := []string{"h0", "h1", "h2", "h3", "h4", "h5", "h6", "h7"}; len(*asked) != 1 || !slices.Equal((*asked)[0], want) {
+		t.Errorf("first count asked %v, want %v", *asked, want)
+	}
+	if cmd != nil {
+		t.Error("all commits near the screen are counted, yet another count follows")
+	}
+	after := listLine(l, "h0")
+	if !strings.Contains(after, "+1") || !strings.Contains(after, "-2") {
+		t.Errorf("h0 after counting: %q, want +1 -2", after)
+	}
+	// The columns keep their place as counts arrive.
+	if strings.Index(before, "subject") != strings.Index(after, "subject") {
+		t.Errorf("subject moved from column %d to %d:\n%q\n%q", strings.Index(before, "subject"),
+			strings.Index(after, "subject"), before, after)
+	}
+
+	// At the end of the list, its commits are counted, the ones between not.
+	pressLog(l, "G")
+	if line := listLine(l, "h99"); !strings.Contains(line, "+100") {
+		t.Errorf("G: h99 line %q, want +100", line)
+	}
+	seen := map[string]bool{}
+	for _, call := range *asked {
+		for _, h := range call {
+			if seen[h] {
+				t.Errorf("%s counted twice: %v", h, *asked)
+			}
+			seen[h] = true
+		}
+	}
+	if seen["h50"] {
+		t.Errorf("h50, never near the screen, was counted: %v", *asked)
+	}
+}
+
+func TestLogCountsFail(t *testing.T) {
+	l, asked := newCountingLog(true)
+	_, cmd := l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	l.Update(cmd()) // the first count, which fails
+	if !strings.Contains(l.msg, "line counts: git broke") {
+		t.Errorf("msg %q, want the error", l.msg)
+	}
+	pressLog(l, "G", "g")
+	if len(*asked) != 1 {
+		t.Errorf("counted %d times after an error, want once: %v", len(*asked), *asked)
 	}
 }

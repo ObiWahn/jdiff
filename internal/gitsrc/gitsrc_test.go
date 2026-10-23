@@ -69,20 +69,51 @@ func TestLog(t *testing.T) {
 	if root.Parent != "" || second.Parent != root.Hash || merge.Parent != second.Hash {
 		t.Errorf("parents: root %q second %q merge %q", root.Parent, second.Parent, merge.Parent)
 	}
-	if root.Added != 7 || root.Removed != 0 {
-		t.Errorf("root counts +%d -%d, want +7 -0", root.Added, root.Removed)
-	}
-	if second.Added != 2 || second.Removed != 1 {
-		t.Errorf("second counts +%d -%d, want +2 -1 (binary not counted)", second.Added, second.Removed)
-	}
-	if merge.Added != 1 || merge.Removed != 0 {
-		t.Errorf("merge counts +%d -%d, want +1 -0 against the first parent", merge.Added, merge.Removed)
+	if root.Added != 0 || second.Added != 0 {
+		t.Errorf("Log counted lines: root +%d, second +%d; Counts does", root.Added, second.Added)
 	}
 	if second.Body != "first body line\nsecond body line" || root.Body != "" {
 		t.Errorf("bodies: second %q root %q", second.Body, root.Body)
 	}
 	if root.Short == "" || root.Author != "T" || root.Date == "" {
 		t.Errorf("root = %+v", root)
+	}
+}
+
+func TestCounts(t *testing.T) {
+	r := newRepo(t)
+	commits, err := r.Log([]string{"--first-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	merge, second, root := commits[0], commits[1], commits[2]
+	// Asked in another order than the log's: each gets its own counts.
+	counts, err := r.Counts([]string{root.Hash, merge.Hash, second.Hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, hash     string
+		added, removed int
+		why            string
+	}{
+		{"root", root.Hash, 7, 0, "against the empty tree"},
+		{"second", second.Hash, 2, 1, "binary not counted"},
+		{"merge", merge.Hash, 1, 0, "against the first parent"},
+	} {
+		got, ok := counts[c.hash]
+		if !ok || got.Added != c.added || got.Removed != c.removed {
+			t.Errorf("%s: %+v (found %v), want +%d -%d (%s)", c.name, got, ok, c.added, c.removed, c.why)
+		}
+	}
+	if len(counts) != 3 {
+		t.Errorf("%d counts for 3 commits: %v", len(counts), counts)
+	}
+	if counts, err := r.Counts(nil); err != nil || len(counts) != 0 {
+		t.Errorf("no commits: %v, %v", counts, err)
+	}
+	if _, err := r.Counts([]string{"no-such-commit"}); err == nil {
+		t.Error("Counts of an unknown commit succeeded")
 	}
 }
 

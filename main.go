@@ -114,7 +114,7 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	if len(commits) == 0 {
 		return nil, fmt.Errorf("no commits")
 	}
-	return ui.NewLog(cfg, repo.Branch(), commits, repo.Files), nil
+	return ui.NewLog(cfg, repo.Branch(), commits, repo.Files, repo.Counts), nil
 }
 
 func fatal(err error) {
