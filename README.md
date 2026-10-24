@@ -12,34 +12,29 @@ jdiff is inspired by [delta](https://github.com/dandavison/delta), the syntax-hi
 delta formats the output of git once and hands it to a pager; jdiff is a program you work in, so it can do what a pager cannot:
 
 - **Resizing:** the diff is laid out again when the terminal changes size; delta lays it out once, for the width it started with.
-- **Switching the layout:** `s` switches between side by side and one column while you look at the diff; in delta, side by side is chosen at startup.
-- **More or less context:** unchanged code folds and unfolds with `space`; delta shows the context lines git gave it.
+- **Switching the layout:** two panes or one column like `git diff`; `s` switches between them while you look at the diff. In delta, side by side is chosen at startup.
+- **Reflow:** `r` switches between wrapping long lines onto further lines, marked `↪`, and cutting them; delta wraps a line as often as `--wrap-max-lines` allows, set at startup, and truncates the rest.
+  - A cut line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
+- **More or less context:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them. delta shows the context lines git gave it.
 - **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
-- **Following moved code:** like delta, jdiff colors moved code; `o` jumps to its other end, also into another file.
-- **Auto reload:** files on disk are watched; when you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. delta shows the diff as it was when git ran.
-- **Anchors and jump marks:** you fix the alignment by hand and mark lines to come back to.
-
-delta highlights syntax; jdiff does not.
-
-## What it can do
-
-- **Compare two files**, two directories (`git difftool --dir-diff`), what `git diff` shows (`jdiff diff`, e.g. `--cached` for the index), or the commits of `git log`.
-- **Side by side or normal layout:** two panes or one column like `git diff`; `s` switches between them.
-- **Word-level highlighting** of changed lines. Indentation changes are shown character by character, so only the added or removed part is marked.
+- **Following moved code:** like delta, jdiff colors blocks moved within a file or between the files of one commit or diff, magenta where they moved away and cyan where they moved to, as git's `--color-moved` does. `o` jumps to the other end, also into another file.
+- **Auto reload:** outside the log, files on disk are watched (by default every second). When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. delta shows the diff as it was when git ran.
 - **Anchors:** mark a line with `enter`, then its partner in the other pane. jdiff realigns around it. Anchors that would cross are offered for replacement.
-- **Folding:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them.
-- **Moved code:** blocks moved within a file or between the files of one commit or diff are shown in magenta (moved away) and cyan (moved here), like git's `--color-moved`. `o` jumps to the other end, also into another file.
-- **Flow view (`f`):** all files of a diff, or all commits of the log, one after the other in one scrollable view. Commits load as they come near the cursor.
-  - `c` shows the full commit messages or only their subjects.
-  - `C` keeps the cursor inside the current commit.
 - **Jump marks:** `m` plus a letter marks a line of the new file, `'` plus the letter jumps back to it within the diff. `\` lists the marks; there, `enter` jumps and `d` deletes.
   - Marks are kept per repository and survive restarts.
   - A mark finds its line again by its text when the file changed.
-- **Live reload:** outside the log, files on disk are watched (by default every second). When a file changes, its diff is updated, and anchors, folds and the cursor follow their lines.
+
+delta highlights syntax; jdiff does not.
+
+## What else it can do
+
+- **Compare two files**, two directories (`git difftool --dir-diff`), what `git diff` shows (`jdiff diff`, e.g. `--cached` for the index), or the commits of `git log`.
+- **Word-level highlighting** of changed lines. Indentation changes are shown character by character, so only the added or removed part is marked.
+- **Flow view (`f`):** all files of a diff, or all commits of the log, one after the other in one scrollable view. Commits load as they come near the cursor.
+  - `c` shows the full commit messages or only their subjects.
+  - `C` keeps the cursor inside the current commit.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
-- **Cut lines:** without wrapping (`r`), a line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
 - **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
-- **Line wrap (reflow):** `r` wraps long lines onto further lines, marked `↪`, instead of cutting them; off, `h` and `l` scroll them.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
 
 ## Install
