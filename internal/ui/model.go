@@ -114,6 +114,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitChanges(m.notify)
 	case refreshMsg:
 		m.refresh()
+	case findMsg:
+		m.findText(int(msg))
 	}
 	return m, nil
 }
@@ -194,6 +196,12 @@ func (m *Model) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
+	case searchKey:
+		return askSearch
+	case nextKey:
+		m.findText(1)
+	case prevKey:
+		m.findText(-1)
 	case "f":
 		if m.canBack {
 			return toggleFlow

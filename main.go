@@ -80,8 +80,9 @@ func main() {
 		fatal(err)
 	}
 	// d replaces whatever is shown by the files of git diff, which runs in
-	// the current directory; the popups are put around the new view too.
-	wrap := func(m tea.Model) tea.Model { return ui.WithHelp(cfg, ui.WithMarks(cfg, m)) }
+	// the current directory; the search bar and the popups are put around
+	// the new view too.
+	wrap := func(m tea.Model) tea.Model { return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m))) }
 	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitsrc.Repo{}.Diff))
 	if _, err := tea.NewProgram(page, tea.WithAltScreen()).Run(); err != nil {
 		fatal(err)

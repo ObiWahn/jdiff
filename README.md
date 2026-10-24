@@ -34,6 +34,7 @@ delta highlights syntax; jdiff does not.
 - **Flow view (`f`):** all files of a diff, or all commits of the log, one after the other in one scrollable view. Commits load as they come near the cursor.
   - `c` shows the full commit messages or only their subjects.
   - `C` keeps the cursor inside the current commit.
+- **Search:** `/` searches the diff, as plain text or a regular expression, `.` and `,` go to the next and previous match, in the flow view through all files, in the log within the current commit.
 - **Long lists:** when the file or commit list, the help or the jump list goes on above or below, its first or last row says so, e.g. `↓ 21 more`; an arrow never stands for a single item, which is shown instead.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
 - **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
@@ -138,6 +139,8 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `tab` | switch pane |
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
 | `esc` | cancel the mark |
+| `/` | search in a bar at the bottom: type the text, `tab` switches between plain text and a regular expression (Go syntax), `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
+| `.` `,` | next, previous match; past the last or first one the cursor stays. In the flow view in all files, in the log in those of the current commit: `N` `P` go to the others |
 | `o` | other end of moved code |
 | `m`*letter* | set a jump mark on the line of the new file |
 | `'`*letter* | jump to a mark, when its file is in this diff |
@@ -234,7 +237,7 @@ sand = "#c2b280"
 The options:
 
 - From delta: `minus-style`, `minus-emph-style`, `minus-non-emph-style`, `plus-style`, `plus-emph-style`, `plus-non-emph-style`, `zero-style`, `line-numbers-minus-style`, `line-numbers-plus-style`, `line-numbers-zero-style`, `line-numbers-left-style`, `line-numbers-right-style`, `file-style`, `file-decoration-style`, `inline-hint-style`, `file-added-label`, `file-removed-label`, `file-modified-label`, `file-renamed-label`.
-- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
+- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `search-style` (text found by `/`), `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`.
 
 Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`, …), then a foreground and a background color, given as a name, `bright-` name, 0–255 or `#rrggbb`. Colors beyond the 16 ANSI colors are mapped to the nearest one.
 

@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -38,6 +39,29 @@ type Config struct {
 	statePath string   // where SaveState writes, empty for no state file
 
 	marks marksState // jump marks, see LoadMarks
+
+	// Search is what / searched for, which . and , search again and the
+	// views highlight; it is not saved.
+	Search Search
+}
+
+// Query is a search of /: plain text, or with Regex a regular expression.
+type Query struct {
+	Text  string
+	Regex bool
+}
+
+// Search is the state of /: the query searched for last, empty for none,
+// and all searched for, oldest first.
+type Search struct {
+	Query
+	History []Query
+}
+
+// Add makes q the query searched for, last in the history, once.
+func (s *Search) Add(q Query) {
+	s.Query = q
+	s.History = append(slices.DeleteFunc(s.History, func(h Query) bool { return h == q }), q)
 }
 
 // Default returns the default theme and settings, without files.

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -36,6 +37,10 @@ type lineStyles struct {
 	showCR bool
 	// hidden is the style of ☠, drawn for invisible characters.
 	hidden lipgloss.Style
+	// matches are the parts of the line found by /, drawn in match over all
+	// other styles.
+	matches []diff.Span
+	match   lipgloss.Style
 }
 
 // painter draws text in a style as lipgloss renders it, without the cost of
@@ -91,7 +96,7 @@ func (d *fileDiff) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Styl
 // help returns the keys of the status bar, in the order of all pages: n/p,
 // f and backspace when shown from a file list, N/P in the log.
 func (m *Model) help() string {
-	keys := []string{"enter mark/anchor", "space fold", "]/[ change"}
+	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "/ search"}
 	if m.canBack {
 		keys = append(keys, "n/p file")
 	}
@@ -346,8 +351,11 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	default:
 		st.base = lineStyle
 	}
+	if m := matcherOf(d.cfg.Search.Query); m != nil {
+		st.matches, st.match = m.spans(d.lines[s][line]), t.Search
+	}
 	// The pieces of a wrapped line are drawn from one highlight of it.
-	key := highlightKey{line, d.aligns, cursor, moved, d.cfg.Settings, t}
+	key := highlightKey{line, d.aligns, cursor, moved, d.cfg.Search.Query, d.cfg.Settings, t}
 	if c := &d.highlighted[s]; !c.ok || c.key != key {
 		*c = highlightCache{key, highlight(d.lines[s][line], spans, st), true}
 	}
@@ -402,7 +410,7 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 	var b strings.Builder
 	col := 0
 	pBase, pEmph, pSpace, pWS := newPainter(st.base), newPainter(st.emph), newPainter(st.space), newPainter(st.ws)
-	pTrailing, pHidden := newPainter(st.trailing), newPainter(st.hidden)
+	pTrailing, pHidden, pMatch := newPainter(st.trailing), newPainter(st.hidden), newPainter(st.match)
 	render := func(part string, p painter, visible bool) {
 		if part == "" {
 			return
@@ -425,7 +433,7 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 		return 0
 	}
 	// renderPart splits a part into hidden, whitespace and other runs.
-	renderPart := func(part string, emph bool) {
+	renderPart := func(part string, emph, match bool) {
 		for part != "" {
 			r, _ := utf8.DecodeRuneInString(part)
 			c := class(r)
@@ -447,6 +455,8 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 			trailing := ws && at >= trailFrom
 			at += i
 			switch {
+			case match: // found by /: over all styles, whitespace visible as around
+				render(run, pMatch, ws && (st.showAll || trailing && st.showTrailing))
 			case trailing && st.showTrailing:
 				render(run, pTrailing, true)
 			case ws && emph && !st.plainSpace && mark:
@@ -463,18 +473,25 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 			part = part[i:]
 		}
 	}
-	pos := 0
+	// The line is drawn in parts between the edges of the spans and the
+	// matches, each emphasized or found by / or not.
+	cuts := []int{0, len(text)}
 	for _, sp := range spans {
-		end := min(sp.End, len(text))
 		changedCR = changedCR || sp.End > len(text)
-		if sp.Start >= end {
-			continue // the \r alone
-		}
-		renderPart(text[pos:sp.Start], false)
-		renderPart(text[sp.Start:end], true)
-		pos = end
+		cuts = append(cuts, min(sp.Start, len(text)), min(sp.End, len(text)))
 	}
-	renderPart(text[pos:], false)
+	for _, sp := range st.matches {
+		cuts = append(cuts, min(sp.Start, len(text)), min(sp.End, len(text)))
+	}
+	slices.Sort(cuts)
+	cuts = slices.Compact(cuts)
+	in := func(spans []diff.Span, at int) bool {
+		return slices.ContainsFunc(spans, func(sp diff.Span) bool { return at >= sp.Start && at < sp.End })
+	}
+	for i := 0; i+1 < len(cuts); i++ {
+		from, to := cuts[i], cuts[i+1]
+		renderPart(text[from:to], in(spans, from), in(st.matches, from))
+	}
 	if cr && (changedCR || st.showCR) {
 		style := st.ws
 		if changedCR {

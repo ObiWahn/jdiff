@@ -60,6 +60,8 @@ var bindings = []binding{
 	{"", "  enter on an anchored line removes the anchor"},
 	{"", "  normal layout: unchanged lines take the side opposite the mark"},
 	{"esc", "cancel the mark"},
+	{"/", "search: enter find, tab text or regex, ↑ ↓ earlier searches"},
+	{". ,", "next, previous match; in the flow view in all files of the commit"},
 	{"s", "side by side or normal layout"},
 	{"w", "show all whitespace and line ends or only changed"},
 	{"W", "mark changed whitespace or not"},
@@ -202,10 +204,15 @@ func (h *Help) View() string {
 // overlay draws the popup pop, w columns wide, centered over base, which
 // is width columns wide.
 func overlay(base, pop string, w, width int) string {
+	y := max((strings.Count(base, "\n")+1-strings.Count(strings.TrimSuffix(pop, "\n"), "\n")-1)/2, 0)
+	return overlayAt(base, pop, max((width-w)/2, 0), y, w, width)
+}
+
+// overlayAt draws the popup pop, w columns wide, over base, which is width
+// columns wide, from column x of row y on.
+func overlayAt(base, pop string, x, y, w, width int) string {
 	rows := strings.Split(base, "\n")
 	popRows := strings.Split(strings.TrimSuffix(pop, "\n"), "\n")
-	y := max((len(rows)-len(popRows))/2, 0)
-	x := max((width-w)/2, 0)
 	for i, p := range popRows {
 		if y+i >= len(rows) {
 			break

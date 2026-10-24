@@ -117,6 +117,8 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 	case tea.KeyMsg:
 		cmd = pressKeys(msg, f.key)
+	case findMsg:
+		f.findText(int(msg))
 	}
 	f.loadVisible()
 	return f, cmd
@@ -189,6 +191,12 @@ func (f *Flow) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
+	case searchKey:
+		return askSearch
+	case nextKey:
+		f.findText(1)
+	case prevKey:
+		f.findText(-1)
 	case "o":
 		f.jump()
 	case "m":
@@ -797,7 +805,7 @@ func (f *Flow) scrollToCursor() {
 
 // help returns the keys of the status bar, in the order of all pages.
 func (f *Flow) help() string {
-	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "n/p file"}
+	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "/ search", "n/p file"}
 	if f.inLog() {
 		keys = append(keys, "N/P commit")
 	}

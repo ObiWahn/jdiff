@@ -223,3 +223,13 @@ func TestMoreStyle(t *testing.T) {
 		t.Errorf("jdiff.more-style: %v, want bright blue bold", th.More.GetForeground())
 	}
 }
+
+func TestSearchStyle(t *testing.T) {
+	if st := Default().Search; st.GetForeground() != lipgloss.Color("0") || st.GetBackground() != lipgloss.Color("3") {
+		t.Errorf("search matches %v on %v, want black on yellow", st.GetForeground(), st.GetBackground())
+	}
+	th := Resolve(FromGit(Config{"jdiff.search-style": "reverse bright-magenta"}, nil))
+	if !th.Search.GetReverse() || th.Search.GetForeground() != lipgloss.Color("13") {
+		t.Errorf("jdiff.search-style: %v", th.Search.GetForeground())
+	}
+}

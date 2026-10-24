@@ -786,8 +786,8 @@ func TestStatusBarKeys(t *testing.T) {
 	}{
 		{nil, "enter open · f flow · v message · d git diff · ? help · q quit"},
 		{[]string{"enter"}, "enter open · N/P commit · f flow · v preview · d git diff · backspace commits · ? help · q quit"},
-		{[]string{"enter"}, "enter mark/anchor · space fold · ]/[ change · n/p file · N/P commit · f flow · d git diff · backspace files · ? help · q quit"},
-		{[]string{"f"}, "enter mark/anchor · space fold · ]/[ change · n/p file · N/P commit · f single file · d git diff · backspace files · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · backspace files · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · backspace files · ? help · q quit"},
 	} {
 		pressLog(l, tt.keys...)
 		if got := status(); !strings.HasPrefix(got, tt.want) {
@@ -801,7 +801,7 @@ func TestStatusBarKeys(t *testing.T) {
 	}
 	// Two files, without a list: neither n/p, N/P, f nor backspace.
 	m := newTestModel([]string{"a"}, []string{"b"})
-	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · d git diff · ? help · q quit" {
+	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · ? help · q quit" {
 		t.Errorf("two files: %q", got)
 	}
 }

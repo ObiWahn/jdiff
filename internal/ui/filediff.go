@@ -133,11 +133,12 @@ type fileDiff struct {
 }
 
 // highlightKey is what the highlight of a line depends on: the line, its row
-// in the alignment, the cursor on it, whether it moved, the settings and the
-// theme.
+// in the alignment, the cursor on it, whether it moved, the text searched
+// for, the settings and the theme.
 type highlightKey struct {
 	line, aligns  int
 	cursor, moved bool
+	search        config.Query
 	settings      settings.Settings
 	theme         *theme.Theme
 }
