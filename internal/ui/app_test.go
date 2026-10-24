@@ -319,3 +319,189 @@ func TestAppWithoutRelist(t *testing.T) {
 		t.Errorf("msg %q", a.msg)
 	}
 }
+
+// fakeGitDiff records the arguments git diff runs with and returns a file
+// named after them, or err when set.
+type fakeGitDiff struct {
+	runs [][]string
+	err  error
+}
+
+func (g *fakeGitDiff) diff(args []string) ([]source.File, error) {
+	g.runs = append(g.runs, args)
+	if g.err != nil {
+		return nil, g.err
+	}
+	name := strings.Join(append([]string{"diff"}, args...), "_") + ".go"
+	return []source.File{
+		{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true},
+		{Path: "other.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+	}, nil
+}
+
+// newDiffSwitch returns the switch around view, wrapped in the help popup.
+func newDiffSwitch(view tea.Model) (*DiffSwitch, *fakeGitDiff) {
+	g := &fakeGitDiff{}
+	wrap := func(m tea.Model) tea.Model { return WithHelp(config.Default(), m) }
+	s := WithDiffSwitch(config.Default(), view, wrap, g.diff)
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	return s, g
+}
+
+// shownApp returns the file selector s shows, failing when it shows another
+// view.
+func shownApp(t *testing.T, s *DiffSwitch) *App {
+	t.Helper()
+	a, ok := s.view.(*App)
+	if !ok {
+		t.Fatalf("shows %T, want the file selector", s.view)
+	}
+	return a
+}
+
+func TestDiffSwitchTyped(t *testing.T) {
+	g := &fakeGitDiff{}
+	start := NewApp(config.Default(), []source.File{
+		{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+		{Path: "b.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+	}).WithGitDiff([]string{"--cached"}, g.diff)
+	s, _ := newDiffSwitch(start)
+	s.gitDiff = g.diff
+
+	pressRoot(s, "d")
+	if popup := ansi.Strip(s.View()); s.input == nil ||
+		!strings.Contains(popup, "╭─ git diff  enter show · ↑ current · esc cancel") || strings.Contains(popup, "working tree") {
+		t.Errorf("d: popup\n%s", popup)
+	}
+	// ? goes into the line, not to the help popup around the view.
+	pressRoot(s, "HEAD~3 HEAD", "?", "backspace")
+	if line := popupLine(t, s, "HEAD~3 HEAD█"); strings.TrimSpace(line) != "HEAD~3 HEAD█" {
+		t.Errorf("typed: line %q", line)
+	}
+	pressRoot(s, "enter")
+	a := shownApp(t, s)
+	if a == start || s.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
+		t.Fatalf("enter: runs %v, a new view %v", g.runs, a != start)
+	}
+	view := ansi.Strip(s.View())
+	for _, want := range []string{"git diff HEAD~3 HEAD", "diff_HEAD~3_HEAD.go", "git diff HEAD~3 HEAD: 2 files"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("view lacks %q:\n%s", want, view)
+		}
+	}
+	// R runs the new arguments again; up takes them to edit.
+	pressRoot(s, "R")
+	if len(g.runs) != 2 || !slices.Equal(g.runs[1], []string{"HEAD~3", "HEAD"}) {
+		t.Errorf("R after the switch: runs %v", g.runs)
+	}
+	pressRoot(s, "d", "up")
+	if s.input.text != "HEAD~3 HEAD" {
+		t.Errorf("up: %q, want the current arguments", s.input.text)
+	}
+	pressRoot(s, "esc")
+	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a || strings.Contains(s.View(), "╭─ git diff") {
+		t.Errorf("esc: still asking %v, runs %v", s.input != nil, g.runs)
+	}
+	// enter on the empty line changes nothing.
+	pressRoot(s, "d", "enter")
+	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a {
+		t.Errorf("enter on the empty line: still asking %v, runs %v", s.input != nil, g.runs)
+	}
+}
+
+// popupLine returns the line of the popup of s that holds want, without
+// the borders, its spaces kept, failing when there is none.
+func popupLine(t *testing.T, s *DiffSwitch, want string) string {
+	t.Helper()
+	for _, row := range strings.Split(ansi.Strip(s.View()), "\n") {
+		if strings.Contains(row, want) {
+			_, in, _ := strings.Cut(row, "│ ")
+			in, _, _ = strings.Cut(in, " │")
+			return in
+		}
+	}
+	t.Fatalf("no popup line holds %q:\n%s", want, ansi.Strip(s.View()))
+	return ""
+}
+
+func TestDiffSwitchPopup(t *testing.T) {
+	s, g := newDiffSwitch(newTestApp()) // 100 columns
+	pressRoot(s, "d")
+	if strings.Contains(s.View(), "↑ current") {
+		t.Error("offers the current arguments without a git diff shown")
+	}
+	// The line is centered in the popup, at least minInputWidth wide.
+	pressRoot(s, "wip")
+	line := popupLine(t, s, "wip█")
+	if ansi.StringWidth(line) != minInputWidth || strings.TrimSpace(line) != "wip█" ||
+		len(line)-len(strings.TrimLeft(line, " ")) != (minInputWidth-4)/2 {
+		t.Errorf("short line %q, want it centered in %d columns", line, minInputWidth)
+	}
+	// A longer one widens the popup.
+	long := "feature/" + strings.Repeat("x", 50) + " HEAD"
+	pressRoot(s, "ctrl+u", long)
+	if line := popupLine(t, s, "HEAD█"); strings.TrimSpace(line) != long+"█" {
+		t.Errorf("long line %q, want all of it", line)
+	}
+	// Past the screen, the start is cut and the end stays in view.
+	pressRoot(s, " "+strings.Repeat("y", 60))
+	line = popupLine(t, s, "y█")
+	if ansi.StringWidth(line) != 100-4 || !strings.HasSuffix(line, "yyy█") || strings.Contains(line, "feature") {
+		t.Errorf("line past the screen %q, want its end in 96 columns", line)
+	}
+	for i, row := range strings.Split(s.View(), "\n") {
+		if w := ansi.StringWidth(row); w > 100 {
+			t.Errorf("row %d is %d columns wide, more than the screen", i, w)
+		}
+	}
+	// Letters are text: w, i and h too.
+	pressRoot(s, "ctrl+u", "w", "enter")
+	if len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"w"}) {
+		t.Errorf("w: runs %q", g.runs)
+	}
+}
+
+func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "enter", "enter") // c3, a.go
+	s, g := newDiffSwitch(l)
+	pressRoot(s, "d")
+	if strings.Contains(s.View(), "current") {
+		t.Error("the log offers its current git diff arguments")
+	}
+	pressRoot(s, "HEAD", "enter")
+	if a := shownApp(t, s); a.inLog() || a.gitDiff == nil || len(g.runs) != 1 {
+		t.Errorf("from the log: in log %v, runs %v", a.inLog(), g.runs)
+	}
+	// backspace stays in the file list: the log is gone.
+	pressRoot(s, "backspace")
+	shownApp(t, s)
+
+	s, g = newDiffSwitch(newTestModel([]string{"a"}, []string{"b"}))
+	pressRoot(s, "d", "--cached", "enter")
+	if a := shownApp(t, s); !slices.Equal(a.diffArgs, []string{"--cached"}) || len(g.runs) != 1 {
+		t.Errorf("from two files: args %v runs %v", a.diffArgs, g.runs)
+	}
+}
+
+func TestDiffSwitchFails(t *testing.T) {
+	m := newTestModel([]string{"a"}, []string{"b"})
+	s, g := newDiffSwitch(m)
+	g.err = errors.New("git diff: fatal: bad revision 'HEAD~99'\nmore lines of git")
+	pressRoot(s, "d", "HEAD~99", "enter")
+	// The popup stays with the line typed, to be fixed, and git's first line.
+	view := ansi.Strip(s.View())
+	if s.view != m || s.input == nil || !strings.Contains(view, " HEAD~99█ ") ||
+		!strings.Contains(view, "bad revision 'HEAD~99'") || strings.Contains(view, "more lines") {
+		t.Fatalf("failed git: shows %T, popup\n%s", s.view, view)
+	}
+	// The message goes with the next key; esc closes the popup, the view stays.
+	pressRoot(s, "backspace")
+	if strings.Contains(s.View(), "bad revision") {
+		t.Error("the message stays after the next key")
+	}
+	pressRoot(s, "esc")
+	if s.input != nil || s.view != m {
+		t.Errorf("esc after the failure: still asking %v, shows %T", s.input != nil, s.view)
+	}
+}

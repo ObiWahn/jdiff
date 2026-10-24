@@ -60,6 +60,15 @@ func refreshed(added, gone, changed, dropped int) string {
 	return strings.Join(parts, ", ")
 }
 
+// diffKey asks for the arguments of git diff to show instead of what is
+// shown.
+const diffKey = "d"
+
+// askDiffMsg asks DiffSwitch for the arguments of git diff to show next.
+type askDiffMsg struct{}
+
+func askDiff() tea.Msg { return askDiffMsg{} }
+
 // toggleFlowMsg asks the log or the file selector to switch between the diff
 // view of one file and the flow view of all files.
 type toggleFlowMsg struct{}

@@ -187,6 +187,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.delegate(k)
 	case "R", "f5":
 		return refreshAll
+	case diffKey:
+		return askDiff
 	case "o":
 		f.jump()
 	case "m":

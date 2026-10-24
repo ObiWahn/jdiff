@@ -29,6 +29,7 @@ delta highlights syntax; jdiff does not.
 ## What else it can do
 
 - **Compare two files**, two directories (`git difftool --dir-diff`), what `git diff` shows (`jdiff diff`, e.g. `--cached` for the index), or the commits of `git log`.
+- **Switch what is compared:** `d` asks in a popup for the arguments of `git diff`, e.g. `HEAD~3 HEAD`, and shows its files instead of what is shown, from any view, also from the log.
 - **Word-level highlighting** of changed lines. Indentation changes are shown character by character, so only the added or removed part is marked.
 - **Flow view (`f`):** all files of a diff, or all commits of the log, one after the other in one scrollable view. Commits load as they come near the cursor.
   - `c` shows the full commit messages or only their subjects.
@@ -164,6 +165,7 @@ The keys of the diff view, and:
 | Key | Action |
 |---|---|
 | `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
+| `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, `enter` show, `esc` or `enter` on nothing typed cancel. When git fails, the popup stays and says why. |
 | `R` `F5` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `?` | help |
 | `q` `ctrl+c` | quit |

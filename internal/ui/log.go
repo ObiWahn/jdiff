@@ -238,6 +238,8 @@ func (l *Log) key(k string) tea.Cmd {
 		return toggleFlow
 	case "R", "f5":
 		return refreshAll
+	case diffKey:
+		return askDiff
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
 	case "v":

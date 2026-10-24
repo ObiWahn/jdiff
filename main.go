@@ -79,7 +79,10 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	page := ui.WithSizeGuard(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m)))
+	// d replaces whatever is shown by the files of git diff, which runs in
+	// the current directory; the popups are put around the new view too.
+	wrap := func(m tea.Model) tea.Model { return ui.WithHelp(cfg, ui.WithMarks(cfg, m)) }
+	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitsrc.Repo{}.Diff))
 	if _, err := tea.NewProgram(page, tea.WithAltScreen()).Run(); err != nil {
 		fatal(err)
 	}
@@ -137,8 +140,7 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	relist := func() ([]source.File, error) { return repo.Diff(args) }
-	return ui.NewApp(cfg, files).WithRelist(relist), nil
+	return ui.NewApp(cfg, files).WithGitDiff(args, repo.Diff), nil
 }
 
 func fatal(err error) {

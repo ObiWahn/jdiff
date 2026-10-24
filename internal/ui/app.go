@@ -119,6 +119,10 @@ type App struct {
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	relist ListFunc // lists the files again, nil when they cannot be
+	// gitDiff runs git diff with arguments, nil outside jdiff diff; diffArgs
+	// are those of the files shown.
+	gitDiff  DiffFunc
+	diffArgs []string
 	// notify reports changes to the files on disk; nil while they are
 	// checked every watch_interval, ticking while such a check is pending.
 	notify  *notify.Watcher
@@ -135,6 +139,17 @@ func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, f
 
 // ListFunc lists the files of a comparison again.
 type ListFunc func() ([]source.File, error)
+
+// DiffFunc returns the files git diff compares with args.
+type DiffFunc func(args []string) ([]source.File, error)
+
+// WithGitDiff makes a the files of git diff with args, which R runs again,
+// and returns a.
+func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
+	a.gitDiff, a.diffArgs = gitDiff, args
+	a.relist = func() ([]source.File, error) { return a.gitDiff(a.diffArgs) }
+	return a
+}
 
 // WithRelist sets how R lists the files again and returns a.
 func (a *App) WithRelist(list ListFunc) *App {
@@ -167,6 +182,18 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 		a.openFile()
 	}
 	return a
+}
+
+// stop stops watching the files: the view is replaced.
+func (a *App) stop() {
+	if a.notify != nil {
+		a.notify.Close()
+	}
+}
+
+// diffCommand returns the git diff command line of args.
+func diffCommand(args []string) string {
+	return strings.TrimSpace("git diff " + strings.Join(args, " "))
 }
 
 // inLog reports whether a is part of the log: backspace and N/P go to the
@@ -238,7 +265,7 @@ func (a *App) watch() tea.Cmd {
 	for _, e := range a.files {
 		paths = append(paths, diskPaths(e.File)...)
 	}
-	w, cmd, msg := startWatching(a.cfg, paths)
+	w, cmd, msg := startWatching(a.cfg, a, paths)
 	a.notify = w
 	if msg != "" {
 		a.setMsg(msg)
@@ -371,6 +398,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width, a.height = msg.Width, msg.Height
 		a.scrollToCursor()
 	case watchTickMsg:
+		if msg.owner != nil && msg.owner != a {
+			return a, nil
+		}
 		a.ticking = false
 		if a.notify != nil {
 			return a, nil // inotify took over
@@ -378,7 +408,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Polling checks the current file and its neighbors.
 		a.refresh(func(i int) bool { return i >= a.cursor-1 && i <= a.cursor+1 })
 		a.ticking = true
-		return a, watchTick(a.cfg)
+		return a, watchTick(a.cfg, a)
 	case changedMsg:
 		if msg.w != a.notify {
 			return a, nil
@@ -468,6 +498,8 @@ func (a *App) key(k string) tea.Cmd {
 		}
 	case "R", "f5":
 		return refreshAll
+	case diffKey:
+		return askDiff
 	case "f":
 		return toggleFlow
 	case "'":
@@ -683,6 +715,9 @@ func (a *App) View() string {
 		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
+	if a.gitDiff != nil {
+		head += "  " + t.Hint.Render(diffCommand(a.diffArgs))
+	}
 
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
 		e := a.files[i]
@@ -695,7 +730,7 @@ func (a *App) View() string {
 	}
 	status := a.msg
 	if status == "" {
-		status = "enter open · f flow · v preview · ? help · q quit"
+		status = "enter open · f flow · v preview · d git diff · ? help · q quit"
 		if a.inLog() {
 			status = "enter open · N/P commit · backspace commits · ? help · q quit"
 		}

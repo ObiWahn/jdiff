@@ -20,8 +20,10 @@ import (
 // same size right after the last read may leave the stamp as it was.
 const racyWindow = 2 * time.Second
 
-// watchTickMsg asks the top-level view to check its watched files.
-type watchTickMsg struct{}
+// watchTickMsg asks the top-level view to check its watched files. owner is
+// the view that asked for it; another view, which took its place, drops it.
+// Without owner, any view takes it.
+type watchTickMsg struct{ owner tea.Model }
 
 // changedMsg reports files on disk that changed, by their paths cleaned,
 // from inotify watcher w.
@@ -47,7 +49,7 @@ func waitChanges(w *notify.Watcher) tea.Cmd {
 // watcher is nil and the command the first check of polling; when the
 // kernel refuses inotify, msg says why. With watching off or no paths, it
 // returns nothing.
-func startWatching(cfg *config.Config, paths []string) (w *notify.Watcher, cmd tea.Cmd, msg string) {
+func startWatching(cfg *config.Config, owner tea.Model, paths []string) (w *notify.Watcher, cmd tea.Cmd, msg string) {
 	if cfg.Settings.WatchInterval <= 0 || len(paths) == 0 {
 		return nil, nil, ""
 	}
@@ -60,7 +62,7 @@ func startWatching(cfg *config.Config, paths []string) (w *notify.Watcher, cmd t
 			msg = err.Error() + "; checking files every " + strconv.FormatFloat(cfg.Settings.WatchInterval, 'g', -1, 64) + "s"
 		}
 	}
-	return nil, watchTick(cfg), msg
+	return nil, watchTick(cfg, owner), msg
 }
 
 // diskPaths returns the paths of the sides of f on disk, cleaned as
@@ -77,12 +79,12 @@ func diskPaths(f source.File) []string {
 
 // watchTick returns the command for the next check of the watched files,
 // nil when watching is off.
-func watchTick(cfg *config.Config) tea.Cmd {
+func watchTick(cfg *config.Config, owner tea.Model) tea.Cmd {
 	interval := cfg.Settings.WatchInterval
 	if interval <= 0 {
 		return nil
 	}
-	return tea.Tick(time.Duration(interval*float64(time.Second)), func(time.Time) tea.Msg { return watchTickMsg{} })
+	return tea.Tick(time.Duration(interval*float64(time.Second)), func(time.Time) tea.Msg { return watchTickMsg{owner} })
 }
 
 // refreshFile reloads the sides of f that changed on disk into f and into

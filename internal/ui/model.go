@@ -78,7 +78,7 @@ func (m *Model) Init() tea.Cmd {
 	if m.watch == nil {
 		return nil
 	}
-	w, cmd, msg := startWatching(m.cfg, diskPaths(*m.watch))
+	w, cmd, msg := startWatching(m.cfg, m, diskPaths(*m.watch))
 	m.notify = w
 	if msg != "" {
 		m.msg = msg
@@ -97,10 +97,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m, pressKeys(msg, m.key)
 	case watchTickMsg:
+		if msg.owner != nil && msg.owner != m {
+			return m, nil
+		}
 		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
-		return m, watchTick(m.cfg)
+		return m, watchTick(m.cfg, m)
 	case changedMsg:
 		if msg.w != m.notify {
 			return m, nil
@@ -113,6 +116,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh()
 	}
 	return m, nil
+}
+
+// stop stops watching the files: the view is replaced.
+func (m *Model) stop() {
+	if m.notify != nil {
+		m.notify.Close()
+	}
 }
 
 // refresh reads both files again, whether their stamps changed or not.
@@ -182,6 +192,8 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 	case "R", "f5":
 		return refreshAll
+	case diffKey:
+		return askDiff
 	case "f":
 		if m.canBack {
 			return toggleFlow

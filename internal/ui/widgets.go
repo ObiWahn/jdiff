@@ -151,6 +151,158 @@ func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lip
 	return b.String()
 }
 
+// DiffSwitch wraps the top-level view, whatever it shows: d asks for the
+// arguments of git diff in a popup, whose files then take the view's place,
+// as with jdiff diff. When git fails, the popup stays open and says why.
+type DiffSwitch struct {
+	tea.Model           // the view in its wrappers
+	view      tea.Model // the view itself
+	wrap      func(tea.Model) tea.Model
+	cfg       *config.Config
+	gitDiff   DiffFunc
+	input     *lineInput // while it asks
+	err       string     // why git failed, until the next key
+	width     int
+	height    int
+}
+
+// WithDiffSwitch returns the switch for view, which wrap puts in its
+// wrappers, as it does the views that replace it; gitDiff runs git diff.
+func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, gitDiff DiffFunc) *DiffSwitch {
+	return &DiffSwitch{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, gitDiff: gitDiff}
+}
+
+// current returns the arguments of the git diff shown, and whether the view
+// shows one.
+func (s *DiffSwitch) current() ([]string, bool) {
+	if a, ok := s.view.(*App); ok && a.gitDiff != nil {
+		return a.diffArgs, true
+	}
+	return nil, false
+}
+
+func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+	case askDiffMsg:
+		s.input, s.err = &lineInput{}, ""
+		return s, nil
+	case tea.KeyMsg:
+		if s.input != nil {
+			s.err = ""
+			return s, s.key(msg)
+		}
+	}
+	var cmd tea.Cmd
+	s.Model, cmd = s.Model.Update(msg)
+	return s, cmd
+}
+
+// key edits the arguments asked for; all text typed goes into the line. Up
+// takes the arguments of the git diff shown to edit. Enter shows the diff of
+// the line; with nothing typed it closes the popup, as esc does.
+func (s *DiffSwitch) key(k tea.KeyMsg) tea.Cmd {
+	in := s.input
+	switch k.Type {
+	case tea.KeyCtrlC:
+		return tea.Quit
+	case tea.KeyEsc:
+		s.input = nil
+	case tea.KeyEnter:
+		args := strings.Fields(in.text)
+		if len(args) == 0 {
+			s.input = nil
+			return nil
+		}
+		return s.show(args)
+	case tea.KeyUp:
+		if args, ok := s.current(); ok {
+			in.text = strings.Join(args, " ")
+		}
+	default:
+		in.edit(k)
+	}
+	return nil
+}
+
+// show replaces the view by the files of git diff with args, from scratch,
+// closes the popup and returns the command starting the new view. When git
+// fails, the view and the popup stay, which shows the first line of git's
+// message.
+func (s *DiffSwitch) show(args []string) tea.Cmd {
+	files, err := s.gitDiff(args)
+	if err != nil {
+		s.err, _, _ = strings.Cut(err.Error(), "\n")
+		return nil
+	}
+	s.input = nil
+	if v, ok := s.view.(interface{ stop() }); ok {
+		v.stop()
+	}
+	a := NewApp(s.cfg, files).WithGitDiff(args, s.gitDiff)
+	if len(files) > 0 {
+		a.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
+	}
+	s.view, s.Model = a, s.wrap(a)
+	s.Model.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
+	return s.Model.Init()
+}
+
+// minInputWidth is the least width of the line in the popup of d.
+const minInputWidth = 40
+
+// View draws the popup over the view while it asks: the line typed,
+// centered, and why git failed. The popup grows with the line, up to the
+// width of the screen; beyond, the line's start is cut so that its end
+// stays in view.
+func (s *DiffSwitch) View() string {
+	base := s.Model.View()
+	if s.input == nil || s.width == 0 {
+		return base
+	}
+	t := s.cfg.Theme
+	keys := " enter show · esc cancel "
+	if _, ok := s.current(); ok {
+		keys = " enter show · ↑ current · esc cancel "
+	}
+	title := t.CommitHash.Render(" git diff ") + t.Hint.Render(keys)
+	text := printable(s.input.text) + "█"
+	inner := max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text))
+	inner = min(inner, s.width-4) // borders and a space on each side
+	if over := ansi.StringWidth(text) - inner; over > 0 {
+		text = cutLeft(text, over)
+	}
+	lines := []string{"", strings.Repeat(" ", (inner-ansi.StringWidth(text))/2) + text, ""}
+	if s.err != "" {
+		lines = append(lines, t.Minus.Render(s.err))
+	}
+	return overlay(base, box(t, inner+4, len(lines)+2, title, lines), inner+4, s.width)
+}
+
+// lineInput is a line of text being typed, with the cursor at its end.
+type lineInput struct{ text string }
+
+// edit applies k to the text: typed and pasted text is added, backspace
+// deletes a character, ctrl+w a word and ctrl+u the line.
+func (in *lineInput) edit(k tea.KeyMsg) {
+	switch k.Type {
+	case tea.KeyRunes:
+		in.text += string(k.Runes)
+	case tea.KeySpace:
+		in.text += " "
+	case tea.KeyBackspace:
+		if r := []rune(in.text); len(r) > 0 {
+			in.text = string(r[:len(r)-1])
+		}
+	case tea.KeyCtrlW:
+		in.text = strings.TrimRight(in.text, " ")
+		in.text = in.text[:strings.LastIndex(in.text, " ")+1]
+	case tea.KeyCtrlU:
+		in.text = ""
+	}
+}
+
 // pad fills s with spaces in style up to width columns.
 func pad(s string, width int, style lipgloss.Style) string {
 	if n := width - ansi.StringWidth(s); n > 0 {

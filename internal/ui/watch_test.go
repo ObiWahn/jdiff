@@ -389,3 +389,26 @@ func TestModelInotify(t *testing.T) {
 		t.Errorf("msg %q, %d lines; want the reloaded 6", m.msg, len(m.lines[right]))
 	}
 }
+
+func TestDiffSwitchStopsWatching(t *testing.T) {
+	a, _, _ := newInotifyApp(t)
+	old := a.notify
+	s, _ := newDiffSwitch(a)
+	pressRoot(s, "d", "HEAD", "enter")
+	if _, ok := <-old.Changes(); ok {
+		t.Error("the replaced view still watches")
+	}
+}
+
+func TestStaleTickDropped(t *testing.T) {
+	m, _ := newWatchedModel(t, numbered("x", 2), numbered("x", 2))
+	a, _ := newWatchedApp(t)
+	for _, v := range []tea.Model{m, a} {
+		if _, cmd := v.Update(watchTickMsg{owner: newTestApp()}); cmd != nil {
+			t.Errorf("%T: a tick of another view schedules the next one", v)
+		}
+		if _, cmd := v.Update(watchTickMsg{owner: v}); cmd == nil {
+			t.Errorf("%T: its own tick does not schedule the next one", v)
+		}
+	}
+}
