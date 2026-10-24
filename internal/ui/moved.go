@@ -68,7 +68,8 @@ type moveEnd struct {
 
 // otherEnd returns the other end of the moved line under the cursor at, in
 // the screen lines of sh, and the message to show there, which says where
-// the cursor came from. ok is false when the line did not move.
+// the cursor came from: side by side the line of the active pane, else the
+// one beside it. ok is false when neither moved.
 func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool) {
 	s := at.side
 	if sh.unified {
@@ -76,6 +77,13 @@ func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool
 	}
 	line := d.lineAt(s, at.v)
 	r, ok := d.movedTo(s, line)
+	if !ok && !sh.unified {
+		// Side by side the pane is for anchors: a moved line has no line
+		// beside it, so the cursor may be in either pane.
+		s = s.other()
+		line = d.lineAt(s, at.v)
+		r, ok = d.movedTo(s, line)
+	}
 	if !ok {
 		return moveEnd{}, "not moved", false
 	}

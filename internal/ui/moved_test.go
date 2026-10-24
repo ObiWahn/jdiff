@@ -141,6 +141,29 @@ func TestJumpWithinFile(t *testing.T) {
 	}
 }
 
+func TestJumpFromEitherPane(t *testing.T) {
+	m := newMovedModel()
+	moveTo(t, m, left, 1) // "return x * 2", moved down; nothing on the right
+	press(m, "tab")       // the right pane, empty in this row
+	press(m, "o")
+	if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from new:2" {
+		t.Errorf("o from the empty pane: right line %d, active %v, msg %q; want 41, right, moved from new:2",
+			m.lineAt(right, m.cursor), m.active, m.msg)
+	}
+	press(m, "tab", "o") // the left pane, empty in the added line's row
+	if m.lineAt(left, m.cursor) != 1 || m.active != left || m.msg != "moved to new:42" {
+		t.Errorf("o back from the empty pane: left line %d, active %v, msg %q; want 1, left", m.lineAt(left, m.cursor), m.active, m.msg)
+	}
+}
+
+func TestFlowJumpFromEitherPane(t *testing.T) {
+	a := newMovedApp()
+	pressApp(a, "f", "j", "j", "j", "tab", "o") // a.go line 2, from the empty right pane
+	if _, file, line := a.flow.position(); file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.msg != "moved from a.go:3" {
+		t.Errorf("o in the flow from the empty pane: file %d, right line %d, msg %q", file, a.files[1].diff.lineAt(right, line), a.flow.msg)
+	}
+}
+
 func TestJumpNotMoved(t *testing.T) {
 	m := newMovedModel()
 	moveTo(t, m, left, 73) // the line changed in place
