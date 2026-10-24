@@ -259,6 +259,28 @@ func TestWatchInterval(t *testing.T) {
 	}
 }
 
+func TestInotifyMaxDirs(t *testing.T) {
+	for _, tt := range []struct {
+		main    string
+		want    int
+		warning string
+	}{
+		{"", 20, ""},
+		{"inotify_max_dirs = 100", 100, ""},
+		{"inotify_max_dirs = 0", 0, ""},
+		{"inotify_max_dirs = -1", 0, "inotify_max_dirs -1 is negative"},
+	} {
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if w := c.Warning(); c.Settings.InotifyMaxDirs != tt.want || (tt.warning == "") != (w == "") ||
+			!strings.Contains(w, tt.warning) {
+			t.Errorf("%q: max dirs %v, warning %q; want %v and %q", tt.main, c.Settings.InotifyMaxDirs, w, tt.want, tt.warning)
+		}
+	}
+}
+
 func TestLineEnd(t *testing.T) {
 	for _, tt := range []struct {
 		main    string

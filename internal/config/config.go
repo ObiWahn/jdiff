@@ -87,6 +87,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
 			c.Settings.WatchInterval = 0
 		}
+		if n := c.Settings.InotifyMaxDirs; n < 0 {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: inotify_max_dirs %d is negative, inotify is off", n))
+			c.Settings.InotifyMaxDirs = 0
+		}
 		// Lines are cut and wrapped by columns: the symbols take one.
 		def := settings.Default()
 		for _, sym := range []struct {

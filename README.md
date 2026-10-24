@@ -18,7 +18,7 @@ delta formats the output of git once and hands it to a pager; jdiff is a program
 - **More or less context:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them. delta shows the context lines git gave it.
 - **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
 - **Following moved code:** like delta, jdiff colors blocks moved within a file or between the files of one commit or diff, magenta where they moved away and cyan where they moved to, as git's `--color-moved` does. `o` jumps to the other end, also into another file.
-- **Auto reload:** outside the log, files on disk are watched (by default every second). When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. `R` or `F5` runs `git diff` or `git log` again, or lists the directories again, so new files and commits show up too. delta shows the diff as it was when git ran.
+- **Auto reload:** outside the log, files on disk are watched: on Linux the kernel reports their changes (inotify), elsewhere, or when the files are in more than `inotify_max_dirs` directories, they are checked every second. When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. `R` or `F5` runs `git diff` or `git log` again, or lists the directories again, so new files and commits show up too. delta shows the diff as it was when git ran.
 - **Anchors:** mark a line with `enter`, then its partner in the other pane. jdiff realigns around it. Anchors that would cross are offered for replacement.
 - **Jump marks:** `m` plus a letter marks a line of the new file, `'` plus the letter jumps back to it within the diff. `\` lists the marks; there, `enter` jumps and `d` deletes.
   - Marks are kept per repository and survive restarts.
@@ -81,7 +81,7 @@ As git's difftool, for `git difftool -d`:
 	prompt = false
 ```
 
-Files of the working tree are watched, so edits you save while jdiff is open show up live.
+Files of the working tree are watched, so edits you save while jdiff is open show up live. On Linux the kernel reports the changes (inotify): jdiff watches the directories the files of the diff are in, not their subdirectories, up to `inotify_max_dirs` (20) of them, all with one file handle. Otherwise it checks the files every `watch_interval`.
 
 ## Keys
 
@@ -189,7 +189,8 @@ theme = "desert"                # a file in themes/; without it, delta's git con
 context = 3                     # unchanged lines kept visible around changes
 collapse_unchanged = true       # start with unchanged code folded
 only_changed_whitespaces = true # mark only the added or removed part of whitespace
-watch_interval = 1              # seconds between checks for changed files; 0 turns it off
+watch_interval = 1              # seconds between checks for changed files; 0 turns watching off
+inotify_max_dirs = 20           # Linux: up to so many directories of changed files, the kernel reports changes; 0 turns it off
 line_end = "¶"                  # drawn at the end of lines while w shows all whitespace; one column
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column

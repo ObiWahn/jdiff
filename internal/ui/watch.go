@@ -3,12 +3,15 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"jdiff/internal/config"
+	"jdiff/internal/notify"
 	"jdiff/internal/source"
 )
 
@@ -19,6 +22,58 @@ const racyWindow = 2 * time.Second
 
 // watchTickMsg asks the top-level view to check its watched files.
 type watchTickMsg struct{}
+
+// changedMsg reports files on disk that changed, by their paths cleaned,
+// from inotify watcher w.
+type changedMsg struct {
+	w     *notify.Watcher
+	paths []string
+}
+
+// waitChanges returns the command waiting for the next changes w reports.
+func waitChanges(w *notify.Watcher) tea.Cmd {
+	return func() tea.Msg {
+		paths, ok := <-w.Changes()
+		if !ok {
+			return nil
+		}
+		return changedMsg{w, paths}
+	}
+}
+
+// startWatching starts watching the files at paths and returns the
+// watcher and the command waiting for its changes. When inotify is off, not
+// supported or the files are in more than inotify_max_dirs directories, the
+// watcher is nil and the command the first check of polling; when the
+// kernel refuses inotify, msg says why. With watching off or no paths, it
+// returns nothing.
+func startWatching(cfg *config.Config, paths []string) (w *notify.Watcher, cmd tea.Cmd, msg string) {
+	if cfg.Settings.WatchInterval <= 0 || len(paths) == 0 {
+		return nil, nil, ""
+	}
+	if cfg.Settings.InotifyMaxDirs > 0 {
+		w, err := notify.New(paths, cfg.Settings.InotifyMaxDirs)
+		switch {
+		case err == nil:
+			return w, waitChanges(w), ""
+		case !errors.Is(err, notify.ErrUnsupported) && !errors.Is(err, notify.ErrTooManyDirs):
+			msg = err.Error() + "; checking files every " + strconv.FormatFloat(cfg.Settings.WatchInterval, 'g', -1, 64) + "s"
+		}
+	}
+	return nil, watchTick(cfg), msg
+}
+
+// diskPaths returns the paths of the sides of f on disk, cleaned as
+// changedMsg reports them.
+func diskPaths(f source.File) []string {
+	var out []string
+	for _, p := range []string{f.OldFile, f.NewFile} {
+		if p != "" {
+			out = append(out, filepath.Clean(p))
+		}
+	}
+	return out
+}
 
 // watchTick returns the command for the next check of the watched files,
 // nil when watching is off.

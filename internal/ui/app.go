@@ -12,6 +12,7 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/notify"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
 )
@@ -118,6 +119,10 @@ type App struct {
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	relist ListFunc // lists the files again, nil when they cannot be
+	// notify reports changes to the files on disk; nil while they are
+	// checked every watch_interval, ticking while such a check is pending.
+	notify  *notify.Watcher
+	ticking bool
 	list
 	open   *entry // file whose diff view is shown, nil for the list
 	flow   *Flow  // flow view outside the log, created on first use
@@ -219,15 +224,42 @@ func (a *App) Init() tea.Cmd {
 	if a.inLog() {
 		return nil
 	}
-	return watchTick(a.cfg)
+	return a.watch()
 }
 
-// refresh reloads the files around the cursor that changed on disk: the
-// current one and its neighbors.
-func (a *App) refresh() {
+// watch starts watching the files on disk anew, by inotify when it can, and
+// returns the command waiting for their changes. A pending check of polling
+// is not started twice.
+func (a *App) watch() tea.Cmd {
+	if a.notify != nil {
+		a.notify.Close()
+	}
+	var paths []string
+	for _, e := range a.files {
+		paths = append(paths, diskPaths(e.File)...)
+	}
+	w, cmd, msg := startWatching(a.cfg, paths)
+	a.notify = w
+	if msg != "" {
+		a.setMsg(msg)
+	}
+	if w == nil && cmd != nil {
+		if a.ticking {
+			return nil
+		}
+		a.ticking = true
+	}
+	return cmd
+}
+
+// refresh reloads the files i that changed on disk for which which holds.
+func (a *App) refresh(which func(i int) bool) {
 	var msgs []string
 	reload := func(after func(*fileDiff)) {
-		for i := max(a.cursor-1, 0); i <= min(a.cursor+1, len(a.files)-1); i++ {
+		for i := range a.files {
+			if !which(i) {
+				continue
+			}
 			if msg := a.files[i].refresh(after); msg != "" {
 				msgs = append(msgs, msg)
 			}
@@ -247,16 +279,17 @@ func (a *App) refresh() {
 // dropped; a file still there keeps its entry, and so its diff with anchors
 // and folds, reloaded where its content changed. A file that became binary
 // or stopped being binary counts as gone and new. The cursor stays on its
-// file; when the file shown is gone, the list is shown.
-func (a *App) relistFiles() {
+// file; when the file shown is gone, the list is shown. The files are
+// watched anew; it returns the command waiting for their changes.
+func (a *App) relistFiles() tea.Cmd {
 	if a.relist == nil {
 		a.setMsg("nothing to load again")
-		return
+		return nil
 	}
 	files, err := a.relist()
 	if err != nil {
 		a.setMsg(err.Error())
-		return
+		return nil
 	}
 	kept := map[string]*entry{}
 	for _, e := range a.files {
@@ -322,6 +355,10 @@ func (a *App) relistFiles() {
 	}
 	a.scrollToCursor()
 	a.setMsg(msg)
+	if a.inLog() {
+		return nil
+	}
+	return a.watch()
 }
 
 // flowShown reports whether the flow view is shown instead of a diff view.
@@ -334,8 +371,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width, a.height = msg.Width, msg.Height
 		a.scrollToCursor()
 	case watchTickMsg:
-		a.refresh()
+		a.ticking = false
+		if a.notify != nil {
+			return a, nil // inotify took over
+		}
+		// Polling checks the current file and its neighbors.
+		a.refresh(func(i int) bool { return i >= a.cursor-1 && i <= a.cursor+1 })
+		a.ticking = true
 		return a, watchTick(a.cfg)
+	case changedMsg:
+		if msg.w != a.notify {
+			return a, nil
+		}
+		changed := func(i int) bool {
+			return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool { return slices.Contains(msg.paths, p) })
+		}
+		a.refresh(changed)
+		return a, waitChanges(a.notify)
 	case jumpMsg:
 		a.jump(msg)
 		return a, nil
@@ -355,8 +407,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.open = nil
 		return a, nil
 	case refreshMsg:
-		a.relistFiles()
-		return a, nil
+		return a, a.relistFiles()
 	}
 	if a.flowShown() {
 		_, cmd := a.flow.Update(msg)

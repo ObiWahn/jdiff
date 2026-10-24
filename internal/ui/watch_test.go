@@ -3,14 +3,17 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
 	"jdiff/internal/source"
 )
 
@@ -25,8 +28,16 @@ func writeLines(t *testing.T, path string, lines []string) {
 	}
 }
 
+// polling returns the default configuration with inotify off, so that
+// files are checked every watch_interval.
+func polling() *config.Config {
+	cfg := config.Default()
+	cfg.Settings.InotifyMaxDirs = 0
+	return cfg
+}
+
 // newWatchedModel returns the watched diff view of two files with lines a
-// and b in a new directory.
+// and b in a new directory, checked by polling.
 func newWatchedModel(t *testing.T, a, b []string) (*Model, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -41,7 +52,7 @@ func newWatchedModel(t *testing.T, a, b []string) (*Model, string) {
 	if f.New, f.NewStamp, err = source.Read(f.NewFile); err != nil {
 		t.Fatal(err)
 	}
-	m := NewWatched(config.Default(), f)
+	m := NewWatched(polling(), f)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m, dir
 }
@@ -127,7 +138,8 @@ func TestWatchOff(t *testing.T) {
 }
 
 // newWatchedApp returns the file selector of directories with the files
-// a.txt to d.txt, each changed in the new directory, and the new directory.
+// a.txt to d.txt, each changed in the new directory, and the new directory;
+// the files are checked by polling.
 func newWatchedApp(t *testing.T) (*App, string) {
 	t.Helper()
 	oldDir, newDir := t.TempDir(), t.TempDir()
@@ -139,7 +151,7 @@ func newWatchedApp(t *testing.T) (*App, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := NewApp(config.Default(), files)
+	a := NewApp(polling(), files)
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	return a, newDir
 }
@@ -245,5 +257,135 @@ func TestWatchedModelRefresh(t *testing.T) {
 	pressRoot(plain, "R")
 	if plain.msg != "nothing to load again" {
 		t.Errorf("R without files: msg %q", plain.msg)
+	}
+}
+
+// awaitMsg runs cmd, which waits for something, and returns its message,
+// failing after two seconds.
+func awaitMsg(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("no command")
+	}
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	select {
+	case msg := <-ch:
+		return msg
+	case <-time.After(2 * time.Second):
+		t.Fatal("no message")
+		return nil
+	}
+}
+
+// newInotifyApp returns the file selector of newWatchedApp with inotify
+// on, as configured by default, started by Init, and the new directory.
+func newInotifyApp(t *testing.T) (*App, string, tea.Cmd) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("inotify is Linux only")
+	}
+	a, dir := newWatchedApp(t)
+	a.cfg.Settings.InotifyMaxDirs = settings.Default().InotifyMaxDirs
+	cmd := a.Init()
+	if a.notify == nil {
+		t.Fatalf("not watched by inotify, msg %q", a.msg)
+	}
+	t.Cleanup(func() { a.notify.Close() })
+	return a, dir, cmd
+}
+
+func TestAppInotifyReloadsAnyFile(t *testing.T) {
+	a, dir, cmd := newInotifyApp(t)
+	// d.txt is three files away from the cursor: polling would not see it.
+	writeLines(t, filepath.Join(dir, "d.txt"), append(numbered("x", 10), "added", "more", "lines"))
+	msg := awaitMsg(t, cmd)
+	if _, ok := msg.(changedMsg); !ok {
+		t.Fatalf("message %T, want changedMsg", msg)
+	}
+	if _, cmd = a.Update(msg); cmd == nil {
+		t.Error("not waiting for the next changes")
+	}
+	if a.files[3].added != 3 || a.msg != "d.txt reloaded" {
+		t.Errorf("d.txt +%d, msg %q; want +3 and reloaded", a.files[3].added, a.msg)
+	}
+	// Ticks left from polling neither check nor go on.
+	if _, cmd := a.Update(watchTickMsg{}); cmd != nil {
+		t.Error("a tick while inotify watches schedules the next one")
+	}
+	// Changes of a watcher no longer used are dropped.
+	old := changedMsg{w: nil, paths: []string{filepath.Join(dir, "a.txt")}}
+	if _, cmd := a.Update(old); cmd != nil {
+		t.Error("a change of another watcher is waited on")
+	}
+}
+
+func TestAppInotifyFallsBackToPolling(t *testing.T) {
+	a, _ := newWatchedApp(t) // the old and the new directory
+	a.cfg.Settings.InotifyMaxDirs = 1
+	if a.Init() == nil || a.notify != nil || !a.ticking {
+		t.Errorf("two directories, inotify_max_dirs 1: notify %v ticking %v; want polling", a.notify, a.ticking)
+	}
+	b, _ := newWatchedApp(t)
+	b.cfg.Settings.WatchInterval = 0
+	if b.Init() != nil || b.notify != nil {
+		t.Error("watch_interval 0 watches")
+	}
+}
+
+func TestAppRelistSwitchesWatching(t *testing.T) {
+	a, dir, _ := newInotifyApp(t)
+	var list []source.File
+	for _, e := range a.files {
+		list = append(list, e.File)
+	}
+	a.WithRelist(func() ([]source.File, error) { return list, nil })
+
+	// Files in a third directory: over the limit of 2, so polling.
+	a.cfg.Settings.InotifyMaxDirs = 2
+	third := filepath.Join(t.TempDir(), "e.txt")
+	writeLines(t, third, []string{"e"})
+	list = append(slices.Clone(list), source.File{Path: "e.txt", NewFile: third, New: []string{"e"}, InNew: true})
+	old := a.notify
+	_, cmd := a.Update(refreshMsg{})
+	if a.notify != nil || !a.ticking || cmd == nil {
+		t.Fatalf("over the limit after R: notify %v ticking %v; want polling", a.notify, a.ticking)
+	}
+	if _, ok := <-old.Changes(); ok {
+		t.Error("the watcher replaced is still open")
+	}
+	// Back under the limit: inotify again, and the pending tick ends.
+	list = list[:len(list)-1]
+	_, cmd = a.Update(refreshMsg{})
+	if a.notify == nil {
+		t.Fatal("under the limit after R: not watched by inotify")
+	}
+	t.Cleanup(func() { a.notify.Close() })
+	if _, tick := a.Update(watchTickMsg{}); tick != nil {
+		t.Error("the tick pending from polling goes on")
+	}
+	writeLines(t, filepath.Join(dir, "b.txt"), numbered("x", 12))
+	if msg := awaitMsg(t, cmd); msg.(changedMsg).paths[0] != filepath.Join(dir, "b.txt") {
+		t.Errorf("message %+v, want b.txt changed", msg)
+	}
+}
+
+func TestModelInotify(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("inotify is Linux only")
+	}
+	m, dir := newWatchedModel(t, numbered("x", 5), numbered("x", 5))
+	m.cfg.Settings.InotifyMaxDirs = 1
+	cmd := m.Init()
+	if m.notify == nil {
+		t.Fatalf("not watched by inotify, msg %q", m.msg)
+	}
+	t.Cleanup(func() { m.notify.Close() })
+	writeLines(t, filepath.Join(dir, "new.txt"), numbered("x", 6))
+	if _, cmd = m.Update(awaitMsg(t, cmd)); cmd == nil {
+		t.Error("not waiting for the next changes")
+	}
+	if m.msg != "new.txt reloaded" || len(m.lines[right]) != 6 {
+		t.Errorf("msg %q, %d lines; want the reloaded 6", m.msg, len(m.lines[right]))
 	}
 }

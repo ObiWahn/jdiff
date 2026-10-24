@@ -8,6 +8,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/notify"
 	"jdiff/internal/source"
 )
 
@@ -37,8 +38,9 @@ type Model struct {
 	commitNav     bool // shown from the log, which switches commits
 
 	msg    string
-	watch  *source.File // the files on disk, reloaded when they change; nil when not watched
-	prefix string       // "m" or "'" while waiting for the letter of a mark
+	watch  *source.File    // the files on disk, reloaded when they change; nil when not watched
+	notify *notify.Watcher // reports their changes, nil while they are checked every watch_interval
+	prefix string          // "m" or "'" while waiting for the letter of a mark
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
@@ -71,11 +73,17 @@ func newModel(d *fileDiff) *Model {
 	return m
 }
 
+// Init starts watching the files, when they are on disk.
 func (m *Model) Init() tea.Cmd {
-	if m.watch != nil {
-		return watchTick(m.cfg)
+	if m.watch == nil {
+		return nil
 	}
-	return nil
+	w, cmd, msg := startWatching(m.cfg, diskPaths(*m.watch))
+	m.notify = w
+	if msg != "" {
+		m.msg = msg
+	}
+	return cmd
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -93,6 +101,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msg = msg
 		}
 		return m, watchTick(m.cfg)
+	case changedMsg:
+		if msg.w != m.notify {
+			return m, nil
+		}
+		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
+			m.msg = msg
+		}
+		return m, waitChanges(m.notify)
 	case refreshMsg:
 		m.refresh()
 	}
