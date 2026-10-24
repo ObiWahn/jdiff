@@ -87,6 +87,18 @@ func scrollWindow(cursor, top, h, n int) int {
 	return max(min(top, n-h), 0)
 }
 
+// jumpTop returns the first shown item after the cursor jumped from item
+// from to item to, with the window h items high over n items at top: it
+// stays when to is in it, moves as little as needed when from and to fit in
+// it together, so that both stay in view, and else keeps the cursor's
+// screen row, so that the eye stays where it was.
+func jumpTop(from, to, top, h, n int) int {
+	if d := to - from; d < h && -d < h {
+		return scrollWindow(to, top, h, n)
+	}
+	return scrollWindow(to, top+to-from, h, n)
+}
+
 // list is the state of the commit and the file list: n items below a
 // heading and an empty line, the box below them while preview is set, and the
 // status bar.

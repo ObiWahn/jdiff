@@ -191,3 +191,79 @@ func TestFlowJumpToAnotherFile(t *testing.T) {
 			file, a.files[1].diff.lineAt(right, line), a.flow.active, a.flow.msg)
 	}
 }
+
+func TestJumpTop(t *testing.T) {
+	// A window of 10 lines over 100, showing lines 20 to 29.
+	for _, tt := range []struct {
+		name         string
+		from, to     int
+		top, wantTop int
+	}{
+		{"target on screen: no scroll", 22, 27, 20, 20},
+		{"both fit, target below", 25, 33, 20, 24},
+		{"both fit, target above", 22, 14, 20, 14},
+		{"too far: screen row kept", 22, 60, 20, 58},
+		{"too far, near the end", 22, 99, 20, 90},
+	} {
+		if got := jumpTop(tt.from, tt.to, tt.top, 10, 100); got != tt.wantTop {
+			t.Errorf("%s: top %d, want %d", tt.name, got, tt.wantTop)
+		}
+	}
+}
+
+func TestJumpOnScreenDoesNotScroll(t *testing.T) {
+	// The block moved down by 5 lines: both ends on one screen.
+	stay := numbered("stay line ", 5)
+	a := append(append(append([]string{}, numbered("top line ", 10)...), movedBlock...), stay...)
+	b := append(append(append([]string{}, numbered("top line ", 10)...), stay...), movedBlock...)
+	m := newTestModel(a, b)
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	moveTo(t, m, left, 11)
+	m.top = 3
+	m.scrollToCursor()
+	top := m.top
+	press(m, "o")
+	if m.lineAt(right, m.cursor) != 16 || m.top != top {
+		t.Errorf("o: right line %d, top %d; want 16 and the screen as it was, %d", m.lineAt(right, m.cursor), m.top, top)
+	}
+	press(m, "o")
+	if m.lineAt(left, m.cursor) != 11 || m.top != top {
+		t.Errorf("o back: left line %d, top %d; want 11, %d", m.lineAt(left, m.cursor), m.top, top)
+	}
+
+	// A mark on screen: the cursor goes there, the screen stays.
+	moveTo(t, m, right, 3)
+	press(m, "m", "a")
+	moveTo(t, m, right, 9)
+	top = m.top
+	press(m, "'", "a")
+	if m.lineAt(right, m.cursor) != 3 || m.top != top {
+		t.Errorf("' a: right line %d, top %d; want 3, %d", m.lineAt(right, m.cursor), m.top, top)
+	}
+}
+
+func TestFlowJumpKeepsBothEndsInView(t *testing.T) {
+	// As newMovedApp, with lines after the block in b.go, so that the window
+	// can scroll past both ends.
+	a := NewApp(config.Default(), []source.File{
+		modified("a.go", append([]string{"package a"}, movedBlock...), []string{"package a"}),
+		modified("b.go", []string{"package b"}, append(append([]string{"package b", ""}, movedBlock...), numbered("more ", 20)...)),
+	})
+	a.cfg.Settings.CollapseUnchanged = false
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10}) // 8 rows of a longer flow
+	pressApp(a, "f", "j", "j", "j")                    // a.go line 2, moved to b.go line 3
+	inView := func(i int) bool { return i >= a.flow.top && i < a.flow.top+a.flow.bodyHeight() }
+	from := a.flow.cursor
+	pressApp(a, "o")
+	if _, file, _ := a.flow.position(); file != 1 || !inView(from) || !inView(a.flow.cursor) {
+		t.Errorf("o in the flow: file %d, rows %d and %d, window from %d; want b.go with both in view",
+			file, from, a.flow.cursor, a.flow.top)
+	}
+	// A mark there, back with o, and to the mark: again both in view.
+	to := a.flow.cursor
+	pressApp(a, "m", "k", "o", "'", "k")
+	if a.flow.cursor != to || !inView(from) || !inView(to) {
+		t.Errorf("' k in the flow: cursor %d, want %d, with row %d in view too (window from %d)", a.flow.cursor, to, from, a.flow.top)
+	}
+}

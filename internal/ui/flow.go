@@ -269,7 +269,7 @@ func (f *Flow) delegate(k string) {
 }
 
 // jump moves the cursor to the other end of the moved line under it, in this
-// or another file of the commit; it keeps its screen row.
+// or another file of the commit (see jumpTo).
 func (f *Flow) jump() {
 	if len(f.rows) == 0 || f.rows[f.cursor].kind != flowDiff {
 		f.msg = "not moved"
@@ -288,12 +288,19 @@ func (f *Flow) jump() {
 		return
 	}
 	at := app.files[i].diff.spotOf(end.side, end.line, f.built)
-	f.keepScreenRow(func() {
-		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
-			f.cursor = j
-		}
-	})
+	f.jumpTo(f.findDiff(r.part, i, at.v, at.sub))
 	f.active = at.side
+}
+
+// jumpTo moves the cursor to row i, unless it is -1, for a jump within the
+// flow (o, '): the screen stays when i is on it, see jumpTop.
+func (f *Flow) jumpTo(i int) {
+	if i < 0 {
+		return
+	}
+	from := f.cursor
+	f.cursor = i
+	f.top = jumpTop(from, i, f.top, f.bodyHeight(), len(f.rows))
 }
 
 // setMark sets jump mark letter on the new-file line under the cursor.
@@ -307,8 +314,8 @@ func (f *Flow) setMark(letter string) {
 }
 
 // gotoMark moves the cursor to the line of jump mark letter when its file is
-// in the commit under the cursor, or outside the log among the files; it
-// keeps its screen row.
+// in the commit under the cursor, or outside the log among the files (see
+// jumpTo).
 func (f *Flow) gotoMark(letter string) {
 	mk, ok := f.cfg.Mark(letter)
 	if !ok {
@@ -332,13 +339,9 @@ func (f *Flow) gotoMark(letter string) {
 		f.msg = markMsg(letter, "the new file is empty")
 		return
 	}
-	f.keepScreenRow(func() {
-		at := d.reveal(right, line, f.built)
-		f.build() // a fold may have opened
-		if j := f.findDiff(r.part, i, at.v, at.sub); j >= 0 {
-			f.cursor = j
-		}
-	})
+	at := d.reveal(right, line, f.built)
+	f.relocate() // a fold may have opened: the cursor keeps its row
+	f.jumpTo(f.findDiff(r.part, i, at.v, at.sub))
 	f.active, f.msg = right, markMsg(letter, note)
 }
 

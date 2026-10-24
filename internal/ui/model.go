@@ -192,7 +192,9 @@ func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
 	case !ok:
 		m.msg = "no mark " + letter
 	case mk.Path == m.markPath:
-		m.showMark(letter, mk, screenRow)
+		if at, ok := m.markSpot(letter, mk); ok {
+			m.jumpTo(at)
+		}
 	case m.canBack:
 		j := markJumpMsg{letter, screenRow}
 		return func() tea.Msg { return j }
@@ -202,21 +204,22 @@ func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
 	return nil
 }
 
-// showMark puts the cursor on the line of mark mk, called letter, of this
-// file at screen row screenRow.
-func (m *Model) showMark(letter string, mk config.Mark, screenRow int) {
+// markSpot returns the cursor on the line of mark mk, called letter, of
+// this file, unfolding it, and sets the message. ok is false for an empty
+// new file.
+func (m *Model) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
 	line, note, ok := m.markLine(mk)
 	if !ok {
 		m.msg = markMsg(letter, "the new file is empty")
-		return
+		return spot{}, false
 	}
-	m.show(m.reveal(right, line, m.shape()), screenRow)
 	m.msg = markMsg(letter, note)
+	return m.reveal(right, line, m.shape()), true
 }
 
-// jump moves the cursor to the other end of the moved line under it, which
-// keeps its screen row. An end in another file is shown by the file
-// selector.
+// jump moves the cursor to the other end of the moved line under it (see
+// jumpTo). An end in another file is shown by the file selector, at the
+// cursor's screen row.
 func (m *Model) jump() tea.Cmd {
 	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenShape)
 	if !ok {
@@ -227,9 +230,18 @@ func (m *Model) jump() tea.Cmd {
 		j := jumpMsg{end, m.pos() - m.top, msg}
 		return func() tea.Msg { return j }
 	}
-	m.show(m.spotOf(end.side, end.line, m.screenShape), m.pos()-m.top)
+	m.jumpTo(m.spotOf(end.side, end.line, m.screenShape))
 	m.msg = msg
 	return nil
+}
+
+// jumpTo puts the cursor on at, for a jump within this view (o, '): the
+// screen stays when at is on it, see jumpTop.
+func (m *Model) jumpTo(at spot) {
+	m.syncLayout() // a fold opened for at: the cursor keeps its line
+	from := m.pos()
+	m.active, m.cursor, m.sub = at.side, at.v, at.sub
+	m.top = jumpTop(from, m.pos(), m.top, m.bodyHeight(), len(m.screen))
 }
 
 // show puts the cursor on at, at screen row screenRow.

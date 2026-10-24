@@ -419,7 +419,9 @@ func (a *App) gotoMark(letter string, screenRow int) {
 		a.flow.gotoMark(letter)
 		return
 	}
-	a.open.view.showMark(letter, mk, screenRow)
+	if at, ok := a.open.view.markSpot(letter, mk); ok {
+		a.open.view.show(at, screenRow)
+	}
 }
 
 // jump opens the file of j's end of moved code with the cursor on its line.
