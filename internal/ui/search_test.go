@@ -169,21 +169,21 @@ func TestSearchBarToggles(t *testing.T) {
 		return ""
 	}
 	pressRoot(s, "/")
-	if got := title(); got != "search changed lines  enter find · tab regex · shift+tab all · esc cancel" {
+	if got := title(); got != "search changed lines  enter find · tab all · shift+tab regex · esc cancel" {
 		t.Errorf("title %q", got)
 	}
-	// shift+tab: all lines, tab: regex; each saved at once.
-	pressRoot(s, "shift+tab")
+	// tab: all lines, shift+tab: regex; each saved at once.
+	pressRoot(s, "tab")
 	if !cfg.Settings.SearchAll || !strings.Contains(state(), "search_all = true") ||
-		title() != "search all lines  enter find · tab regex · shift+tab changed · esc cancel" {
+		title() != "search all lines  enter find · tab changed · shift+tab regex · esc cancel" {
 		t.Errorf("shift+tab: all %v, title %q, state\n%s", cfg.Settings.SearchAll, title(), state())
 	}
-	pressRoot(s, "tab")
+	pressRoot(s, "shift+tab")
 	if !s.regex || !cfg.Settings.SearchRegex || !strings.Contains(state(), "search_regex = true") ||
-		title() != "regex all lines  enter find · tab text · shift+tab changed · esc cancel" {
+		title() != "regex all lines  enter find · tab changed · shift+tab text · esc cancel" {
 		t.Errorf("tab: regex %v, title %q, state\n%s", s.regex, title(), state())
 	}
-	pressRoot(s, "tab", "shift+tab")
+	pressRoot(s, "shift+tab", "tab")
 	if s.regex || cfg.Settings.SearchRegex || cfg.Settings.SearchAll ||
 		!strings.Contains(state(), "search_regex = false") || !strings.Contains(state(), "search_all = false") {
 		t.Errorf("back: regex %v %v, all %v, state\n%s", s.regex, cfg.Settings.SearchRegex, cfg.Settings.SearchAll, state())
@@ -199,8 +199,8 @@ func TestSearchBarToggles(t *testing.T) {
 	}
 	// The bar opens in the mode saved; a query of the history brings its
 	// own, which enter saves.
-	pressRoot(s, "/", "tab", "x[0-9]", "enter")
-	pressRoot(s, "/", "tab", "plain", "enter")
+	pressRoot(s, "/", "shift+tab", "x[0-9]", "enter")
+	pressRoot(s, "/", "shift+tab", "plain", "enter")
 	if cfg.Settings.SearchRegex || !strings.Contains(state(), "search_regex = false") {
 		t.Fatalf("plain search: regex %v", cfg.Settings.SearchRegex)
 	}
@@ -349,7 +349,7 @@ func TestSearchBar(t *testing.T) {
 	view := ansi.Strip(s.View())
 	rows := strings.Split(view, "\n")
 	// The bar above the status line, which stays.
-	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines  enter find · tab regex · shift+tab all · esc cancel") ||
+	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines  enter find · tab all · shift+tab regex · esc cancel") ||
 		!strings.Contains(rows[len(rows)-3], "/█") || status() != before {
 		t.Fatalf("/: bar\n%s", view)
 	}
@@ -363,7 +363,7 @@ func TestSearchBar(t *testing.T) {
 		t.Fatalf("enter: bar open %v, search %+v, cursor line %d", s.input != nil, s.cfg.Search.Query, m.lineAt(m.active, m.cursor))
 	}
 	// A broken regular expression keeps the bar open and says why.
-	pressRoot(s, "/", "tab", "([", "enter")
+	pressRoot(s, "/", "shift+tab", "([", "enter")
 	if v := ansi.Strip(s.View()); s.input == nil || !strings.Contains(v, "╭─ regex") || !strings.Contains(v, "missing closing ]") {
 		t.Errorf("broken regex:\n%s", v)
 	}
@@ -372,7 +372,7 @@ func TestSearchBar(t *testing.T) {
 		t.Errorf("regex search %+v", s.cfg.Search.Query)
 	}
 	// History: up goes back, with each query's mode, down forward to what was typed.
-	pressRoot(s, "/", "tab", "draft", "up")
+	pressRoot(s, "/", "shift+tab", "draft", "up")
 	if s.input.text != "x[12]" || !s.regex {
 		t.Errorf("up: %q regex %v", s.input.text, s.regex)
 	}
@@ -391,7 +391,7 @@ func TestSearchBar(t *testing.T) {
 	if s.input != nil || s.cfg.Search.Query != (config.Query{Text: "x[12]", Regex: true}) || len(s.cfg.Search.History) != 2 {
 		t.Errorf("esc, empty enter: open %v, search %+v, history %v", s.input != nil, s.cfg.Search.Query, s.cfg.Search.History)
 	}
-	// The bar opens in the mode saved: text, as tab switched to it before esc
+	// The bar opens in the mode saved: text, as shift+tab switched to it before esc
 	// above. Searching again moves a query to the end of the history, once.
 	pressRoot(s, "/", "x3", "enter")
 	if !slices.Equal(s.cfg.Search.History, []config.Query{{Text: "x[12]", Regex: true}, {Text: "x3"}}) {

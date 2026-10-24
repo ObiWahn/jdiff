@@ -317,9 +317,9 @@ func (f *Flow) findText(dir int) {
 }
 
 // SearchBar wraps the view: / opens a bar at the bottom to type what to
-// search for, plain text or, switched with tab, a regular expression, in
-// changed lines or, switched with shift+tab, in all; both are
-// toggles, kept in state.toml. Up and down go through what was searched for
+// search for, in changed lines or, switched with tab, in all, plain text
+// or, switched with shift+tab, a regular expression; both are toggles,
+// kept in state.toml. Up and down go through what was searched for
 // before, enter searches from the cursor on, as . does. What was searched
 // for is kept in config.Search.
 type SearchBar struct {
@@ -358,8 +358,8 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // key edits the query: enter searches it, esc, enter on nothing typed or
-// backspace on it closes the bar; tab switches between plain text and
-// regular expression, shift+tab between changed and all lines; up and
+// backspace on it closes the bar; tab switches between changed and all
+// lines, shift+tab between plain text and regular expression; up and
 // down go through the history, each query in its mode.
 func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 	in, history, st := s.input, s.cfg.Search.History, &s.cfg.Settings
@@ -391,11 +391,11 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return func() tea.Msg { return findMsg(1) }
 	case tea.KeyTab:
+		s.err = toggle(s.cfg, &st.SearchAll)
+	case tea.KeyShiftTab:
 		s.regex = !s.regex
 		st.SearchRegex = s.regex
 		s.err = saveState(s.cfg)
-	case tea.KeyShiftTab:
-		s.err = toggle(s.cfg, &st.SearchAll)
 	case tea.KeyUp:
 		if s.hist == len(history) {
 			s.draft = config.Query{Text: in.text, Regex: s.regex}
@@ -438,7 +438,7 @@ func (s *SearchBar) View() string {
 	if s.cfg.Settings.SearchAll {
 		otherScope = "changed"
 	}
-	keys := []string{"enter find", "tab " + otherMode, "shift+tab " + otherScope, "esc cancel"}
+	keys := []string{"enter find", "tab " + otherScope, "shift+tab " + otherMode, "esc cancel"}
 	if len(s.cfg.Search.History) > 0 {
 		keys = slices.Insert(keys, 1, "↑↓ history")
 	}

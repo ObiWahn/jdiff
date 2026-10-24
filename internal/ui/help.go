@@ -61,7 +61,7 @@ var bindings = []binding{
 	{"", "  enter on an anchored line removes the anchor"},
 	{"", "  normal layout: unchanged lines take the side opposite the mark"},
 	{"esc", "cancel the mark"},
-	{"/", "search: enter find, tab text or regex, shift+tab changed or all lines"},
+	{"/", "search: enter find, tab changed or all lines, shift+tab text or regex"},
 	{"", "  ↑ ↓ earlier searches, esc or backspace on nothing typed cancel"},
 	{". ,", "next, previous match; in the flow view in all files of the commit"},
 	{"s", "side by side or normal layout"},

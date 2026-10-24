@@ -140,7 +140,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `tab` | switch pane |
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
 | `esc` | cancel the mark |
-| `/` | search in a bar at the bottom: type the text; `tab` switches between plain text and a regular expression (Go syntax), `shift+tab` between changed lines (added, removed and moved; the default) and all lines, both kept in `state.toml`; `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` or `backspace` on nothing typed cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
+| `/` | search in a bar at the bottom: type the text; `tab` switches between changed lines (added, removed and moved; the default) and all lines, `shift+tab` between plain text and a regular expression (Go syntax), both kept in `state.toml`; `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` or `backspace` on nothing typed cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
 | `.` `,` | next, previous match; past the last or first one the cursor stays. In the flow view in all files, in the log in those of the current commit: `N` `P` go to the others |
 | `o` | other end of moved code |
 | `m`*letter* | set a jump mark on the line of the new file |
@@ -217,8 +217,8 @@ wrap = false
 bold_changes = true
 full_messages = true
 stay_in_commit = false
-search_regex = false            # / searches for a regular expression (tab in its bar)
-search_all = false              # / searches all lines, not only changed ones (shift+tab)
+search_regex = false            # / searches for a regular expression (shift+tab in its bar)
+search_all = false              # / searches all lines, not only changed ones (tab)
 ```
 
 ### Themes
