@@ -19,6 +19,7 @@ type binding struct{ key, what string }
 var bindings = []binding{
 	{"", "Commit list"},
 	{"j k", "move"},
+	{"N P  n p", "next, previous commit in history"},
 	{"pgup pgdn", "page up, down (also ctrl+b ctrl+f)"},
 	{"g G", "first, last commit"},
 	{"enter", "show the files of the commit"},
@@ -60,7 +61,8 @@ var bindings = []binding{
 	{"", "  enter on an anchored line removes the anchor"},
 	{"", "  normal layout: unchanged lines take the side opposite the mark"},
 	{"esc", "cancel the mark"},
-	{"/", "search: enter find, tab text or regex, ↑ ↓ earlier searches"},
+	{"/", "search: enter find, tab text or regex, shift+tab changed or all lines"},
+	{"", "  ↑ ↓ earlier searches, esc or backspace on nothing typed cancel"},
 	{". ,", "next, previous match; in the flow view in all files of the commit"},
 	{"s", "side by side or normal layout"},
 	{"w", "show all whitespace and line ends or only changed"},
@@ -82,7 +84,7 @@ var bindings = []binding{
 	{"\\", "jump marks: enter jumps, d or del deletes"},
 	{"R F5", "load again: git diff, git log, the directories or the files"},
 	{"d", "popup: show git diff ARGS instead; ↑ the current ARGS, enter show, esc cancel"},
-	{"", "  b c C e f r s t v w W are saved in ~/.config/jdiff/state.toml"},
+	{"", "  b c C e f r s t v w W, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
 }

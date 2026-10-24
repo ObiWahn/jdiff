@@ -83,6 +83,13 @@ type Toggles struct {
 	// log in the current commit: moves out of it stop with a warning, N and
 	// P still switch commits. C toggles it.
 	StayInCommit bool `toml:"stay_in_commit"`
+	// SearchRegex (search_regex) searches with / for a regular expression;
+	// off, for plain text. tab in the search bar toggles it.
+	SearchRegex bool `toml:"search_regex"`
+	// SearchAll (search_all) searches with / in all lines; off, only in
+	// changed ones, added, removed and moved. shift+tab in the search bar
+	// toggles it.
+	SearchAll bool `toml:"search_all"`
 }
 
 // Default returns the default settings.

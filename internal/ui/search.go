@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"unicode"
@@ -14,6 +15,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/settings"
 )
 
 // searchKey opens the search bar; nextKey and prevKey search again forward
@@ -114,10 +116,14 @@ type hit struct {
 // line first.
 func (h hit) order() int { return 2*h.row + int(h.side) }
 
-// hits returns the lines of d that m finds something in, in order.
-func (d *fileDiff) hits(m *matcher) []hit {
+// hits returns the lines of d that m finds something in, in order: only
+// the changed ones unless all is set.
+func (d *fileDiff) hits(m *matcher, all bool) []hit {
 	var out []hit
 	for i, r := range d.rows {
+		if !all && r.Kind == diff.Equal {
+			continue
+		}
 		for _, s := range []side{left, right} {
 			if line := lineOf(r, s); line >= 0 && m.spans(d.lines[s][line]) != nil {
 				out = append(out, hit{i, s})
@@ -176,7 +182,15 @@ func queryName(q config.Query) string {
 // noFurther returns the status message when no match of q lies further in
 // direction dir: the cursor stays.
 func noFurther(q config.Query, dir int, where string) string {
-	return queryName(q) + ": " + ends(dir > 0, "no match further down", "no match further up") + where
+	return queryName(q) + ": " + ends(dir > 0, "no match further down", "no match further up") + strings.Replace(where, " of ", " in ", 1)
+}
+
+// scope returns where / searches, as messages name it.
+func scope(st settings.Settings) string {
+	if st.SearchAll {
+		return "all lines"
+	}
+	return "changed lines"
 }
 
 // findText moves the cursor to the next line, in direction dir, that holds
@@ -190,9 +204,9 @@ func (m *Model) findText(dir int) {
 		m.msg = "nothing searched yet: / searches"
 		return
 	}
-	hits := m.hits(mt)
+	hits := m.hits(mt, m.cfg.Settings.SearchAll)
 	if len(hits) == 0 {
-		m.msg = "no match for " + q.Text
+		m.msg = "no match for " + q.Text + " in " + scope(m.cfg.Settings)
 		return
 	}
 	m.syncLayout()
@@ -246,7 +260,7 @@ func (f *Flow) findText(dir int) {
 	}
 	where := ""
 	if f.inLog() {
-		where = " in this commit"
+		where = " of this commit"
 	}
 	var hits []flowHit
 	for p, part := range f.parts {
@@ -257,13 +271,13 @@ func (f *Flow) findText(dir int) {
 			if e.Binary {
 				continue
 			}
-			for _, h := range part.app.diffOf(e).hits(mt) {
+			for _, h := range part.app.diffOf(e).hits(mt, f.cfg.Settings.SearchAll) {
 				hits = append(hits, flowHit{p, i, h})
 			}
 		}
 	}
 	if len(hits) == 0 {
-		f.msg = "no match for " + q.Text + where
+		f.msg = "no match for " + q.Text + " in " + scope(f.cfg.Settings) + where
 		return
 	}
 	// The cursor's position: a commit's or file's own rows come before the
@@ -303,19 +317,21 @@ func (f *Flow) findText(dir int) {
 }
 
 // SearchBar wraps the view: / opens a bar at the bottom to type what to
-// search for, plain text or, switched with tab, a regular expression; up
-// and down go through what was searched for before, enter searches from the
-// cursor on, as . does. What was searched for is kept in config.Search.
+// search for, plain text or, switched with tab, a regular expression, in
+// changed lines or, switched with shift+tab, in all; both are
+// toggles, kept in state.toml. Up and down go through what was searched for
+// before, enter searches from the cursor on, as . does. What was searched
+// for is kept in config.Search.
 type SearchBar struct {
 	tea.Model
 	cfg   *config.Config
 	input *lineInput // while the bar is open
-	regex bool       // the text is a regular expression
+	regex bool       // the text is a regular expression, as last searched or toggled
 	// hist is the entry of config.Search.History shown, its length for the
 	// text typed, draft, kept while going through the history.
 	hist  int
 	draft config.Query
-	err   string // why the regular expression does not compile
+	err   string // why the regular expression does not compile, or the state is not saved
 
 	width, height int
 }
@@ -328,7 +344,7 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 	case askSearchMsg:
-		s.input, s.regex, s.err = &lineInput{}, s.cfg.Search.Regex, ""
+		s.input, s.regex, s.err = &lineInput{}, s.cfg.Settings.SearchRegex, ""
 		s.hist = len(s.cfg.Search.History)
 		return s, nil
 	case tea.KeyMsg:
@@ -341,11 +357,12 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, cmd
 }
 
-// key edits the query: enter searches it, esc or enter on nothing typed
-// closes the bar, tab switches between plain text and regular expression,
-// up and down go through the history.
+// key edits the query: enter searches it, esc, enter on nothing typed or
+// backspace on it closes the bar; tab switches between plain text and
+// regular expression, shift+tab between changed and all lines; up and
+// down go through the history, each query in its mode.
 func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
-	in, history := s.input, s.cfg.Search.History
+	in, history, st := s.input, s.cfg.Search.History, &s.cfg.Settings
 	s.err = ""
 	show := func(q config.Query) { in.text, s.regex = q.Text, q.Regex }
 	switch k.Type {
@@ -353,6 +370,12 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 		return tea.Quit
 	case tea.KeyEsc:
 		s.input = nil
+	case tea.KeyBackspace:
+		if in.text == "" {
+			s.input = nil
+		} else {
+			in.edit(k)
+		}
 	case tea.KeyEnter:
 		q := config.Query{Text: in.text, Regex: s.regex}
 		if q.Text == "" {
@@ -365,9 +388,17 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 		}
 		s.input = nil
 		s.cfg.Search.Add(q)
+		if st.SearchRegex != q.Regex { // from the history
+			st.SearchRegex = q.Regex
+			s.err = saveState(s.cfg)
+		}
 		return func() tea.Msg { return findMsg(1) }
 	case tea.KeyTab:
 		s.regex = !s.regex
+		st.SearchRegex = s.regex
+		s.err = saveState(s.cfg)
+	case tea.KeyShiftTab:
+		s.err = toggle(s.cfg, &st.SearchAll)
 	case tea.KeyUp:
 		if s.hist == len(history) {
 			s.draft = config.Query{Text: in.text, Regex: s.regex}
@@ -400,15 +431,21 @@ func (s *SearchBar) View() string {
 		return base
 	}
 	t := s.cfg.Theme
-	mode, other := " search ", "regex"
+	// The title says how the bar searches and what tab and shift+tab switch
+	// to.
+	mode, otherMode := "search", "regex"
 	if s.regex {
-		mode, other = " regex ", "text"
+		mode, otherMode = "regex", "text"
 	}
-	keys := " enter find · tab " + other + " · esc cancel "
+	otherScope := "all"
+	if s.cfg.Settings.SearchAll {
+		otherScope = "changed"
+	}
+	keys := []string{"enter find", "tab " + otherMode, "shift+tab " + otherScope, "esc cancel"}
 	if len(s.cfg.Search.History) > 0 {
-		keys = " enter find · ↑↓ history · tab " + other + " · esc cancel "
+		keys = slices.Insert(keys, 1, "↑↓ history")
 	}
-	title := t.CommitHash.Render(mode) + t.Hint.Render(keys)
+	title := t.CommitHash.Render(" "+mode+" "+scope(s.cfg.Settings)+" ") + t.Hint.Render(" "+strings.Join(keys, " · ")+" ")
 	text := "/" + printable(s.input.text) + "█"
 	inner := min(max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text), ansi.StringWidth(s.err)), s.width-4)
 	if over := ansi.StringWidth(text) - inner; over > 0 {

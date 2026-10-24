@@ -55,7 +55,7 @@ type Log struct {
 	minCount int                     // the least width of the count columns
 
 	commits []*commitEntry
-	next    int // the step in commits to the next commit in history
+	order   historyOrder // of commits
 	list
 	open   *commitEntry // commit whose files are shown, nil for the list
 	files  bool         // in flow mode: the file list of open, not the flow view
@@ -70,10 +70,8 @@ type Log struct {
 // come with the commits.
 func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFirst bool,
 	load LoadFunc, counts CountFunc) *Log {
-	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1, next: -1}
-	if oldestFirst {
-		l.next = 1
-	}
+	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1,
+		order: orderOf(oldestFirst)}
 	if counts != nil {
 		l.minCount = countWidth
 	}
@@ -86,7 +84,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
 	l.flow = newFlow(cfg, parts, l.app)
-	l.flow.next = l.next
+	l.flow.order = l.order
 	if len(commits) == 0 {
 		l.msg = "no commits"
 	}
@@ -248,6 +246,14 @@ func (l *Log) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
+	case "n", "p", "N", "P":
+		// The next or previous commit in history, as N and P go from its files.
+		dir := historyDir(k)
+		if i := l.cursor + l.order.step(dir); i >= 0 && i < len(l.commits) {
+			l.moveCursor(i - l.cursor)
+		} else {
+			l.msg = ends(dir > 0, "last commit", "first commit")
+		}
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
 	case "v":
@@ -365,7 +371,7 @@ func (l *Log) switchCommit(dir int) {
 	if app.open != nil {
 		path = app.open.Path
 	}
-	i := l.cursor + dir*l.next
+	i := l.cursor + l.order.step(dir)
 	if i < 0 || i >= len(l.commits) {
 		app.setMsg(ends(dir > 0, "last commit", "first commit"))
 		return

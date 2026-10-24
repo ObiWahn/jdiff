@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -65,6 +67,7 @@ func newSearchModel() *Model {
 
 func TestModelFindText(t *testing.T) {
 	m := newSearchModel()
+	m.cfg.Settings.SearchAll = true // also in the unchanged lines
 	press(m, ".")
 	if m.msg != "nothing searched yet: / searches" {
 		t.Errorf(". before a search: %q", m.msg)
@@ -110,11 +113,113 @@ func TestModelFindText(t *testing.T) {
 	}
 }
 
+func TestFindChangedOnly(t *testing.T) {
+	m := newSearchModel() // x5 changed, x30 removed
+	m.cfg.Search.Add(config.Query{Text: "x3"})
+	// By default only in changed lines: the removed x30, then no further.
+	press(m, ".")
+	if m.active != left || m.lineAt(left, m.cursor) != 30 {
+		t.Errorf(". in changed lines: on %v line %d, want the removed x30", m.active, m.lineAt(m.active, m.cursor))
+	}
+	press(m, ".")
+	if m.msg != "/x3: no match further down" {
+		t.Errorf(". past it: %q", m.msg)
+	}
+	m.cfg.Search.Add(config.Query{Text: "x2"})
+	press(m, ",")
+	if m.msg != "no match for x2 in changed lines" {
+		t.Errorf("only in unchanged lines: %q", m.msg)
+	}
+	// Only changed lines are highlighted.
+	ansiColors(t)
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	m.cfg.Search.Add(config.Query{Text: "x"})
+	match := m.cfg.Theme.Search.Render("x")
+	match = match[:strings.Index(match, "x")]
+	if !strings.Contains(renderedLine(t, m, right, 5), match+"x") || strings.Contains(renderedLine(t, m, right, 4), match+"x") {
+		t.Errorf("highlights: changed %q, unchanged %q", renderedLine(t, m, right, 5), renderedLine(t, m, right, 4))
+	}
+	m.cfg.Settings.SearchAll = true
+	if !strings.Contains(renderedLine(t, m, right, 4), match+"x") {
+		t.Errorf("all lines: unchanged %q not highlighted", renderedLine(t, m, right, 4))
+	}
+}
+
+func TestSearchBarToggles(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newSearchModel()
+	m.cfg = cfg
+	s := WithSearch(cfg, m)
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	state := func() string {
+		b, _ := os.ReadFile(filepath.Join(dir, "state.toml"))
+		return string(b)
+	}
+	title := func() string {
+		for _, r := range strings.Split(ansi.Strip(s.View()), "\n") {
+			if i := strings.Index(r, "╭─ "); i >= 0 {
+				return strings.TrimRight(strings.TrimLeft(r[i+len("╭─ "):], " "), "─╮ ")
+			}
+		}
+		return ""
+	}
+	pressRoot(s, "/")
+	if got := title(); got != "search changed lines  enter find · tab regex · shift+tab all · esc cancel" {
+		t.Errorf("title %q", got)
+	}
+	// shift+tab: all lines, tab: regex; each saved at once.
+	pressRoot(s, "shift+tab")
+	if !cfg.Settings.SearchAll || !strings.Contains(state(), "search_all = true") ||
+		title() != "search all lines  enter find · tab regex · shift+tab changed · esc cancel" {
+		t.Errorf("shift+tab: all %v, title %q, state\n%s", cfg.Settings.SearchAll, title(), state())
+	}
+	pressRoot(s, "tab")
+	if !s.regex || !cfg.Settings.SearchRegex || !strings.Contains(state(), "search_regex = true") ||
+		title() != "regex all lines  enter find · tab text · shift+tab changed · esc cancel" {
+		t.Errorf("tab: regex %v, title %q, state\n%s", s.regex, title(), state())
+	}
+	pressRoot(s, "tab", "shift+tab")
+	if s.regex || cfg.Settings.SearchRegex || cfg.Settings.SearchAll ||
+		!strings.Contains(state(), "search_regex = false") || !strings.Contains(state(), "search_all = false") {
+		t.Errorf("back: regex %v %v, all %v, state\n%s", s.regex, cfg.Settings.SearchRegex, cfg.Settings.SearchAll, state())
+	}
+	// backspace deletes, and on nothing typed closes the bar.
+	pressRoot(s, "ab", "backspace")
+	if s.input == nil || s.input.text != "a" {
+		t.Fatalf("backspace: %v", s.input)
+	}
+	pressRoot(s, "backspace", "backspace")
+	if s.input != nil || cfg.Search.Text != "" {
+		t.Errorf("backspace on nothing typed: open %v, search %+v", s.input != nil, cfg.Search.Query)
+	}
+	// The bar opens in the mode saved; a query of the history brings its
+	// own, which enter saves.
+	pressRoot(s, "/", "tab", "x[0-9]", "enter")
+	pressRoot(s, "/", "tab", "plain", "enter")
+	if cfg.Settings.SearchRegex || !strings.Contains(state(), "search_regex = false") {
+		t.Fatalf("plain search: regex %v", cfg.Settings.SearchRegex)
+	}
+	pressRoot(s, "/", "up", "up", "enter")
+	if cfg.Search.Query != (config.Query{Text: "x[0-9]", Regex: true}) || !cfg.Settings.SearchRegex ||
+		!strings.Contains(state(), "search_regex = true") {
+		t.Errorf("from the history: search %+v, regex %v, state\n%s", cfg.Search.Query, cfg.Settings.SearchRegex, state())
+	}
+	pressRoot(s, "/")
+	if !s.regex {
+		t.Error("the bar does not open in the mode saved")
+	}
+}
+
 func TestFindScrollsToMatch(t *testing.T) {
 	long := strings.Repeat("a", 150) + "needle" + strings.Repeat("b", 50)
 	m := newTestModel([]string{"x", long}, []string{"y", long})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	m.cfg.Settings.Wrap = false
+	m.cfg.Settings.Wrap, m.cfg.Settings.SearchAll = false, true // the long line is unchanged
 	m.cfg.Search.Add(config.Query{Text: "needle"})
 	press(m, ".")
 	w := m.contentWidth(m.width, !m.cfg.Settings.SideBySide)
@@ -193,7 +298,7 @@ func TestFlowFindText(t *testing.T) {
 	}
 	// In c1, which has no 1.
 	pressLog(l, "P", ".")
-	if f.msg != "no match for 1 in this commit" {
+	if f.msg != "no match for 1 in changed lines of this commit" {
 		t.Errorf("in c1: msg %q", f.msg)
 	}
 	// A regular expression: q or y, in c1's c.go.
@@ -244,7 +349,7 @@ func TestSearchBar(t *testing.T) {
 	view := ansi.Strip(s.View())
 	rows := strings.Split(view, "\n")
 	// The bar above the status line, which stays.
-	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search  enter find · tab regex · esc cancel") ||
+	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines  enter find · tab regex · shift+tab all · esc cancel") ||
 		!strings.Contains(rows[len(rows)-3], "/█") || status() != before {
 		t.Fatalf("/: bar\n%s", view)
 	}
@@ -253,8 +358,8 @@ func TestSearchBar(t *testing.T) {
 	if !strings.Contains(ansi.Strip(s.View()), "/x3█") {
 		t.Errorf("typed:\n%s", ansi.Strip(s.View()))
 	}
-	pressRoot(s, "enter")
-	if s.input != nil || s.cfg.Search.Query != (config.Query{Text: "x3"}) || m.lineAt(m.active, m.cursor) != 3 {
+	pressRoot(s, "enter") // in changed lines: the removed x30
+	if s.input != nil || s.cfg.Search.Query != (config.Query{Text: "x3"}) || m.lineAt(m.active, m.cursor) != 30 {
 		t.Fatalf("enter: bar open %v, search %+v, cursor line %d", s.input != nil, s.cfg.Search.Query, m.lineAt(m.active, m.cursor))
 	}
 	// A broken regular expression keeps the bar open and says why.
@@ -286,9 +391,9 @@ func TestSearchBar(t *testing.T) {
 	if s.input != nil || s.cfg.Search.Query != (config.Query{Text: "x[12]", Regex: true}) || len(s.cfg.Search.History) != 2 {
 		t.Errorf("esc, empty enter: open %v, search %+v, history %v", s.input != nil, s.cfg.Search.Query, s.cfg.Search.History)
 	}
-	// The bar opens in the mode searched in last, here regex. Searching
-	// again moves a query to the end of the history, once.
-	pressRoot(s, "/", "tab", "x3", "enter")
+	// The bar opens in the mode saved: text, as tab switched to it before esc
+	// above. Searching again moves a query to the end of the history, once.
+	pressRoot(s, "/", "x3", "enter")
 	if !slices.Equal(s.cfg.Search.History, []config.Query{{Text: "x[12]", Regex: true}, {Text: "x3"}}) {
 		t.Errorf("history %v", s.cfg.Search.History)
 	}

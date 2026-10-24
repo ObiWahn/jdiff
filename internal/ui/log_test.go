@@ -834,3 +834,41 @@ func TestCommitListArrowsAllHeights(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitListHistoryKeys(t *testing.T) {
+	for _, oldestFirst := range []bool{false, true} {
+		l, _ := newTestLogOrder(oldestFirst)
+		hash := func() string { return l.commits[l.cursor].Hash }
+		// From c2, the next commit in history is c3, the previous one c1,
+		// in either order of the list; n and p do as N and P.
+		l.cursor = slices.IndexFunc(l.commits, func(e *commitEntry) bool { return e.Hash == "c2" })
+		l.scrollToCursor()
+		for _, tt := range []struct{ key, want string }{
+			{"N", "c3"}, {"P", "c2"}, {"p", "c1"}, {"n", "c2"},
+		} {
+			pressLog(l, tt.key)
+			if hash() != tt.want {
+				t.Errorf("oldest first %v: %s on to %s, want %s", oldestFirst, tt.key, hash(), tt.want)
+			}
+		}
+		// At the ends the cursor stays, with the messages of N and P from a
+		// commit's files.
+		pressLog(l, "N", "n")
+		if hash() != "c3" || l.msg != "last commit" {
+			t.Errorf("oldest first %v: past the newest: on %s, msg %q", oldestFirst, hash(), l.msg)
+		}
+		pressLog(l, "P", "P", "P", "p")
+		if hash() != "c0" || l.msg != "first commit" {
+			t.Errorf("oldest first %v: past the oldest: on %s, msg %q", oldestFirst, hash(), l.msg)
+		}
+		// The same direction as N from the commit's files.
+		pressLog(l, "N", "N", "enter")
+		if l.open == nil || l.open.Hash != "c2" {
+			t.Fatalf("oldest first %v: open %v, want c2", oldestFirst, l.open)
+		}
+		pressLog(l, "N")
+		if l.open.Hash != "c3" {
+			t.Errorf("oldest first %v: N from c2's files to %s, want c3", oldestFirst, l.open.Hash)
+		}
+	}
+}

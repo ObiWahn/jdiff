@@ -97,6 +97,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | Key | Action |
 |---|---|
 | `j` `k` | move |
+| `N` `P`, `n` `p` | next, previous commit in history, also with `--reverse` |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
 | `g` `G` | first, last commit |
 | `enter` | show the files of the commit |
@@ -139,7 +140,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `tab` | switch pane |
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
 | `esc` | cancel the mark |
-| `/` | search in a bar at the bottom: type the text, `tab` switches between plain text and a regular expression (Go syntax), `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
+| `/` | search in a bar at the bottom: type the text; `tab` switches between plain text and a regular expression (Go syntax), `shift+tab` between changed lines (added, removed and moved; the default) and all lines, both kept in `state.toml`; `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` or `backspace` on nothing typed cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
 | `.` `,` | next, previous match; past the last or first one the cursor stays. In the flow view in all files, in the log in those of the current commit: `N` `P` go to the others |
 | `o` | other end of moved code |
 | `m`*letter* | set a jump mark on the line of the new file |
@@ -185,7 +186,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `c` `C` `f` `s` `v` `w` as last set; written by jdiff |
+| `state.toml` | the toggles `c` `C` `f` `s` `v` `w`, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 
 Unknown keys and invalid values are reported in the status bar.
@@ -216,6 +217,8 @@ wrap = false
 bold_changes = true
 full_messages = true
 stay_in_commit = false
+search_regex = false            # / searches for a regular expression (tab in its bar)
+search_all = false              # / searches all lines, not only changed ones (shift+tab)
 ```
 
 ### Themes

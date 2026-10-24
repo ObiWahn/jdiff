@@ -89,10 +89,33 @@ func saveState(cfg *config.Config) string {
 	return ""
 }
 
-// switchCommit returns the command asking the log for the next (N) or
-// previous (P) commit.
+// The direction in history is decided here only: historyDir turns a key
+// into it, historyOrder.step into a step through a list of commits.
+
+// historyDir returns where key k goes in history: 1 to the next commit, for
+// N and n, -1 to the previous one, for P and p.
+func historyDir(k string) int { return direction(k == "N" || k == "n") }
+
+// historyOrder is the order of a list of commits, as git log lists them:
+// the step from a commit to the next one in history, -1 when the newest
+// comes first, as by default, 1 when the oldest does, with --reverse.
+type historyOrder int
+
+// orderOf returns the order of a list of commits, the oldest first or not.
+func orderOf(oldestFirst bool) historyOrder {
+	if oldestFirst {
+		return 1
+	}
+	return -1
+}
+
+// step returns the step through the list to go in direction dir in history.
+func (o historyOrder) step(dir int) int { return dir * int(o) }
+
+// switchCommit returns the command asking the log for the commit key k goes
+// to in history.
 func switchCommit(k string) tea.Cmd {
-	dir := switchCommitMsg(direction(k == "N"))
+	dir := switchCommitMsg(historyDir(k))
 	return func() tea.Msg { return dir }
 }
 

@@ -351,7 +351,7 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	default:
 		st.base = lineStyle
 	}
-	if m := matcherOf(d.cfg.Search.Query); m != nil {
+	if m := matcherOf(d.cfg.Search.Query); m != nil && (d.cfg.Settings.SearchAll || row.Kind != diff.Equal) {
 		st.matches, st.match = m.spans(d.lines[s][line]), t.Search
 	}
 	// The pieces of a wrapped line are drawn from one highlight of it.
