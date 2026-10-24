@@ -213,10 +213,7 @@ func (p *MarksPopup) View() string {
 		lines = []string{t.Hint.Render("no marks: m and a letter sets one")}
 		widest = 40
 	}
-	title := t.CommitHash.Render(" marks ") + t.Hint.Render(" enter jump · d delete · esc close ")
-	if p.msg != "" {
-		title = t.CommitHash.Render(" marks ") + t.Hint.Render(" "+p.msg+" ")
-	}
+	title := popupTitle(t, "marks", p.msg, "enter jump · d delete · esc close")
 	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
 	return overlay(base, box(t, width, p.boxHeight(), title, lines), width, p.width)
 }

@@ -365,17 +365,14 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 	in, history, st := s.input, s.cfg.Search.History, &s.cfg.Settings
 	s.err = ""
 	show := func(q config.Query) { in.text, s.regex = q.Text, q.Regex }
-	switch k.Type {
-	case tea.KeyCtrlC:
+	switch {
+	case k.Type == tea.KeyCtrlC:
 		return tea.Quit
-	case tea.KeyEsc:
+	case in.cancels(k):
 		s.input = nil
-	case tea.KeyBackspace:
-		if in.text == "" {
-			s.input = nil
-		} else {
-			in.edit(k)
-		}
+		return nil
+	}
+	switch k.Type {
 	case tea.KeyEnter:
 		q := config.Query{Text: in.text, Regex: s.regex}
 		if q.Text == "" {
@@ -423,8 +420,8 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 }
 
 // View draws the bar over the view, above its status line, while it is
-// open: the query, and why its regular expression does not compile. It
-// grows with them, up to the screen's width.
+// open: the query, and why its regular expression does not compile, see
+// inputBox.
 func (s *SearchBar) View() string {
 	base := s.Model.View()
 	if s.input == nil || s.width == 0 {
@@ -445,19 +442,9 @@ func (s *SearchBar) View() string {
 	if len(s.cfg.Search.History) > 0 {
 		keys = slices.Insert(keys, 1, "↑↓ history")
 	}
-	title := t.CommitHash.Render(" "+mode+" "+scope(s.cfg.Settings)+" ") + t.Hint.Render(" "+strings.Join(keys, " · ")+" ")
-	text := "/" + printable(s.input.text) + "█"
-	inner := min(max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text), ansi.StringWidth(s.err)), s.width-4)
-	if over := ansi.StringWidth(text) - inner; over > 0 {
-		text = cutLeft(text, over)
-	}
-	lines := []string{text}
-	if s.err != "" {
-		lines = append(lines, t.Minus.Render(s.err))
-	}
-	w := inner + 4
-	bar := box(t, w, len(lines)+2, title, lines)
+	title := popupTitle(t, mode+" "+scope(s.cfg.Settings), "", strings.Join(keys, " · "))
+	bar, w := inputBox(t, s.width, title, "/"+printable(s.input.text), s.err, false)
 	// Above the status line, the last row.
-	y := max(strings.Count(base, "\n")-len(lines)-2, 0)
+	y := max(strings.Count(base, "\n")-strings.Count(bar, "\n"), 0)
 	return overlayAt(base, bar, max((s.width-w)/2, 0), y, w, s.width)
 }

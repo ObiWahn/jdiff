@@ -36,6 +36,12 @@ func statusLine(t *theme.Theme, width int, left, right string) string {
 	return ansi.Truncate(left+t.Hint.Render(strings.Repeat(" ", gap)+right), width, "")
 }
 
+// popupTitle returns the title of a popup: its name, then msg or the keys
+// of hints, as statusText renders them.
+func popupTitle(t *theme.Theme, name, msg, hints string) string {
+	return t.CommitHash.Render(" "+name+" ") + t.Hint.Render(" ") + statusText(t, msg, hints) + t.Hint.Render(" ")
+}
+
 // statusText returns the left part of a status bar: msg in the hint style,
 // or without one the hints, each a key and what it does, separated by
 // " · ", the keys in the hint key style.
@@ -302,14 +308,18 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key edits the arguments asked for; all text typed goes into the line. Up
 // takes the arguments of the git diff shown to edit. Enter shows the diff of
-// the line; with nothing typed it closes the popup, as esc does.
+// the line; with nothing typed it closes the popup, as esc and backspace on
+// it do.
 func (s *DiffSwitch) key(k tea.KeyMsg) tea.Cmd {
 	in := s.input
-	switch k.Type {
-	case tea.KeyCtrlC:
+	switch {
+	case k.Type == tea.KeyCtrlC:
 		return tea.Quit
-	case tea.KeyEsc:
+	case in.cancels(k):
 		s.input = nil
+		return nil
+	}
+	switch k.Type {
 	case tea.KeyEnter:
 		args := strings.Fields(in.text)
 		if len(args) == 0 {
@@ -350,7 +360,7 @@ func (s *DiffSwitch) show(args []string) tea.Cmd {
 	return s.Model.Init()
 }
 
-// minInputWidth is the least width of the line in the popup of d.
+// minInputWidth is the least width of the line in the popups of inputBox.
 const minInputWidth = 40
 
 // View draws the popup over the view while it asks: the line typed,
@@ -363,26 +373,44 @@ func (s *DiffSwitch) View() string {
 		return base
 	}
 	t := s.cfg.Theme
-	keys := " enter show · esc cancel "
+	keys := "enter show · esc cancel"
 	if _, ok := s.current(); ok {
-		keys = " enter show · ↑ current · esc cancel "
+		keys = "enter show · ↑ current · esc cancel"
 	}
-	title := t.CommitHash.Render(" git diff ") + t.Hint.Render(keys)
-	text := printable(s.input.text) + "█"
-	inner := max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text))
-	inner = min(inner, s.width-4) // borders and a space on each side
+	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", "", keys), printable(s.input.text), s.err, true)
+	return overlay(base, pop, w, s.width)
+}
+
+// inputBox renders a popup holding a line typed: title, text with the
+// cursor at its end, centered between empty lines with centered, and err
+// below when set. It is at least minInputWidth wide and grows with them up
+// to width, beyond which the start of text is cut, so that its end stays
+// in view. It returns the popup and its width.
+func inputBox(t *theme.Theme, width int, title, text, err string, centered bool) (string, int) {
+	text += "█"
+	inner := max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text), ansi.StringWidth(err))
+	inner = min(inner, width-4) // borders and a space on each side
 	if over := ansi.StringWidth(text) - inner; over > 0 {
 		text = cutLeft(text, over)
 	}
-	lines := []string{"", strings.Repeat(" ", (inner-ansi.StringWidth(text))/2) + text, ""}
-	if s.err != "" {
-		lines = append(lines, t.Minus.Render(s.err))
+	lines := []string{text}
+	if centered {
+		lines = []string{"", strings.Repeat(" ", (inner-ansi.StringWidth(text))/2) + text, ""}
 	}
-	return overlay(base, box(t, inner+4, len(lines)+2, title, lines), inner+4, s.width)
+	if err != "" {
+		lines = append(lines, t.Minus.Render(err))
+	}
+	return box(t, inner+4, len(lines)+2, title, lines), inner + 4
 }
 
 // lineInput is a line of text being typed, with the cursor at its end.
 type lineInput struct{ text string }
+
+// cancels reports whether k closes the input without using it: esc, or
+// backspace on nothing typed.
+func (in *lineInput) cancels(k tea.KeyMsg) bool {
+	return k.Type == tea.KeyEsc || k.Type == tea.KeyBackspace && in.text == ""
+}
 
 // edit applies k to the text: typed and pasted text is added, backspace
 // deletes a character, ctrl+w a word and ctrl+u the line.

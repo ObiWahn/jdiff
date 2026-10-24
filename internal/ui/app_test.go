@@ -779,3 +779,39 @@ func TestFileListArrows(t *testing.T) {
 	pressApp(a, "g")
 	check("g in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
 }
+
+func TestDiffSwitchBackspaceCloses(t *testing.T) {
+	s, g := newDiffSwitch(newTestApp())
+	pressRoot(s, "d", "ab", "backspace")
+	if s.input == nil || s.input.text != "a" {
+		t.Fatalf("backspace on text: %v", s.input)
+	}
+	pressRoot(s, "backspace", "backspace")
+	if s.input != nil || len(g.runs) != 0 {
+		t.Errorf("backspace on nothing typed: open %v, runs %v; want closed, no git", s.input != nil, g.runs)
+	}
+}
+
+func TestDiffSwitchErrorWidens(t *testing.T) {
+	s, g := newDiffSwitch(newTestApp()) // 100 columns
+	msg := "git diff: fatal: ambiguous argument 'HEAD~99': unknown revision or path not in the working tree"
+	g.err = errors.New(msg + "\nmore")
+	pressRoot(s, "d", "HEAD~99", "enter")
+	if !strings.Contains(ansi.Strip(s.View()), msg[:96-4]) {
+		t.Errorf("the message is cut before the screen's edge:\n%s", ansi.Strip(s.View()))
+	}
+}
+
+func TestPopupTitleKeys(t *testing.T) {
+	ansiColors(t)
+	s, _ := newDiffSwitch(newTestApp())
+	th := s.cfg.Theme
+	pressRoot(s, "d")
+	if !strings.Contains(s.View(), th.HintKey.Render("enter")+th.Hint.Render(" show")) {
+		t.Error("the git diff popup's title without the key in the hint key style")
+	}
+	if got := popupTitle(th, "marks", "a problem", "enter jump"); strings.Contains(got, th.HintKey.Render("a")) ||
+		!strings.Contains(got, th.Hint.Render("a problem")) {
+		t.Errorf("a message in a title: %q", got)
+	}
+}

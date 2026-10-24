@@ -172,7 +172,7 @@ The keys of the diff view, and:
 | Key | Action |
 |---|---|
 | `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
-| `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc` or `enter` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
+| `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc`, or `enter` or `backspace` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
 | `R` `F5` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `?` | help |
 | `q` `ctrl+c` | quit |

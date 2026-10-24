@@ -3,8 +3,9 @@
 ## Before writing code
 
 - Look for related helpers and code first, and use or extend them instead of writing the same
-  thing again: e.g. `lineInput`, `box`, `overlay`/`overlayAt`, `windowAt`/`windowAround`,
-  `statusText`/`statusLine`, `toggle`/`saveState`, `printable`, `cutLeft`.
+  thing again: e.g. `lineInput` (with `cancels`), `inputBox`, `box`, `popupTitle`,
+  `overlay`/`overlayAt`, `windowAt`/`windowAround`, `statusText`/`statusLine`,
+  `toggle`/`saveState`, `printable`, `cutLeft`.
 - Where two places do the same, factor it into one helper when that is not too costly; an
   abstraction that makes the callers harder to read, or covers only a coincidence, is not worth
   it.
@@ -41,6 +42,9 @@
   (`minHeight`) up, and around "all fits". Name the sizes that must stay in a comment, so that a
   sweep made faster keeps them; prefer a narrow terminal or `t.Parallel()` over fewer sizes.
 - `make test` runs with `-race` and a 15s timeout; keep it under that.
+
+- A refactoring changes no output: record the snapshots of `../jdiff-snap` (`snap write`) on a
+  clean commit first, `snap check` after each step; explain every frame that differs.
 
 ## Building and trying
 
