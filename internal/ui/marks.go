@@ -186,7 +186,7 @@ func (p *MarksPopup) boxHeight() int {
 func (p *MarksPopup) move(delta int) {
 	n := len(p.cfg.Marks())
 	p.cursor = max(min(p.cursor+delta, n-1), 0)
-	p.top = scrollWindow(p.cursor, p.top, p.boxHeight()-2, n)
+	p.top = windowAround(p.cursor, p.top, p.boxHeight()-2, n).first
 }
 
 func (p *MarksPopup) View() string {
@@ -196,19 +196,19 @@ func (p *MarksPopup) View() string {
 	}
 	t := p.cfg.Theme
 	marks := p.cfg.Marks()
-	var lines []string
+	all := make([]string, len(marks))
 	widest := 0
 	for i, mk := range marks {
-		line := fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
-		widest = max(widest, ansi.StringWidth(line))
-		if i < p.top || len(lines) >= p.boxHeight()-2 {
-			continue
-		}
-		if i == p.cursor {
-			line = t.Cursor.Render(line)
-		}
-		lines = append(lines, line)
+		all[i] = fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
+		widest = max(widest, ansi.StringWidth(all[i]))
 	}
+	w := windowAround(p.cursor, p.top, p.boxHeight()-2, len(marks))
+	lines := w.rows(t, len(marks), func(i int) string {
+		if i == p.cursor {
+			return t.Cursor.Render(all[i])
+		}
+		return all[i]
+	})
 	if len(marks) == 0 {
 		lines = []string{t.Hint.Render("no marks: m and a letter sets one")}
 		widest = 40
@@ -217,6 +217,6 @@ func (p *MarksPopup) View() string {
 	if p.msg != "" {
 		title = t.CommitHash.Render(" marks ") + t.Hint.Render(" "+p.msg+" ")
 	}
-	w := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
-	return overlay(base, box(t, w, p.boxHeight(), title, lines), w, p.width)
+	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
+	return overlay(base, box(t, width, p.boxHeight(), title, lines), width, p.width)
 }

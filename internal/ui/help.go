@@ -68,7 +68,7 @@ var bindings = []binding{
 	{"r", "reflow: wrap long lines or cut them"},
 	{"b", "bold or plain changed words"},
 	{"f", "flow view"},
-	{"backspace", "back to the list"},
+	{"backspace", "back to the file list, also from the flow view"},
 	{"", "Flow view"},
 	{"", "  the keys of the diff view, and:"},
 	{"n p", "next, previous file bar"},
@@ -159,8 +159,14 @@ func (h *Help) key(k string, msg tea.KeyMsg) tea.Cmd {
 // screen but a line above and below.
 func (h *Help) boxHeight() int { return min(len(bindings)+2, max(h.height-2, minBoxHeight)) }
 
+// scroll moves the shown lines by delta; from the top, it moves on by two
+// at once, as the window never starts at the second line.
 func (h *Help) scroll(delta int) {
-	h.top = max(min(h.top+delta, len(bindings)-(h.boxHeight()-2)), 0)
+	top := h.top + delta
+	if top == 1 && delta > 0 {
+		top = 2
+	}
+	h.top = windowAt(top, h.boxHeight()-2, len(bindings)).first
 }
 
 func (h *Help) View() string {
@@ -174,18 +180,17 @@ func (h *Help) View() string {
 		keyW = max(keyW, ansi.StringWidth(b.key))
 		whatW = max(whatW, ansi.StringWidth(b.what))
 	}
-	var lines []string
-	for _, b := range bindings[h.top:] {
-		switch {
+	line := func(i int) string {
+		switch b := bindings[i]; {
 		case b.key == "" && !strings.HasPrefix(b.what, " "):
-			lines = append(lines, t.Branch.Render(b.what))
+			return t.Branch.Render(b.what)
 		case b.key == "":
-			lines = append(lines, strings.Repeat(" ", keyW+2)+t.Hint.Render(strings.TrimSpace(b.what)))
+			return strings.Repeat(" ", keyW+2) + t.Hint.Render(strings.TrimSpace(b.what))
 		default:
-			key := lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %-*s", keyW, b.key))
-			lines = append(lines, key+"  "+b.what)
+			return lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  " + b.what
 		}
 	}
+	lines := windowAt(h.top, h.boxHeight()-2, len(bindings)).rows(t, len(bindings), line)
 	w := min(keyW+whatW+8, h.width) // the key indent, gap, border and padding
 	title := t.CommitHash.Render(" keys ")
 	if h.boxHeight()-2 < len(bindings) {

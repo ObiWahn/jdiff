@@ -127,7 +127,85 @@ func (li *list) moveCursor(delta int) {
 }
 
 func (li *list) scrollToCursor() {
-	li.top = scrollWindow(li.cursor, li.top, li.listHeight(), li.n)
+	li.top = windowAround(li.cursor, li.top, li.listHeight(), li.n).first
+}
+
+// window is the part of n lines that a view h rows high shows: the lines
+// from first to end, after a row with an arrow for the lines hidden above
+// when up, and before one for those hidden below when down. Arrows take
+// rows when the lines do not fit in three rows or more; an arrow hides at
+// least two lines, a single one is shown instead.
+type window struct {
+	first, end int
+	up, down   bool
+}
+
+// windowAt returns the window of h rows over n lines from top, moved into
+// the lines. It never starts at 1, which would show the lines it shows from
+// 0, with an arrow in place of the first.
+func windowAt(top, h, n int) window {
+	if n <= h || h < 3 {
+		top = max(min(top, n-h), 0)
+		return window{top, min(top+h, n), false, false}
+	}
+	// Up to the end of the lines, the window holds an arrow and h-1 lines.
+	top = max(min(top, n-h+1), 0)
+	if top == 1 {
+		top = 0
+	}
+	end := shownEnd(top, h, n)
+	return window{top, end, top > 0, end < n}
+}
+
+// windowAround returns the window of h rows over n lines from top, moved as
+// little as needed to show the line cursor.
+func windowAround(cursor, top, h, n int) window {
+	if n <= h || h < 3 {
+		return windowAt(scrollWindow(cursor, top, h, n), h, n)
+	}
+	w := windowAt(min(top, cursor), h, n)
+	for cursor >= w.end {
+		next := w.first + 1
+		if next == 1 {
+			next = 2
+		}
+		w = windowAt(next, h, n)
+	}
+	return w
+}
+
+// shownEnd returns the end of the lines shown from top in a window h rows
+// high over n lines, after the rows of the arrows.
+func shownEnd(top, h, n int) int {
+	end := top + h
+	if top > 0 {
+		end-- // the arrow above
+	}
+	if end < n {
+		end-- // the arrow below
+	}
+	return min(end, n)
+}
+
+// rows returns the rows of w over n lines: line(i) for the lines shown and
+// the arrows with the number of lines they hide, drawn by moreRow.
+func (w window) rows(t *theme.Theme, n int, line func(i int) string) []string {
+	var out []string
+	if w.up {
+		out = append(out, moreRow(t, "↑", w.first))
+	}
+	for i := w.first; i < w.end; i++ {
+		out = append(out, line(i))
+	}
+	if w.down {
+		out = append(out, moreRow(t, "↓", n-w.end))
+	}
+	return out
+}
+
+// moreRow renders the row of an arrow for hidden lines of a list or popup.
+func moreRow(t *theme.Theme, arrow string, hidden int) string {
+	return t.More.Render(fmt.Sprintf("  %s %d more", arrow, hidden))
 }
 
 // render renders the list: head, the shown items as drawn by item, which
@@ -137,10 +215,14 @@ func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lip
 	box func(height int) string, status string) string {
 	var b strings.Builder
 	b.WriteString(ansi.Truncate(head, li.width, "…") + "\n\n")
-	for i := li.top; i < li.top+li.listHeight(); i++ {
-		if i < li.n {
-			st := func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == li.cursor) }
-			b.WriteString(ansi.Truncate(item(i, st), li.width, "…"))
+	h := li.listHeight()
+	w := windowAround(li.cursor, li.top, h, li.n)
+	rows := w.rows(t, li.n, func(i int) string {
+		return item(i, func(s lipgloss.Style) lipgloss.Style { return s.Bold(i == li.cursor) })
+	})
+	for i := range h {
+		if i < len(rows) {
+			b.WriteString(ansi.Truncate(rows[i], li.width, "…"))
 		}
 		b.WriteString("\n")
 	}

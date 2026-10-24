@@ -208,3 +208,18 @@ func TestTrailingWhitespaceStyle(t *testing.T) {
 		t.Errorf("trailing whitespace background %v, want red", bg)
 	}
 }
+
+func TestMoreStyle(t *testing.T) {
+	// Unset: the style of unchanged whitespace, also one set by the theme.
+	if th := Default(); th.More.GetForeground() != th.Whitespace.GetForeground() {
+		t.Errorf("list arrows %v, want the whitespace color %v", th.More.GetForeground(), th.Whitespace.GetForeground())
+	}
+	th := Resolve(FromGit(Config{"jdiff.whitespace-style": "yellow"}, nil))
+	if th.More.GetForeground() != lipgloss.Color("3") {
+		t.Errorf("list arrows %v with whitespace-style yellow, want yellow", th.More.GetForeground())
+	}
+	th = Resolve(FromGit(Config{"jdiff.whitespace-style": "yellow", "jdiff.more-style": "bright-blue bold"}, nil))
+	if th.More.GetForeground() != lipgloss.Color("12") || !th.More.GetBold() {
+		t.Errorf("jdiff.more-style: %v, want bright blue bold", th.More.GetForeground())
+	}
+}

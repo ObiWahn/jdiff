@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -221,5 +222,110 @@ func TestMarksPopupExpandsTabs(t *testing.T) {
 	}
 	if !strings.Contains(ansi.Strip(view), "a   b☠c") {
 		t.Errorf("mark text not shown with its tab expanded:\n%s", ansi.Strip(view))
+	}
+}
+
+// popupRows returns the rows inside the popup's border in view, without
+// styles and the border's padding.
+func popupRows(view string) []string {
+	var out []string
+	x, w := -1, 0
+	for _, row := range strings.Split(ansi.Strip(view), "\n") {
+		r := []rune(row)
+		if x < 0 {
+			if i := strings.Index(row, "╭"); i >= 0 {
+				x = len([]rune(row[:i]))
+				w = slices.Index(r[x:], '╮') + 1
+			}
+			continue
+		}
+		if r[x] == '╰' {
+			break
+		}
+		out = append(out, strings.TrimRight(string(r[x+2:x+w-2]), " "))
+	}
+	return out
+}
+
+func TestMarksPopupArrows(t *testing.T) {
+	m := newMarkModel()
+	for i := range 26 {
+		if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: i + 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := WithMarks(m.cfg, m)
+	p.Update(tea.WindowSizeMsg{Width: 80, Height: 12}) // 8 rows in the popup
+	pressRoot(p, "\\")
+	shown := func() []string {
+		var out []string
+		for _, r := range popupRows(p.View()) {
+			if strings.HasPrefix(r, "  ↑ ") || strings.HasPrefix(r, "  ↓ ") {
+				out = append(out, r)
+			} else {
+				out = append(out, strings.Fields(r)[2]) // the mark's text, t00 to t25
+			}
+		}
+		return out
+	}
+	marks := func(from, to int) []string {
+		var out []string
+		for i := from; i <= to; i++ {
+			out = append(out, fmt.Sprintf("t%02d", i))
+		}
+		return out
+	}
+	for _, tt := range []struct {
+		down int
+		want []string
+	}{
+		{0, append(marks(0, 6), "  ↓ 19 more")},
+		{6, append(marks(0, 6), "  ↓ 19 more")},
+		{1, append(append([]string{"  ↑ 2 more"}, marks(2, 7)...), "  ↓ 18 more")},
+		{25, append([]string{"  ↑ 19 more"}, marks(19, 25)...)},
+	} {
+		for range tt.down {
+			pressRoot(p, "j")
+		}
+		if got := shown(); !slices.Equal(got, tt.want) {
+			t.Errorf("cursor t%02d:\n got %q\nwant %q", p.cursor, got, tt.want)
+		}
+	}
+	for range 24 {
+		pressRoot(p, "k")
+	}
+	if got, want := shown(), append(marks(0, 6), "  ↓ 19 more"); p.cursor != 1 || !slices.Equal(got, want) {
+		t.Errorf("back up to t01:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestMarksPopupArrowsAllHeights(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	const n = 26
+	index := func(r string) int {
+		var k int
+		fmt.Sscanf(strings.Fields(r)[2], "t%d", &k)
+		return k
+	}
+	// Rows in the popup: height-4, up to all 26 marks; 31 leaves room for
+	// one more.
+	for height := minHeight; height <= n+5; height++ {
+		m := newTestModel([]string{"a"}, []string{"b"})
+		for i := range n {
+			if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		p := WithMarks(m.cfg, m)
+		p.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+		pressRoot(p, "\\")
+		what := fmt.Sprintf("jump list, height %d", height)
+		h := p.boxHeight() - 2
+		shown := checkShown(t, what, popupRows(p.View()), h, n, p.cursor, nil, index)
+		keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
+		for _, k := range keys {
+			pressRoot(p, k)
+			shown = checkShown(t, what+", "+k, popupRows(p.View()), h, n, p.cursor, shown, index)
+		}
 	}
 }

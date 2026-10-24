@@ -696,3 +696,141 @@ func TestLogRelistFails(t *testing.T) {
 		t.Errorf("msg %q, %d commits, branch %q", l.msg, len(l.commits), l.branch)
 	}
 }
+
+func TestCommitListArrows(t *testing.T) {
+	var commits []gitsrc.Commit
+	for i := range 30 {
+		h := fmt.Sprintf("c%02d", i)
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "subject " + h})
+	}
+	l := NewLog(config.Default(), "main", commits, false, nil, nil)
+	l.cfg.Settings.Preview = false
+	l.Update(tea.WindowSizeMsg{Width: 80, Height: 8}) // 5 rows
+	shown := func() []string {
+		var out []string
+		for _, r := range viewRows(l.View(), 2, 2+l.listHeight()) {
+			if strings.HasPrefix(r, "  ↑") || strings.HasPrefix(r, "  ↓") {
+				out = append(out, r)
+			} else {
+				out = append(out, strings.Fields(r)[0])
+			}
+		}
+		return out
+	}
+	for _, tt := range []struct {
+		keys []string
+		want []string
+	}{
+		{nil, []string{"c00", "c01", "c02", "c03", "  ↓ 26 more"}},
+		{[]string{"j", "j", "j", "j"}, []string{"  ↑ 2 more", "c02", "c03", "c04", "  ↓ 25 more"}},
+		{[]string{"G"}, []string{"  ↑ 26 more", "c26", "c27", "c28", "c29"}},
+		{[]string{"k", "k", "k", "k"}, []string{"  ↑ 25 more", "c25", "c26", "c27", "  ↓ 2 more"}},
+	} {
+		pressLog(l, tt.keys...)
+		if got := shown(); !slices.Equal(got, tt.want) {
+			t.Errorf("after %q (cursor c%02d):\n got %q\nwant %q", tt.keys, l.cursor, got, tt.want)
+		}
+	}
+}
+
+func TestLogFlowBackToFiles(t *testing.T) {
+	l, _ := newTestLog()       // c3: a.go, b.go; c2: a.go; c1: c.go
+	pressLog(l, "f", "n", "n") // the flow on c3's b.go
+	if _, file, _ := l.flow.position(); file != 1 {
+		t.Fatalf("not on b.go: file %d", file)
+	}
+	// backspace: the file list of c3, on b.go, in flow mode.
+	pressLog(l, "backspace")
+	if l.flowShown() || l.open == nil || l.open.Hash != "c3" || l.open.app.open != nil || l.open.app.cursor != 1 {
+		t.Fatalf("backspace from the flow: flow %v, open %v; want c3's file list on b.go", l.flowShown(), l.open)
+	}
+	if v := ansi.Strip(l.View()); !strings.Contains(v, "b.go") || !strings.Contains(v, "backspace commits") {
+		t.Errorf("file list view:\n%s", v)
+	}
+	// enter: back into the flow, on the file chosen.
+	pressLog(l, "k", "enter")
+	if _, file, _ := l.flow.position(); !l.flowShown() || file != 0 {
+		t.Errorf("enter in flow mode: flow %v on file %d, want the flow on a.go", l.flowShown(), file)
+	}
+	// backspace twice: the file list, then the commits.
+	pressLog(l, "backspace", "backspace")
+	if l.open != nil || l.cursor != 0 {
+		t.Errorf("backspace twice: open %v cursor %d, want the commits on c3", l.open, l.cursor)
+	}
+	// A commit of one file has no list: backspace goes to the commits.
+	pressLog(l, "enter", "P", "backspace")
+	if l.open != nil || l.cursor != 1 {
+		t.Errorf("backspace from c2 in the flow: open %v cursor %d, want the commits on c2", l.open, l.cursor)
+	}
+	// f in the file list turns flow mode off and keeps the list.
+	pressLog(l, "k", "enter", "n", "backspace", "f")
+	if l.cfg.Settings.Flow || l.open == nil || l.open.app.open != nil {
+		t.Errorf("f in the file list: flow %v, open %v; want flow off and the list", l.cfg.Settings.Flow, l.open)
+	}
+	pressLog(l, "enter")
+	if shownFile(l) != "a.go" {
+		t.Errorf("enter without flow mode: shown %q, want a.go's diff view", shownFile(l))
+	}
+}
+
+func TestStatusBarKeys(t *testing.T) {
+	l, _ := newTestLog()
+	status := func() string {
+		v := ansi.Strip(l.View())
+		return strings.TrimSpace(v[strings.LastIndex(v, "\n")+1:])
+	}
+	l.Update(tea.WindowSizeMsg{Width: 250, Height: 12}) // room for all keys
+	for _, tt := range []struct {
+		keys []string
+		want string
+	}{
+		{nil, "enter open · f flow · v message · d git diff · ? help · q quit"},
+		{[]string{"enter"}, "enter open · N/P commit · f flow · v preview · d git diff · backspace commits · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · space fold · ]/[ change · n/p file · N/P commit · f flow · d git diff · backspace files · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · space fold · ]/[ change · n/p file · N/P commit · f single file · d git diff · backspace files · ? help · q quit"},
+	} {
+		pressLog(l, tt.keys...)
+		if got := status(); !strings.HasPrefix(got, tt.want) {
+			t.Errorf("after %q:\n got %q\nwant %q", tt.keys, got, tt.want)
+		}
+	}
+	// The anchors at the very right.
+	pressLog(l, "f")
+	if got := status(); !strings.HasSuffix(got, "row 1/1 · anchors 0") {
+		t.Errorf("diff view status %q, want the anchors last", got)
+	}
+	// Two files, without a list: neither n/p, N/P, f nor backspace.
+	m := newTestModel([]string{"a"}, []string{"b"})
+	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · d git diff · ? help · q quit" {
+		t.Errorf("two files: %q", got)
+	}
+}
+
+func TestCommitListArrowsAllHeights(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	var commits []gitsrc.Commit
+	for i := range 30 {
+		h := fmt.Sprintf("c%02d", i)
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "s"})
+	}
+	index := func(r string) int {
+		var k int
+		fmt.Sscanf(strings.TrimSpace(r), "c%d", &k)
+		return k
+	}
+	for _, preview := range []bool{false, true} {
+		for height := minHeight; height <= 30; height++ {
+			l := NewLog(config.Default(), "main", commits, false, nil, nil)
+			l.cfg.Settings.Preview = preview
+			l.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+			what := fmt.Sprintf("commit list, height %d, preview %v", height, preview)
+			h := l.listHeight()
+			rows := func() []string { return viewRows(l.View(), 2, 2+h) }
+			shown := checkShown(t, what, rows(), h, len(commits), l.cursor, nil, index)
+			for _, k := range sweepKeys(len(commits)) {
+				pressLog(l, k)
+				shown = checkShown(t, what+", "+k, rows(), h, len(commits), l.cursor, shown, index)
+			}
+		}
+	}
+}

@@ -17,9 +17,14 @@ type switchFileMsg int
 // in history.
 type switchCommitMsg int
 
-// backMsg asks the log to return to the commit list, or the file selector to
-// its list when it shows the flow view.
+// backMsg asks the log to return to the commit list, or from its flow view
+// to the file list of the commit; or the file selector to its list when it
+// shows the flow view.
 type backMsg struct{}
+
+// flowAtMsg asks the log to show its flow view on the file with this index
+// of the commit whose files it shows: enter in that file list in flow mode.
+type flowAtMsg int
 
 // jumpMsg asks the file selector to show the line of the other end of moved
 // code in another file: end, in the file of the group with index end.file,

@@ -58,6 +58,7 @@ type Log struct {
 	next    int // the step in commits to the next commit in history
 	list
 	open   *commitEntry // commit whose files are shown, nil for the list
+	files  bool         // in flow mode: the file list of open, not the flow view
 	flow   *Flow        // all commits one after the other
 	msg    string
 	prefix string // "'" while waiting for the letter of a mark
@@ -179,7 +180,14 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 	case backMsg:
-		l.open = nil
+		if l.flowShown() {
+			l.filesOfFlow()
+		} else {
+			l.open, l.files = nil, false
+		}
+		return nil
+	case flowAtMsg:
+		l.showFlow(int(msg), nil)
 		return nil
 	case switchCommitMsg:
 		l.switchCommit(int(msg))
@@ -250,13 +258,13 @@ func (l *Log) key(k string) tea.Cmd {
 }
 
 // flowShown reports whether the flow view is shown.
-func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow }
+func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && !l.files }
 
 // showFlow shows the flow view on file of the commit under the cursor,
 // where its diff view from leaves it, or on its bar for from nil and on the
 // commit's bar for file -1 (see Flow.showFrom).
 func (l *Log) showFlow(file int, from *Model) {
-	l.open = l.commits[l.cursor]
+	l.open, l.files = l.commits[l.cursor], false
 	l.flow.width, l.flow.height = l.width, l.height
 	l.flow.showFrom(l.cursor, file, from)
 }
@@ -280,6 +288,10 @@ func (l *Log) toggleFlow() {
 	st.Flow = false
 	if l.open == nil {
 		l.msg = "flow off"
+		return
+	}
+	if l.files { // the file list stays
+		l.files = false
 		return
 	}
 	p, file, line := l.flow.position()
@@ -433,6 +445,28 @@ func (l *Log) relistCommits() {
 	l.setMsg(msg)
 }
 
+// filesOfFlow shows the file list of the commit under the flow view's
+// cursor, on its file, as backspace does from a diff view. A commit of one
+// file, or one that cannot be loaded, has no list to show: the commits are
+// shown, on it.
+func (l *Log) filesOfFlow() {
+	p, file, _ := l.flow.position()
+	l.cursor = p
+	l.scrollToCursor()
+	app, err := l.app(p)
+	if err != nil || app.single() {
+		l.open, l.files = nil, false
+		return
+	}
+	app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
+	app.open = nil
+	if file >= 0 {
+		app.cursor = file
+		app.scrollToCursor()
+	}
+	l.open, l.files = l.commits[p], true
+}
+
 // setMsg shows msg in the status bar of whatever is displayed.
 func (l *Log) setMsg(msg string) {
 	switch {
@@ -485,7 +519,7 @@ func (l *Log) View() string {
 	}
 	status := l.msg
 	if status == "" {
-		status = "enter open · f flow · v message · ? help · q quit"
+		status = "enter open · f flow · v message · d git diff · ? help · q quit"
 	}
 	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, status)
 }

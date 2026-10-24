@@ -487,6 +487,10 @@ func (a *App) key(k string) tea.Cmd {
 	case "n":
 		a.moveCursor(1)
 	case "enter":
+		if a.inLog() && a.cfg.Settings.Flow && a.cursor < len(a.files) {
+			file := a.cursor
+			return func() tea.Msg { return flowAtMsg(file) }
+		}
 		a.openFile()
 	case "backspace":
 		if a.inLog() {
@@ -732,7 +736,7 @@ func (a *App) View() string {
 	if status == "" {
 		status = "enter open · f flow · v preview · d git diff · ? help · q quit"
 		if a.inLog() {
-			status = "enter open · N/P commit · backspace commits · ? help · q quit"
+			status = "enter open · N/P commit · f flow · v preview · d git diff · backspace commits · ? help · q quit"
 		}
 	}
 	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, status)

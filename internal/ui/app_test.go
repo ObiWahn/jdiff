@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -504,4 +506,276 @@ func TestDiffSwitchFails(t *testing.T) {
 	if s.input != nil || s.view != m {
 		t.Errorf("esc after the failure: still asking %v, shows %T", s.input != nil, s.view)
 	}
+}
+
+// numberedList returns a list of n items, f00 to f(n-1), height rows high
+// without the preview box, and the function moving its cursor.
+func numberedList(n, height int) (*list, func(delta int)) {
+	off := false
+	li := &list{n: n, preview: &off, width: 40, height: height}
+	return li, li.moveCursor
+}
+
+// listRows returns the rows of the list li draws, between the heading and
+// the status line, without styles.
+func listRows(li *list) []string {
+	item := func(i int, _ func(lipgloss.Style) lipgloss.Style) string { return fmt.Sprintf("f%02d", i) }
+	out := strings.Split(ansi.Strip(li.render(config.Default().Theme, "head", item, nil, "status")), "\n")
+	return out[2 : len(out)-1]
+}
+
+// rows returns the expected rows: an arrow line when up or down hide items,
+// and the items from first to last.
+func rows(up, first, last, down int) []string {
+	var out []string
+	if up > 0 {
+		out = append(out, fmt.Sprintf("  ↑ %d more", up))
+	}
+	for i := first; i <= last; i++ {
+		out = append(out, fmt.Sprintf("f%02d", i))
+	}
+	if down > 0 {
+		out = append(out, fmt.Sprintf("  ↓ %d more", down))
+	}
+	return out
+}
+
+func TestListArrows(t *testing.T) {
+	li, move := numberedList(30, 13) // 10 rows for 30 items
+	check := func(step string, want []string) {
+		t.Helper()
+		if got := listRows(li); !slices.Equal(got, want) {
+			t.Errorf("%s (cursor f%02d):\n got %q\nwant %q", step, li.cursor, got, want)
+		}
+	}
+	check("start", rows(0, 0, 8, 21))
+	move(8)
+	check("on the last item above the arrow", rows(0, 0, 8, 21))
+	move(1)
+	check("one further: both arrows", rows(2, 2, 9, 20))
+	move(-7)
+	check("back up to the first item below the arrow", rows(2, 2, 9, 20))
+	move(-1)
+	check("up past the arrow: f00 instead of an arrow for it", rows(0, 0, 8, 21))
+	move(far)
+	check("the end", rows(21, 21, 29, 0))
+	move(-8)
+	check("the first item below the arrow", rows(21, 21, 29, 0))
+	move(-1)
+	check("up past the arrow at the end", rows(20, 20, 27, 2))
+	move(-far)
+	check("the top", rows(0, 0, 8, 21))
+}
+
+func TestListArrowsEdges(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		n, height int
+		moves     []int
+		want      []string
+	}{
+		{"all fit: no arrows", 10, 13, []int{far}, rows(0, 0, 9, 0)},
+		{"one more than fits: an arrow for two", 11, 13, nil, rows(0, 0, 8, 2)},
+		{"one more than fits, at the end", 11, 13, []int{far}, rows(2, 2, 10, 0)},
+		{"two more than fits", 12, 13, []int{9}, rows(2, 2, 9, 2)},
+		{"three rows: arrow, item, arrow", 30, 6, []int{2}, rows(2, 2, 2, 27)},
+		{"three rows at the top", 30, 6, []int{1}, rows(0, 0, 1, 28)},
+		{"three rows at the end", 30, 6, []int{far}, rows(28, 28, 29, 0)},
+		{"two rows: no arrows", 30, 5, []int{5}, rows(0, 4, 5, 0)},
+		{"one row: no arrows", 30, 4, []int{5}, rows(0, 5, 5, 0)},
+	} {
+		li, move := numberedList(tt.n, tt.height)
+		for _, d := range tt.moves {
+			move(d)
+		}
+		if got := listRows(li); !slices.Equal(got, tt.want) {
+			t.Errorf("%s:\n got %q\nwant %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// checkWindow checks the rows of li, h rows high, as checkShown does.
+func checkWindow(t *testing.T, li *list, h int, before []int) []int {
+	t.Helper()
+	index := func(r string) int {
+		var k int
+		fmt.Sscanf(r, "f%d", &k)
+		return k
+	}
+	return checkShown(t, "list", listRows(li), h, li.n, li.cursor, before, index)
+}
+
+// checkShown checks rows, the h rows of a window over n items with the
+// cursor on item cursor, after the cursor moved from a window that showed
+// the items before; index returns the item a row shows. The cursor's item
+// is shown, not under an arrow; an arrow says how many items it hides, two
+// or more; the items between are consecutive; the window is full; and it
+// moved only when the cursor's item was not in it. It returns the items
+// shown.
+func checkShown(t *testing.T, what string, rows []string, h, n, cursor int, before []int, index func(string) int) []int {
+	t.Helper()
+	fail := func(why string) { t.Fatalf("%s, n %d, %d rows, cursor %d: %s\n%q", what, n, h, cursor, why, rows) }
+	if len(rows) != h {
+		fail("not h rows")
+	}
+	var items []int
+	up, down := -1, -1
+	for i, r := range rows {
+		switch {
+		case r == "":
+			if i < len(rows)-1 && rows[i+1] != "" || n > h {
+				fail("an empty row inside a full window")
+			}
+		case strings.HasPrefix(r, "  ↑ "):
+			if i != 0 || up >= 0 {
+				fail("↑ not in the first row")
+			}
+			fmt.Sscanf(r, "  ↑ %d more", &up)
+		case strings.HasPrefix(r, "  ↓ "):
+			if i != len(rows)-1 {
+				fail("↓ not in the last row")
+			}
+			fmt.Sscanf(r, "  ↓ %d more", &down)
+		default:
+			k := index(r)
+			if len(items) > 0 && k != items[len(items)-1]+1 {
+				fail("items not consecutive")
+			}
+			items = append(items, k)
+		}
+	}
+	if !slices.Contains(items, cursor) {
+		fail("the cursor's item is not shown")
+	}
+	if (up >= 0 || down >= 0) && h < 3 {
+		fail("arrows in fewer than three rows")
+	}
+	arrows := h >= 3 // fewer rows hide items without arrows
+	if up >= 0 && (up < 2 || up != items[0]) || arrows && up < 0 && items[0] != 0 {
+		fail("the arrow above is wrong or missing")
+	}
+	last := items[len(items)-1]
+	if down >= 0 && (down < 2 || down != n-1-last) || arrows && down < 0 && last != n-1 {
+		fail("the arrow below is wrong or missing")
+	}
+	if before != nil && slices.Contains(before, cursor) && !slices.Equal(before, items) {
+		fail(fmt.Sprintf("moved, though the cursor's item was shown in %v", before))
+	}
+	return items
+}
+
+// sweepKeys are the keys a sweep presses after the start: down to the end
+// one at a time and back up, then pages and the ends.
+func sweepKeys(n int) []string {
+	keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
+	return append(keys, "pgdown", "pgdown", "pgup", "G", "pgup", "k", "g", "pgdown", "j")
+}
+
+func TestFileListArrowsAllHeights(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	var files []source.File
+	for i := range 30 {
+		files = append(files, source.File{Path: fmt.Sprintf("f%02d.go", i), Old: []string{"a"}, New: []string{"b"},
+			InOld: true, InNew: true})
+	}
+	index := func(r string) int {
+		var k int
+		fmt.Sscanf(r[strings.LastIndex(r, " ")+1:], "f%d.go", &k)
+		return k
+	}
+	for _, preview := range []bool{false, true} {
+		for height := minHeight; height <= 30; height++ {
+			a := NewApp(config.Default(), files)
+			a.cfg.Settings.Preview = preview
+			a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+			what := fmt.Sprintf("file list, height %d, preview %v", height, preview)
+			h := a.listHeight()
+			rows := func() []string { return viewRows(a.View(), 2, 2+h) }
+			shown := checkShown(t, what, rows(), h, len(files), a.cursor, nil, index)
+			for _, k := range sweepKeys(len(files)) {
+				pressApp(a, k)
+				shown = checkShown(t, what+", "+k, rows(), h, len(files), a.cursor, shown, index)
+			}
+		}
+	}
+}
+
+func TestListArrowsEverywhere(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	// Up to 20 items in up to 12 rows: for every height there are fewer
+	// items, as many, one and two more, and many more; and 1, 2 and 3 rows.
+	for n := 1; n <= 20; n++ {
+		for h := 1; h <= 12; h++ {
+			li, move := numberedList(n, h+3)
+			shown := checkWindow(t, li, h, nil)
+			// Down to the end and back up one at a time, then in jumps.
+			steps := append(slices.Repeat([]int{1}, n), slices.Repeat([]int{-1}, n)...)
+			steps = append(steps, 7, -3, far, -5, 2, -far, h, -1, h-1)
+			for _, d := range steps {
+				move(d)
+				shown = checkWindow(t, li, h, shown)
+			}
+		}
+	}
+}
+
+// viewRows returns rows from to to of a view, without styles, trimmed.
+func viewRows(view string, from, to int) []string {
+	out := strings.Split(ansi.Strip(view), "\n")[from:to]
+	for i, r := range out {
+		out[i] = strings.TrimRight(r, " ")
+	}
+	return out
+}
+
+func TestFileListArrows(t *testing.T) {
+	var files []source.File
+	for i := range 30 {
+		files = append(files, source.File{Path: fmt.Sprintf("f%02d.go", i), Old: []string{"a"}, New: []string{"b"},
+			InOld: true, InNew: true})
+	}
+	a := NewApp(config.Default(), files)
+	a.cfg.Settings.Preview = false
+	a.Update(tea.WindowSizeMsg{Width: 60, Height: 13}) // 10 rows
+	name := func(r string) string { return r[strings.LastIndex(r, " ")+1:] }
+	check := func(step string, want ...string) {
+		t.Helper()
+		got := viewRows(a.View(), 2, 2+a.listHeight())
+		for i := range got {
+			if !strings.HasPrefix(got[i], "  ↑") && !strings.HasPrefix(got[i], "  ↓") {
+				got[i] = name(got[i])
+			}
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s:\n got %q\nwant %q", step, got, want)
+		}
+	}
+	names := func(from, to int) []string {
+		var out []string
+		for i := from; i <= to; i++ {
+			out = append(out, fmt.Sprintf("f%02d.go", i))
+		}
+		return out
+	}
+	check("start", append(names(0, 8), "  ↓ 21 more")...)
+	pressApp(a, "j", "j", "j", "j", "j", "j", "j", "j", "j") // f09
+	check("past the arrow", append(append([]string{"  ↑ 2 more"}, names(2, 9)...), "  ↓ 20 more")...)
+	pressApp(a, "G")
+	check("G", append([]string{"  ↑ 21 more"}, names(21, 29)...)...)
+
+	// With the preview box the list takes at most half of the room.
+	a.cfg.Settings.Preview = true
+	a.scrollToCursor()
+	if h := a.listHeight(); h != 5 {
+		t.Fatalf("list with the box: %d rows, want 5", h)
+	}
+	check("G with the box", append([]string{"  ↑ 26 more"}, names(26, 29)...)...)
+	// The window shrinks: the cursor's file stays in view.
+	a.Update(tea.WindowSizeMsg{Width: 60, Height: 10}) // 3 rows, 3 for the box
+	if h := a.listHeight(); h != 3 {
+		t.Fatalf("smaller window: %d rows, want 3", h)
+	}
+	check("smaller window", "  ↑ 28 more", "f28.go", "f29.go")
+	pressApp(a, "g")
+	check("g in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
 }

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,8 +49,13 @@ func TestHelpScrolls(t *testing.T) {
 	if !strings.Contains(ansi.Strip(h.View()), " 1/") {
 		t.Fatalf("small help lacks its position:\n%s", ansi.Strip(h.View()))
 	}
-	pressRoot(h, "j", "j")
+	// From the top, j moves by two: line 1 would only stand behind an arrow.
+	pressRoot(h, "j")
 	if h.top != 2 || !strings.Contains(ansi.Strip(h.View()), " 3/") {
+		t.Errorf("j: top %d", h.top)
+	}
+	pressRoot(h, "j")
+	if h.top != 3 {
 		t.Errorf("j j: top %d", h.top)
 	}
 	pressRoot(h, "G", "k", "k", "k")
@@ -63,8 +70,8 @@ func TestHelpInKeyBurst(t *testing.T) {
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	// Runes read together arrive as one message.
 	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j?j")})
-	if a.cursor != 1 || !h.open || h.top != 1 {
-		t.Errorf("j?j: cursor %d, help open %v top %d; want 1, true, 1", a.cursor, h.open, h.top)
+	if a.cursor != 1 || !h.open || h.top != 2 {
+		t.Errorf("j?j: cursor %d, help open %v top %d; want 1, true, 2", a.cursor, h.open, h.top)
 	}
 	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?j")})
 	if h.open || a.cursor != 2 {
@@ -169,6 +176,70 @@ func TestNoViewOverflows(t *testing.T) {
 				if line := rawText(view, w); line != "" {
 					t.Errorf("%s at %dx%d: line too wide: %q", v.name, w, h, line)
 				}
+			}
+		}
+	}
+}
+
+func TestHelpArrowsEverywhere(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	n := len(bindings)
+	// The box has height-4 rows. Each of these sizes must stay: one and two
+	// rows (no arrows), three and four (the smallest with arrows), some,
+	// n-2, n-1 (an arrow hides two lines), n (all fit exactly) and n+1. A
+	// narrow screen keeps drawing fast.
+	for _, rows := range []int{1, 2, 3, 4, 12, n - 2, n - 1, n, n + 1} {
+		height := rows + 4
+		h := WithHelp(config.Default(), newTestApp())
+		h.Update(tea.WindowSizeMsg{Width: 30, Height: height})
+		pressRoot(h, "?")
+		rows = min(rows, n) // room for more: the box stays at the lines' height
+		if h.boxHeight()-2 != rows {
+			t.Fatalf("height %d: %d rows in the box, want %d", height, h.boxHeight()-2, rows)
+		}
+		keys := append(slices.Repeat([]string{"j"}, n+2), slices.Repeat([]string{"k"}, n+2)...)
+		for step, k := range append([]string{""}, keys...) {
+			if k != "" {
+				pressRoot(h, k)
+			}
+			got := popupRows(h.View())
+			fail := func(why string) {
+				t.Fatalf("height %d, step %d, top %d: %s\n%q", height, step, h.top, why, got)
+			}
+			if len(got) != rows {
+				fail("not a full popup")
+			}
+			if h.top == 1 && rows >= 3 && n > rows {
+				fail("starts at line 1, behind an arrow")
+			}
+			var up, down int
+			hasUp := strings.HasPrefix(got[0], "  ↑ ")
+			hasDown := strings.HasPrefix(got[len(got)-1], "  ↓ ")
+			if hasUp {
+				fmt.Sscanf(got[0], "  ↑ %d more", &up)
+			}
+			if hasDown {
+				fmt.Sscanf(got[len(got)-1], "  ↓ %d more", &down)
+			}
+			shown := rows
+			if hasUp {
+				shown--
+			}
+			if hasDown {
+				shown--
+			}
+			switch {
+			case (n <= rows || rows < 3) && (hasUp || hasDown):
+				fail("arrows though all lines fit, or in fewer than three rows")
+			case rows < 3:
+			case hasUp && (up != h.top || up < 2):
+				fail("the arrow above is wrong")
+			case !hasUp && h.top != 0:
+				fail("lines hidden above without an arrow")
+			case hasDown && (down != n-h.top-shown || down < 2):
+				fail("the arrow below is wrong")
+			case !hasDown && n > rows && h.top+shown != n:
+				fail("lines hidden below without an arrow")
 			}
 		}
 	}

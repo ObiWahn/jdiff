@@ -795,12 +795,14 @@ func (f *Flow) scrollToCursor() {
 	f.top = scrollWindow(f.cursor, f.top, f.bodyHeight(), len(f.rows))
 }
 
+// help returns the keys of the status bar, in the order of all pages.
 func (f *Flow) help() string {
-	h := "f single file · space fold · ]/[ change · n/p file · "
+	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "n/p file"}
 	if f.inLog() {
-		h += "N/P commit · "
+		keys = append(keys, "N/P commit")
 	}
-	return h + "? help · q quit"
+	keys = append(keys, "f single file", "d git diff", "backspace files", "? help", "q quit")
+	return strings.Join(keys, " · ")
 }
 
 func (f *Flow) View() string {
