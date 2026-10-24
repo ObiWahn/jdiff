@@ -93,8 +93,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msg = msg
 		}
 		return m, watchTick(m.cfg)
+	case refreshMsg:
+		m.refresh()
 	}
 	return m, nil
+}
+
+// refresh reads both files again, whether their stamps changed or not.
+func (m *Model) refresh() {
+	if m.watch == nil {
+		m.msg = "nothing to load again"
+		return
+	}
+	m.watch.OldStamp, m.watch.NewStamp = source.Stamp{}, source.Stamp{}
+	m.msg = refreshFile(m.watch, m.fileDiff, m.syncLayout)
+	if m.msg == "" {
+		m.msg = "nothing changed"
+	}
 }
 
 func (m *Model) key(k string) tea.Cmd {
@@ -149,6 +164,8 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.commitNav {
 			return switchCommit(k)
 		}
+	case "R", "f5":
+		return refreshAll
 	case "f":
 		if m.canBack {
 			return toggleFlow

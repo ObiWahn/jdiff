@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/diff"
 	"jdiff/internal/source"
 )
 
@@ -181,5 +184,138 @@ func TestTogglesSaveState(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("state.toml lacks %q:\n%s", want, data)
 		}
+	}
+}
+
+// newRelistApp returns the file selector of a.go, b.go and c.bin that lists
+// the files *files on R, or fails with *err.
+func newRelistApp(files *[]source.File, err *error) *App {
+	*files = []source.File{
+		{Path: "a.go", Old: numbered("x", 10), New: numbered("x", 10)[1:], InOld: true, InNew: true},
+		{Path: "b.go", New: []string{"new"}, InNew: true},
+		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
+	}
+	a := NewApp(config.Default(), *files).WithRelist(func() ([]source.File, error) { return *files, *err })
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	return a
+}
+
+func TestAppRelist(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	pressApp(a, "enter")
+	a.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
+	view, d := a.open.view, a.files[0].diff
+
+	// A new file before a.go, b.go gone, a.go with a line on top.
+	files = []source.File{
+		{Path: "0.go", New: []string{"zero"}, InNew: true},
+		{Path: "a.go", Old: numbered("x", 10), New: append([]string{"top"}, numbered("x", 10)[1:]...), InOld: true, InNew: true},
+		files[2],
+	}
+	pressApp(a, "R")
+	if a.open == nil || a.open.Path != "a.go" || a.open.view != view || a.cursor != 1 {
+		t.Fatalf("after R: open %v cursor %d; want a.go still open in its view, cursor on it", a.open, a.cursor)
+	}
+	if view.msg != "1 new, 1 gone, 1 changed" {
+		t.Errorf("msg %q", view.msg)
+	}
+	if want := []diff.Anchor{{Left: 5, Right: 5}}; !slices.Equal(d.anchors, want) {
+		t.Errorf("anchors %v, want %v: the anchor follows its line", d.anchors, want)
+	}
+	var paths []string
+	for _, e := range a.files {
+		paths = append(paths, e.Path)
+	}
+	if want := []string{"0.go", "a.go", "c.bin"}; !slices.Equal(paths, want) || a.list.n != 3 {
+		t.Errorf("files %v (n %d), want %v", paths, a.list.n, want)
+	}
+	if a.files[1].added != 1 || a.files[1].removed != 1 {
+		t.Errorf("a.go +%d -%d, want +1 -1", a.files[1].added, a.files[1].removed)
+	}
+
+	// Nothing changed; F5 does the same as R.
+	pressApp(a, "f5")
+	if view.msg != "nothing changed" {
+		t.Errorf("F5 without changes: msg %q", view.msg)
+	}
+
+	// git fails: everything stays.
+	err = errors.New("git diff: broken")
+	pressApp(a, "R")
+	if view.msg != "git diff: broken" || len(a.files) != 3 || a.open.view != view {
+		t.Errorf("failed R: msg %q, %d files", view.msg, len(a.files))
+	}
+}
+
+func TestAppRelistOpenFileGone(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	pressApp(a, "j", "enter")
+	files = files[:1]
+	pressApp(a, "R")
+	if a.open != nil || a.cursor != 0 || a.msg != "b.go is gone; 2 gone" {
+		t.Errorf("open %v cursor %d msg %q; want the list on a.go and the message", a.open, a.cursor, a.msg)
+	}
+}
+
+func TestAppRelistBinaryCountsAsNew(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	files = slices.Clone(files)
+	files[2] = source.File{Path: "c.bin", Old: []string{"text"}, New: []string{"text", "now"}, InOld: true, InNew: true}
+	pressApp(a, "R")
+	if e := a.files[2]; a.msg != "1 new, 1 gone" || e.Binary || e.diff == nil || e.added != 1 {
+		t.Errorf("msg %q, c.bin %+v", a.msg, e)
+	}
+}
+
+func TestAppRelistFindsMovesInNewFile(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	files = slices.Clone(files)
+	files[0].Old = append(slices.Clone(movedBlock), files[0].Old...)
+	pressApp(a, "R")
+	if _, ok := a.files[0].diff.movedTo(left, 0); ok {
+		t.Fatal("moved before the block was added anywhere")
+	}
+	files = append(files, source.File{Path: "d.go", New: movedBlock, InNew: true})
+	pressApp(a, "R")
+	to, ok := a.files[0].diff.movedTo(left, 0)
+	if !ok || a.fileByGroup(to.File) != 3 {
+		t.Errorf("a.go's removed block: moved %v to %+v, want into d.go", ok, to)
+	}
+}
+
+func TestAppRelistFlowFollowsLine(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	a.cfg.Settings.CollapseUnchanged = false
+	pressApp(a, "f", "j", "j", "j") // on a.go
+	_, file, line := a.flow.position()
+	d := a.files[file].diff
+	before := d.lineAt(left, line)
+	files = append([]source.File{{Path: "0.go", New: []string{"zero"}, InNew: true}}, files...)
+	files[1].New = append([]string{"top"}, files[1].New...)
+	pressApp(a, "R")
+	_, file, line = a.flow.position()
+	if file != 1 || a.files[file].diff != d || d.lineAt(left, line) != before || a.open != a.files[1] {
+		t.Errorf("flow on file %d left line %d, want a.go, now file 1, line %d", file, d.lineAt(left, line), before)
+	}
+	if a.flow.msg != "1 new, 1 changed" {
+		t.Errorf("flow msg %q", a.flow.msg)
+	}
+}
+
+func TestAppWithoutRelist(t *testing.T) {
+	a := newTestApp()
+	pressApp(a, "R")
+	if a.msg != "nothing to load again" {
+		t.Errorf("msg %q", a.msg)
 	}
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,6 +49,7 @@ type Log struct {
 	// counts counts the lines of the commits shown, in the background; nil
 	// when the commits came counted or counting failed.
 	counts   CountFunc
+	relist   CommitsFunc             // lists the commits again, nil when they cannot be
 	counting bool                    // a count is running
 	byHash   map[string]*commitEntry // the commits by hash
 	minCount int                     // the least width of the count columns
@@ -76,14 +78,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	}
 	var parts []*flowPart
 	for _, c := range commits {
-		// Commits are only shown: their text is made printable once.
-		c.Author, c.Subject = printable(c.Author), printable(c.Subject)
-		body := strings.Split(c.Body, "\n")
-		for i, line := range body {
-			body[i] = printable(line)
-		}
-		c.Body = strings.Join(body, "\n")
-		e := &commitEntry{Commit: c, counted: counts == nil}
+		e := newCommitEntry(c, counts == nil)
 		l.commits = append(l.commits, e)
 		l.byHash[c.Hash] = e
 		parts = append(parts, newCommitPart(e))
@@ -97,6 +92,28 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	if w := cfg.Warning(); w != "" {
 		l.msg = w
 	}
+	return l
+}
+
+// newCommitEntry returns the entry of c, counted when its line counts are
+// known.
+func newCommitEntry(c gitsrc.Commit, counted bool) *commitEntry {
+	// Commits are only shown: their text is made printable once.
+	c.Author, c.Subject = printable(c.Author), printable(c.Subject)
+	body := strings.Split(c.Body, "\n")
+	for i, line := range body {
+		body[i] = printable(line)
+	}
+	c.Body = strings.Join(body, "\n")
+	return &commitEntry{Commit: c, counted: counted}
+}
+
+// CommitsFunc lists the commits of the log again, with the branch.
+type CommitsFunc func() (branch string, commits []gitsrc.Commit, err error)
+
+// WithRelist sets how R lists the commits again and returns l.
+func (l *Log) WithRelist(list CommitsFunc) *Log {
+	l.relist = list
 	return l
 }
 
@@ -167,6 +184,9 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 	case switchCommitMsg:
 		l.switchCommit(int(msg))
 		return nil
+	case refreshMsg:
+		l.relistCommits()
+		return nil
 	case toggleFlowMsg:
 		l.toggleFlow()
 		if w := saveState(l.cfg); w != "" {
@@ -216,6 +236,8 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
+	case "R", "f5":
+		return refreshAll
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
 	case "v":
@@ -340,6 +362,73 @@ func (l *Log) switchCommit(dir int) {
 	if !l.openCommit(i, path) {
 		app.setMsg(l.msg)
 	}
+}
+
+// relistCommits lists the commits again (R). New commits are added and gone
+// ones dropped; a commit still there keeps its entry, and so its files with
+// their anchors and folds: its content cannot change. The cursor stays on
+// its commit; when the commit shown is gone, the list is shown.
+func (l *Log) relistCommits() {
+	if l.relist == nil {
+		l.setMsg("nothing to load again")
+		return
+	}
+	branch, commits, err := l.relist()
+	if err != nil {
+		l.setMsg(err.Error())
+		return
+	}
+	parts := map[*commitEntry]*flowPart{}
+	for _, p := range l.flow.parts {
+		parts[p.commit] = p
+	}
+	var cur *commitEntry
+	if l.cursor < len(l.commits) {
+		cur = l.commits[l.cursor]
+	}
+	kept, oldParts, shown, open := l.byHash, l.flow.parts, l.flowShown(), l.open
+	if shown {
+		p, _, _ := l.flow.position()
+		open = oldParts[p].commit
+	}
+	l.branch, l.commits, l.flow.parts, l.byHash = branch, nil, nil, map[string]*commitEntry{}
+	added := 0
+	for _, c := range commits {
+		e, p := kept[c.Hash], (*flowPart)(nil)
+		if e != nil {
+			delete(kept, c.Hash)
+			p = parts[e]
+		} else {
+			e = newCommitEntry(c, l.counts == nil)
+			p = newCommitPart(e)
+			added++
+		}
+		l.commits = append(l.commits, e)
+		l.byHash[c.Hash] = e
+		l.flow.parts = append(l.flow.parts, p)
+	}
+	l.list.n = len(l.commits)
+	if i := slices.Index(l.commits, cur); i >= 0 {
+		l.cursor = i
+	} else {
+		l.cursor = max(min(l.cursor, len(l.commits)-1), 0)
+	}
+	msg := refreshed(added, len(kept), 0, 0)
+	switch {
+	case open != nil && kept[open.Hash] == open:
+		msg = "commit " + open.Short + " is gone; " + msg
+		l.open = nil
+	case shown:
+		l.flow.followParts(oldParts)
+		l.flow.keepScreenRow(l.flow.relocate)
+		l.flow.loadVisible()
+		l.cursor, _, _ = l.flow.position()
+		l.open = l.commits[l.cursor]
+	case open != nil:
+		l.cursor = slices.Index(l.commits, open)
+	}
+	l.scrollToCursor()
+	l.setMsg(msg)
 }
 
 // setMsg shows msg in the status bar of whatever is displayed.

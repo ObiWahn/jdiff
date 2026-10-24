@@ -228,3 +228,22 @@ func TestWatchSeesQuickSameSizeChange(t *testing.T) {
 		t.Errorf("unchanged content: msg %q, %d reloads; want no reload", m.msg, m.reloads)
 	}
 }
+
+func TestWatchedModelRefresh(t *testing.T) {
+	m, dir := newWatchedModel(t, numbered("x", 5), numbered("x", 5))
+	m.cfg.Settings.WatchInterval = 0
+	pressRoot(m, "R")
+	if m.msg != "nothing changed" {
+		t.Errorf("R on unchanged files: msg %q", m.msg)
+	}
+	writeLines(t, filepath.Join(dir, "new.txt"), numbered("x", 6))
+	pressRoot(m, "f5")
+	if m.msg != "new.txt reloaded" || len(m.lines[right]) != 6 {
+		t.Errorf("F5 after a change: msg %q, %d lines", m.msg, len(m.lines[right]))
+	}
+	plain := newTestModel(numbered("x", 2), numbered("x", 2))
+	pressRoot(plain, "R")
+	if plain.msg != "nothing to load again" {
+		t.Errorf("R without files: msg %q", plain.msg)
+	}
+}

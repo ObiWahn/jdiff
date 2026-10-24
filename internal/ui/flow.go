@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -184,6 +185,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "enter", "esc", " ", "ctrl+@":
 		f.delegate(k)
+	case "R", "f5":
+		return refreshAll
 	case "o":
 		f.jump()
 	case "m":
@@ -413,8 +416,12 @@ func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 				lost = true
 			}
 		})
+		if d != nil {
+			// The files may have been listed again, in another order.
+			cur.file = slices.IndexFunc(f.parts[cur.part].app.files, func(e *entry) bool { return e.diff == d })
+		}
 		f.relocate()
-		if d == nil || d.reloads == reloads || lost {
+		if d == nil || cur.file < 0 || d.reloads == reloads || lost {
 			return
 		}
 		if v := d.follow(row, false); v >= 0 {
@@ -423,6 +430,41 @@ func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 			}
 		}
 	})
+}
+
+// followFiles keeps the cursor on its file of part when the files were
+// listed again, from old to new: on the file's row, or for a file that is
+// gone on the bar of the next file left, else of the last. The rows are
+// rebuilt next.
+func (f *Flow) followFiles(part int, old, new []*entry) {
+	if f.cursor >= len(f.rows) {
+		return
+	}
+	r := &f.rows[f.cursor]
+	if r.part != part || r.file < 0 {
+		return
+	}
+	for i := r.file; i < len(old); i++ {
+		if j := slices.Index(new, old[i]); j >= 0 {
+			if i == r.file {
+				r.file = j
+			} else {
+				*r = flowRow{flowFile, part, j, 0, 0}
+			}
+			return
+		}
+	}
+	*r = flowRow{flowFile, part, len(new) - 1, 0, 0}
+}
+
+// followParts keeps the cursor on its commit when the commits were listed
+// again, from the parts old to f.parts, which still hold it. The rows are
+// rebuilt next.
+func (f *Flow) followParts(old []*flowPart) {
+	if f.cursor < len(f.rows) {
+		r := &f.rows[f.cursor]
+		r.part = slices.Index(f.parts, old[r.part])
+	}
 }
 
 // relocate rebuilds the rows, keeping the cursor on its row: with wrapped

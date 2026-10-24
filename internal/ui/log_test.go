@@ -629,3 +629,70 @@ func TestLogCountsFail(t *testing.T) {
 		t.Errorf("counted %d times after an error, want once: %v", len(*asked), *asked)
 	}
 }
+
+// relistTo makes R list the commits hashes of l, on branch, newest first.
+func relistTo(l *Log, branch string, hashes ...string) {
+	l.WithRelist(func() (string, []gitsrc.Commit, error) {
+		var commits []gitsrc.Commit
+		for _, h := range hashes {
+			commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "subject " + h})
+		}
+		return branch, commits, nil
+	})
+}
+
+func TestLogRelist(t *testing.T) {
+	l, loads := newTestLog()
+	pressLog(l, "enter", "enter") // c3, a.go
+	view := l.open.app.open.view
+	relistTo(l, "topic", "c4", "c3", "c2", "c1")
+	pressLog(l, "R")
+	if l.cursor != 1 || shownFile(l) != "a.go" || l.open.app.open.view != view {
+		t.Fatalf("after R: commit %d shown %q; want c3 a.go still open in its view", l.cursor, shownFile(l))
+	}
+	if view.msg != "1 new, 1 gone" || l.branch != "topic" || l.list.n != 4 {
+		t.Errorf("msg %q branch %q n %d", view.msg, l.branch, l.list.n)
+	}
+	if loads["c3"] != 1 {
+		t.Errorf("c3 loaded %d times, want once: its files are kept", loads["c3"])
+	}
+	// N goes to the new commit, which the test cannot load.
+	pressLog(l, "N")
+	if !strings.Contains(view.msg, "cannot load c4") {
+		t.Errorf("N after R: msg %q, want it tried c4", view.msg)
+	}
+}
+
+func TestLogRelistOpenCommitGone(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "j", "enter") // c2
+	relistTo(l, "main", "c3", "c1")
+	pressLog(l, "f5")
+	if l.open != nil || l.cursor != 1 || l.msg != "commit c2 is gone; 2 gone" {
+		t.Errorf("open %v cursor %d msg %q; want the list and the message", l.open, l.cursor, l.msg)
+	}
+}
+
+func TestLogRelistFlowStaysOnCommit(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f", "P") // c2 in the flow
+	relistTo(l, "main", "c4", "c3", "c2", "c1", "c0")
+	pressLog(l, "R")
+	if flowCommitAt(l) != 2 || l.cursor != 2 || l.flow.msg != "1 new" {
+		t.Errorf("flow at %d, cursor %d, msg %q; want c2, now 2", flowCommitAt(l), l.cursor, l.flow.msg)
+	}
+	relistTo(l, "main", "c4", "c3")
+	pressLog(l, "R")
+	if l.flowShown() || l.msg != "commit c2 is gone; 3 gone" {
+		t.Errorf("flow shown %v msg %q; want the list after c2 is gone", l.flowShown(), l.msg)
+	}
+}
+
+func TestLogRelistFails(t *testing.T) {
+	l, _ := newTestLog()
+	l.WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, errors.New("git log: broken") })
+	pressLog(l, "R")
+	if l.msg != "git log: broken" || len(l.commits) != 4 || l.branch != "main" {
+		t.Errorf("msg %q, %d commits, branch %q", l.msg, len(l.commits), l.branch)
+	}
+}

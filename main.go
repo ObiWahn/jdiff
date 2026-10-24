@@ -96,7 +96,8 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ui.NewApp(cfg, files), nil
+		relist := func() ([]source.File, error) { return source.LoadDirs(oldPath, newPath) }
+		return ui.NewApp(cfg, files).WithRelist(relist), nil
 	}
 
 	// Path names the file in messages; the panes show the paths as given.
@@ -121,17 +122,23 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	if len(commits) == 0 {
 		return nil, fmt.Errorf("no commits")
 	}
-	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts), nil
+	relist := func() (string, []gitsrc.Commit, error) {
+		commits, err := repo.Log(args)
+		return repo.Branch(), commits, err
+	}
+	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts).WithRelist(relist), nil
 }
 
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-	files, err := gitsrc.Repo{}.Diff(args)
+	repo := gitsrc.Repo{}
+	files, err := repo.Diff(args)
 	if err != nil {
 		return nil, err
 	}
-	return ui.NewApp(cfg, files), nil
+	relist := func() ([]source.File, error) { return repo.Diff(args) }
+	return ui.NewApp(cfg, files).WithRelist(relist), nil
 }
 
 func fatal(err error) {

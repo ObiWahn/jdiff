@@ -78,6 +78,7 @@ var bindings = []binding{
 	{"f", "single file view"},
 	{"", "Everywhere"},
 	{"\\", "jump marks: enter jumps, d or del deletes"},
+	{"R F5", "load again: git diff, git log, the directories or the files"},
 	{"", "  b c C e f r s t v w W are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},

@@ -72,6 +72,33 @@ func (e *entry) refresh(after func(*fileDiff)) string {
 	return msg
 }
 
+// update takes f, the file listed again, into e, reloading the sides of
+// its diff whose content changed. Its diff view and after, unless nil,
+// follow each reload, as in refresh. It returns the anchors dropped and
+// whether the content changed.
+func (e *entry) update(f source.File, after func(*fileDiff)) (dropped int, changed bool) {
+	was := [2][]string{e.Old, e.New}
+	e.File = f
+	if e.Binary {
+		return 0, false
+	}
+	e.diff.names = e.paneNames()
+	for s, lines := range [2][]string{f.Old, f.New} {
+		if slices.Equal(was[s], lines) {
+			continue
+		}
+		changed = true
+		dropped += e.diff.reload(side(s), lines)
+		if e.view != nil {
+			e.view.syncLayout()
+		}
+		if after != nil {
+			after(e.diff)
+		}
+	}
+	return dropped, changed
+}
+
 func (e *entry) updateStats() {
 	if e.Binary {
 		return
@@ -90,6 +117,7 @@ type App struct {
 	cfg    *config.Config
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
+	relist ListFunc // lists the files again, nil when they cannot be
 	list
 	open   *entry // file whose diff view is shown, nil for the list
 	flow   *Flow  // flow view outside the log, created on first use
@@ -99,6 +127,15 @@ type App struct {
 
 // NewApp returns the file selector for files.
 func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, nil) }
+
+// ListFunc lists the files of a comparison again.
+type ListFunc func() ([]source.File, error)
+
+// WithRelist sets how R lists the files again and returns a.
+func (a *App) WithRelist(list ListFunc) *App {
+	a.relist = list
+	return a
+}
 
 // newApp returns the file selector for files, as part of the log for the
 // files of commit when it is set.
@@ -206,6 +243,87 @@ func (a *App) refresh() {
 	}
 }
 
+// relistFiles lists the files again (R). New files are added and gone ones
+// dropped; a file still there keeps its entry, and so its diff with anchors
+// and folds, reloaded where its content changed. A file that became binary
+// or stopped being binary counts as gone and new. The cursor stays on its
+// file; when the file shown is gone, the list is shown.
+func (a *App) relistFiles() {
+	if a.relist == nil {
+		a.setMsg("nothing to load again")
+		return
+	}
+	files, err := a.relist()
+	if err != nil {
+		a.setMsg(err.Error())
+		return
+	}
+	kept := map[string]*entry{}
+	for _, e := range a.files {
+		kept[e.Path] = e
+	}
+	var cur *entry
+	if a.cursor < len(a.files) {
+		cur = a.files[a.cursor]
+	}
+	added, changed, dropped := 0, 0, 0
+	update := func(after func(*fileDiff)) {
+		old := a.files
+		a.files = nil
+		// The files are searched for moved code together.
+		group := &moveGroup{}
+		for _, f := range files {
+			e := kept[f.Path]
+			if e == nil || e.Binary != f.Binary {
+				e = &entry{File: f}
+				added++
+			} else {
+				delete(kept, f.Path)
+				n, ok := e.update(f, after)
+				if ok {
+					changed++
+				}
+				dropped += n
+			}
+			if !e.Binary {
+				group.add(a.diffOf(e), e.Path)
+			}
+			e.updateStats()
+			a.files = append(a.files, e)
+		}
+		if a.flow != nil {
+			a.flow.followFiles(0, old, a.files)
+		}
+	}
+	shown := a.flowShown()
+	if shown {
+		a.flow.refresh(update)
+	} else {
+		update(nil)
+	}
+	a.list.n = len(a.files)
+	if i := slices.Index(a.files, cur); i >= 0 {
+		a.cursor = i
+	} else {
+		a.cursor = max(min(a.cursor, len(a.files)-1), 0)
+	}
+	msg := refreshed(added, len(kept), changed, dropped)
+	switch {
+	case len(a.files) == 0:
+		a.open = nil
+	case shown:
+		if _, file, _ := a.flow.position(); file >= 0 {
+			a.cursor = file
+		}
+		a.open = a.files[a.cursor]
+	case a.open != nil && !slices.Contains(a.files, a.open):
+		msg = a.open.Path + " is gone; " + msg
+		a.open = nil
+	}
+	a.scrollToCursor()
+	a.setMsg(msg)
+}
+
 // flowShown reports whether the flow view is shown instead of a diff view.
 // Inside the log, the log shows its own flow view.
 func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog() }
@@ -235,6 +353,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case backMsg: // from the flow view
 		a.open = nil
+		return a, nil
+	case refreshMsg:
+		a.relistFiles()
 		return a, nil
 	}
 	if a.flowShown() {
@@ -294,6 +415,8 @@ func (a *App) key(k string) tea.Cmd {
 		if a.inLog() {
 			return switchCommit(k)
 		}
+	case "R", "f5":
+		return refreshAll
 	case "f":
 		return toggleFlow
 	case "'":

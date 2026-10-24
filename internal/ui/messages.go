@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"jdiff/internal/config"
@@ -25,6 +28,36 @@ type jumpMsg struct {
 	end       moveEnd
 	screenRow int
 	msg       string
+}
+
+// refreshMsg asks the top-level view to load what it shows again: run git
+// diff or git log again, list the directories again or read the two files.
+type refreshMsg struct{}
+
+func refreshAll() tea.Msg { return refreshMsg{} }
+
+// refreshed returns the message after loading again: what was added,
+// removed and changed, and the anchors dropped from changed files.
+func refreshed(added, gone, changed, dropped int) string {
+	var parts []string
+	for _, c := range []struct {
+		n    int
+		what string
+	}{{added, "new"}, {gone, "gone"}, {changed, "changed"}} {
+		if c.n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", c.n, c.what))
+		}
+	}
+	switch {
+	case dropped == 1:
+		parts = append(parts, "1 anchor dropped")
+	case dropped > 1:
+		parts = append(parts, fmt.Sprintf("%d anchors dropped", dropped))
+	}
+	if len(parts) == 0 {
+		return "nothing changed"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // toggleFlowMsg asks the log or the file selector to switch between the diff
