@@ -6,6 +6,21 @@ jdiff matches lines on their content, ignoring indentation, so re-indented code 
 Where the automatic alignment guesses wrong, you pick two lines and anchor them: everything around the anchor aligns again.
 It reads [delta](https://github.com/dandavison/delta)'s git config, so an existing delta theme applies right away.
 
+## Inspired by delta
+
+jdiff is inspired by [delta](https://github.com/dandavison/delta), the syntax-highlighting pager for git written in Rust.
+delta formats the output of git once and hands it to a pager; jdiff is a program you work in, so it can do what a pager cannot:
+
+- **Resizing:** the diff is laid out again when the terminal changes size; delta lays it out once, for the width it started with.
+- **Switching the layout:** `s` switches between side by side and one column while you look at the diff; in delta, side by side is chosen at startup.
+- **More or less context:** unchanged code folds and unfolds with `space`; delta shows the context lines git gave it.
+- **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
+- **Following moved code:** like delta, jdiff colors moved code; `o` jumps to its other end, also into another file.
+- **Auto reload:** files on disk are watched; when you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. delta shows the diff as it was when git ran.
+- **Anchors and jump marks:** you fix the alignment by hand and mark lines to come back to.
+
+delta highlights syntax; jdiff does not.
+
 ## What it can do
 
 - **Compare two files**, two directories (`git difftool --dir-diff`), what `git diff` shows (`jdiff diff`, e.g. `--cached` for the index), or the commits of `git log`.
