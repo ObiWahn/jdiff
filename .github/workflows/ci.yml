@@ -2,9 +2,8 @@ name: ci
 
 on:
   push:
-    branches: [master]
+    branches: ["**"] # every branch; only a tag makes a release
     tags: ["v*"] # a release, see the job release
-  pull_request:
   schedule:
     - cron: "0 6 * * 1" # new vulnerabilities turn up without changes to the code
   workflow_dispatch:

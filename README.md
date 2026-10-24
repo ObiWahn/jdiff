@@ -246,7 +246,7 @@ make vuln   # govulncheck, installed with go install golang.org/x/vuln/cmd/govul
 make fmt
 ```
 
-CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to `master`, pull requests and every Monday, for new vulnerabilities.
+CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to any branch and every Monday, for new vulnerabilities.
 When they pass, it builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64) and attaches the binaries to the run.
 A tag `v*`, e.g. `git tag v1.0.0 && git push origin v1.0.0`, makes a release of them with their SHA-256 sums, which anyone can download.
 
