@@ -27,12 +27,31 @@ func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, w
 	return title(left) + t.Decoration.Render("│") + title(right)
 }
 
-// statusLine renders the status bar with left and right aligned parts; left
-// is shortened when both do not fit.
+// statusLine renders the status bar with left, already styled, and right,
+// in the hint style, aligned to its edges; left is shortened when both do
+// not fit.
 func statusLine(t *theme.Theme, width int, left, right string) string {
 	left = ansi.Truncate(left, max(width-ansi.StringWidth(right), 0), "…")
 	gap := max(width-ansi.StringWidth(left)-ansi.StringWidth(right), 0)
-	return ansi.Truncate(t.Hint.Render(left+strings.Repeat(" ", gap)+right), width, "")
+	return ansi.Truncate(left+t.Hint.Render(strings.Repeat(" ", gap)+right), width, "")
+}
+
+// statusText returns the left part of a status bar: msg in the hint style,
+// or without one the hints, each a key and what it does, separated by
+// " · ", the keys in the hint key style.
+func statusText(t *theme.Theme, msg, hints string) string {
+	if msg != "" {
+		return t.Hint.Render(msg)
+	}
+	parts := strings.Split(hints, " · ")
+	for i, p := range parts {
+		if key, what, ok := strings.Cut(p, " "); ok {
+			parts[i] = t.HintKey.Render(key) + t.Hint.Render(" "+what)
+		} else {
+			parts[i] = t.Hint.Render(p)
+		}
+	}
+	return strings.Join(parts, t.Hint.Render(" · "))
 }
 
 // minBoxHeight fits the borders and one line.
@@ -210,7 +229,7 @@ func moreRow(t *theme.Theme, arrow string, hidden int) string {
 
 // render renders the list: head, the shown items as drawn by item, which
 // renders the selected one bold through st, the box as drawn by box when it
-// is shown, and status.
+// is shown, and status, styled, see statusText.
 func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lipgloss.Style) lipgloss.Style) string,
 	box func(height int) string, status string) string {
 	var b strings.Builder
@@ -229,7 +248,7 @@ func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lip
 	if h := li.boxHeight(); h > 0 && li.cursor < li.n {
 		b.WriteString("\n" + box(h))
 	}
-	b.WriteString(ansi.Truncate(t.Hint.Render(status), li.width, ""))
+	b.WriteString(ansi.Truncate(status, li.width, ""))
 	return b.String()
 }
 

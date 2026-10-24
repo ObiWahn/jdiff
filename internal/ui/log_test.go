@@ -785,9 +785,9 @@ func TestStatusBarKeys(t *testing.T) {
 		want string
 	}{
 		{nil, "enter open · f flow · v message · d git diff · ? help · q quit"},
-		{[]string{"enter"}, "enter open · N/P commit · f flow · v preview · d git diff · backspace commits · ? help · q quit"},
-		{[]string{"enter"}, "enter mark/anchor · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · backspace files · ? help · q quit"},
-		{[]string{"f"}, "enter mark/anchor · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · backspace files · ? help · q quit"},
+		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · v preview · d git diff · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · ? help · q quit"},
 	} {
 		pressLog(l, tt.keys...)
 		if got := status(); !strings.HasPrefix(got, tt.want) {
@@ -870,5 +870,22 @@ func TestCommitListHistoryKeys(t *testing.T) {
 		if l.open.Hash != "c3" {
 			t.Errorf("oldest first %v: N from c2's files to %s, want c3", oldestFirst, l.open.Hash)
 		}
+	}
+}
+
+func TestStatusBarKeyColors(t *testing.T) {
+	ansiColors(t)
+	l, _ := newTestLog()
+	th := l.cfg.Theme
+	key, what := th.HintKey.Render("enter"), th.Hint.Render(" open")
+	v := l.View()
+	if !strings.Contains(v, key+what) {
+		t.Errorf("status bar without the key in the hint key style:\n%q", v[strings.LastIndex(v, "\n")+1:])
+	}
+	// A message is drawn in the hint style alone.
+	l.msg = "no commits · nothing"
+	v = l.View()
+	if last := v[strings.LastIndex(v, "\n")+1:]; !strings.Contains(last, th.Hint.Render("no commits · nothing")) {
+		t.Errorf("message %q", last)
 	}
 }

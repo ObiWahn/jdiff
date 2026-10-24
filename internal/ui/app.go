@@ -732,12 +732,9 @@ func (a *App) View() string {
 		lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	status := a.msg
-	if status == "" {
-		status = "enter open · f flow · v preview · d git diff · ? help · q quit"
-		if a.inLog() {
-			status = "enter open · N/P commit · f flow · v preview · d git diff · backspace commits · ? help · q quit"
-		}
+	hints := "enter open · f flow · v preview · d git diff · ? help · q quit"
+	if a.inLog() {
+		hints = "enter open · backspace commits · N/P commit · f flow · v preview · d git diff · ? help · q quit"
 	}
-	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, status)
+	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, statusText(t, a.msg, hints))
 }

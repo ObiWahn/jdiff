@@ -805,11 +805,11 @@ func (f *Flow) scrollToCursor() {
 
 // help returns the keys of the status bar, in the order of all pages.
 func (f *Flow) help() string {
-	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "/ search", "n/p file"}
+	keys := []string{"enter mark/anchor", "backspace files", "space fold", "]/[ change", "/ search", "n/p file"}
 	if f.inLog() {
 		keys = append(keys, "N/P commit")
 	}
-	keys = append(keys, "f single file", "d git diff", "backspace files", "? help", "q quit")
+	keys = append(keys, "f single file", "d git diff", "? help", "q quit")
 	return strings.Join(keys, " · ")
 }
 
@@ -863,10 +863,7 @@ func (f *Flow) status() string {
 			where = append(where, fmt.Sprintf("anchors %d", len(d.anchors)))
 		}
 	}
-	left := f.msg
-	if left == "" {
-		left = f.help()
-	}
+	left := statusText(f.cfg.Theme, f.msg, f.help())
 	return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))
 }
 

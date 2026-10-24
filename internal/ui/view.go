@@ -93,10 +93,14 @@ func (d *fileDiff) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Styl
 	return t.Plus, t.PlusNonEmph, t.PlusEmph, t.PlusIndent
 }
 
-// help returns the keys of the status bar, in the order of all pages: n/p,
-// f and backspace when shown from a file list, N/P in the log.
+// help returns the keys of the status bar, in the order of all pages:
+// backspace, n/p and f when shown from a file list, N/P in the log.
 func (m *Model) help() string {
-	keys := []string{"enter mark/anchor", "space fold", "]/[ change", "/ search"}
+	keys := []string{"enter mark/anchor"}
+	if m.canBack {
+		keys = append(keys, "backspace files")
+	}
+	keys = append(keys, "space fold", "]/[ change", "/ search")
 	if m.canBack {
 		keys = append(keys, "n/p file")
 	}
@@ -107,9 +111,6 @@ func (m *Model) help() string {
 		keys = append(keys, "f flow")
 	}
 	keys = append(keys, "d git diff")
-	if m.canBack {
-		keys = append(keys, "backspace files")
-	}
 	return strings.Join(append(keys, "? help", "q quit"), " · ")
 }
 
@@ -204,10 +205,7 @@ func (d *fileDiff) bodyRow(v, sub int, cursor bool, lo layout) string {
 }
 
 func (m *Model) status() string {
-	left := m.msg
-	if left == "" {
-		left = m.help()
-	}
+	left := statusText(m.cfg.Theme, m.msg, m.help())
 	row := 0
 	if m.cursor < len(m.view) {
 		row = m.view[m.cursor].row + 1

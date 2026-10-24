@@ -523,11 +523,8 @@ func (l *Log) View() string {
 			st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
 			st(t.Decoration).Render(c.Date)
 	}
-	status := l.msg
-	if status == "" {
-		status = "enter open · f flow · v message · d git diff · ? help · q quit"
-	}
-	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, status)
+	hints := "enter open · f flow · v message · d git diff · ? help · q quit"
+	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, statusText(t, l.msg, hints))
 }
 
 // messageBox renders the full message of c in a box height lines high,
