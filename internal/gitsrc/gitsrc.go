@@ -132,13 +132,14 @@ func (r Repo) Counts(hashes []string) (map[string]LineCounts, error) {
 }
 
 // TopLevel returns the top directory of the repository, or an error outside
-// one.
+// one. git writes it with slashes also on Windows; it is returned in the
+// system's form, so that it compares with other paths.
 func (r Repo) TopLevel() (string, error) {
 	out, err := r.git("rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	return filepath.Clean(strings.TrimSpace(string(out))), nil
 }
 
 // Branch returns the name of the checked out branch, or "detached HEAD".

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -20,7 +21,12 @@ func newRepo(t *testing.T) Repo {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	dir := t.TempDir()
+	// The path git reports: without symlinks, as /var on macOS, and on
+	// Windows with long names, not 8.3 short ones.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.com"}, args...)...)
@@ -302,10 +308,30 @@ func TestLogErrors(t *testing.T) {
 // TestCatFilesErrorStopsGit checks that a bad reply from git cat-file is
 // reported even while git keeps writing output that is no longer read.
 func TestCatFilesErrorStopsGit(t *testing.T) {
+	// A fake git that answers with a bad header and then writes on and on.
+	// It is a Go program, so that it runs as git also on Windows, where a
+	// script would not.
 	dir := t.TempDir()
-	fake := "#!/usr/bin/env bash\necho 'x blob notasize'\nexec yes\n"
-	if err := os.WriteFile(filepath.Join(dir, "git"), []byte(fake), 0o755); err != nil {
+	fake := `package main
+
+import "os"
+
+func main() {
+	os.Stdout.WriteString("x blob notasize\n")
+	for {
+		if _, err := os.Stdout.WriteString("y\n"); err != nil {
+			return
+		}
+	}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(fake), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	build := exec.Command("go", "build", "-o", filepath.Join(dir, "git"+exeSuffix()), "main.go")
+	build.Dir = dir
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building the fake git: %v\n%s", err, out)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -329,14 +355,18 @@ func TestTopLevel(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(r.Dir, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	want, err := filepath.EvalSymlinks(r.Dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if top, err := (Repo{Dir: filepath.Join(r.Dir, "sub")}).TopLevel(); err != nil || top != want {
-		t.Errorf("TopLevel from sub = %q, %v; want %q", top, err, want)
+	if top, err := (Repo{Dir: filepath.Join(r.Dir, "sub")}).TopLevel(); err != nil || top != r.Dir {
+		t.Errorf("TopLevel from sub = %q, %v; want %q", top, err, r.Dir)
 	}
 	if _, err := (Repo{Dir: t.TempDir()}).TopLevel(); err == nil {
 		t.Error("TopLevel outside a repository succeeded")
 	}
+}
+
+// exeSuffix returns the suffix of executables: .exe on Windows.
+func exeSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }

@@ -226,13 +226,16 @@ func TestSaveState(t *testing.T) {
 }
 
 func TestDir(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/xdg")
-	if dir, err := Dir(); err != nil || dir != "/xdg/jdiff" {
+	// Absolute paths of the system: /xdg is not absolute on Windows.
+	xdg, home := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	if dir, err := Dir(); err != nil || dir != filepath.Join(xdg, "jdiff") {
 		t.Errorf("Dir() = %q, %v with XDG_CONFIG_HOME", dir, err)
 	}
 	t.Setenv("XDG_CONFIG_HOME", "")
-	t.Setenv("HOME", "/home/u")
-	if dir, err := Dir(); err != nil || dir != "/home/u/.config/jdiff" {
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home of os.UserHomeDir on Windows
+	if dir, err := Dir(); err != nil || dir != filepath.Join(home, ".config", "jdiff") {
 		t.Errorf("Dir() = %q, %v without XDG_CONFIG_HOME", dir, err)
 	}
 }
