@@ -121,7 +121,7 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	if len(commits) == 0 {
 		return nil, fmt.Errorf("no commits")
 	}
-	return ui.NewLog(cfg, repo.Branch(), commits, repo.Files, repo.Counts), nil
+	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts), nil
 }
 
 // loadDiff opens the file selector for the files git diff compares with

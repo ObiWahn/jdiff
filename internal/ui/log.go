@@ -53,6 +53,7 @@ type Log struct {
 	minCount int                     // the least width of the count columns
 
 	commits []*commitEntry
+	next    int // the step in commits to the next commit in history
 	list
 	open   *commitEntry // commit whose files are shown, nil for the list
 	flow   *Flow        // all commits one after the other
@@ -60,11 +61,16 @@ type Log struct {
 	prefix string // "'" while waiting for the letter of a mark
 }
 
-// NewLog returns the commit list for commits, newest first, of branch. With
+// NewLog returns the commit list for commits of branch, in the order of git
+// log: newest first, or with oldestFirst (git log --reverse) oldest. With
 // counts, their line counts are counted once they are shown; without, they
 // come with the commits.
-func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load LoadFunc, counts CountFunc) *Log {
-	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1}
+func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFirst bool,
+	load LoadFunc, counts CountFunc) *Log {
+	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1, next: -1}
+	if oldestFirst {
+		l.next = 1
+	}
 	if counts != nil {
 		l.minCount = countWidth
 	}
@@ -84,6 +90,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, load Loa
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
 	l.flow = newFlow(cfg, parts, l.app)
+	l.flow.next = l.next
 	if len(commits) == 0 {
 		l.msg = "no commits"
 	}
@@ -311,8 +318,8 @@ func (l *Log) openCommit(i int, path string) bool {
 	return true
 }
 
-// switchCommit shows the next (dir > 0, older) or previous commit, keeping
-// the open file when the other commit changed it too.
+// switchCommit shows the next (dir > 0) or previous commit in history,
+// keeping the open file when the other commit changed it too.
 func (l *Log) switchCommit(dir int) {
 	if l.open == nil {
 		return
@@ -322,9 +329,9 @@ func (l *Log) switchCommit(dir int) {
 	if app.open != nil {
 		path = app.open.Path
 	}
-	i := l.cursor + dir
+	i := l.cursor + dir*l.next
 	if i < 0 || i >= len(l.commits) {
-		app.setMsg(ends(dir > 0, "oldest commit", "newest commit"))
+		app.setMsg(ends(dir > 0, "last commit", "first commit"))
 		return
 	}
 	if app.open != nil {

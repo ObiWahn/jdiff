@@ -49,7 +49,22 @@ func (r Repo) git(args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// Log returns the commits git log selects with args, newest first, without
+// Reversed reports whether git log lists the commits of args oldest first:
+// each --reverse before a -- flips the order.
+func Reversed(args []string) bool {
+	rev := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if a == "--reverse" {
+			rev = !rev
+		}
+	}
+	return rev
+}
+
+// Log returns the commits git log selects with args, in its order, without
 // their line counts: counting diffs every commit, which takes seconds in a
 // long history, so Counts does it for the commits shown. Records start with
 // RS, fields are separated by US and the body, which may span lines, ends

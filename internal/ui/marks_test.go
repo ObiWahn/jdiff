@@ -132,7 +132,7 @@ func TestFlowMarkStaysInCommit(t *testing.T) {
 	}
 	pressLog(l, "m", "a")           // a.go line 1, "2"
 	pressLog(l, "n", "j", "m", "b") // b.go line 1, "y"
-	pressLog(l, "N")                // c2, which changes a.go only
+	pressLog(l, "P")                // c2, which changes a.go only
 	pressLog(l, "'", "b")
 	if f.rows[f.cursor].part != 1 || f.msg != "mark b: b.go is not in this diff" {
 		t.Errorf("' b in c2: on commit %d, msg %q; want to stay in c2", f.rows[f.cursor].part, f.msg)

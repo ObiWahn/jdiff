@@ -97,7 +97,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `g` `G` | first, last file |
 | `enter` | show the diff of the file |
 | `'`*letter* | open the file of a jump mark |
-| `N` `P` | next, previous commit (in the log) |
+| `N` `P` | next, previous commit in history (in the log) |
 | `f` | flow view of all files |
 | `v` | show or hide the diff preview |
 | `s` | side by side or normal preview |
@@ -119,7 +119,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `h` `l` | scroll left, right, unless lines are wrapped |
 | `]` `[` | next, previous change |
 | `n` `p` | next, previous file |
-| `N` `P` | next, previous commit (in the log) |
+| `N` `P` | next, previous commit in history (in the log) |
 | `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `tab` | switch pane |
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
@@ -144,7 +144,7 @@ The keys of the diff view, and:
 | Key | Action |
 |---|---|
 | `n` `p` | next, previous file bar |
-| `N` `P` | next, previous commit bar |
+| `N` `P` | next, previous commit bar in history |
 | `c` | full or short commit messages |
 | `C` | stay in the current commit (`N` `P` still switch) |
 | `f` | single file view |

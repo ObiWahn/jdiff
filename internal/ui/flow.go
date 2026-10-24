@@ -53,6 +53,7 @@ type Flow struct {
 	cfg   *config.Config
 	parts []*flowPart
 	load  func(part int) (*App, error) // loads the files of a commit, nil outside the log
+	next  int                          // the step in parts to the next commit in history
 
 	rows      []flowRow
 	built     shape // what the rows of the diffs were built for
@@ -176,10 +177,10 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "N", "P":
 		switch {
 		case !f.inLog():
-		case f.search(direction(k == "N"), f.isKind(flowCommit, 0), false):
+		case f.search(direction(k == "N")*f.next, f.isKind(flowCommit, 0), false):
 			f.barToTop()
 		default:
-			f.msg = ends(k == "N", "oldest commit", "newest commit")
+			f.msg = ends(k == "N", "last commit", "first commit")
 		}
 	case "enter", "esc", " ", "ctrl+@":
 		f.delegate(k)

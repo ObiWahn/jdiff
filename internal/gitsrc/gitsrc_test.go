@@ -82,6 +82,29 @@ func TestLog(t *testing.T) {
 	}
 }
 
+func TestReversed(t *testing.T) {
+	r := newRepo(t)
+	for _, args := range [][]string{
+		{"--first-parent"},
+		{"--first-parent", "--reverse"},
+		{"--reverse", "--first-parent", "--reverse"},
+		{"--reverse", "--first-parent", "--", "a.txt"},
+	} {
+		commits, err := r.Log(args)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		oldestFirst := commits[0].Subject == "root"
+		if got := Reversed(args); got != oldestFirst {
+			t.Errorf("Reversed(%v) = %v, git log lists %q first", args, got, commits[0].Subject)
+		}
+	}
+	// After --, --reverse is a path.
+	if Reversed([]string{"--", "--reverse"}) {
+		t.Error("Reversed counts --reverse after --")
+	}
+}
+
 func TestCounts(t *testing.T) {
 	r := newRepo(t)
 	commits, err := r.Log([]string{"--first-parent"})

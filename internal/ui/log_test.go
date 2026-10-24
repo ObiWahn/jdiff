@@ -33,7 +33,11 @@ func modified(path string, old, new []string) source.File {
 // Only c3 has a message body. In the flow view c3 takes 10 rows, more than
 // the 9 below the commit and file lines: 6 header rows and two files of a
 // bar and one row each.
-func newTestLog() (*Log, map[string]int) {
+func newTestLog() (*Log, map[string]int) { return newTestLogOrder(false) }
+
+// newTestLogOrder returns the log of newTestLog, with oldestFirst listed as
+// git log --reverse lists it.
+func newTestLogOrder(oldestFirst bool) (*Log, map[string]int) {
 	loads := map[string]int{}
 	files := map[string][]source.File{
 		"c3": {modified("a.go", []string{"1"}, []string{"2"}), modified("b.go", []string{"x"}, []string{"y"})},
@@ -53,7 +57,10 @@ func newTestLog() (*Log, map[string]int) {
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
 	commits[0].Body = "body c3"
-	l := NewLog(config.Default(), "main", commits, load, nil)
+	if oldestFirst {
+		slices.Reverse(commits)
+	}
+	l := NewLog(config.Default(), "main", commits, oldestFirst, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return l, loads
 }
@@ -127,39 +134,39 @@ func TestLogNextPrevCommit(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "enter", "enter") // c3, a.go
 
-	// N keeps a.go, which c2 changed as well.
-	pressLog(l, "N")
+	// P keeps a.go, which c2 changed as well.
+	pressLog(l, "P")
 	if l.cursor != 1 || shownFile(l) != "a.go" {
-		t.Fatalf("N: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
+		t.Fatalf("P: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
 	}
 	// c1 did not change a.go, but it has a single file.
-	pressLog(l, "N")
+	pressLog(l, "P")
 	if l.cursor != 2 || shownFile(l) != "c.go" {
-		t.Fatalf("N: commit %d shown %q, want c1 c.go", l.cursor, shownFile(l))
+		t.Fatalf("P: commit %d shown %q, want c1 c.go", l.cursor, shownFile(l))
 	}
 	// c0 cannot be loaded: stay and show the error.
-	pressLog(l, "N")
+	pressLog(l, "P")
 	if l.cursor != 2 || !strings.Contains(l.open.app.open.view.msg, "cannot load c0") {
-		t.Errorf("N onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
+		t.Errorf("P onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
 	}
 	// Back via c2 (single file a.go) to c3, which changed a.go as well.
-	pressLog(l, "P", "P")
+	pressLog(l, "N", "N")
 	if l.cursor != 0 || shownFile(l) != "a.go" {
-		t.Errorf("P P: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
+		t.Errorf("N N: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
 	}
-	pressLog(l, "P")
-	if !strings.Contains(l.open.app.open.view.msg, "newest commit") {
-		t.Errorf("P on the newest commit: msg %q", l.open.app.open.view.msg)
+	pressLog(l, "N")
+	if !strings.Contains(l.open.app.open.view.msg, "last commit") {
+		t.Errorf("N on the newest commit: msg %q", l.open.app.open.view.msg)
 	}
 	// N/P also work from the file list.
-	pressLog(l, "backspace", "N")
+	pressLog(l, "backspace", "P")
 	if l.cursor != 1 || shownFile(l) != "a.go" {
-		t.Errorf("N from the file list: commit %d shown %q", l.cursor, shownFile(l))
+		t.Errorf("P from the file list: commit %d shown %q", l.cursor, shownFile(l))
 	}
 	// The open file a.go is kept when going back to c3.
-	pressLog(l, "P")
+	pressLog(l, "N")
 	if l.cursor != 0 || shownFile(l) != "a.go" {
-		t.Errorf("P back to c3 with a.go open: commit %d shown %q", l.cursor, shownFile(l))
+		t.Errorf("N back to c3 with a.go open: commit %d shown %q", l.cursor, shownFile(l))
 	}
 }
 
@@ -212,19 +219,53 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 	}
 }
 
-func TestLogFlowCommitKeys(t *testing.T) {
-	l, _ := newTestLog()
-	pressLog(l, "f", "N")
-	if flowCommitAt(l) != 1 {
-		t.Fatalf("N: flow at %d, want c2", flowCommitAt(l))
+func TestLogReversedNextPrevCommit(t *testing.T) {
+	l, _ := newTestLogOrder(true) // c0 c1 c2 c3
+	pressLog(l, "j", "enter")     // c1, c.go
+	pressLog(l, "N")
+	if l.cursor != 2 || shownFile(l) != "a.go" {
+		t.Fatalf("N: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
 	}
-	pressLog(l, "N", "N", "N")
-	if flowCommitAt(l) != 3 || l.flow.msg != "oldest commit" {
-		t.Errorf("N past c0: flow at %d msg %q", flowCommitAt(l), l.flow.msg)
+	pressLog(l, "N")
+	if l.cursor != 3 || shownFile(l) != "a.go" {
+		t.Fatalf("N: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
+	}
+	pressLog(l, "N")
+	if l.cursor != 3 || !strings.Contains(l.open.app.open.view.msg, "last commit") {
+		t.Errorf("N on the newest commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
+	}
+	pressLog(l, "P")
+	if l.cursor != 2 {
+		t.Errorf("P: commit %d, want c2", l.cursor)
+	}
+
+	pressLog(l, "f", "N")
+	if flowCommitAt(l) != 3 {
+		t.Fatalf("N in the flow: at %d, want c3", flowCommitAt(l))
+	}
+	pressLog(l, "N")
+	if flowCommitAt(l) != 3 || l.flow.msg != "last commit" {
+		t.Errorf("N past c3 in the flow: at %d msg %q", flowCommitAt(l), l.flow.msg)
 	}
 	pressLog(l, "P")
 	if flowCommitAt(l) != 2 {
-		t.Errorf("P: flow at %d, want c1", flowCommitAt(l))
+		t.Errorf("P in the flow: at %d, want c2", flowCommitAt(l))
+	}
+}
+
+func TestLogFlowCommitKeys(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f", "P")
+	if flowCommitAt(l) != 1 {
+		t.Fatalf("P: flow at %d, want c2", flowCommitAt(l))
+	}
+	pressLog(l, "P", "P", "P")
+	if flowCommitAt(l) != 3 || l.flow.msg != "first commit" {
+		t.Errorf("P past c0: flow at %d msg %q", flowCommitAt(l), l.flow.msg)
+	}
+	pressLog(l, "N")
+	if flowCommitAt(l) != 2 {
+		t.Errorf("N: flow at %d, want c1", flowCommitAt(l))
 	}
 	pressLog(l, "backspace")
 	if l.open != nil || l.cursor != 2 {
@@ -438,9 +479,9 @@ func TestFlowStayInCommit(t *testing.T) {
 		t.Errorf("status lacks (C)")
 	}
 	// N and P still switch; the commit switched to is the one to stay in.
-	pressLog(l, "N")
+	pressLog(l, "P")
 	if part() != 1 {
-		t.Fatalf("N: on commit %d, want 1", part())
+		t.Fatalf("P: on commit %d, want 1", part())
 	}
 	first := f.cursor
 	for _, k := range []string{"k", "pgup", "g"} {
@@ -461,7 +502,7 @@ func TestLogExpandsTabsInCommits(t *testing.T) {
 	load := func(gitsrc.Commit) ([]source.File, error) {
 		return []source.File{modified("a.go", []string{"1"}, []string{"2"})}, nil
 	}
-	l := NewLog(config.Default(), "main", commits, load, nil)
+	l := NewLog(config.Default(), "main", commits, false, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	if line := rawText(l.View(), 60); line != "" {
 		t.Errorf("commit list line with raw text: %q", line)
@@ -514,7 +555,7 @@ func newCountingLog(fail bool) (*Log, *[][]string) {
 		}
 		return out, nil
 	}
-	return NewLog(config.Default(), "main", commits, nil, counts), &asked
+	return NewLog(config.Default(), "main", commits, false, nil, counts), &asked
 }
 
 // listLine returns the line of the commit list that shows commit short.

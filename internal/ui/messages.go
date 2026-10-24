@@ -10,8 +10,8 @@ import (
 // file.
 type switchFileMsg int
 
-// switchCommitMsg asks the log to show the next (1, older) or previous (-1)
-// commit.
+// switchCommitMsg asks the log to show the next (1) or previous (-1) commit
+// in history.
 type switchCommitMsg int
 
 // backMsg asks the log to return to the commit list, or the file selector to

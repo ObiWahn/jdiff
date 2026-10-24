@@ -169,7 +169,7 @@ func TestAppReloadsCurrentFileAndNeighbors(t *testing.T) {
 	if m := a.open.view; len(m.lines[right]) != 13 {
 		t.Errorf("opened a.txt: %d lines, want the reloaded 13", len(m.lines[right]))
 	}
-	if NewLog(config.Default(), "main", nil, nil, nil).Init() != nil {
+	if NewLog(config.Default(), "main", nil, false, nil, nil).Init() != nil {
 		t.Error("the log starts watching")
 	}
 }
