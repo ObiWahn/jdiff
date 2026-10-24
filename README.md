@@ -49,7 +49,7 @@ go install .      # or install it into $GOBIN
 
 `jdiff --version` prints the tag or commit it was built from.
 
-The other make targets: `make test`, `make vet`, `make fmt`, `make fmt-check` and `make clean`.
+The other make targets: `make test`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
 
 ## Usage
 

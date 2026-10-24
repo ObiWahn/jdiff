@@ -4,8 +4,12 @@ SHELL        := bash
 BUILD_DIR    ?= bin
 BIN          := $(BUILD_DIR)/jdiff
 TEST_TIMEOUT ?= 15s
+# Installed, not run with go run: that may switch to a newer Go, whose
+# standard library it would check instead of the one jdiff is built with.
+# go install golang.org/x/vuln/cmd/govulncheck@latest
+GOVULNCHECK  ?= $(shell go env GOPATH)/bin/govulncheck
 
-.PHONY: all build test vet fmt fmt-check clean
+.PHONY: all build test vet vuln fmt fmt-check clean
 
 all: build
 
@@ -17,6 +21,10 @@ test: | $(BUILD_DIR)/
 
 vet: | $(BUILD_DIR)/
 	go vet ./... 2>&1 | tee $(BUILD_DIR)/vet.log
+
+# Known vulnerabilities in the code jdiff calls, from https://vuln.go.dev.
+vuln: | $(BUILD_DIR)/
+	$(GOVULNCHECK) ./... 2>&1 | tee $(BUILD_DIR)/vuln.log
 
 fmt:
 	gofmt -w .
