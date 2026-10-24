@@ -35,7 +35,6 @@ type Theme struct {
 	Overflow                        lipgloss.Style // « and » at the edges of cut lines
 	More                            lipgloss.Style // ↑ and ↓ for items of lists out of view
 	Search                          lipgloss.Style // text found by /
-	HintKey                         lipgloss.Style // the keys among the status bar's hints
 	MinusMoved, PlusMoved           lipgloss.Style // moved code: removed here, added there
 	FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
 	CommitHash                      lipgloss.Style // commit hashes in the log
@@ -155,7 +154,6 @@ func Resolve(sp Spec) *Theme {
 	t.Overflow = style("overflow-style", sp.OverflowStyle, def.OverflowStyle)
 	t.More = styleOrStyle("more-style", sp.MoreStyle, t.Whitespace)
 	t.Search = style("search-style", sp.SearchStyle, def.SearchStyle)
-	t.HintKey = style("hint-key-style", sp.HintKeyStyle, def.HintKeyStyle)
 	// Changed whitespace is drawn as · and →, by default like changed words.
 	t.MinusIndent = styleOrStyle("minus-indent-style", sp.MinusIndentStyle, t.MinusEmph)
 	t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)

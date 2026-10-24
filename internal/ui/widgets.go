@@ -42,22 +42,14 @@ func popupTitle(t *theme.Theme, name, msg, hints string) string {
 	return t.CommitHash.Render(" "+name+" ") + t.Hint.Render(" ") + statusText(t, msg, hints) + t.Hint.Render(" ")
 }
 
-// statusText returns the left part of a status bar: msg in the hint style,
-// or without one the hints, each a key and what it does, separated by
-// " · ", the keys in the hint key style.
+// statusText returns the left part of a status bar: msg, or without one
+// the hints, each a key and what it does, separated by " · ", in the hint
+// style.
 func statusText(t *theme.Theme, msg, hints string) string {
 	if msg != "" {
 		return t.Hint.Render(msg)
 	}
-	parts := strings.Split(hints, " · ")
-	for i, p := range parts {
-		if key, what, ok := strings.Cut(p, " "); ok {
-			parts[i] = t.HintKey.Render(key) + t.Hint.Render(" "+what)
-		} else {
-			parts[i] = t.Hint.Render(p)
-		}
-	}
-	return strings.Join(parts, t.Hint.Render(" · "))
+	return t.Hint.Render(hints)
 }
 
 // minBoxHeight fits the borders and one line.

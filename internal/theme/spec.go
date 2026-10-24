@@ -60,7 +60,6 @@ type Spec struct {
 	OverflowStyle           *string `toml:"overflow-style" git:"jdiff"`            // « » at the edges of cut lines
 	MoreStyle               *string `toml:"more-style" git:"jdiff"`                // ↑ ↓ for items of lists out of view; unset: whitespace-style
 	SearchStyle             *string `toml:"search-style" git:"jdiff"`              // text found by /
-	HintKeyStyle            *string `toml:"hint-key-style" git:"jdiff"`            // the keys among the status bar's hints
 	MinusIndentStyle        *string `toml:"minus-indent-style" git:"jdiff"`        // unset: minus-emph-style
 	PlusIndentStyle         *string `toml:"plus-indent-style" git:"jdiff"`         // unset: plus-emph-style
 	MinusMovedStyle         *string `toml:"minus-moved-style" git:"jdiff"`         // removed lines that moved elsewhere
@@ -139,7 +138,6 @@ func Builtin() Spec {
 		HiddenCharStyle:         str("normal red"),
 		OverflowStyle:           str("blue"),
 		SearchStyle:             str("black yellow"),
-		HintKeyStyle:            str("green"),
 	}
 }
 

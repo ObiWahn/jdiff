@@ -233,13 +233,3 @@ func TestSearchStyle(t *testing.T) {
 		t.Errorf("jdiff.search-style: %v", th.Search.GetForeground())
 	}
 }
-
-func TestHintKeyStyle(t *testing.T) {
-	if fg := Default().HintKey.GetForeground(); fg != lipgloss.Color("2") {
-		t.Errorf("hint keys %v, want green", fg)
-	}
-	th := Resolve(FromGit(Config{"jdiff.hint-key-style": "bright-yellow bold"}, nil))
-	if th.HintKey.GetForeground() != lipgloss.Color("11") || !th.HintKey.GetBold() {
-		t.Errorf("jdiff.hint-key-style: %v", th.HintKey.GetForeground())
-	}
-}

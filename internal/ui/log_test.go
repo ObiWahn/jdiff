@@ -873,19 +873,14 @@ func TestCommitListHistoryKeys(t *testing.T) {
 	}
 }
 
-func TestStatusBarKeyColors(t *testing.T) {
+func TestStatusBarOneColor(t *testing.T) {
 	ansiColors(t)
 	l, _ := newTestLog()
-	th := l.cfg.Theme
-	key, what := th.HintKey.Render("enter"), th.Hint.Render(" open")
-	v := l.View()
-	if !strings.Contains(v, key+what) {
-		t.Errorf("status bar without the key in the hint key style:\n%q", v[strings.LastIndex(v, "\n")+1:])
+	hint := l.cfg.Theme.Hint
+	if v := l.View(); !strings.Contains(v, hint.Render("enter open · f flow · v message · d git diff · ? help · q quit")) {
+		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
-	// A message is drawn in the hint style alone.
-	l.msg = "no commits · nothing"
-	v = l.View()
-	if last := v[strings.LastIndex(v, "\n")+1:]; !strings.Contains(last, th.Hint.Render("no commits · nothing")) {
-		t.Errorf("message %q", last)
+	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {
+		t.Errorf("popup title %q", got)
 	}
 }

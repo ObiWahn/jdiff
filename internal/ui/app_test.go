@@ -801,17 +801,3 @@ func TestDiffSwitchErrorWidens(t *testing.T) {
 		t.Errorf("the message is cut before the screen's edge:\n%s", ansi.Strip(s.View()))
 	}
 }
-
-func TestPopupTitleKeys(t *testing.T) {
-	ansiColors(t)
-	s, _ := newDiffSwitch(newTestApp())
-	th := s.cfg.Theme
-	pressRoot(s, "d")
-	if !strings.Contains(s.View(), th.HintKey.Render("enter")+th.Hint.Render(" show")) {
-		t.Error("the git diff popup's title without the key in the hint key style")
-	}
-	if got := popupTitle(th, "marks", "a problem", "enter jump"); strings.Contains(got, th.HintKey.Render("a")) ||
-		!strings.Contains(got, th.Hint.Render("a problem")) {
-		t.Errorf("a message in a title: %q", got)
-	}
-}
