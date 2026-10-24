@@ -1,0 +1,105 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"] # a release, see the job release
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # new vulnerabilities turn up without changes to the code
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      TEST_TIMEOUT: 300s # 15s is for local runs, not a cold cache with -race
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: make fmt-check
+      - run: make vet
+      - run: make test
+      - run: make build
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: make vuln
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: bin/*.log
+
+  # Outside Linux files are checked by polling, not inotify. The tests run
+  # without make: macOS has make 3.81, which lacks .SHELLFLAGS, and timeout
+  # is missing on macOS and another program on Windows.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go test -count=1 -timeout 5m ./...
+      - run: go build -o jdiff-ci .
+
+  # The binaries for download, attached to the run; for a tag, the release
+  # takes them. Built without cgo, they need no C library of the system.
+  dist:
+    needs: [linux, test]
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: windows, goarch: amd64 }
+    runs-on: ubuntu-latest
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags, which go build takes the version from
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # The bare binary: downloaded, it needs chmod +x, packed or not.
+      - run: |
+          name=jdiff-$(git describe --tags --always)-$GOOS-$GOARCH
+          if [[ $GOOS == windows ]]; then name+=.exe; fi
+          go build -trimpath -o "dist/$name" .
+          echo "name=$name" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.name }}
+          path: dist/${{ env.name }}
+
+  # A tag v* becomes a release with the binaries, for anyone to download.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: dist
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: jdiff-*
+          path: dist
+          merge-multiple: true
+      - run: cd dist && sha256sum * > sha256sums.txt
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

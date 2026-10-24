@@ -47,6 +47,8 @@ make build        # builds bin/jdiff
 go install .      # or install it into $GOBIN
 ```
 
+Or download a binary from the releases, for Linux, macOS or Windows, and make it executable (`chmod +x`).
+
 `jdiff --version` prints the tag or commit it was built from.
 
 The other make targets: `make test`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
@@ -240,8 +242,13 @@ Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`,
 ```sh
 make test   # go test -race with a timeout
 make vet
+make vuln   # govulncheck, installed with go install golang.org/x/vuln/cmd/govulncheck@latest
 make fmt
 ```
+
+CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to `master`, pull requests and every Monday, for new vulnerabilities.
+When they pass, it builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64) and attaches the binaries to the run.
+A tag `v*`, e.g. `git tag v1.0.0 && git push origin v1.0.0`, makes a release of them with their SHA-256 sums, which anyone can download.
 
 To use your build in this repository, the same in its `.git/config`, with `bin/jdiff`:
 
@@ -266,6 +273,7 @@ The packages under `internal/`:
 | `diff` | alignment (patience with Myers fallback), anchors, word-level changes, moved blocks |
 | `source` | reading files and directories |
 | `gitsrc` | `git log`, the files of a commit, the repository root |
+| `notify` | changes to files reported by Linux (inotify) |
 | `theme` | delta-compatible styles: sources (`Spec`) resolved into a `Theme` |
 | `settings` | the settings |
 | `config` | the configuration files, themes, state and marks |
