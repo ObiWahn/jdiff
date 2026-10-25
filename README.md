@@ -81,11 +81,15 @@ Git aliases, in `~/.gitconfig`: `git jd` takes the arguments of `git diff` (`git
 
 ```gitconfig
 [alias]
-	jd = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
-	jdiff = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
-	jl = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
-	jlog = "!f() { cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
+	jd = "!f() { : git diff; cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
+	jdiff = "!f() { : git diff; cd \"${GIT_PREFIX:-.}\" && jdiff diff \"$@\"; }; f"
+	jl = "!f() { : git log; cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
+	jlog = "!f() { : git log; cd \"${GIT_PREFIX:-.}\" && jdiff log \"$@\"; }; f"
 ```
+
+The null command `: git diff;` does nothing when the alias runs; git's bash completion reads it
+and completes `git jd` like `git diff`: options, branches and paths. It has to come first in the
+function, before any other command.
 
 As git's difftool, for `git difftool -d`:
 
@@ -293,10 +297,10 @@ To use your build in this repository, the same in its `.git/config`, with `bin/j
 [difftool]
 	prompt = false
 [alias]
-	jd = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
-	jdiff = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
-	jl = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
-	jlog = "!f() { top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
+	jd = "!f() { : git diff; top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
+	jdiff = "!f() { : git diff; top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" diff \"$@\"; }; f"
+	jl = "!f() { : git log; top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
+	jlog = "!f() { : git log; top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
 ```
 
 The packages under `internal/`:
