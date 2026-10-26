@@ -19,9 +19,20 @@ type flowKind int
 
 const (
 	flowCommit flowKind = iota // a line of a commit's header
-	flowFile                   // the bar starting a file
+	flowFile                   // a line of a file's header, one of the file* lines
 	flowNote                   // a note in place of a diff: binary file, load error
 	flowDiff                   // a displayed row of a file's diff view
+)
+
+// The lines of a file's header, as delta draws it: an empty line, but for
+// the first file of a part, the file's name, a rule and an empty line; a
+// fold the diff starts with, which has an empty line below, follows the
+// empty line in place of the rule. The cursor does not stop on them.
+const (
+	fileGapAbove = iota
+	fileTitle
+	fileRule
+	fileGapBelow
 )
 
 // flowRow is a row of the flow view. part is the index of its part, file
@@ -172,8 +183,8 @@ func (f *Flow) key(k string) tea.Cmd {
 			f.msg = "no more changes"
 		}
 	case "n", "p":
-		if f.search(direction(k == "n"), f.isKind(flowFile, 0), true) {
-			f.barToTop()
+		if f.search(direction(k == "n"), f.fileStart, true) {
+			f.headerToTop()
 		} else if f.msg == "" {
 			f.msg = ends(k == "n", "last file", "first file")
 		}
@@ -386,18 +397,37 @@ func (f *Flow) build() {
 			continue
 		}
 		for i, e := range part.app.files {
-			add(flowFile, p, i, 0)
+			if i > 0 {
+				add(flowFile, p, i, fileGapAbove)
+			}
+			add(flowFile, p, i, fileTitle)
 			if e.Binary {
+				add(flowFile, p, i, fileRule)
+				add(flowFile, p, i, fileGapBelow)
 				add(flowNote, p, i, 0)
 				continue
 			}
-			screen, _ := part.app.diffOf(e).screenLines(f.built)
+			d := part.app.diffOf(e)
+			if len(d.view) == 0 || d.view[0].hidden == 0 {
+				add(flowFile, p, i, fileRule)
+			}
+			add(flowFile, p, i, fileGapBelow)
+			screen, _ := d.screenLines(f.built)
 			for _, s := range screen {
 				f.rows = append(f.rows, flowRow{flowDiff, p, i, s.v, s.sub})
 			}
 		}
 	}
-	f.cursor = max(min(f.cursor, len(f.rows)-1), 0)
+	f.cursor = f.settle(max(min(f.cursor, len(f.rows)-1), 0), 1)
+}
+
+// settle returns row i, or for a row of a file's header or an empty line
+// next to a fold the nearest other row in direction dir, else before it.
+func (f *Flow) settle(i, dir int) int {
+	return settle(len(f.rows), i, dir, func(j int) bool {
+		r := f.rows[j]
+		return r.kind == flowFile || (r.kind == flowDiff && r.sub < 0)
+	})
 }
 
 // refresh runs reload, which may reload files, calling its argument after
@@ -444,7 +474,7 @@ func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 
 // followFiles keeps the cursor on its file of part when the files were
 // listed again, from old to new: on the file's row, or for a file that is
-// gone on the bar of the next file left, else of the last. The rows are
+// gone on the next file left, else on the last. The rows are
 // rebuilt next.
 func (f *Flow) followFiles(part int, old, new []*entry) {
 	if f.cursor >= len(f.rows) {
@@ -459,12 +489,12 @@ func (f *Flow) followFiles(part int, old, new []*entry) {
 			if i == r.file {
 				r.file = j
 			} else {
-				*r = flowRow{flowFile, part, j, 0, 0}
+				*r = flowRow{flowFile, part, j, fileTitle, 0}
 			}
 			return
 		}
 	}
-	*r = flowRow{flowFile, part, len(new) - 1, 0, 0}
+	*r = flowRow{flowFile, part, len(new) - 1, fileTitle, 0}
 }
 
 // followParts keeps the cursor on its commit when the commits were listed
@@ -501,7 +531,7 @@ func (f *Flow) relocate() {
 		i = f.findDiff(cur.part, cur.file, cur.line, sub)
 	}
 	if ok && i >= 0 {
-		f.cursor = i
+		f.cursor = f.settle(i, 1)
 	}
 }
 
@@ -575,7 +605,7 @@ func (f *Flow) loadVisible() {
 // commits loaded.
 func (f *Flow) moveCursor(delta int) {
 	f.loadAhead(delta)
-	f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
+	f.cursor = f.confine(f.settle(max(min(f.cursor+delta, len(f.rows)-1), 0), direction(delta > 0)))
 	f.scrollToCursor()
 }
 
@@ -612,7 +642,7 @@ func (f *Flow) scroll(delta int) {
 	f.loadAhead(delta)
 	top := f.top
 	f.top = max(min(f.top+delta, len(f.rows)-f.bodyHeight()), 0)
-	f.cursor = f.confine(max(min(f.cursor+f.top-top, len(f.rows)-1), 0))
+	f.cursor = f.confine(f.settle(max(min(f.cursor+f.top-top, len(f.rows)-1), 0), direction(delta > 0)))
 	f.scrollToCursor()
 }
 
@@ -668,6 +698,19 @@ func (f *Flow) barToTop() {
 	f.scrollToCursor()
 }
 
+// fileStart reports whether row i is the first one of a file below its
+// header.
+func (f *Flow) fileStart(i int) bool {
+	return i > 0 && f.rows[i].kind != flowFile && f.rows[i-1].kind == flowFile
+}
+
+// headerToTop scrolls the header of the cursor's file to the top of the
+// screen.
+func (f *Flow) headerToTop() {
+	f.top = f.find(flowRow{flowFile, f.rows[f.cursor].part, f.rows[f.cursor].file, fileTitle, 0})
+	f.scrollToCursor()
+}
+
 func (f *Flow) isKind(k flowKind, line int) func(int) bool {
 	return func(i int) bool { return f.rows[i].kind == k && f.rows[i].line == line }
 }
@@ -681,9 +724,9 @@ func (f *Flow) changeStart(i int) bool {
 	return changed(i) && (i == 0 || !changed(i-1))
 }
 
-// show puts the cursor on line sub of diff row line of file in part, on
-// the file bar for line -1 and on the commit bar for file -1, at screen row
-// screenRow.
+// show puts the cursor on line sub of diff row line of file in part, at
+// screen row screenRow; for line -1 on the file's first line, its header at
+// screen row screenRow, and for file -1 on the commit bar.
 func (f *Flow) show(part, file, line, sub, screenRow int) {
 	if f.inLog() && f.unloaded(part) {
 		f.loadPart(part)
@@ -697,17 +740,17 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	case file >= 0 && line >= 0:
 		i = f.findDiff(part, file, line, sub)
 	case file >= 0:
-		i = f.find(flowRow{flowFile, part, file, 0, 0})
+		i = f.find(flowRow{flowFile, part, file, fileTitle, 0})
 	}
-	f.cursor = max(i, 0)
-	f.top = f.cursor - screenRow
+	f.top = i - screenRow
+	f.cursor = f.settle(max(i, 0), 1)
 	f.scrollToCursor()
 	f.loadVisible()
 }
 
 // showFrom shows file of part where its diff view from leaves it: on the
 // cursor's line at its screen row, in its pane. For from nil it shows the
-// file's bar, or the commit's bar for file -1. Model.takeOver is the way
+// file from its header, or the commit's bar for file -1. Model.takeOver is the way
 // back.
 func (f *Flow) showFrom(part, file int, from *Model) {
 	if from == nil {
@@ -909,6 +952,12 @@ func (f *Flow) row(i int) string {
 		}
 		return mark + text(line, t.Zero)
 	case flowFile:
+		switch r.line {
+		case fileRule:
+			return t.Decoration.Render(strings.Repeat("─", f.width))
+		case fileGapAbove, fileGapBelow:
+			return ""
+		}
 		e := part.app.files[r.file]
 		line := " "
 		if lbl := e.label(t); lbl != "" {

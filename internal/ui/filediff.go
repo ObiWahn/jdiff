@@ -61,8 +61,15 @@ type vrow struct{ row, hidden, block int }
 // side a displayed row is one line, or with wrapping as many as its longer
 // line needs; in the normal layout a changed row has the lines of its
 // removed line, then of its added line, each as many as it needs, which
-// screenLines puts into the old and the new half of their block.
+// screenLines puts into the old and the new half of their block. A fold
+// has an empty line above and below, sub gapAbove and gapBelow, but at the
+// start and end of the diff; the cursor does not stop on them.
 type sline struct{ v, sub int }
+
+const gapAbove, gapBelow = -1, -2
+
+// gap reports whether s is an empty line next to a fold.
+func (s sline) gap() bool { return s.sub < 0 }
 
 // block is a foldable run of unchanged rows [start, end).
 type block struct{ start, end int }
@@ -476,9 +483,9 @@ func newShape(cfg *config.Config, width int) shape {
 func (d *fileDiff) contentWidth(width int, unified bool) int {
 	nw := d.numWidth()
 	if unified {
-		return max(width-2*nw-4, 0)
+		return max(width-2*nw-8, 0)
 	}
-	return max((width-1)/2-nw-3, 0)
+	return max(width/2-nw-4, 0)
 }
 
 // pieces returns the number of screen lines line of side s takes in sh: 1,
@@ -579,7 +586,8 @@ func (d *fileDiff) convertSub(v, sub int, from, sh shape, active side) int {
 // screenLines returns the screen lines of the displayed rows in sh and the
 // index of each of them. In the normal layout a block of changed rows shows
 // all its old lines, then all its new ones, as git diff does; so the two
-// lines of a changed row are not next to each other.
+// lines of a changed row are not next to each other. Folds have empty lines
+// around them.
 func (d *fileDiff) screenLines(sh shape) (screen []sline, at map[sline]int) {
 	at = make(map[sline]int, len(d.view))
 	add := func(v, sub int) {
@@ -587,9 +595,15 @@ func (d *fileDiff) screenLines(sh shape) (screen []sline, at map[sline]int) {
 		screen = append(screen, sline{v, sub})
 	}
 	for v := 0; v < len(d.view); {
-		if !sh.unified || !d.changed(v) {
+		if fold := d.view[v].hidden > 0; fold || !sh.unified || !d.changed(v) {
+			if fold && v > 0 {
+				add(v, gapAbove)
+			}
 			for sub := range d.rowLines(v, sh) {
 				add(v, sub)
+			}
+			if fold && v < len(d.view)-1 {
+				add(v, gapBelow)
 			}
 			v++
 			continue

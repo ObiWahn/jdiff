@@ -196,6 +196,16 @@ func TestOverflowStyle(t *testing.T) {
 	}
 }
 
+func TestWrapMarkerStyle(t *testing.T) {
+	if fg := Default().WrapMarker.GetForeground(); fg != lipgloss.Color("4") {
+		t.Errorf("wrap marker %v, want blue", fg)
+	}
+	th := Resolve(FromGit(Config{"jdiff.wrap-marker-style": "yellow"}, nil))
+	if fg := th.WrapMarker.GetForeground(); fg != lipgloss.Color("3") {
+		t.Errorf("jdiff.wrap-marker-style: %v, want yellow", fg)
+	}
+}
+
 func TestHiddenCharStyle(t *testing.T) {
 	if bg := Default().HiddenChar.GetBackground(); bg != lipgloss.Color("1") {
 		t.Errorf("hidden character background %v, want red", bg)

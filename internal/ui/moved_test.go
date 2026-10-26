@@ -158,7 +158,7 @@ func TestJumpFromEitherPane(t *testing.T) {
 
 func TestFlowJumpFromEitherPane(t *testing.T) {
 	a := newMovedApp()
-	pressApp(a, "f", "j", "j", "j", "tab", "o") // a.go line 2, from the empty right pane
+	pressApp(a, "f", "j", "j", "tab", "o") // a.go line 2, from the empty right pane
 	if _, file, line := a.flow.position(); file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.msg != "moved from a.go:3" {
 		t.Errorf("o in the flow from the empty pane: file %d, right line %d, msg %q", file, a.files[1].diff.lineAt(right, line), a.flow.msg)
 	}
@@ -202,7 +202,7 @@ func TestJumpToAnotherFile(t *testing.T) {
 
 func TestFlowJumpToAnotherFile(t *testing.T) {
 	a := newMovedApp()
-	pressApp(a, "f", "j", "j", "j") // a.go: bar, line 1, line 2 on the left
+	pressApp(a, "f", "j", "j") // a.go: line 1, line 2 on the left
 	_, file, line := a.flow.position()
 	if file != 0 || a.files[0].diff.lineAt(left, line) != 2 {
 		t.Fatalf("flow cursor on file %d left line %d, want a.go line 2", file, a.files[0].diff.lineAt(left, line))
@@ -274,8 +274,8 @@ func TestFlowJumpKeepsBothEndsInView(t *testing.T) {
 		modified("b.go", []string{"package b"}, append(append([]string{"package b", ""}, movedBlock...), numbered("more ", 20)...)),
 	})
 	a.cfg.Settings.CollapseUnchanged = false
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10}) // 8 rows of a longer flow
-	pressApp(a, "f", "j", "j", "j")                    // a.go line 2, moved to b.go line 3
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12}) // 10 rows of a longer flow
+	pressApp(a, "f", "j", "j")                         // a.go line 2, moved to b.go line 3
 	inView := func(i int) bool { return i >= a.flow.top && i < a.flow.top+a.flow.bodyHeight() }
 	from := a.flow.cursor
 	pressApp(a, "o")

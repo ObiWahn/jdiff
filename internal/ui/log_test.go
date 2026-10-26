@@ -194,6 +194,7 @@ func flowCommitAt(l *Log) int {
 
 func TestLogFlowLoadsLazily(t *testing.T) {
 	l, loads := newTestLog()
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 17}) // all of c3 on screen, c2 within a screen of j, c1 not
 	pressLog(l, "f")
 	if flowCommitAt(l) != 0 || len(loads) != 1 || loads["c3"] != 1 {
 		t.Fatalf("f: flow at %d, loads %v, want c3 only", flowCommitAt(l), loads)
@@ -289,7 +290,7 @@ func TestLogFlowFromDiff(t *testing.T) {
 	if p, f, line := l.flow.position(); !l.flowShown() || p != 0 || f != 0 || line != 0 {
 		t.Fatalf("f in the a.go diff: flow at %d %d %d", p, f, line)
 	}
-	pressLog(l, "n", "j", "f")
+	pressLog(l, "n", "f")
 	if shownFile(l) != "b.go" || l.open.app.open.view.cursor != 0 {
 		t.Errorf("f on the row of b.go: shown %q", shownFile(l))
 	}
@@ -302,7 +303,7 @@ func TestLogFlowHeader(t *testing.T) {
 	if !strings.Contains(top[0], "c3 subject c3") || strings.Contains(top[1], "a/") {
 		t.Errorf("on the commit bar: %q", top)
 	}
-	pressLog(l, "n", "j")
+	pressLog(l, "n")
 	top = topLines(l, 2)
 	if !strings.Contains(top[0], "c3 subject c3") || !strings.Contains(top[1], "a/a.go") {
 		t.Errorf("in a.go: %q", top)
@@ -400,7 +401,7 @@ func TestFlowCursorRowsInverted(t *testing.T) {
 	f := l.flow
 	kinds := map[flowKind]bool{}
 	for i, r := range f.rows {
-		if r.kind == flowDiff {
+		if r.kind == flowDiff || r.kind == flowFile { // the cursor does not stop on file headers
 			continue
 		}
 		f.cursor = i
@@ -415,8 +416,8 @@ func TestFlowCursorRowsInverted(t *testing.T) {
 		}
 		kinds[r.kind] = true
 	}
-	if !kinds[flowCommit] || !kinds[flowFile] || !kinds[flowNote] {
-		t.Errorf("rows checked: %v, want commit, file and note rows", kinds)
+	if !kinds[flowCommit] || !kinds[flowNote] {
+		t.Errorf("rows checked: %v, want commit and note rows", kinds)
 	}
 }
 

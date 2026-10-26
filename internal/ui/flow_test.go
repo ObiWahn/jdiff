@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -35,11 +36,132 @@ func flowAt(a *App, file, line int) bool {
 	return f == file && l == line
 }
 
+// flowAtStart reports whether the flow view is shown on the first row of
+// file below its header.
+func flowAtStart(a *App, file int) bool {
+	_, f, _ := a.flow.position()
+	return a.flowShown() && f == file && a.flow.fileStart(a.flow.cursor)
+}
+
+// newHeaderFlow returns the flow of three files f00 f01 f02 of the lines
+// c0 c1 c2, each with c1 changed, nothing folded, in a terminal height
+// lines high.
+func newHeaderFlow(height int) *App {
+	var files []source.File
+	for i := range 3 {
+		files = append(files, modified(fmt.Sprintf("f%02d", i), numbered("c", 3), []string{"c0", "new", "c2"}))
+	}
+	a := NewApp(config.Default(), files)
+	a.cfg.Settings.CollapseUnchanged = false
+	a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+	pressApp(a, "f")
+	return a
+}
+
+func TestFlowFileHeaders(t *testing.T) {
+	f := newHeaderFlow(30).flow
+	var got []string
+	for i := range f.rows {
+		got = append(got, strings.TrimRight(ansi.Strip(f.row(i)), " "))
+	}
+	rule := strings.Repeat("─", 40)
+	want := []string{
+		"  f00   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"", "  f01   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"", "  f02   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("flow rows:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	for i := range want {
+		if !strings.HasPrefix(got[i], want[i]) || (want[i] == "" && got[i] != "") {
+			t.Errorf("row %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestFlowFoldTakesRulePlace(t *testing.T) {
+	b := numbered("c", 30)
+	b[15] = "new"
+	a := NewApp(config.Default(), []source.File{modified("f00", numbered("c", 30), b), modified("f01", numbered("c", 30), b)})
+	a.Update(tea.WindowSizeMsg{Width: 40, Height: 30})
+	pressApp(a, "f")
+	var got []string
+	for i := range a.flow.rows {
+		line := strings.TrimSpace(ansi.Strip(a.flow.row(i)))
+		if strings.Contains(line, "unchanged lines") {
+			line = "fold"
+		}
+		got = append(got, line)
+	}
+	file := []string{"fold", "", "│ 13│ c12", "│ 14│ c13", "│ 15│ c14", "│ 16│-c15", "│ 17│ c16", "│ 18│ c17", "│ 19│ c18", "", "fold"}
+	want := append(append([]string{"f00   +1 -1", ""}, file...), "", "f01   +1 -1", "")
+	want = append(want, file...)
+	if len(got) != len(want) {
+		t.Fatalf("flow rows:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	for i := range want {
+		if !strings.HasPrefix(got[i], want[i]) || (want[i] == "" && got[i] != "") {
+			t.Errorf("row %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestFlowCursorSkipsHeaders(t *testing.T) {
+	// From minHeight, a body of 2 rows, smaller than a header, up to all
+	// 20 rows on screen (22) and beyond.
+	for height := minHeight; height <= 25; height++ {
+		a := newHeaderFlow(height)
+		f := a.flow
+		var lines []string
+		check := func(what string) {
+			t.Helper()
+			r := f.rows[f.cursor]
+			if r.kind != flowDiff {
+				t.Fatalf("height %d, %s: cursor on %+v, want a line of a file", height, what, r)
+			}
+			if f.cursor < f.top || f.cursor >= f.top+f.bodyHeight() {
+				t.Fatalf("height %d, %s: cursor %d out of the window from %d", height, what, f.cursor, f.top)
+			}
+			lines = append(lines, fmt.Sprintf("%d.%d", r.file, r.line))
+		}
+		check("f")
+		for range 9 {
+			pressApp(a, "j")
+			check("j")
+		}
+		for range 8 {
+			pressApp(a, "k")
+			check("k")
+		}
+		want := "0.0 0.1 0.2 1.0 1.1 1.2 2.0 2.1 2.2 2.2 2.1 2.0 1.2 1.1 1.0 0.2 0.1 0.0"
+		if got := strings.Join(lines, " "); got != want {
+			t.Errorf("height %d: j and k went over %s, want %s", height, got, want)
+		}
+
+		// n and p: on the file's first line, its header at the top when it fits.
+		lines = nil
+		for _, k := range []string{"n", "n", "p", "p"} {
+			pressApp(a, k)
+			check(k)
+			// The window ends with the flow's last row at the latest.
+			title := f.find(flowRow{flowFile, 0, f.rows[f.cursor].file, fileTitle, 0})
+			if top := min(title, max(len(f.rows)-f.bodyHeight(), 0)); f.bodyHeight() >= 4 && f.top != top {
+				t.Errorf("height %d, %s: window from %d, want %d, the title's row %d at the top or above",
+					height, k, f.top, top, title)
+			}
+		}
+		if got := strings.Join(lines, " "); got != "1.0 2.0 1.0 0.0" {
+			t.Errorf("height %d: n n p p went over %s, want 1.0 2.0 1.0 0.0", height, got)
+		}
+	}
+}
+
 func TestFlowToggleKeepsLine(t *testing.T) {
 	a := newFlowApp()
 	pressApp(a, "enter", "]", "]")
 	m := a.open.view
-	line, screenRow := m.cursor, m.cursor-m.top
+	line, screenRow := m.cursor, m.pos()-m.top
 
 	pressApp(a, "f")
 	if !flowAt(a, 0, line) || a.flow.cursor-a.flow.top != screenRow {
@@ -48,17 +170,17 @@ func TestFlowToggleKeepsLine(t *testing.T) {
 			f, l, a.flow.cursor-a.flow.top, line, screenRow)
 	}
 	pressApp(a, "f")
-	if a.flowShown() || a.open != a.files[0] || m.cursor != line || m.cursor-m.top != screenRow {
+	if a.flowShown() || a.open != a.files[0] || m.cursor != line || m.pos()-m.top != screenRow {
 		t.Errorf("f back: open %v line %d screen row %d, want a.go %d %d",
-			a.open, m.cursor, m.cursor-m.top, line, screenRow)
+			a.open, m.cursor, m.pos()-m.top, line, screenRow)
 	}
 }
 
 func TestFlowStaysOn(t *testing.T) {
 	a := newFlowApp()
 	pressApp(a, "f")
-	if !flowAt(a, 0, -1) {
-		t.Fatalf("f in the list should show the flow on the bar of a.go")
+	if !flowAtStart(a, 0) {
+		t.Fatalf("f in the list should show the flow on the first line of a.go")
 	}
 	view := ansi.Strip(a.View())
 	for _, want := range []string{"a.go   +2 -2", "new9"} {
@@ -78,8 +200,8 @@ func TestFlowStaysOn(t *testing.T) {
 		t.Fatalf("backspace should show the list on b.bin with flow still on")
 	}
 	pressApp(a, "j", "enter")
-	if !flowAt(a, 2, -1) {
-		t.Errorf("enter on c.go with flow on should show the flow on its bar")
+	if !flowAtStart(a, 2) {
+		t.Errorf("enter on c.go with flow on should show the flow on its first line")
 	}
 }
 
@@ -105,24 +227,24 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("[ from c.go: file %d line %d, want the second change of a.go", f, l)
 	}
 
-	// n and p go from file bar to file bar.
+	// n and p go from file to file, to the first row below its header.
 	pressApp(a, "n")
-	if !flowAt(a, 1, -1) {
-		t.Errorf("n from a.go should reach the bar of b.bin")
+	if !flowAtStart(a, 1) {
+		t.Errorf("n from a.go should reach the note of b.bin")
 	}
 	pressApp(a, "n", "n")
-	if !flowAt(a, 2, -1) || a.flow.msg != "last file" {
-		t.Errorf("n n: msg %q, want the bar of c.go and last file", a.flow.msg)
+	if !flowAtStart(a, 2) || a.flow.msg != "last file" {
+		t.Errorf("n n: msg %q, want the first line of c.go and last file", a.flow.msg)
 	}
 	pressApp(a, "p")
-	if !flowAt(a, 1, -1) {
-		t.Errorf("p from c.go should reach the bar of b.bin")
+	if !flowAtStart(a, 1) {
+		t.Errorf("p from c.go should reach the note of b.bin")
 	}
 
 	// j and k cross file borders; G goes to the end.
 	pressApp(a, "k")
 	if _, f, l := a.flow.position(); f != 0 || l < 0 {
-		t.Errorf("k from the bar of b.bin: file %d line %d, want the last row of a.go", f, l)
+		t.Errorf("k from the note of b.bin: file %d line %d, want the last row of a.go", f, l)
 	}
 	pressApp(a, "G")
 	if _, f, l := a.flow.position(); f != 2 || l != len(a.files[2].diff.view)-1 {
@@ -221,7 +343,7 @@ func TestAppDiffPreview(t *testing.T) {
 	}
 	// The preview starts with the context of the first change.
 	if !strings.HasPrefix(lines[6], "╭─ a.go ─") || !strings.Contains(lines[7], "  7│ x6") ||
-		!strings.Contains(lines[10], "+10│ new9") {
+		!strings.Contains(lines[10], " 10│+new9") {
 		t.Errorf("preview of a.go:\n%s", view)
 	}
 	pressApp(a, "j")
@@ -247,11 +369,11 @@ func TestAppPreviewOfEmptyFile(t *testing.T) {
 
 func TestFlowAndPreviewLayout(t *testing.T) {
 	a := newFlowApp()
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "+10│ new9") {
-		t.Errorf("side by side preview lacks +10│ new9:\n%s", view)
+	if view := ansi.Strip(a.View()); !strings.Contains(view, " 10│+new9") {
+		t.Errorf("side by side preview lacks 10│+new9:\n%s", view)
 	}
 	pressApp(a, "s")
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "10 ⋮    │-x9") || !strings.Contains(view, "   ⋮ 10 │+new9") {
 		t.Errorf("normal preview:\n%s", view)
 	}
 
@@ -390,16 +512,18 @@ func TestFlowRebuildsAfterDiffView(t *testing.T) {
 		pressApp(a, "f", "f", "enter") // the flow is built, then the diff view of a.go
 		pressApp(a, keys...)
 		pressApp(a, "f")
-		want := 0
+		want := -1 // the first file's header has no empty line above
 		for _, e := range a.files {
-			want++ // the bar
+			want += 4 // the header
 			if e.Binary {
 				want++
 				continue
 			}
-			for v := range e.diff.view {
-				want += e.diff.rowLines(v, a.flow.built)
+			if e.diff.view[0].hidden > 0 {
+				want-- // the fold takes the place of the rule
 			}
+			screen, _ := e.diff.screenLines(a.flow.built)
+			want += len(screen)
 		}
 		if len(a.flow.rows) != want {
 			t.Errorf("%v in the diff view, then f: %d flow rows, the diffs have %d", keys, len(a.flow.rows), want)
@@ -418,8 +542,8 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 	for i := a.flow.cursor; i < a.flow.cursor+4; i++ {
 		got = append(got, strings.TrimRight(ansi.Strip(a.flow.row(i)), " "))
 	}
-	for i, want := range []string{"old1", "old2", "new1", "new2"} {
-		if !strings.HasSuffix(got[i], "│ "+want) {
+	for i, want := range []string{"-old1", "-old2", "+new1", "+new2"} {
+		if !strings.HasSuffix(got[i], "│"+want) {
 			t.Fatalf("flow from ]:\n%s\nwant old1 old2 new1 new2", strings.Join(got, "\n"))
 		}
 	}

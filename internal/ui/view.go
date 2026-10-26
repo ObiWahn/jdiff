@@ -150,7 +150,10 @@ func (m *Model) screenLine(s sline, cursor bool) string {
 // render renders screen line s in layout lo, marked as the cursor line when
 // cursor is set.
 func (d *fileDiff) render(s sline, cursor bool, lo layout) string {
-	if lo.unified {
+	switch {
+	case s.gap():
+		return ""
+	case lo.unified:
 		return d.unifiedLine(s.v, s.sub, cursor, lo)
 	}
 	return d.bodyRow(s.v, s.sub, cursor, lo)
@@ -166,7 +169,7 @@ func startCol(piece, width int, lo layout) int {
 }
 
 // unifiedLine renders line sub of displayed row v in the normal layout:
-// marker, old and new line number, separator and the content. Unchanged
+// the gutter with old and new line number, and the content. Unchanged
 // lines show both numbers, changed ones the number of their side, further
 // pieces of a wrapped line none.
 func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
@@ -184,7 +187,7 @@ func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
 		}
 		return fmt.Sprintf("%*d", nw, line+1)
 	}
-	nums := number(row.Left, left) + " " + number(row.Right, right)
+	nums := number(row.Left, left) + " ⋮ " + number(row.Right, right) + " "
 	pending := piece == 0 && d.isPending(row) && (row.Kind == diff.Equal || d.pending.side == s)
 	line := lineOf(row, s)
 	_, moved := d.movedTo(s, line)
@@ -199,9 +202,8 @@ func (d *fileDiff) bodyRow(v, sub int, cursor bool, lo layout) string {
 	if d.view[v].hidden > 0 {
 		return d.fold(v, cursor, lo.width)
 	}
-	w, nw := (lo.width-1)/2, d.numWidth()
-	return d.cell(left, v, sub, w, nw, cursor, lo) + d.cfg.Theme.Decoration.Render("│") +
-		d.cell(right, v, sub, w, nw, cursor, lo)
+	w, nw := lo.width/2, d.numWidth()
+	return d.cell(left, v, sub, w, nw, cursor, lo) + d.cell(right, v, sub, w, nw, cursor, lo)
 }
 
 func (m *Model) status() string {
@@ -227,8 +229,8 @@ func (d *fileDiff) fold(v int, cursor bool, width int) string {
 	return ansi.Truncate(line, width, "")
 }
 
-// cell renders piece of side s of displayed row v: marker, line number,
-// separator and the line content; further pieces of a wrapped line have no
+// cell renders piece of side s of displayed row v: the gutter with the line
+// number, and the line content; further pieces of a wrapped line have no
 // number, and a side without that piece is empty. On the cursor row both
 // sides are bold, and the line number of the active side is in the cursor
 // style.
@@ -242,11 +244,12 @@ func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo l
 		sepStyle = t.NumRight
 	}
 
-	contentWidth := max(width-numWidth-3, 0)
+	contentWidth := max(width-numWidth-4, 0)
 	num := strings.Repeat(" ", numWidth)
 	if line >= 0 && piece >= d.pieces(s, line, lo.shape) {
 		// The other side's line takes more pieces.
-		return strings.Repeat(" ", 1+numWidth) + sepStyle.Render("│") + strings.Repeat(" ", 1+contentWidth)
+		return sepStyle.Render("│") + strings.Repeat(" ", 1+numWidth) + sepStyle.Render("│") +
+			strings.Repeat(" ", 1+contentWidth)
 	}
 	if line >= 0 && piece == 0 {
 		num = fmt.Sprintf("%*d", numWidth, line+1)
@@ -263,12 +266,13 @@ func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo l
 	return gutter + d.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo), lo.wrap == 0)
 }
 
-// gutter renders what precedes a line of side s in row: the marker, the line
-// numbers nums and the separator in sepStyle. The marker is ↪ on further
-// pieces of a wrapped line (cont), ● when pending holds, ◆ on anchors and -
-// or + on changed lines, in the moved style for moved ones; changed lines
-// also have their side's number style. On the cursor line marker and numbers
-// are bold, with active the numbers are in the cursor style.
+// gutter renders what precedes a line of side s in row: a bar, the mark, the
+// line numbers nums, a bar, both bars in sepStyle, and the sign. The mark is
+// ● when pending holds and ◆ on anchors; the sign is ↪ on further pieces of
+// a wrapped line (cont), in the wrap marker style, and - or + on changed
+// lines, in the moved style for moved ones; changed lines also have their
+// side's number style. On the cursor line marks, signs and numbers are bold,
+// with active the numbers are in the cursor style.
 func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved, cont bool, nums string,
 	sepStyle lipgloss.Style, cursor, active bool) string {
 	t := d.cfg.Theme
@@ -277,20 +281,21 @@ func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved, cont bo
 		lineStyle = d.movedStyle(s)
 	}
 	numStyle := t.NumZero
-	marker := " "
+	mark, sign := " ", " "
 	switch {
-	case cont && changed:
-		marker = boldIf(lineStyle, cursor).Render("↪")
-	case cont:
-		marker = boldIf(t.Decoration, cursor).Render("↪")
+	case cont: // no mark: further pieces have no number either
 	case pending:
-		marker = t.Pending.Render("●")
+		mark = t.Pending.Render("●")
 	case row.Anchored:
-		marker = boldIf(t.Anchor, cursor).Render("◆")
+		mark = boldIf(t.Anchor, cursor).Render("◆")
+	}
+	switch {
+	case cont:
+		sign = boldIf(t.WrapMarker, cursor).Render("↪")
 	case changed && s == left:
-		marker = boldIf(lineStyle, cursor).Render("-")
+		sign = boldIf(lineStyle, cursor).Render("-")
 	case changed:
-		marker = boldIf(lineStyle, cursor).Render("+")
+		sign = boldIf(lineStyle, cursor).Render("+")
 	}
 	if changed {
 		numStyle = t.NumPlus
@@ -305,7 +310,7 @@ func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved, cont bo
 	} else {
 		numStyle = boldIf(numStyle, cursor)
 	}
-	return marker + numStyle.Render(nums) + sepStyle.Render("│") + " "
+	return sepStyle.Render("│") + mark + numStyle.Render(nums) + sepStyle.Render("│") + sign
 }
 
 // boldIf returns style, bold when on is set.

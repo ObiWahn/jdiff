@@ -33,6 +33,7 @@ type Theme struct {
 	TrailingWhitespace              lipgloss.Style // whitespace at the end of lines when shown
 	HiddenChar                      lipgloss.Style // ☠ for invisible and direction changing characters
 	Overflow                        lipgloss.Style // « and » at the edges of cut lines
+	WrapMarker                      lipgloss.Style // ↪ before further pieces of wrapped lines
 	More                            lipgloss.Style // ↑ and ↓ for items of lists out of view
 	Search                          lipgloss.Style // text found by /
 	MinusMoved, PlusMoved           lipgloss.Style // moved code: removed here, added there
@@ -152,6 +153,7 @@ func Resolve(sp Spec) *Theme {
 	t.TrailingWhitespace = style("trailing-whitespace-style", sp.TrailingWhitespaceStyle, def.TrailingWhitespaceStyle)
 	t.HiddenChar = style("hidden-char-style", sp.HiddenCharStyle, def.HiddenCharStyle)
 	t.Overflow = style("overflow-style", sp.OverflowStyle, def.OverflowStyle)
+	t.WrapMarker = style("wrap-marker-style", sp.WrapMarkerStyle, def.WrapMarkerStyle)
 	t.More = styleOrStyle("more-style", sp.MoreStyle, t.Whitespace)
 	t.Search = style("search-style", sp.SearchStyle, def.SearchStyle)
 	// Changed whitespace is drawn as · and →, by default like changed words.

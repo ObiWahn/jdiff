@@ -163,7 +163,8 @@ func TestSearchBarToggles(t *testing.T) {
 	title := func() string {
 		for _, r := range strings.Split(ansi.Strip(s.View()), "\n") {
 			if i := strings.Index(r, "╭─ "); i >= 0 {
-				return strings.TrimRight(strings.TrimLeft(r[i+len("╭─ "):], " "), "─╮ ")
+				r, _, _ = strings.Cut(r[i+len("╭─ "):], "╮") // the view goes on right of the popup
+				return strings.TrimRight(strings.TrimLeft(r, " "), "─ ")
 			}
 		}
 		return ""

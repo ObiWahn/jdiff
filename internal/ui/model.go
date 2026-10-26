@@ -406,7 +406,8 @@ func (m *Model) moveCursor(delta int) {
 	if len(m.screen) == 0 {
 		return
 	}
-	s := m.screen[max(min(m.pos()+delta, len(m.screen)-1), 0)]
+	i := max(min(m.pos()+delta, len(m.screen)-1), 0)
+	s := m.screen[settle(len(m.screen), i, direction(delta > 0), func(j int) bool { return m.screen[j].gap() })]
 	m.cursor, m.sub = s.v, s.sub
 	m.scrollToCursor()
 }
