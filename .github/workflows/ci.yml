@@ -71,7 +71,7 @@ jobs:
         with:
           name: jdiff-snapshot
           path: |
-            dist/*.tar.gz
+            dist/jdiff_*/jdiff*
             dist/*.zip
             dist/*.deb
             dist/*.rpm

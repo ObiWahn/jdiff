@@ -13,11 +13,18 @@ builds:
     ldflags: [-s -w]
 
 archives:
-  - formats: [tar.gz]
+  - id: binary
+    formats: [binary]
+    name_template: "{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+  # Scoop needs an archive; only Windows gets one.
+  - id: zip
+    formats: [zip]
     name_template: "{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
-      - goos: windows
-        formats: [zip]
+      - goos: linux
+        formats: [none]
+      - goos: darwin
+        formats: [none]
     files: [README.md, LICENSE]
 
 nfpms:
@@ -47,6 +54,7 @@ release:
 
 homebrew_casks:
   - name: jdiff
+    ids: [binary]
     homepage: https://github.com/ObiWahn/jdiff
     description: Interactive terminal diff viewer with manual line alignment
     skip_upload: auto
@@ -54,16 +62,18 @@ homebrew_casks:
       owner: ObiWahn
       name: jdiff
       branch: master
-    # Releases are unsigned; remove quarantine only from the staged binary.
+    # Releases are unsigned; remove quarantine only from the staged binary,
+    # the one file in StagedPath.
     hooks:
       post:
         install_steps: |
           on_macos do
-            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/jdiff"]
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}"]
           end
 
 scoops:
   - name: jdiff
+    ids: [zip]
     homepage: https://github.com/ObiWahn/jdiff
     description: Interactive terminal diff viewer with manual line alignment
     license: MIT
