@@ -66,9 +66,9 @@ func TestFlowFileHeaders(t *testing.T) {
 	}
 	rule := strings.Repeat("─", 40)
 	want := []string{
-		"  f00   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
-		"", "  f01   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
-		"", "  f02   +1 -1", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"  f00   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"", "  f01   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"", "  f02   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("flow rows:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -109,8 +109,8 @@ func TestFlowFoldTakesRulePlace(t *testing.T) {
 
 func TestFlowCursorSkipsHeaders(t *testing.T) {
 	// From minHeight, a body of 2 rows, smaller than a header, up to all
-	// 20 rows on screen (22) and beyond.
-	for height := minHeight; height <= 25; height++ {
+	// 23 rows on screen (25) and beyond.
+	for height := minHeight; height <= 27; height++ {
 		a := newHeaderFlow(height)
 		f := a.flow
 		var lines []string
@@ -146,7 +146,7 @@ func TestFlowCursorSkipsHeaders(t *testing.T) {
 			check(k)
 			// The window ends with the flow's last row at the latest.
 			title := f.find(flowRow{flowFile, 0, f.rows[f.cursor].file, fileTitle, 0})
-			if top := min(title, max(len(f.rows)-f.bodyHeight(), 0)); f.bodyHeight() >= 4 && f.top != top {
+			if top := min(title, max(len(f.rows)-f.bodyHeight(), 0)); f.bodyHeight() >= 5 && f.top != top {
 				t.Errorf("height %d, %s: window from %d, want %d, the title's row %d at the top or above",
 					height, k, f.top, top, title)
 			}
@@ -514,13 +514,13 @@ func TestFlowRebuildsAfterDiffView(t *testing.T) {
 		pressApp(a, "f")
 		want := -1 // the first file's header has no empty line above
 		for _, e := range a.files {
-			want += 4 // the header
+			want += 5 // the header
 			if e.Binary {
 				want++
 				continue
 			}
 			if e.diff.view[0].hidden > 0 {
-				want-- // the fold takes the place of the rule
+				want -= 2 // the fold takes the place of the rule and the empty line
 			}
 			screen, _ := e.diff.screenLines(a.flow.built)
 			want += len(screen)

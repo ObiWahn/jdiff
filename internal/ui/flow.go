@@ -25,12 +25,14 @@ const (
 )
 
 // The lines of a file's header, as delta draws it: an empty line, but for
-// the first file of a part, the file's name, a rule and an empty line; a
-// fold the diff starts with, which has an empty line below, follows the
-// empty line in place of the rule. The cursor does not stop on them.
+// the first file of a part, the file's name, an empty line, a rule and an
+// empty line; a fold the diff starts with, which has an empty line below,
+// takes the place of the rule and the last line. The cursor does not stop
+// on them.
 const (
 	fileGapAbove = iota
 	fileTitle
+	fileGapTitle
 	fileRule
 	fileGapBelow
 )
@@ -401,6 +403,7 @@ func (f *Flow) build() {
 				add(flowFile, p, i, fileGapAbove)
 			}
 			add(flowFile, p, i, fileTitle)
+			add(flowFile, p, i, fileGapTitle)
 			if e.Binary {
 				add(flowFile, p, i, fileRule)
 				add(flowFile, p, i, fileGapBelow)
@@ -410,8 +413,8 @@ func (f *Flow) build() {
 			d := part.app.diffOf(e)
 			if len(d.view) == 0 || d.view[0].hidden == 0 {
 				add(flowFile, p, i, fileRule)
+				add(flowFile, p, i, fileGapBelow)
 			}
-			add(flowFile, p, i, fileGapBelow)
 			screen, _ := d.screenLines(f.built)
 			for _, s := range screen {
 				f.rows = append(f.rows, flowRow{flowDiff, p, i, s.v, s.sub})
@@ -955,7 +958,7 @@ func (f *Flow) row(i int) string {
 		switch r.line {
 		case fileRule:
 			return t.Decoration.Render(strings.Repeat("─", f.width))
-		case fileGapAbove, fileGapBelow:
+		case fileGapAbove, fileGapTitle, fileGapBelow:
 			return ""
 		}
 		e := part.app.files[r.file]

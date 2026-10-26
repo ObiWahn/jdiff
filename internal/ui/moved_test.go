@@ -274,7 +274,7 @@ func TestFlowJumpKeepsBothEndsInView(t *testing.T) {
 		modified("b.go", []string{"package b"}, append(append([]string{"package b", ""}, movedBlock...), numbered("more ", 20)...)),
 	})
 	a.cfg.Settings.CollapseUnchanged = false
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12}) // 10 rows of a longer flow
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 13}) // 11 rows of a longer flow
 	pressApp(a, "f", "j", "j")                         // a.go line 2, moved to b.go line 3
 	inView := func(i int) bool { return i >= a.flow.top && i < a.flow.top+a.flow.bodyHeight() }
 	from := a.flow.cursor

@@ -194,7 +194,7 @@ func flowCommitAt(l *Log) int {
 
 func TestLogFlowLoadsLazily(t *testing.T) {
 	l, loads := newTestLog()
-	l.Update(tea.WindowSizeMsg{Width: 100, Height: 17}) // all of c3 on screen, c2 within a screen of j, c1 not
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 19}) // all of c3 on screen, c2 within a screen of j, c1 not
 	pressLog(l, "f")
 	if flowCommitAt(l) != 0 || len(loads) != 1 || loads["c3"] != 1 {
 		t.Fatalf("f: flow at %d, loads %v, want c3 only", flowCommitAt(l), loads)
