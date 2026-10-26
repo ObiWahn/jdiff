@@ -189,7 +189,7 @@ func TestAppReloadsCurrentFileAndNeighbors(t *testing.T) {
 func TestFlowFollowsReloadedLine(t *testing.T) {
 	a, dir := newWatchedApp(t)
 	a.cfg.Settings.CollapseUnchanged = false
-	pressApp(a, "f", "j", "j", "j", "j", "j") // on a.txt, the row of line 5
+	pressApp(a, "f", "j", "j", "j", "j") // on a.txt, the row of line 5
 	_, file, line := a.flow.position()
 	d := a.files[file].diff
 	before := d.lineAt(right, line)

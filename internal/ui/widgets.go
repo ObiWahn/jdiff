@@ -16,15 +16,15 @@ import (
 // Side by side the name of the active pane is bold, the other one faint; in
 // the normal layout, one column of both, both are bold.
 func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
-	w := (width - 1) / 2
-	title := func(s side) string {
+	w := width / 2 // a pane's width; the right one starts with its bar
+	title := func(s side, w int) string {
 		style := lipgloss.NewStyle().Bold(true)
 		if sideBySide && s != active {
 			style = lipgloss.NewStyle().Faint(true)
 		}
 		return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
 	}
-	return title(left) + t.Decoration.Render("│") + title(right)
+	return title(left, w) + t.Decoration.Render("│") + title(right, max(w-1, 0))
 }
 
 // statusLine renders the status bar with left, already styled, and right,
@@ -91,6 +91,20 @@ func box(t *theme.Theme, width, height int, title string, lines []string) string
 	}
 	b.WriteString(border.Render("╰"+strings.Repeat("─", max(width-2, 0))+"╯") + "\n")
 	return b.String()
+}
+
+// settle returns item i of n items, or for an item that skip holds for the
+// nearest one past it in direction dir for which it does not, else the
+// nearest before it: the cursor does not rest on such items.
+func settle(n, i, dir int, skip func(int) bool) int {
+	for _, d := range []int{dir, -dir} {
+		for j := i; j >= 0 && j < n; j += d {
+			if !skip(j) {
+				return j
+			}
+		}
+	}
+	return i
 }
 
 // scrollWindow returns the first shown item of a window h items high over n

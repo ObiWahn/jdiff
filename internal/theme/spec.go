@@ -58,6 +58,7 @@ type Spec struct {
 	TrailingWhitespaceStyle *string `toml:"trailing-whitespace-style" git:"jdiff"` // shown by t
 	HiddenCharStyle         *string `toml:"hidden-char-style" git:"jdiff"`         // ☠ for invisible characters
 	OverflowStyle           *string `toml:"overflow-style" git:"jdiff"`            // « » at the edges of cut lines
+	WrapMarkerStyle         *string `toml:"wrap-marker-style" git:"jdiff"`         // ↪ before further pieces of wrapped lines
 	MoreStyle               *string `toml:"more-style" git:"jdiff"`                // ↑ ↓ for items of lists out of view; unset: whitespace-style
 	SearchStyle             *string `toml:"search-style" git:"jdiff"`              // text found by /
 	MinusIndentStyle        *string `toml:"minus-indent-style" git:"jdiff"`        // unset: minus-emph-style
@@ -137,6 +138,7 @@ func Builtin() Spec {
 		TrailingWhitespaceStyle: str("normal red"),
 		HiddenCharStyle:         str("normal red"),
 		OverflowStyle:           str("blue"),
+		WrapMarkerStyle:         str("blue"),
 		SearchStyle:             str("black yellow"),
 	}
 }
