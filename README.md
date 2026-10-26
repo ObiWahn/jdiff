@@ -42,14 +42,26 @@ delta highlights syntax; jdiff does not.
 
 ## Install
 
-jdiff needs Go 1.24 or newer.
+On macOS (Apple Silicon or Intel), install the upstream Homebrew cask:
+
+```sh
+brew tap ObiWahn/jdiff https://github.com/ObiWahn/jdiff.git
+brew install --cask obiwahn/jdiff/jdiff
+```
+
+To update it, run `brew update && brew upgrade --cask obiwahn/jdiff/jdiff`.
+The cask installs a prebuilt binary; Go is not needed.
+
+Or download a binary from the [upstream releases](https://github.com/ObiWahn/jdiff/releases), for Linux, macOS or Windows.
+Extract the archive and put `jdiff` (or `jdiff.exe`) on your `PATH`.
+Older releases contain bare binaries; on Linux and macOS, make those executable with `chmod +x`.
+
+To build from source, jdiff needs Go 1.24 or newer:
 
 ```sh
 make build        # builds bin/jdiff
 go install .      # or install it into $GOBIN
 ```
-
-Or download a binary from the releases, for Linux, macOS or Windows, and make it executable (`chmod +x`).
 
 `jdiff --version` prints the tag or commit it was built from.
 
@@ -254,8 +266,22 @@ make fmt
 ```
 
 CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to any branch and every Monday, for new vulnerabilities.
-When they pass, it builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64) and attaches the binaries to the run.
-A tag `v*`, e.g. `git tag v1.0.0 && git push origin v1.0.0`, makes a release of them with their SHA-256 sums, which anyone can download.
+When they pass, [GoReleaser](https://goreleaser.com/) builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64).
+Branches and scheduled runs (including on forks) build snapshots and attach the archives, SHA-256 sums and generated cask to the run without publishing.
+A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives and `sha256sums.txt` as a GitHub release, then updates `Casks/jdiff.rb` on upstream's `master` branch.
+Prereleases do not update the cask.
+
+The upstream repository itself is the Homebrew tap: the explicit URL in `brew tap` avoids needing a separate `homebrew-jdiff` repository.
+The release job uses its `GITHUB_TOKEN` with `contents: write`; no extra token or tap repository is needed.
+If branch protection is enabled, it must allow the release bot to update `Casks/jdiff.rb` on `master`.
+The macOS binaries are not notarized; the cask removes the quarantine attribute only from the staged jdiff binary so it can run.
+
+To check the release setup locally with GoReleaser 2.19.0:
+
+```sh
+goreleaser check
+goreleaser release --snapshot --clean # builds all targets and the cask, publishes nothing
+```
 
 To use your build in this repository, the same in its `.git/config`, with `bin/jdiff`:
 
