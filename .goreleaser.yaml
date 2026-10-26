@@ -18,6 +18,21 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    files: [README.md, LICENSE]
+
+nfpms:
+  - package_name: jdiff
+    file_name_template: "{{ .ConventionalFileName }}"
+    homepage: https://github.com/ObiWahn/jdiff
+    description: Interactive terminal diff viewer with manual line alignment
+    maintainer: "Jan Christoph Uhde"
+    license: MIT
+    formats: [deb, rpm, apk, archlinux]
+    # gitsrc and the theme's git config call git.
+    dependencies: [git]
+    contents:
+      - src: LICENSE
+        dst: /usr/share/licenses/jdiff/LICENSE
 
 checksum:
   name_template: sha256sums.txt
@@ -46,3 +61,15 @@ homebrew_casks:
           on_macos do
             run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/jdiff"]
           end
+
+scoops:
+  - name: jdiff
+    homepage: https://github.com/ObiWahn/jdiff
+    description: Interactive terminal diff viewer with manual line alignment
+    license: MIT
+    skip_upload: auto
+    directory: bucket
+    repository:
+      owner: ObiWahn
+      name: jdiff
+      branch: master

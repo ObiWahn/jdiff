@@ -73,8 +73,39 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.deb
+            dist/*.rpm
+            dist/*.apk
+            dist/*.pkg.tar.zst
             dist/sha256sums.txt
             dist/homebrew
+            dist/scoop
+
+  # Install the snapshot packages where they belong; each must pull in git.
+  # The tests run in docker, not as a job container: actions need glibc,
+  # which Alpine lacks. archlinux has no arm64 image.
+  packages:
+    needs: [dist]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, image: "debian:stable", install: "apt-get update -qq && apt-get install -y ./jdiff_*_amd64.deb" }
+          - { runner: ubuntu-latest, image: "fedora:latest", install: "dnf install -y ./jdiff-*.x86_64.rpm" }
+          - { runner: ubuntu-latest, image: "alpine:latest", install: "apk add --allow-untrusted ./jdiff_*_x86_64.apk" }
+          - { runner: ubuntu-latest, image: "archlinux:latest", install: "pacman -Sy --noconfirm && pacman -U --noconfirm ./jdiff-*-x86_64.pkg.tar.zst" }
+          - { runner: ubuntu-24.04-arm, image: "debian:stable", install: "apt-get update -qq && apt-get install -y ./jdiff_*_arm64.deb" }
+          - { runner: ubuntu-24.04-arm, image: "fedora:latest", install: "dnf install -y ./jdiff-*.aarch64.rpm" }
+          - { runner: ubuntu-24.04-arm, image: "alpine:latest", install: "apk add --allow-untrusted ./jdiff_*_aarch64.apk" }
+    name: packages (${{ matrix.image }}, ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: jdiff-snapshot
+      - run: >
+          docker run --rm -v "$PWD:/d" -w /d ${{ matrix.image }}
+          sh -c '${{ matrix.install }} && jdiff --version && git --version'
 
   # Only upstream tags publish a release and update the upstream Homebrew tap.
   release:

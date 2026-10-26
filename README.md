@@ -52,6 +52,22 @@ brew install --cask obiwahn/jdiff/jdiff
 To update it, run `brew update && brew upgrade --cask obiwahn/jdiff/jdiff`.
 The cask installs a prebuilt binary; Go is not needed.
 
+On Linux, download the package for your distribution from the [upstream releases](https://github.com/ObiWahn/jdiff/releases) and install it; it pulls in git:
+
+```sh
+sudo apt install ./jdiff_<version>_amd64.deb               # Debian, Ubuntu
+sudo dnf install ./jdiff-<version>-1.x86_64.rpm             # Fedora, RHEL
+sudo apk add --allow-untrusted ./jdiff_<version>_x86_64.apk # Alpine
+sudo pacman -U ./jdiff-<version>-1-x86_64.pkg.tar.zst       # Arch
+```
+
+On Windows, install it with Scoop:
+
+```sh
+scoop bucket add jdiff https://github.com/ObiWahn/jdiff
+scoop install jdiff
+```
+
 Or download a binary from the [upstream releases](https://github.com/ObiWahn/jdiff/releases), for Linux, macOS or Windows.
 Extract the archive and put `jdiff` (or `jdiff.exe`) on your `PATH`.
 Older releases contain bare binaries; on Linux and macOS, make those executable with `chmod +x`.
