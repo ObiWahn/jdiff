@@ -128,14 +128,14 @@ func TestMarkOpensFileInApp(t *testing.T) {
 
 func TestFlowMarkStaysInCommit(t *testing.T) {
 	l, _ := newTestLog() // c3: a.go 1 -> 2, b.go x -> y; c2: a.go 0 -> 1
-	pressLog(l, "f", "n", "j")
+	pressLog(l, "f", "n")
 	f := l.flow
 	if r := f.rows[f.cursor]; r.kind != flowDiff || r.part != 0 || r.file != 0 {
 		t.Fatalf("not on the diff row of a.go in c3: %+v", r)
 	}
-	pressLog(l, "m", "a")           // a.go line 1, "2"
-	pressLog(l, "n", "j", "m", "b") // b.go line 1, "y"
-	pressLog(l, "P")                // c2, which changes a.go only
+	pressLog(l, "m", "a")      // a.go line 1, "2"
+	pressLog(l, "n", "m", "b") // b.go line 1, "y"
+	pressLog(l, "P")           // c2, which changes a.go only
 	pressLog(l, "'", "b")
 	if f.rows[f.cursor].part != 1 || f.msg != "mark b: b.go is not in this diff" {
 		t.Errorf("' b in c2: on commit %d, msg %q; want to stay in c2", f.rows[f.cursor].part, f.msg)
@@ -455,13 +455,13 @@ func TestMarkMessagesInList(t *testing.T) {
 func TestFlowMarkMessages(t *testing.T) {
 	a := newFlowApp()
 	pressApp(a, "f")
-	if !flowAt(a, 0, -1) {
-		t.Fatal("not on the file bar of a.go")
+	if !flowAt(a, 0, 0) {
+		t.Fatal("not on the fold a.go starts with")
 	}
-	// On the file bar there is no line to mark, and a non-letter is no mark.
+	// On a fold there is no line to mark, and a non-letter is no mark.
 	pressApp(a, "m", "a")
 	if _, ok := a.cfg.Mark("a"); ok || a.flow.msg != "no line of the new file here" {
-		t.Errorf("m a on the file bar: msg %q", a.flow.msg)
+		t.Errorf("m a on the fold: msg %q", a.flow.msg)
 	}
 	pressApp(a, "j", "m", "1")
 	if _, ok := a.cfg.Mark("1"); ok || a.flow.msg != "" {
