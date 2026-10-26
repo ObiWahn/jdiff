@@ -196,6 +196,17 @@ func TestOverflowStyle(t *testing.T) {
 	}
 }
 
+func TestFileBarStyle(t *testing.T) {
+	// The file's name in the flow view: bold, without a background.
+	if d := Default().FileBar; !d.GetBold() || d.GetBackground() != (lipgloss.NoColor{}) {
+		t.Errorf("file bar bold %v background %v, want bold without a background", d.GetBold(), d.GetBackground())
+	}
+	th := Resolve(FromGit(Config{"jdiff.file-bar-style": "bold white blue"}, nil))
+	if bg := th.FileBar.GetBackground(); bg != lipgloss.Color("4") {
+		t.Errorf("jdiff.file-bar-style: background %v, want blue", bg)
+	}
+}
+
 func TestWrapMarkerStyle(t *testing.T) {
 	if fg := Default().WrapMarker.GetForeground(); fg != lipgloss.Color("4") {
 		t.Errorf("wrap marker %v, want blue", fg)
