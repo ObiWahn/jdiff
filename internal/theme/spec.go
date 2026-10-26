@@ -126,8 +126,9 @@ func Builtin() Spec {
 		AnchorStyle:  str("yellow bold"),
 		PendingStyle: str("magenta bold"),
 		CursorStyle:  str("reverse bold"),
-		// Bars with a background, so file and commit borders stand out.
-		FileBarStyle:    str("bold bright-white blue"),
+		// The file's name in bold as delta's headers, the commit's bar with
+		// a background, so commit borders stand out.
+		FileBarStyle:    str("normal bold"),
 		CommitBarStyle:  str("bold black yellow"),
 		CommitHashStyle: str("yellow"),
 		BranchStyle:     str("yellow bold"),
