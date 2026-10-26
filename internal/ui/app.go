@@ -40,12 +40,13 @@ func (e *entry) label(th *theme.Theme) string {
 	return th.ModifiedLabel
 }
 
-// name returns the path shown for the file, "old → new" for renames.
+// name returns the path shown for the file, "old → new" for renames,
+// printable: paths may hold control characters.
 func (e *entry) name() string {
 	if e.OldPath != "" {
-		return e.OldPath + " → " + e.Path
+		return printable(e.OldPath) + " → " + printable(e.Path)
 	}
-	return e.Path
+	return printable(e.Path)
 }
 
 // paneNames returns the names shown above the panes of the file's diff.

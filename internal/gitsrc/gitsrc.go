@@ -158,19 +158,25 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 	if base == "" {
 		base = emptyTree
 	}
-	out, err := r.git("diff", "--no-ext-diff", "--name-status", "-z", "-M", base, c.Hash)
+	out, err := r.git("diff", "--no-ext-diff", "--raw", "-z", "--no-abbrev", "-M", base, c.Hash)
 	if err != nil {
 		return nil, err
 	}
 
+	// Blobs are requested by object id, not by "rev:path": git cat-file
+	// reads one request per line, and paths may hold newlines.
 	var files []source.File
 	var specs []string // blob requests for git cat-file, two per file
 	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
 	for i := 0; i+1 < len(tokens); {
-		status := tokens[i]
+		// ":oldmode newmode oldid newid status", then the path or paths.
+		meta := strings.Fields(strings.TrimPrefix(tokens[i], ":"))
+		if len(meta) != 5 {
+			return nil, fmt.Errorf("git diff: unexpected entry %q", tokens[i])
+		}
 		f := source.File{Path: tokens[i+1], InOld: true, InNew: true}
 		i += 2
-		switch status[0] {
+		switch meta[4][0] {
 		case 'A':
 			f.InOld = false
 		case 'D':
@@ -182,7 +188,7 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 			f.OldPath, f.Path = f.Path, tokens[i]
 			i++
 		}
-		specs = append(specs, base+":"+f.PathInOld(), c.Hash+":"+f.Path)
+		specs = append(specs, meta[2], meta[3])
 		files = append(files, f)
 	}
 

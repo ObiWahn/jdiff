@@ -801,3 +801,26 @@ func TestDiffSwitchErrorWidens(t *testing.T) {
 		t.Errorf("the message is cut before the screen's edge:\n%s", ansi.Strip(s.View()))
 	}
 }
+
+func TestAppPathsDrawnPrintable(t *testing.T) {
+	evil := "x\x1b]0;pwned\x07.go" // would set the terminal title
+	a := NewApp(config.Default(), []source.File{
+		{Path: evil, OldPath: "old" + evil, Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+		{Path: "bin" + evil, InOld: true, InNew: true, Binary: true},
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	check := func(what, view string) {
+		t.Helper()
+		if strings.Contains(view, "\x1b]") || strings.Contains(view, "\x07") {
+			t.Errorf("%s passes the path's escape sequence: %q", what, view)
+		}
+		if !strings.Contains(view, "x☠]0;pwned☠.go") {
+			t.Errorf("%s does not show the path printable:\n%s", what, ansi.Strip(view))
+		}
+	}
+	check("list", a.View())
+	pressApp(a, "j", "enter") // the binary file: not opened, named in the status
+	check("binary message", a.View())
+	pressApp(a, "k", "enter")
+	check("diff titles", a.View())
+}

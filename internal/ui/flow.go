@@ -927,7 +927,7 @@ func (f *Flow) row(i int) string {
 		case r.file >= 0:
 			note = "binary file"
 		case part.err != "":
-			note = part.err
+			note = printable(part.err)
 		}
 		return mark + text("  "+note, t.Hint)
 	}

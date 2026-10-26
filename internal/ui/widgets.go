@@ -22,7 +22,7 @@ func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, w
 		if sideBySide && s != active {
 			style = lipgloss.NewStyle().Faint(true)
 		}
-		return pad(style.Render(ansi.Truncate(" "+names[s], w, "…")), w, lipgloss.NewStyle())
+		return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
 	}
 	return title(left) + t.Decoration.Render("│") + title(right)
 }
@@ -44,10 +44,10 @@ func popupTitle(t *theme.Theme, name, msg, hints string) string {
 
 // statusText returns the left part of a status bar: msg, or without one
 // the hints, each a key and what it does, separated by " · ", in the hint
-// style.
+// style. msg may name files or quote git, so it is drawn printable.
 func statusText(t *theme.Theme, msg, hints string) string {
 	if msg != "" {
-		return t.Hint.Render(msg)
+		return t.Hint.Render(printable(msg))
 	}
 	return t.Hint.Render(hints)
 }

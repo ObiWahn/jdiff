@@ -370,3 +370,30 @@ func exeSuffix() string {
 	}
 	return ""
 }
+
+// A newline in a path must not split the blob requests to git cat-file:
+// "rev:a\nHEAD:b.txt" would read as two, the second b.txt's content.
+func TestFilesNewlineInPath(t *testing.T) {
+	r := newRepo(t)
+	if err := os.WriteFile(filepath.Join(r.Dir, "a\nHEAD:b.txt"), []byte("own\n"), 0o644); err != nil {
+		t.Skipf("file name with a newline: %v", err)
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-qm", "newline"}} {
+		cmd := exec.Command("git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.com"}, args...)...)
+		cmd.Dir = r.Dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	commits, err := r.Log([]string{"-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.Files(commits[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Path != "a\nHEAD:b.txt" || files[0].InOld || !slices.Equal(files[0].New, []string{"own"}) {
+		t.Errorf("files = %+v, want the new file with its own content", files)
+	}
+}
