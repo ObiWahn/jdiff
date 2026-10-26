@@ -16,15 +16,15 @@ import (
 // Side by side the name of the active pane is bold, the other one faint; in
 // the normal layout, one column of both, both are bold.
 func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
-	w := width / 2 // a pane's width; the right one starts with its bar
-	title := func(s side, w int) string {
+	w := (width - 1) / 2
+	title := func(s side) string {
 		style := lipgloss.NewStyle().Bold(true)
 		if sideBySide && s != active {
 			style = lipgloss.NewStyle().Faint(true)
 		}
 		return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
 	}
-	return title(left, w) + t.Decoration.Render("│") + title(right, max(w-1, 0))
+	return title(left) + t.Decoration.Render("│") + title(right)
 }
 
 // statusLine renders the status bar with left, already styled, and right,
