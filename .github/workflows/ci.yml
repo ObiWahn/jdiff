@@ -17,8 +17,8 @@ jobs:
     env:
       TEST_TIMEOUT: 300s # 15s is for local runs, not a cold cache with -race
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: stable
       - run: make fmt-check
@@ -28,7 +28,7 @@ jobs:
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: make vuln
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: logs
           path: bin/*.log
@@ -43,62 +43,56 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: stable
       - run: go test -count=1 -timeout 5m ./...
       - run: go build -o jdiff-ci .
 
-  # The binaries for download, attached to the run; for a tag, the release
-  # takes them. Built without cgo, they need no C library of the system.
+  # Exercise the same packaging as a release without publishing from branches.
+  # GoReleaser builds all five targets from .goreleaser.yaml.
   dist:
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     needs: [linux, test]
-    strategy:
-      matrix:
-        include:
-          - { goos: linux, goarch: amd64 }
-          - { goos: linux, goarch: arm64 }
-          - { goos: darwin, goarch: arm64 }
-          - { goos: darwin, goarch: amd64 }
-          - { goos: windows, goarch: amd64 }
     runs-on: ubuntu-latest
-    env:
-      GOOS: ${{ matrix.goos }}
-      GOARCH: ${{ matrix.goarch }}
-      CGO_ENABLED: "0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          fetch-depth: 0 # the tags, which go build takes the version from
-      - uses: actions/setup-go@v5
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: stable
-      # The bare binary: downloaded, it needs chmod +x, packed or not.
-      - run: |
-          name=jdiff-$(git describe --tags --always)-$GOOS-$GOARCH
-          if [[ $GOOS == windows ]]; then name+=.exe; fi
-          go build -trimpath -o "dist/$name" .
-          echo "name=$name" >> "$GITHUB_ENV"
-      - uses: actions/upload-artifact@v4
+      - uses: goreleaser/goreleaser-action@v7.3.0
         with:
-          name: ${{ env.name }}
-          path: dist/${{ env.name }}
+          version: v2.19.0
+          args: release --snapshot --clean
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: jdiff-snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/sha256sums.txt
+            dist/homebrew
 
-  # A tag v* becomes a release with the binaries, for anyone to download.
+  # Only upstream tags publish a release and update the upstream Homebrew tap.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: dist
+    if: github.repository == 'ObiWahn/jdiff' && startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          pattern: jdiff-*
-          path: dist
-          merge-multiple: true
-      - run: cd dist && sha256sum * > sha256sums.txt
-      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: stable
+      - uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          version: v2.19.0
+          args: release --clean
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
