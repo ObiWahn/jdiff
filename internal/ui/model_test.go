@@ -624,10 +624,10 @@ func TestCutLineMarkers(t *testing.T) {
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	cell := func(v int, s side) string {
-		// The text of one pane, between its number's bar and the next pane.
+		// The text of one pane, between its separator and the next.
 		row := ansi.Strip(m.screenLine(m.screen[m.screenAt[sline{v, 0}]], false))
 		parts := strings.Split(row, "│")
-		return strings.TrimRight(parts[2+2*int(s)], " ")[1:]
+		return strings.TrimRight(parts[1+2*int(s)], " ")[1:]
 	}
 	if got := cell(0, left); !strings.HasSuffix(got, "»") || strings.HasPrefix(got, "«") {
 		t.Errorf("long line: %q, want » at its end only", got)
@@ -733,7 +733,7 @@ func newUnifiedTestModel() *Model {
 func TestUnifiedLayout(t *testing.T) {
 	m := newUnifiedTestModel()
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
-	for i, want := range []string{"│ 1 ⋮ 1 │ same", "│ 2 ⋮   │-alpha beta", "│   ⋮ 2 │+alpha gamma", "│ 3 ⋮ 3 │ keep", "│ 4 ⋮   │-gone"} {
+	for i, want := range []string{" 1 1│ same", "-2  │ alpha beta", "+  2│ alpha gamma", " 3 3│ keep", "-4  │ gone"} {
 		if !strings.HasPrefix(lines[i+1], want) {
 			t.Errorf("line %d = %q, want prefix %q", i+1, lines[i+1], want)
 		}
@@ -771,8 +771,8 @@ func TestUnifiedShowsAnchors(t *testing.T) {
 		t.Fatalf("anchoring side by side: anchors %v", m.anchors)
 	}
 	press(m, "s")
-	if lines := strings.Split(ansi.Strip(m.View()), "\n"); !strings.HasPrefix(lines[2], "│◆2 ⋮   │-alpha beta") ||
-		!strings.HasPrefix(lines[3], "│◆  ⋮ 2 │+alpha gamma") {
+	if lines := strings.Split(ansi.Strip(m.View()), "\n"); !strings.HasPrefix(lines[2], "◆2  │ alpha beta") ||
+		!strings.HasPrefix(lines[3], "◆  2│ alpha gamma") {
 		t.Errorf("anchored lines in the normal layout: %q", lines[2:4])
 	}
 }
@@ -793,7 +793,7 @@ func TestUnifiedMarks(t *testing.T) {
 
 	// A removed line takes the old side; the mark shows as ●.
 	press(m, "j", "j", "j", "j", "enter")
-	if m.pending == nil || *m.pending != (mark{left, 3}) || !strings.HasPrefix(cursorLine(m), "│●4 ⋮   │-gone") {
+	if m.pending == nil || *m.pending != (mark{left, 3}) || !strings.HasPrefix(cursorLine(m), "●4  │ gone") {
 		t.Fatalf("enter on the removed line: pending %v, line %q", m.pending, cursorLine(m))
 	}
 	// An unchanged line then takes the other side: new line 3.
@@ -802,7 +802,7 @@ func TestUnifiedMarks(t *testing.T) {
 		t.Fatalf("anchors %v, want L4↔R3", m.anchors)
 	}
 	// The cursor stays on the line picked last.
-	if m.sub != 1 || !strings.HasPrefix(cursorLine(m), "│◆  ⋮ 3 │+keep") {
+	if m.sub != 1 || !strings.HasPrefix(cursorLine(m), "◆  3│ keep") {
 		t.Errorf("cursor after anchoring on %q (sub %d), want the new line 3", cursorLine(m), m.sub)
 	}
 	// Enter on it removes the anchor and keeps the cursor on that line.
@@ -999,7 +999,7 @@ func wrapLines(prefix string) []string {
 func cursorRow(m *Model) int { return m.pos() - m.top }
 
 // Further pieces of a wrapped line have no number and ↪ in the wrap marker
-// style where a changed line has its sign, right of the number's bar.
+// style right of the separator, where other lines have a space.
 func TestWrapMarker(t *testing.T) {
 	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
 	lipgloss.SetColorProfile(termenv.ANSI)
@@ -1007,8 +1007,8 @@ func TestWrapMarker(t *testing.T) {
 	m := newTestModel([]string{long}, []string{long + "!"})
 	press(m, "r")
 	for _, layout := range []struct{ name, first, piece string }{
-		{"side by side", "│ 1│-abc", "│  │↪"},
-		{"normal", "│ 1 ⋮   │-abc", "│   ⋮   │↪"},
+		{"side by side", "-1│ abc", "  │↪"},
+		{"normal", "-1  │ abc", "    │↪"},
 	} {
 		lines := strings.Split(ansi.Strip(m.View()), "\n")
 		if !strings.HasPrefix(lines[1], layout.first) || !strings.HasPrefix(lines[2], layout.piece) {
@@ -1188,7 +1188,7 @@ func TestFoldGaps(t *testing.T) {
 				case strings.Contains(line, "unchanged lines"):
 					line = "fold"
 				case line != "": // its first line number
-					line = strings.TrimLeft(line, "│ ⋮")
+					line = strings.TrimLeft(line, "-+ ")
 					line = line[:strings.IndexFunc(line, func(r rune) bool { return r < '0' || r > '9' })]
 				}
 				got = append(got, line)
@@ -1222,7 +1222,7 @@ func TestNormalLayoutShowsBlocks(t *testing.T) {
 	m := newTestModel([]string{"same", "old1", "old2", "old3", "end"}, []string{"same", "new1", "new2", "add", "add2", "end"})
 	press(m, "s")
 	// As git diff: the old lines of the block, then the new ones.
-	want := []string{"1 ⋮ 1 │ same", "2 ⋮   │-old1", "3 ⋮   │-old2", "4 ⋮   │-old3", "  ⋮ 2 │+new1", "  ⋮ 3 │+new2", "  ⋮ 4 │+add", "  ⋮ 5 │+add2", "5 ⋮ 6 │ end"}
+	want := []string{"1 1│ same", "2  │ old1", "3  │ old2", "4  │ old3", "  2│ new1", "  3│ new2", "  4│ add", "  5│ add2", "5 6│ end"}
 	got := screenTexts(m)
 	for i := range want {
 		if i >= len(got) || !strings.HasSuffix(got[i], want[i]) {
@@ -1258,7 +1258,7 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	m.fileDiff.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
 	m.realign()
 	press(m, "s", "g", "]")
-	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│-X") {
+	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│ X") {
 		t.Errorf("]: cursor on %q, want the block's first line, old X:\n%s", got, strings.Join(screenTexts(m), "\n"))
 	}
 }

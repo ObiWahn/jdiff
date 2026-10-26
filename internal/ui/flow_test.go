@@ -66,9 +66,9 @@ func TestFlowFileHeaders(t *testing.T) {
 	}
 	rule := strings.Repeat("─", 40)
 	want := []string{
-		"  f00   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
-		"", "  f01   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
-		"", "  f02   +1 -1", "", rule, "", "│ 1│ c0", "│ 2│-c1", "│ 3│ c2",
+		"  f00   +1 -1", "", rule, "", " 1│ c0", "-2│ c1", " 3│ c2",
+		"", "  f01   +1 -1", "", rule, "", " 1│ c0", "-2│ c1", " 3│ c2",
+		"", "  f02   +1 -1", "", rule, "", " 1│ c0", "-2│ c1", " 3│ c2",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("flow rows:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -94,7 +94,7 @@ func TestFlowFoldTakesRulePlace(t *testing.T) {
 		}
 		got = append(got, line)
 	}
-	file := []string{"fold", "", "│ 13│ c12", "│ 14│ c13", "│ 15│ c14", "│ 16│-c15", "│ 17│ c16", "│ 18│ c17", "│ 19│ c18", "", "fold"}
+	file := []string{"fold", "", "13│ c12", "14│ c13", "15│ c14", "-16│ c15", "17│ c16", "18│ c17", "19│ c18", "", "fold"}
 	want := append(append([]string{"f00   +1 -1", ""}, file...), "", "f01   +1 -1", "")
 	want = append(want, file...)
 	if len(got) != len(want) {
@@ -343,7 +343,7 @@ func TestAppDiffPreview(t *testing.T) {
 	}
 	// The preview starts with the context of the first change.
 	if !strings.HasPrefix(lines[6], "╭─ a.go ─") || !strings.Contains(lines[7], "  7│ x6") ||
-		!strings.Contains(lines[10], " 10│+new9") {
+		!strings.Contains(lines[10], "+10│ new9") {
 		t.Errorf("preview of a.go:\n%s", view)
 	}
 	pressApp(a, "j")
@@ -369,11 +369,11 @@ func TestAppPreviewOfEmptyFile(t *testing.T) {
 
 func TestFlowAndPreviewLayout(t *testing.T) {
 	a := newFlowApp()
-	if view := ansi.Strip(a.View()); !strings.Contains(view, " 10│+new9") {
-		t.Errorf("side by side preview lacks 10│+new9:\n%s", view)
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "+10│ new9") {
+		t.Errorf("side by side preview lacks +10│ new9:\n%s", view)
 	}
 	pressApp(a, "s")
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "10 ⋮    │-x9") || !strings.Contains(view, "   ⋮ 10 │+new9") {
+	if view := ansi.Strip(a.View()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
 		t.Errorf("normal preview:\n%s", view)
 	}
 
@@ -542,8 +542,8 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 	for i := a.flow.cursor; i < a.flow.cursor+4; i++ {
 		got = append(got, strings.TrimRight(ansi.Strip(a.flow.row(i)), " "))
 	}
-	for i, want := range []string{"-old1", "-old2", "+new1", "+new2"} {
-		if !strings.HasSuffix(got[i], "│"+want) {
+	for i, want := range []string{"old1", "old2", "new1", "new2"} {
+		if !strings.HasSuffix(got[i], "│ "+want) {
 			t.Fatalf("flow from ]:\n%s\nwant old1 old2 new1 new2", strings.Join(got, "\n"))
 		}
 	}

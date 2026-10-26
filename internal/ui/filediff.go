@@ -483,9 +483,9 @@ func newShape(cfg *config.Config, width int) shape {
 func (d *fileDiff) contentWidth(width int, unified bool) int {
 	nw := d.numWidth()
 	if unified {
-		return max(width-2*nw-8, 0)
+		return max(width-2*nw-4, 0)
 	}
-	return max(width/2-nw-4, 0)
+	return max((width-1)/2-nw-3, 0)
 }
 
 // pieces returns the number of screen lines line of side s takes in sh: 1,
