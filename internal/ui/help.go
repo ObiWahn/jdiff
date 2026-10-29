@@ -27,7 +27,7 @@ var bindings = []binding{
 	{"v", "show or hide the message box"},
 	{"", "File list"},
 	{"j k  n p", "move"},
-	{"pgup pgdn", "page up, down (also ctrl+b ctrl+f)"},
+	{"pgup pgdn", "scroll the preview (also ctrl+b ctrl+f)"},
 	{"g G", "first, last file"},
 	{"enter", "show the diff of the file"},
 	{"'<letter>", "open the file of a jump mark"},

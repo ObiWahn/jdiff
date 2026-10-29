@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -231,6 +232,69 @@ func TestAppDiffPreview(t *testing.T) {
 	pressApp(a, "v")
 	if a.boxHeight() != 0 || a.listHeight() != 17 || strings.Contains(ansi.Strip(a.View()), "╭─") {
 		t.Errorf("v should hide the preview: list %d box %d", a.listHeight(), a.boxHeight())
+	}
+}
+
+func TestAppPreviewScrolls(t *testing.T) {
+	// From minHeight, without a box, past the heights where it shows part
+	// of the 60 lines of a.go to where it shows them all (64).
+	for height := minHeight; height <= 66; height++ {
+		t.Run(fmt.Sprint(height), func(t *testing.T) {
+			t.Parallel()
+			b := numbered("x", 60)
+			b[30], b[50] = "new30", "new50"
+			cfg := config.Default()
+			cfg.Settings.CollapseUnchanged = false
+			a := NewApp(cfg, []source.File{modified("a.go", numbered("x", 60), b), modified("c.go", []string{"old"}, []string{"new"})})
+			a.Update(tea.WindowSizeMsg{Width: 80, Height: height})
+			inner := a.boxHeight() - 2
+			if a.boxHeight() == 0 {
+				pressApp(a, "pgdown")
+				if a.cursor != 1 {
+					t.Errorf("height %d without a preview: pgdn on file %d, want the list paged to c.go", height, a.cursor)
+				}
+				return
+			}
+			// first returns the number of the first line in the preview.
+			first := func() int {
+				lines := strings.Split(ansi.Strip(a.View()), "\n")
+				for i, l := range lines {
+					if strings.HasPrefix(l, "╭─ ") {
+						var n int
+						fmt.Sscanf(strings.TrimLeft(lines[i+1], "│ -+"), "%d", &n)
+						return n - 1
+					}
+				}
+				return -1
+			}
+			last := max(60-inner, 27) // the start of a.go's last page, unless it starts later
+			check := func(keys string, want int) {
+				t.Helper()
+				if got := first(); got != want || a.cursor != 0 {
+					t.Fatalf("height %d, %s: preview from x%d, cursor on file %d; want x%d on a.go", height, keys, got, a.cursor, want)
+				}
+			}
+			check("start", 27) // the context of the first change
+			page := max(inner-1, 1)
+			pressApp(a, "pgdown")
+			check("pgdn", min(27+page, last))
+			for range 60 {
+				pressApp(a, "pgdown")
+			}
+			check("pgdn to the end", last)
+			pressApp(a, "pgup")
+			check("pgup", max(last-page, 0))
+			for range 60 {
+				pressApp(a, "ctrl+b")
+			}
+			check("ctrl+b to the top", 0)
+			pressApp(a, "ctrl+f", "j", "k")
+			check("j k", 27)
+			pressApp(a, "v", "pgdown")
+			if a.cursor != 1 {
+				t.Errorf("height %d, preview hidden: pgdn on file %d, want the list paged to c.go", height, a.cursor)
+			}
+		})
 	}
 }
 

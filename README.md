@@ -125,7 +125,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | Key | Action |
 |---|---|
 | `j` `k`, `n` `p` | move |
-| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
 | `g` `G` | first, last file |
 | `enter` | show the diff of the file |
 | `'`*letter* | open the file of a jump mark |

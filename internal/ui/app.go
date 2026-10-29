@@ -129,10 +129,15 @@ type App struct {
 	notify  *notify.Watcher
 	ticking bool
 	list
-	open   *entry // file whose diff view is shown, nil for the list
-	flow   *Flow  // flow view outside the log, created on first use
-	msg    string
-	prefix string // "'" while waiting for the letter of a mark
+	// previewTop is the first screen line of the preview scrolled by pgup
+	// and pgdn, while previewFor is the file under the cursor; moving the
+	// cursor drops it.
+	previewFor *entry
+	previewTop int
+	open       *entry // file whose diff view is shown, nil for the list
+	flow       *Flow  // flow view outside the log, created on first use
+	msg        string
+	prefix     string // "'" while waiting for the letter of a mark
 }
 
 // NewApp returns the file selector for files.
@@ -468,6 +473,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a *App) key(k string) tea.Cmd {
 	a.msg = ""
+	cursor := a.cursor
+	defer func() {
+		if a.cursor != cursor {
+			a.previewFor = nil // another file shows its preview from the start
+		}
+	}()
 	if a.prefix != "" {
 		a.prefix = ""
 		if isMarkLetter(k) {
@@ -476,7 +487,12 @@ func (a *App) key(k string) tea.Cmd {
 		return nil
 	}
 	page := max(a.listHeight()-1, 1)
-	if delta, _, ok := motion(k, page, len(a.files)); ok {
+	if delta, paging, ok := motion(k, page, len(a.files)); ok {
+		if h := a.boxHeight(); paging && h > 0 && a.cursor < len(a.files) {
+			// The preview scrolls, by its height less a line, as the list pages.
+			a.scrollPreview(direction(delta > 0) * max(h-3, 1))
+			return nil
+		}
 		a.moveCursor(delta)
 		return nil
 	}
@@ -657,8 +673,53 @@ func (a *App) switchFile(dir int) {
 	a.setMsg(ends(dir > 0, "last file", "first file"))
 }
 
+// scrollPreview scrolls the preview of the file under the cursor by delta
+// lines: up to its first line, down until its last one is the last shown.
+func (a *App) scrollPreview(delta int) {
+	e := a.files[a.cursor]
+	if e.Binary {
+		return
+	}
+	screen, at := a.diffOf(e).screenLines(a.previewLayout(e).shape)
+	from := a.previewStart(e, screen, at)
+	if delta > 0 {
+		from = min(from+delta, max(len(screen)-(a.boxHeight()-2), from))
+	} else {
+		from = max(from+delta, 0)
+	}
+	a.previewFor, a.previewTop = e, from
+}
+
+// previewLayout returns the layout of the preview of e: as wide as the
+// box's inside, scrolled like the file's diff view.
+func (a *App) previewLayout(e *entry) layout {
+	lo := layout{width: max(a.width-4, 0)}
+	lo.shape = newShape(a.cfg, lo.width)
+	if e.view != nil {
+		lo.xoff, lo.active = e.view.xoff, e.view.active
+	}
+	return lo
+}
+
+// previewStart returns the first of the screen lines of e's diff, indexed by
+// at, that its preview shows: where pgup and pgdn scrolled it, else the
+// context of the first change.
+func (a *App) previewStart(e *entry, screen []sline, at map[sline]int) int {
+	if a.previewFor == e {
+		return max(min(a.previewTop, len(screen)-1), 0)
+	}
+	d := a.diffOf(e)
+	for i := range screen {
+		if d.blockStart(screen, i) {
+			// The rows of context before the block, else its first line.
+			return min(at[sline{max(screen[i].v-a.cfg.Settings.Context, 0), 0}], i)
+		}
+	}
+	return 0
+}
+
 // preview renders the diff of e in a box height lines high, starting with
-// the context of the first change.
+// the context of the first change, or where pgup and pgdn scrolled it.
 func (a *App) preview(e *entry, height int) string {
 	t := a.cfg.Theme
 	title := lipgloss.NewStyle().Bold(true).Render(" " + e.name() + " ")
@@ -669,21 +730,9 @@ func (a *App) preview(e *entry, height int) string {
 	if len(d.view) == 0 { // empty on both sides
 		return box(t, a.width, height, title, nil)
 	}
-	// The preview is scrolled like the file's diff view.
-	lo := layout{width: max(a.width-4, 0)}
-	lo.shape = newShape(a.cfg, lo.width)
-	if e.view != nil {
-		lo.xoff, lo.active = e.view.xoff, e.view.active
-	}
+	lo := a.previewLayout(e)
 	screen, at := d.screenLines(lo.shape)
-	from := 0
-	for i := range screen {
-		if d.blockStart(screen, i) {
-			// The rows of context before the block, else its first line.
-			from = min(at[sline{max(screen[i].v-a.cfg.Settings.Context, 0), 0}], i)
-			break
-		}
-	}
+	from := a.previewStart(e, screen, at)
 	var lines []string
 	for i := from; i < len(screen) && len(lines) < height-2; i++ {
 		lines = append(lines, d.render(screen[i], false, lo))
