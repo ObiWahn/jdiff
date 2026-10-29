@@ -4,12 +4,13 @@ SHELL        := bash
 BUILD_DIR    ?= bin
 BIN          := $(BUILD_DIR)/jdiff
 TEST_TIMEOUT ?= 15s
+RACE_TIMEOUT ?= 40s
 # Installed, not run with go run: that may switch to a newer Go, whose
 # standard library it would check instead of the one jdiff is built with.
 # go install golang.org/x/vuln/cmd/govulncheck@latest
 GOVULNCHECK  ?= $(shell go env GOPATH)/bin/govulncheck
 
-.PHONY: all build test vet vuln fmt fmt-check clean
+.PHONY: all build test test-race tag vet vuln fmt fmt-check clean
 
 all: build
 
@@ -21,6 +22,25 @@ build: | $(BUILD_DIR)/
 test: | $(BUILD_DIR)/
 	timeout $(TEST_TIMEOUT) go test -race -count=1 -skip 'Sweep$$' ./... 2>&1 | tee $(BUILD_DIR)/test.log
 	timeout $(TEST_TIMEOUT) go test -count=1 -run 'Sweep$$' ./... 2>&1 | tee -a $(BUILD_DIR)/test.log
+
+# All tests with the race detector, the sweeps too: before a release.
+test-race: | $(BUILD_DIR)/
+	timeout $(RACE_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee $(BUILD_DIR)/test-race.log
+
+# Tags HEAD of master with the next version, the last tag vX.Y.Z with Z one
+# higher, when the tree is clean, HEAD has no tag yet and test-race passes.
+# Nothing is pushed: pushing the tag publishes the release.
+tag:
+	test "$$(git branch --show-current)" = master || { echo "tag: not on master" >&2; exit 1; }
+	test -z "$$(git status --porcelain)" || { echo "tag: uncommitted changes" >&2; exit 1; }
+	test -z "$$(git tag --points-at HEAD --list 'v*')" || \
+		{ echo "tag: HEAD is tagged already: $$(git tag --points-at HEAD --list 'v*')" >&2; exit 1; }
+	$(MAKE) test-race
+	last=$$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$$' | head -n 1) || \
+		{ echo "tag: no tag vX.Y.Z yet" >&2; exit 1; }; \
+	next=$${last%.*}.$$(( $${last##*.} + 1 )); \
+	git tag "$$next"; \
+	echo "tagged $$next; publish it with: git push <remote> $$next"
 
 vet: | $(BUILD_DIR)/
 	go vet ./... 2>&1 | tee $(BUILD_DIR)/vet.log

@@ -65,7 +65,7 @@ go install .      # or install it into $GOBIN
 
 `jdiff --version` prints the tag or commit it was built from.
 
-The other make targets: `make test`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
+The other make targets: `make test`, `make test-race`, `make tag`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
 
 ## Usage
 
@@ -263,7 +263,9 @@ Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`,
 ## Development
 
 ```sh
-make test   # go test -race with a timeout
+make test        # go test -race with a timeout; the sweeps (tests named ...Sweep) without -race
+make test-race   # all tests with -race, the sweeps too: before a release
+make tag         # on a clean master, after test-race: tag HEAD with the next vX.Y.Z, not pushed
 make vet
 make vuln   # govulncheck, installed with go install golang.org/x/vuln/cmd/govulncheck@latest
 make fmt

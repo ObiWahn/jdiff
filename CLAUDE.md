@@ -46,7 +46,8 @@
   the race detector can find nothing there, but makes drawing about ten times slower. A test that
   runs goroutines (watchers, commands) or shares state between parallel tests (the `compiled`
   matcher of the search) is no sweep and keeps `-race`; run each size of a sweep as a parallel
-  subtest.
+  subtest. Before a release, `make test-race` runs all tests with `-race`, the sweeps too, with a
+  40s timeout; `make tag` runs it before tagging.
 - Why: since Bubble Tea and Lip Gloss v2 the tests draw with colors, as the program does (v1 drew
   them plain without a terminal), and `x/ansi` 0.11 measures widths by grapheme clusters. With
   `-race` the UI package took 19s, against about 10s before; without it 1.5s. Drawing a full
