@@ -9,9 +9,8 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
@@ -448,8 +447,6 @@ func TestHighlightMarksWhitespaceChanges(t *testing.T) {
 }
 
 func TestHighlightTrailingAndLineEnds(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	trailing := lipgloss.NewStyle().Background(lipgloss.Color("1"))
 	tests := []struct {
 		name     string
@@ -540,8 +537,6 @@ func TestHighlightCarriageReturn(t *testing.T) {
 }
 
 func TestHighlightHiddenChars(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	hidden := lipgloss.NewStyle().Background(lipgloss.Color("1"))
 	for _, text := range []string{
 		"a\u202eb", // right-to-left override: would reorder the text
@@ -609,8 +604,6 @@ func TestMarksIgnoreCarriageReturn(t *testing.T) {
 }
 
 func TestCutLineMarkers(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	probe := newTestModel([]string{"x"}, []string{"x"})
 	cw := probe.contentWidth(80, false)
 	long := strings.Repeat("abcdefghij", 10)
@@ -681,8 +674,6 @@ func TestHighlightPlainChangedWhitespace(t *testing.T) {
 }
 
 func TestMarkWhitespaceToggle(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	m := newTestModel([]string{"a   b"}, []string{"a b"})
 	row := m.screenLine(m.screen[0], false)
 	if !strings.Contains(ansi.Strip(row), "a ··b") {
@@ -857,8 +848,6 @@ func TestToggleAllBlocks(t *testing.T) {
 }
 
 func TestCursorOnFold(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	m := newTestModel(append(numbered("x", 20), "old"), append(numbered("x", 20), "new"))
 	if m.view[0].hidden == 0 {
 		t.Fatalf("first row %v, want a fold", m.view[0])
@@ -872,8 +861,6 @@ func TestCursorOnFold(t *testing.T) {
 }
 
 func TestCursorLine(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
 	m := newTestModel([]string{"same", "old"}, []string{"same", "new"})
 	for _, layout := range []string{"side by side", "normal"} {
@@ -967,7 +954,6 @@ func TestViewFollowsItsLineThroughReload(t *testing.T) {
 }
 
 func TestHeaderFocus(t *testing.T) {
-	ansiColors(t)
 	m := newTestModel([]string{"a"}, []string{"b"})
 	press(m, "tab") // the new side
 	if h := m.header(); !strings.Contains(h, "\x1b[2m old") || !strings.Contains(h, "\x1b[1m new") {
@@ -1075,11 +1061,9 @@ func TestWrapFollowsResize(t *testing.T) {
 }
 
 func TestBoldChangesToggle(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	bold := regexp.MustCompile(`\x1b\[(\d+;)*1(;\d+)*m`)
 	// emph returns the escape sequence that styles the changed word "c".
-	word := regexp.MustCompile(`(\x1b\[[0-9;]*m)c\x1b\[0m`)
+	word := regexp.MustCompile(`(\x1b\[[0-9;]*m)c\x1b\[0?m`)
 	emph := func(row string) string {
 		if m := word.FindStringSubmatch(row); m != nil {
 			return m[1]

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Theme holds all styles of the jdiff views.

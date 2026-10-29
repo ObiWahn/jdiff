@@ -131,7 +131,6 @@ func TestFindChangedOnly(t *testing.T) {
 		t.Errorf("only in unchanged lines: %q", m.msg)
 	}
 	// Only changed lines are highlighted.
-	ansiColors(t)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	m.cfg.Search.Add(config.Query{Text: "x"})
@@ -241,7 +240,6 @@ func TestFindScrollsToMatch(t *testing.T) {
 }
 
 func TestFindHighlights(t *testing.T) {
-	ansiColors(t)
 	m := newSearchModel()
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()

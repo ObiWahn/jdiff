@@ -1,17 +1,18 @@
 package theme
 
 import (
+	"image/color"
 	"slices"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestParseStyle(t *testing.T) {
 	named := map[string]string{"my-red": "#ff0000"}
 	tests := []struct {
 		in     string
-		fg, bg lipgloss.TerminalColor
+		fg, bg color.Color
 		bold   bool
 		ul     bool
 	}{
@@ -104,7 +105,7 @@ func TestGitThemePriority(t *testing.T) {
 	checks := []struct {
 		name string
 		got  lipgloss.Style
-		fg   lipgloss.TerminalColor
+		fg   color.Color
 	}{
 		{"minus (rightmost feature wins)", th.Minus, lipgloss.Color("4")},
 		{"plus (from lower feature)", th.Plus, lipgloss.Color("6")},

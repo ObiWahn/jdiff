@@ -10,9 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
@@ -392,8 +390,6 @@ func TestLogPreviewToggleShared(t *testing.T) {
 }
 
 func TestFlowCursorRowsInverted(t *testing.T) {
-	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
-	lipgloss.SetColorProfile(termenv.ANSI)
 	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
 	l, _ := newTestLog()
 	pressLog(l, "f", "G") // load all commits
@@ -806,7 +802,7 @@ func TestStatusBarKeys(t *testing.T) {
 	}
 }
 
-func TestCommitListArrowsAllHeights(t *testing.T) {
+func TestCommitListArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
 	var commits []gitsrc.Commit
 	for i := range 30 {
@@ -820,17 +816,20 @@ func TestCommitListArrowsAllHeights(t *testing.T) {
 	}
 	for _, preview := range []bool{false, true} {
 		for height := minHeight; height <= 30; height++ {
-			l := NewLog(config.Default(), "main", commits, false, nil, nil)
-			l.cfg.Settings.Preview = preview
-			l.Update(tea.WindowSizeMsg{Width: 40, Height: height})
-			what := fmt.Sprintf("commit list, height %d, preview %v", height, preview)
-			h := l.listHeight()
-			rows := func() []string { return viewRows(l.frame(), 2, 2+h) }
-			shown := checkShown(t, what, rows(), h, len(commits), l.cursor, nil, index)
-			for _, k := range sweepKeys(len(commits)) {
-				pressLog(l, k)
-				shown = checkShown(t, what+", "+k, rows(), h, len(commits), l.cursor, shown, index)
-			}
+			t.Run(fmt.Sprintf("preview %v height %d", preview, height), func(t *testing.T) {
+				t.Parallel()
+				l := NewLog(config.Default(), "main", commits, false, nil, nil)
+				l.cfg.Settings.Preview = preview
+				l.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+				what := fmt.Sprintf("commit list, height %d, preview %v", height, preview)
+				h := l.listHeight()
+				rows := func() []string { return viewRows(l.frame(), 2, 2+h) }
+				shown := checkShown(t, what, rows(), h, len(commits), l.cursor, nil, index)
+				for _, k := range sweepKeys(len(commits)) {
+					pressLog(l, k)
+					shown = checkShown(t, what+", "+k, rows(), h, len(commits), l.cursor, shown, index)
+				}
+			})
 		}
 	}
 }
@@ -874,7 +873,6 @@ func TestCommitListHistoryKeys(t *testing.T) {
 }
 
 func TestStatusBarOneColor(t *testing.T) {
-	ansiColors(t)
 	l, _ := newTestLog()
 	hint := l.cfg.Theme.Hint
 	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · v message · d git diff · ? help · q quit")) {

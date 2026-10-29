@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
@@ -29,15 +27,7 @@ func renderedLine(t *testing.T, m *Model, s side, line int) string {
 	return ""
 }
 
-func ansiColors(t *testing.T) {
-	t.Helper()
-	profile := lipgloss.ColorProfile()
-	t.Cleanup(func() { lipgloss.SetColorProfile(profile) })
-	lipgloss.SetColorProfile(termenv.ANSI)
-}
-
 func TestMovedLinesMarked(t *testing.T) {
-	ansiColors(t)
 	stay := []string{"stay one", "stay two", "stay three", "stay four"}
 	a := append(append(append([]string{}, movedBlock...), stay...), "old line")
 	b := append(append(append([]string{}, stay...), movedBlock...), "new line")
@@ -71,7 +61,6 @@ func TestAnchorEndsMove(t *testing.T) {
 }
 
 func TestMovedAcrossFilesInApp(t *testing.T) {
-	ansiColors(t)
 	a := NewApp(config.Default(), []source.File{
 		modified("a.go", append([]string{"package a"}, movedBlock...), []string{"package a"}),
 		modified("b.go", []string{"package b"}, append([]string{"package b", ""}, movedBlock...)),

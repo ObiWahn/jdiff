@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -663,7 +663,7 @@ func sweepKeys(n int) []string {
 	return append(keys, "pgdown", "pgdown", "pgup", "G", "pgup", "k", "g", "pgdown", "j")
 }
 
-func TestFileListArrowsAllHeights(t *testing.T) {
+func TestFileListArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
 	var files []source.File
 	for i := range 30 {
@@ -677,17 +677,20 @@ func TestFileListArrowsAllHeights(t *testing.T) {
 	}
 	for _, preview := range []bool{false, true} {
 		for height := minHeight; height <= 30; height++ {
-			a := NewApp(config.Default(), files)
-			a.cfg.Settings.Preview = preview
-			a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
-			what := fmt.Sprintf("file list, height %d, preview %v", height, preview)
-			h := a.listHeight()
-			rows := func() []string { return viewRows(a.frame(), 2, 2+h) }
-			shown := checkShown(t, what, rows(), h, len(files), a.cursor, nil, index)
-			for _, k := range sweepKeys(len(files)) {
-				pressApp(a, k)
-				shown = checkShown(t, what+", "+k, rows(), h, len(files), a.cursor, shown, index)
-			}
+			t.Run(fmt.Sprintf("preview %v height %d", preview, height), func(t *testing.T) {
+				t.Parallel()
+				a := NewApp(config.Default(), files)
+				a.cfg.Settings.Preview = preview
+				a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+				what := fmt.Sprintf("file list, height %d, preview %v", height, preview)
+				h := a.listHeight()
+				rows := func() []string { return viewRows(a.frame(), 2, 2+h) }
+				shown := checkShown(t, what, rows(), h, len(files), a.cursor, nil, index)
+				for _, k := range sweepKeys(len(files)) {
+					pressApp(a, k)
+					shown = checkShown(t, what+", "+k, rows(), h, len(files), a.cursor, shown, index)
+				}
+			})
 		}
 	}
 }

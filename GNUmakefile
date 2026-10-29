@@ -16,8 +16,11 @@ all: build
 build: | $(BUILD_DIR)/
 	go build -o $(BIN) . 2>&1 | tee $(BUILD_DIR)/build.log
 
+# Sweeps, tests named ...Sweep, draw thousands of frames in one goroutine:
+# the race detector finds nothing there but makes them ten times slower.
 test: | $(BUILD_DIR)/
-	timeout $(TEST_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee $(BUILD_DIR)/test.log
+	timeout $(TEST_TIMEOUT) go test -race -count=1 -skip 'Sweep$$' ./... 2>&1 | tee $(BUILD_DIR)/test.log
+	timeout $(TEST_TIMEOUT) go test -count=1 -run 'Sweep$$' ./... 2>&1 | tee -a $(BUILD_DIR)/test.log
 
 vet: | $(BUILD_DIR)/
 	go vet ./... 2>&1 | tee $(BUILD_DIR)/vet.log

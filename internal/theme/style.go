@@ -2,10 +2,11 @@ package theme
 
 import (
 	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ansiNames are delta's names for the 16 ANSI colors.
@@ -46,11 +47,11 @@ func ParseStyle(s string, named map[string]string) (lipgloss.Style, error) {
 			}
 			switch colors {
 			case 0:
-				if c != "" {
+				if c != nil {
 					style = style.Foreground(c)
 				}
 			case 1:
-				if c != "" {
+				if c != nil {
 					style = style.Background(c)
 				}
 			default:
@@ -62,13 +63,13 @@ func ParseStyle(s string, named map[string]string) (lipgloss.Style, error) {
 	return style, nil
 }
 
-// parseColor returns the color for word, or "" for no color. Colors beyond
-// the 16 ANSI ones are passed on as-is; the 16 color profile maps them to
-// the nearest ANSI color when rendering.
-func parseColor(word string, named map[string]string) (lipgloss.Color, error) {
+// parseColor returns the color for word, or nil for no color. Colors beyond
+// the 16 ANSI ones are passed on as-is; the 16 color profile of the program
+// maps them to the nearest ANSI color when it draws.
+func parseColor(word string, named map[string]string) (color.Color, error) {
 	switch word {
 	case "normal", "auto", "syntax":
-		return "", nil
+		return nil, nil
 	}
 	if n, ok := ansiNames[word]; ok {
 		return lipgloss.Color(strconv.Itoa(n)), nil
@@ -88,7 +89,7 @@ func parseColor(word string, named map[string]string) (lipgloss.Color, error) {
 		// A named color defined elsewhere in the config; no further nesting.
 		return parseColor(strings.ToLower(strings.TrimSpace(v)), nil)
 	}
-	return "", fmt.Errorf("unknown color %q", word)
+	return nil, fmt.Errorf("unknown color %q", word)
 }
 
 func isHexColor(s string) bool {

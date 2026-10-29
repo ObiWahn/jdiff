@@ -299,7 +299,7 @@ func TestMarksPopupArrows(t *testing.T) {
 	}
 }
 
-func TestMarksPopupArrowsAllHeights(t *testing.T) {
+func TestMarksPopupArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
 	const n = 26
 	index := func(r string) int {
@@ -310,22 +310,25 @@ func TestMarksPopupArrowsAllHeights(t *testing.T) {
 	// Rows in the popup: height-4, up to all 26 marks; 31 leaves room for
 	// one more.
 	for height := minHeight; height <= n+5; height++ {
-		m := newTestModel([]string{"a"}, []string{"b"})
-		for i := range n {
-			if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
-				t.Fatal(err)
+		t.Run(fmt.Sprint("height ", height), func(t *testing.T) {
+			t.Parallel()
+			m := newTestModel([]string{"a"}, []string{"b"})
+			for i := range n {
+				if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
+					t.Fatal(err)
+				}
 			}
-		}
-		p := WithMarks(m.cfg, m)
-		p.Update(tea.WindowSizeMsg{Width: 40, Height: height})
-		pressRoot(p, "\\")
-		what := fmt.Sprintf("jump list, height %d", height)
-		h := p.boxHeight() - 2
-		shown := checkShown(t, what, popupRows(p.frame()), h, n, p.cursor, nil, index)
-		keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
-		for _, k := range keys {
-			pressRoot(p, k)
-			shown = checkShown(t, what+", "+k, popupRows(p.frame()), h, n, p.cursor, shown, index)
-		}
+			p := WithMarks(m.cfg, m)
+			p.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+			pressRoot(p, "\\")
+			what := fmt.Sprintf("jump list, height %d", height)
+			h := p.boxHeight() - 2
+			shown := checkShown(t, what, popupRows(p.frame()), h, n, p.cursor, nil, index)
+			keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
+			for _, k := range keys {
+				pressRoot(p, k)
+				shown = checkShown(t, what+", "+k, popupRows(p.frame()), h, n, p.cursor, shown, index)
+			}
+		})
 	}
 }

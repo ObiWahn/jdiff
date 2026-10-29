@@ -41,13 +41,16 @@
 - Sweep window sizes where edge cases hide: every terminal height from the smallest drawn
   (`minHeight`) up, and around "all fits". Name the sizes that must stay in a comment, so that a
   sweep made faster keeps them; prefer a narrow terminal or `t.Parallel()` over fewer sizes.
-- `make test` runs with `-race` and a 15s timeout; keep it under that.
-  Since Bubble Tea v2, `x/ansi` 0.11 measures widths by grapheme clusters, so `StringWidth` and
-  `Truncate` cost more: the UI package went from about 10s to 12.6s, and drawing a full 200x60 diff
-  from 5.0ms to 6.2ms (no difference in use). Most of the test time is in the four render-heavy
-  sweeps `TestHelpArrowsEverywhere`, `TestCommitListArrowsAllHeights`,
-  `TestFileListArrowsAllHeights` and `TestMarksPopupArrowsAllHeights`: make them cheaper first
-  when the limit gets close.
+- `make test` runs the tests with `-race`, then the sweeps, tests named `…Sweep`, without it; each
+  run has a 15s timeout, keep both under that. A sweep draws thousands of frames in one goroutine:
+  the race detector can find nothing there, but makes drawing about ten times slower. A test that
+  runs goroutines (watchers, commands) or shares state between parallel tests (the `compiled`
+  matcher of the search) is no sweep and keeps `-race`; run each size of a sweep as a parallel
+  subtest.
+- Why: since Bubble Tea and Lip Gloss v2 the tests draw with colors, as the program does (v1 drew
+  them plain without a terminal), and `x/ansi` 0.11 measures widths by grapheme clusters. With
+  `-race` the UI package took 19s, against about 10s before; without it 1.5s. Drawing a full
+  colored 200x60 diff went from 6.3ms to 7.6ms, no difference in use.
 
 - A refactoring changes no output: record the snapshots of `../jdiff-snap` (`snap write`) on a
   clean commit first, `snap check` after each step; explain every frame that differs.

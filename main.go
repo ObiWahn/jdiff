@@ -11,8 +11,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
@@ -48,11 +47,6 @@ func main() {
 		os.Exit(2)
 	}
 
-	// 16 color mode: colors render as ANSI colors, so the terminal palette
-	// applies. Terminals without color support stay without.
-	if lipgloss.ColorProfile() != termenv.Ascii {
-		lipgloss.SetColorProfile(termenv.ANSI)
-	}
 	dir, err := config.Dir()
 	if err != nil {
 		dir = "" // no home: defaults only
@@ -84,7 +78,13 @@ func main() {
 	// the new view too.
 	wrap := func(m tea.Model) tea.Model { return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m))) }
 	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitsrc.Repo{}.Diff))
-	if _, err := tea.NewProgram(page).Run(); err != nil {
+	// 16 color mode: colors are drawn as ANSI colors, so the terminal
+	// palette applies. Terminals without color support stay without.
+	var opts []tea.ProgramOption
+	if colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ANSI {
+		opts = append(opts, tea.WithColorProfile(colorprofile.ANSI))
+	}
+	if _, err := tea.NewProgram(page, opts...).Run(); err != nil {
 		fatal(err)
 	}
 }

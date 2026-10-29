@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"jdiff/internal/settings"
 	"jdiff/internal/theme"
@@ -103,7 +103,7 @@ func TestThemeSelection(t *testing.T) {
 		"delta.light.plus-style": "cyan"}
 	for _, tt := range []struct {
 		main, env, flag string
-		minus, plus     lipgloss.Color
+		minus, plus     string
 	}{
 		{"", "", "", "4", "5"},                      // no name: delta's git config
 		{`theme = "delta"`, "", "", "4", "5"},       // by name
@@ -117,10 +117,10 @@ func TestThemeSelection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if fg := c.Theme.Minus.GetForeground(); fg != tt.minus {
+		if fg := c.Theme.Minus.GetForeground(); fg != lipgloss.Color(tt.minus) {
 			t.Errorf("%q env %q flag %q: minus %v, want %v", tt.main, tt.env, tt.flag, fg, tt.minus)
 		}
-		if fg := c.Theme.Plus.GetForeground(); fg != tt.plus {
+		if fg := c.Theme.Plus.GetForeground(); fg != lipgloss.Color(tt.plus) {
 			t.Errorf("%q env %q flag %q: plus %v, want %v", tt.main, tt.env, tt.flag, fg, tt.plus)
 		}
 	}

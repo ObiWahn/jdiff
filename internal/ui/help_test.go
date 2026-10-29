@@ -166,7 +166,7 @@ func TestNoViewOverflows(t *testing.T) {
 	}
 }
 
-func TestHelpArrowsEverywhere(t *testing.T) {
+func TestHelpArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
 	n := len(bindings)
 	// The box has height-4 rows. Each of these sizes must stay: one and two
@@ -174,58 +174,61 @@ func TestHelpArrowsEverywhere(t *testing.T) {
 	// n-2, n-1 (an arrow hides two lines), n (all fit exactly) and n+1. A
 	// narrow screen keeps drawing fast.
 	for _, rows := range []int{1, 2, 3, 4, 12, n - 2, n - 1, n, n + 1} {
-		height := rows + 4
-		h := WithHelp(config.Default(), newTestApp())
-		h.Update(tea.WindowSizeMsg{Width: 30, Height: height})
-		pressRoot(h, "?")
-		rows = min(rows, n) // room for more: the box stays at the lines' height
-		if h.boxHeight()-2 != rows {
-			t.Fatalf("height %d: %d rows in the box, want %d", height, h.boxHeight()-2, rows)
-		}
-		keys := append(slices.Repeat([]string{"j"}, n+2), slices.Repeat([]string{"k"}, n+2)...)
-		for step, k := range append([]string{""}, keys...) {
-			if k != "" {
-				pressRoot(h, k)
+		t.Run(fmt.Sprint("rows ", rows), func(t *testing.T) {
+			t.Parallel()
+			height := rows + 4
+			h := WithHelp(config.Default(), newTestApp())
+			h.Update(tea.WindowSizeMsg{Width: 30, Height: height})
+			pressRoot(h, "?")
+			rows = min(rows, n) // room for more: the box stays at the lines' height
+			if h.boxHeight()-2 != rows {
+				t.Fatalf("height %d: %d rows in the box, want %d", height, h.boxHeight()-2, rows)
 			}
-			got := popupRows(h.frame())
-			fail := func(why string) {
-				t.Fatalf("height %d, step %d, top %d: %s\n%q", height, step, h.top, why, got)
+			keys := append(slices.Repeat([]string{"j"}, n+2), slices.Repeat([]string{"k"}, n+2)...)
+			for step, k := range append([]string{""}, keys...) {
+				if k != "" {
+					pressRoot(h, k)
+				}
+				got := popupRows(h.frame())
+				fail := func(why string) {
+					t.Fatalf("height %d, step %d, top %d: %s\n%q", height, step, h.top, why, got)
+				}
+				if len(got) != rows {
+					fail("not a full popup")
+				}
+				if h.top == 1 && rows >= 3 && n > rows {
+					fail("starts at line 1, behind an arrow")
+				}
+				var up, down int
+				hasUp := strings.HasPrefix(got[0], "  ↑ ")
+				hasDown := strings.HasPrefix(got[len(got)-1], "  ↓ ")
+				if hasUp {
+					fmt.Sscanf(got[0], "  ↑ %d more", &up)
+				}
+				if hasDown {
+					fmt.Sscanf(got[len(got)-1], "  ↓ %d more", &down)
+				}
+				shown := rows
+				if hasUp {
+					shown--
+				}
+				if hasDown {
+					shown--
+				}
+				switch {
+				case (n <= rows || rows < 3) && (hasUp || hasDown):
+					fail("arrows though all lines fit, or in fewer than three rows")
+				case rows < 3:
+				case hasUp && (up != h.top || up < 2):
+					fail("the arrow above is wrong")
+				case !hasUp && h.top != 0:
+					fail("lines hidden above without an arrow")
+				case hasDown && (down != n-h.top-shown || down < 2):
+					fail("the arrow below is wrong")
+				case !hasDown && n > rows && h.top+shown != n:
+					fail("lines hidden below without an arrow")
+				}
 			}
-			if len(got) != rows {
-				fail("not a full popup")
-			}
-			if h.top == 1 && rows >= 3 && n > rows {
-				fail("starts at line 1, behind an arrow")
-			}
-			var up, down int
-			hasUp := strings.HasPrefix(got[0], "  ↑ ")
-			hasDown := strings.HasPrefix(got[len(got)-1], "  ↓ ")
-			if hasUp {
-				fmt.Sscanf(got[0], "  ↑ %d more", &up)
-			}
-			if hasDown {
-				fmt.Sscanf(got[len(got)-1], "  ↓ %d more", &down)
-			}
-			shown := rows
-			if hasUp {
-				shown--
-			}
-			if hasDown {
-				shown--
-			}
-			switch {
-			case (n <= rows || rows < 3) && (hasUp || hasDown):
-				fail("arrows though all lines fit, or in fewer than three rows")
-			case rows < 3:
-			case hasUp && (up != h.top || up < 2):
-				fail("the arrow above is wrong")
-			case !hasUp && h.top != 0:
-				fail("lines hidden above without an arrow")
-			case hasDown && (down != n-h.top-shown || down < 2):
-				fail("the arrow below is wrong")
-			case !hasDown && n > rows && h.top+shown != n:
-				fail("lines hidden below without an arrow")
-			}
-		}
+		})
 	}
 }
