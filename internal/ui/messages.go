@@ -3,8 +3,9 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
 )
@@ -126,28 +127,10 @@ func toggle(cfg *config.Config, setting *bool) string {
 	return saveState(cfg)
 }
 
-// keyNames returns the key presses of msg. Bubble Tea delivers runes read
-// together (held keys, fast typing over ssh) as one message; they are split so
-// that each counts.
-func keyNames(msg tea.KeyMsg) []string {
-	if msg.Type != tea.KeyRunes || msg.Paste || msg.Alt || len(msg.Runes) < 2 {
-		return []string{msg.String()}
-	}
-	out := make([]string, len(msg.Runes))
-	for i, r := range msg.Runes {
-		out[i] = string(r)
-	}
-	return out
-}
-
-// pressKeys passes the key presses of msg to key until it returns a command.
-func pressKeys(msg tea.KeyMsg, key func(string) tea.Cmd) tea.Cmd {
-	for _, k := range keyNames(msg) {
-		if cmd := key(k); cmd != nil {
-			return cmd
-		}
-	}
-	return nil
+// runeKey returns the key press typing the character s.
+func runeKey(s string) tea.KeyPressMsg {
+	r, _ := utf8.DecodeRuneInString(s)
+	return tea.KeyPressMsg{Code: r, Text: s}
 }
 
 // motion returns how many rows the cursor moves on k, page rows for a page

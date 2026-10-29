@@ -42,6 +42,12 @@
   (`minHeight`) up, and around "all fits". Name the sizes that must stay in a comment, so that a
   sweep made faster keeps them; prefer a narrow terminal or `t.Parallel()` over fewer sizes.
 - `make test` runs with `-race` and a 15s timeout; keep it under that.
+  Since Bubble Tea v2, `x/ansi` 0.11 measures widths by grapheme clusters, so `StringWidth` and
+  `Truncate` cost more: the UI package went from about 10s to 12.6s, and drawing a full 200x60 diff
+  from 5.0ms to 6.2ms (no difference in use). Most of the test time is in the four render-heavy
+  sweeps `TestHelpArrowsEverywhere`, `TestCommitListArrowsAllHeights`,
+  `TestFileListArrowsAllHeights` and `TestMarksPopupArrowsAllHeights`: make them cheaper first
+  when the limit gets close.
 
 - A refactoring changes no output: record the snapshots of `../jdiff-snap` (`snap write`) on a
   clean commit first, `snap check` after each step; explain every frame that differs.

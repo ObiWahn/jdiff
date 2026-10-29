@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -287,10 +287,16 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case askDiffMsg:
 		s.input, s.err = &lineInput{}, ""
 		return s, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if s.input != nil {
 			s.err = ""
 			return s, s.key(msg)
+		}
+	case tea.PasteMsg:
+		if s.input != nil {
+			s.err = ""
+			s.input.text += msg.Content
+			return s, nil
 		}
 	}
 	var cmd tea.Cmd
@@ -302,24 +308,24 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // takes the arguments of the git diff shown to edit. Enter shows the diff of
 // the line; with nothing typed it closes the popup, as esc and backspace on
 // it do.
-func (s *DiffSwitch) key(k tea.KeyMsg) tea.Cmd {
+func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 	in := s.input
 	switch {
-	case k.Type == tea.KeyCtrlC:
+	case k.String() == "ctrl+c":
 		return tea.Quit
 	case in.cancels(k):
 		s.input = nil
 		return nil
 	}
-	switch k.Type {
-	case tea.KeyEnter:
+	switch k.String() {
+	case "enter":
 		args := strings.Fields(in.text)
 		if len(args) == 0 {
 			s.input = nil
 			return nil
 		}
 		return s.show(args)
-	case tea.KeyUp:
+	case "up":
 		if args, ok := s.current(); ok {
 			in.text = strings.Join(args, " ")
 		}
@@ -355,12 +361,14 @@ func (s *DiffSwitch) show(args []string) tea.Cmd {
 // minInputWidth is the least width of the line in the popups of inputBox.
 const minInputWidth = 40
 
-// View draws the popup over the view while it asks: the line typed,
+// frame draws the popup over the view while it asks: the line typed,
 // centered, and why git failed. The popup grows with the line, up to the
 // width of the screen; beyond, the line's start is cut so that its end
 // stays in view.
-func (s *DiffSwitch) View() string {
-	base := s.Model.View()
+func (s *DiffSwitch) View() tea.View { return tea.NewView(s.frame()) }
+
+func (s *DiffSwitch) frame() string {
+	base := s.Model.View().Content
 	if s.input == nil || s.width == 0 {
 		return base
 	}
@@ -400,27 +408,26 @@ type lineInput struct{ text string }
 
 // cancels reports whether k closes the input without using it: esc, or
 // backspace on nothing typed.
-func (in *lineInput) cancels(k tea.KeyMsg) bool {
-	return k.Type == tea.KeyEsc || k.Type == tea.KeyBackspace && in.text == ""
+func (in *lineInput) cancels(k tea.KeyPressMsg) bool {
+	return k.String() == "esc" || k.String() == "backspace" && in.text == ""
 }
 
-// edit applies k to the text: typed and pasted text is added, backspace
-// deletes a character, ctrl+w a word and ctrl+u the line.
-func (in *lineInput) edit(k tea.KeyMsg) {
-	switch k.Type {
-	case tea.KeyRunes:
-		in.text += string(k.Runes)
-	case tea.KeySpace:
-		in.text += " "
-	case tea.KeyBackspace:
+// edit applies k to the text: typed text is added, backspace deletes a
+// character, ctrl+w a word and ctrl+u the line. Pasted text comes as a
+// tea.PasteMsg, which the owner adds.
+func (in *lineInput) edit(k tea.KeyPressMsg) {
+	switch k.String() {
+	case "backspace":
 		if r := []rune(in.text); len(r) > 0 {
 			in.text = string(r[:len(r)-1])
 		}
-	case tea.KeyCtrlW:
+	case "ctrl+w":
 		in.text = strings.TrimRight(in.text, " ")
 		in.text = in.text[:strings.LastIndex(in.text, " ")+1]
-	case tea.KeyCtrlU:
+	case "ctrl+u":
 		in.text = ""
+	default:
+		in.text += k.Text
 	}
 }
 
@@ -452,10 +459,11 @@ func counts(t *theme.Theme, st func(lipgloss.Style) lipgloss.Style, added, remov
 // heading, an empty line, an item and the status bar.
 const minWidth, minHeight = 20, 4
 
-// SizeGuard wraps the top-level model. In a terminal smaller than minWidth
-// by minHeight it shows that in a centered box instead of the page and
-// ignores keys but ctrl+c, until the terminal is large enough again; the
-// page still learns the size and gets all other messages.
+// SizeGuard wraps the top-level model and puts it on the alternate screen.
+// In a terminal smaller than minWidth by minHeight it shows that in a
+// centered box instead of the page and ignores keys but ctrl+c, until the
+// terminal is large enough again; the page still learns the size and gets
+// all other messages.
 type SizeGuard struct {
 	tea.Model
 	cfg           *config.Config
@@ -471,7 +479,7 @@ func (g *SizeGuard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		g.width, g.height = msg.Width, msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if g.tooSmall() {
 			if msg.String() == "ctrl+c" {
 				return g, tea.Quit
@@ -483,9 +491,15 @@ func (g *SizeGuard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return g, cmd
 }
 
-func (g *SizeGuard) View() string {
+func (g *SizeGuard) View() tea.View {
+	v := tea.NewView(g.frame())
+	v.AltScreen = true
+	return v
+}
+
+func (g *SizeGuard) frame() string {
 	if g.width == 0 || !g.tooSmall() {
-		return g.Model.View()
+		return g.Model.View().Content
 	}
 	first := "terminal too small"
 	if ansi.StringWidth(first) > g.width {

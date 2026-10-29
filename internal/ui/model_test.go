@@ -6,8 +6,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -22,45 +23,51 @@ func newTestModel(a, b []string) *Model {
 	return m
 }
 
-func keyMsg(k string) tea.KeyMsg {
-	switch k {
-	case "enter":
-		return tea.KeyMsg{Type: tea.KeyEnter}
-	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
-	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
-	case "backspace":
-		return tea.KeyMsg{Type: tea.KeyBackspace}
-	case "ctrl+space":
-		return tea.KeyMsg{Type: tea.KeyCtrlAt}
-	case "pgup":
-		return tea.KeyMsg{Type: tea.KeyPgUp}
-	case "pgdown":
-		return tea.KeyMsg{Type: tea.KeyPgDown}
-	case "ctrl+b":
-		return tea.KeyMsg{Type: tea.KeyCtrlB}
-	case "ctrl+f":
-		return tea.KeyMsg{Type: tea.KeyCtrlF}
-	case "ctrl+u":
-		return tea.KeyMsg{Type: tea.KeyCtrlU}
-	case "ctrl+d":
-		return tea.KeyMsg{Type: tea.KeyCtrlD}
-	case "f5":
-		return tea.KeyMsg{Type: tea.KeyF5}
-	case "up":
-		return tea.KeyMsg{Type: tea.KeyUp}
-	case "down":
-		return tea.KeyMsg{Type: tea.KeyDown}
-	case "shift+tab":
-		return tea.KeyMsg{Type: tea.KeyShiftTab}
+// keyMsgs returns the key presses of k: the key k names, as
+// tea.KeyPressMsg.String names it, or a key for each character of other
+// text, as typing it delivers them.
+func keyMsgs(k string) []tea.KeyPressMsg {
+	if utf8.RuneCountInString(k) == 1 || strings.Contains(k, "+") || keyCodes[k] != 0 {
+		return []tea.KeyPressMsg{keyMsg(k)}
 	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+	var msgs []tea.KeyPressMsg
+	for _, r := range k {
+		msgs = append(msgs, runeKey(string(r)))
+	}
+	return msgs
+}
+
+// keyCodes are the codes of the named keys the tests press.
+var keyCodes = map[string]rune{
+	"enter": tea.KeyEnter, "tab": tea.KeyTab, "esc": tea.KeyEsc, "backspace": tea.KeyBackspace,
+	"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "f5": tea.KeyF5, "up": tea.KeyUp,
+	"down": tea.KeyDown, "space": tea.KeySpace, "delete": tea.KeyDelete,
+}
+
+// keyMsg returns the key press named k, with ctrl+ or shift+ before a
+// name or character; other text is typed as one key.
+func keyMsg(k string) tea.KeyPressMsg {
+	mod, name := tea.KeyMod(0), k
+	if rest, ok := strings.CutPrefix(k, "ctrl+"); ok {
+		mod, name = tea.ModCtrl, rest
+	} else if rest, ok := strings.CutPrefix(k, "shift+"); ok {
+		mod, name = tea.ModShift, rest
+	}
+	if code, ok := keyCodes[name]; ok {
+		return tea.KeyPressMsg{Code: code, Mod: mod}
+	}
+	if mod != 0 {
+		r, _ := utf8.DecodeRuneInString(name)
+		return tea.KeyPressMsg{Code: r, Mod: mod}
+	}
+	return runeKey(k)
 }
 
 func press(m *Model, keys ...string) {
 	for _, k := range keys {
-		m.Update(keyMsg(k))
+		for _, msg := range keyMsgs(k) {
+			m.Update(msg)
+		}
 	}
 }
 
@@ -68,9 +75,11 @@ func press(m *Model, keys ...string) {
 // commands like the Bubble Tea runtime does.
 func pressRoot(m tea.Model, keys ...string) {
 	for _, k := range keys {
-		_, cmd := m.Update(keyMsg(k))
-		for cmd != nil {
-			_, cmd = m.Update(cmd())
+		for _, msg := range keyMsgs(k) {
+			_, cmd := m.Update(msg)
+			for cmd != nil {
+				_, cmd = m.Update(cmd())
+			}
 		}
 	}
 }
@@ -187,7 +196,7 @@ func TestEnterOnFillerDoesNothing(t *testing.T) {
 func TestViewFitsWidth(t *testing.T) {
 	m := newTestModel([]string{"\tshort", strings.Repeat("x", 200)}, []string{"\t\tshort", "y"})
 	press(m, "enter")
-	for i, l := range strings.Split(m.View(), "\n") {
+	for i, l := range strings.Split(m.frame(), "\n") {
 		if w := ansi.StringWidth(l); w > 80 {
 			t.Errorf("line %d is %d columns wide", i, w)
 		}
@@ -226,8 +235,8 @@ func TestFoldUnchanged(t *testing.T) {
 	if len(m.view) != 9 {
 		t.Errorf("%d displayed rows, want 9", len(m.view))
 	}
-	if !strings.Contains(ansi.Strip(m.View()), "17 unchanged lines") {
-		t.Errorf("fold row not rendered:\n%s", ansi.Strip(m.View()))
+	if !strings.Contains(ansi.Strip(m.frame()), "17 unchanged lines") {
+		t.Errorf("fold row not rendered:\n%s", ansi.Strip(m.frame()))
 	}
 
 	// On the change, both folds are 4 rows away: space opens the lower one.
@@ -391,19 +400,6 @@ func TestCursorScreenRowAtFileEdges(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 8})
 	if got := screenRow(m); got < 0 || got >= m.bodyHeight() {
 		t.Errorf("cursor off screen after resize: screen row %d, height %d", got, m.bodyHeight())
-	}
-}
-
-func TestKeyBurstCountsEachKey(t *testing.T) {
-	m := newTestModel(numbered("x", 10), append(numbered("x", 10), "new"))
-	press(m, " ")
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jjjj")})
-	if m.cursor != 4 {
-		t.Errorf("cursor = %d after a burst of 4 j, want 4", m.cursor)
-	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jjq")})
-	if m.cursor != 6 {
-		t.Errorf("cursor = %d, want 6", m.cursor)
 	}
 }
 
@@ -656,8 +652,8 @@ func TestCutLineMarkers(t *testing.T) {
 	}
 
 	press(m, "r")
-	if strings.ContainsAny(ansi.Strip(m.View()), "«»") {
-		t.Errorf("wrapped lines with markers:\n%s", ansi.Strip(m.View()))
+	if strings.ContainsAny(ansi.Strip(m.frame()), "«»") {
+		t.Errorf("wrapped lines with markers:\n%s", ansi.Strip(m.frame()))
 	}
 }
 
@@ -713,7 +709,7 @@ func TestShowWhitespacesSetting(t *testing.T) {
 	cfg.Settings.ShowWhitespaces = true
 	m := New(cfg, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	if view := ansi.Strip(m.View()); !strings.Contains(view, "→   same") {
+	if view := ansi.Strip(m.frame()); !strings.Contains(view, "→   same") {
 		t.Errorf("unchanged tab not shown:\n%s", view)
 	}
 }
@@ -731,7 +727,7 @@ func newUnifiedTestModel() *Model {
 
 func TestUnifiedLayout(t *testing.T) {
 	m := newUnifiedTestModel()
-	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	lines := strings.Split(ansi.Strip(m.frame()), "\n")
 	for i, want := range []string{" 1 1│ same", "-2  │ alpha beta", "+  2│ alpha gamma", " 3 3│ keep", "-4  │ gone"} {
 		if !strings.HasPrefix(lines[i+1], want) {
 			t.Errorf("line %d = %q, want prefix %q", i+1, lines[i+1], want)
@@ -770,7 +766,7 @@ func TestUnifiedShowsAnchors(t *testing.T) {
 		t.Fatalf("anchoring side by side: anchors %v", m.anchors)
 	}
 	press(m, "s")
-	if lines := strings.Split(ansi.Strip(m.View()), "\n"); !strings.HasPrefix(lines[2], "◆2  │ alpha beta") ||
+	if lines := strings.Split(ansi.Strip(m.frame()), "\n"); !strings.HasPrefix(lines[2], "◆2  │ alpha beta") ||
 		!strings.HasPrefix(lines[3], "◆  2│ alpha gamma") {
 		t.Errorf("anchored lines in the normal layout: %q", lines[2:4])
 	}
@@ -1011,10 +1007,10 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row {
 		t.Errorf("r: cursor on line %d at screen row %d, want line 15 at row %d", m.lineAt(right, m.cursor), cursorRow(m), row)
 	}
-	if len(m.screen) <= lines || !strings.Contains(ansi.Strip(m.View()), "↪") {
+	if len(m.screen) <= lines || !strings.Contains(ansi.Strip(m.frame()), "↪") {
 		t.Errorf("r: %d screen lines, %d before; long lines should wrap with ↪", len(m.screen), lines)
 	}
-	if line := rawText(m.View(), 80); line != "" {
+	if line := rawText(m.frame(), 80); line != "" {
 		t.Errorf("r: line wider than the view: %q", line)
 	}
 	// The cursor moves through the pieces of a wrapped line.
@@ -1073,7 +1069,7 @@ func TestWrapFollowsResize(t *testing.T) {
 		t.Errorf("narrower: cursor on line %d, %d screen lines (%d before); want line 15 and more pieces",
 			m.lineAt(right, m.cursor), len(m.screen), lines)
 	}
-	if line := rawText(m.View(), 50); line != "" {
+	if line := rawText(m.frame(), 50); line != "" {
 		t.Errorf("narrower: line wider than the view: %q", line)
 	}
 }

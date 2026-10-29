@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -32,7 +32,7 @@ func pressApp(a *App, keys ...string) { pressRoot(a, keys...) }
 
 func TestAppListShowsCounts(t *testing.T) {
 	a := newTestApp()
-	view := ansi.Strip(a.View())
+	view := ansi.Strip(a.frame())
 	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", " 3 files changed  +3 -1\n\n"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("list view lacks %q:\n%s", want, view)
@@ -46,7 +46,7 @@ func TestAppOpenAndBack(t *testing.T) {
 	if a.open == nil || a.open.Path != "b.go" {
 		t.Fatalf("open = %v, want b.go", a.open)
 	}
-	if !strings.Contains(ansi.Strip(a.View()), "b/b.go") {
+	if !strings.Contains(ansi.Strip(a.frame()), "b/b.go") {
 		t.Errorf("diff view not shown")
 	}
 	pressApp(a, "backspace")
@@ -81,14 +81,6 @@ func TestAppBinaryNotOpened(t *testing.T) {
 	pressApp(a, "G", "enter")
 	if a.open != nil || !strings.Contains(a.msg, "binary") {
 		t.Errorf("binary file opened: open=%v msg=%q", a.open, a.msg)
-	}
-}
-
-func TestAppKeyBurst(t *testing.T) {
-	a := newTestApp()
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jj")})
-	if a.cursor != 2 {
-		t.Errorf("cursor = %d after a burst of 2 j, want 2", a.cursor)
 	}
 }
 
@@ -134,7 +126,7 @@ func TestAppRenameLabel(t *testing.T) {
 		{Path: "other.go", New: []string{"z"}, InNew: true},
 	})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "renamed:") || !strings.Contains(view, "old.go → new.go") {
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "renamed:") || !strings.Contains(view, "old.go → new.go") {
 		t.Errorf("rename not shown:\n%s", view)
 	}
 	pressApp(a, "enter")
@@ -371,7 +363,7 @@ func TestDiffSwitchTyped(t *testing.T) {
 	s.gitDiff = g.diff
 
 	pressRoot(s, "d")
-	if popup := ansi.Strip(s.View()); s.input == nil ||
+	if popup := ansi.Strip(s.frame()); s.input == nil ||
 		!strings.Contains(popup, "╭─ git diff  enter show · ↑ current · esc cancel") || strings.Contains(popup, "working tree") {
 		t.Errorf("d: popup\n%s", popup)
 	}
@@ -385,7 +377,7 @@ func TestDiffSwitchTyped(t *testing.T) {
 	if a == start || s.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
 		t.Fatalf("enter: runs %v, a new view %v", g.runs, a != start)
 	}
-	view := ansi.Strip(s.View())
+	view := ansi.Strip(s.frame())
 	for _, want := range []string{"git diff HEAD~3 HEAD", "diff_HEAD~3_HEAD.go", "git diff HEAD~3 HEAD: 2 files"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view lacks %q:\n%s", want, view)
@@ -401,7 +393,7 @@ func TestDiffSwitchTyped(t *testing.T) {
 		t.Errorf("up: %q, want the current arguments", s.input.text)
 	}
 	pressRoot(s, "esc")
-	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a || strings.Contains(s.View(), "╭─ git diff") {
+	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a || strings.Contains(s.frame(), "╭─ git diff") {
 		t.Errorf("esc: still asking %v, runs %v", s.input != nil, g.runs)
 	}
 	// enter on the empty line changes nothing.
@@ -415,21 +407,21 @@ func TestDiffSwitchTyped(t *testing.T) {
 // the borders, its spaces kept, failing when there is none.
 func popupLine(t *testing.T, s *DiffSwitch, want string) string {
 	t.Helper()
-	for _, row := range strings.Split(ansi.Strip(s.View()), "\n") {
+	for _, row := range strings.Split(ansi.Strip(s.frame()), "\n") {
 		if strings.Contains(row, want) {
 			_, in, _ := strings.Cut(row, "│ ")
 			in, _, _ = strings.Cut(in, " │")
 			return in
 		}
 	}
-	t.Fatalf("no popup line holds %q:\n%s", want, ansi.Strip(s.View()))
+	t.Fatalf("no popup line holds %q:\n%s", want, ansi.Strip(s.frame()))
 	return ""
 }
 
 func TestDiffSwitchPopup(t *testing.T) {
 	s, g := newDiffSwitch(newTestApp()) // 100 columns
 	pressRoot(s, "d")
-	if strings.Contains(s.View(), "↑ current") {
+	if strings.Contains(s.frame(), "↑ current") {
 		t.Error("offers the current arguments without a git diff shown")
 	}
 	// The line is centered in the popup, at least minInputWidth wide.
@@ -451,7 +443,7 @@ func TestDiffSwitchPopup(t *testing.T) {
 	if ansi.StringWidth(line) != 100-4 || !strings.HasSuffix(line, "yyy█") || strings.Contains(line, "feature") {
 		t.Errorf("line past the screen %q, want its end in 96 columns", line)
 	}
-	for i, row := range strings.Split(s.View(), "\n") {
+	for i, row := range strings.Split(s.frame(), "\n") {
 		if w := ansi.StringWidth(row); w > 100 {
 			t.Errorf("row %d is %d columns wide, more than the screen", i, w)
 		}
@@ -468,7 +460,7 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 	pressLog(l, "enter", "enter") // c3, a.go
 	s, g := newDiffSwitch(l)
 	pressRoot(s, "d")
-	if strings.Contains(s.View(), "current") {
+	if strings.Contains(s.frame(), "current") {
 		t.Error("the log offers its current git diff arguments")
 	}
 	pressRoot(s, "HEAD", "enter")
@@ -492,14 +484,14 @@ func TestDiffSwitchFails(t *testing.T) {
 	g.err = errors.New("git diff: fatal: bad revision 'HEAD~99'\nmore lines of git")
 	pressRoot(s, "d", "HEAD~99", "enter")
 	// The popup stays with the line typed, to be fixed, and git's first line.
-	view := ansi.Strip(s.View())
+	view := ansi.Strip(s.frame())
 	if s.view != m || s.input == nil || !strings.Contains(view, " HEAD~99█ ") ||
 		!strings.Contains(view, "bad revision 'HEAD~99'") || strings.Contains(view, "more lines") {
 		t.Fatalf("failed git: shows %T, popup\n%s", s.view, view)
 	}
 	// The message goes with the next key; esc closes the popup, the view stays.
 	pressRoot(s, "backspace")
-	if strings.Contains(s.View(), "bad revision") {
+	if strings.Contains(s.frame(), "bad revision") {
 		t.Error("the message stays after the next key")
 	}
 	pressRoot(s, "esc")
@@ -690,7 +682,7 @@ func TestFileListArrowsAllHeights(t *testing.T) {
 			a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
 			what := fmt.Sprintf("file list, height %d, preview %v", height, preview)
 			h := a.listHeight()
-			rows := func() []string { return viewRows(a.View(), 2, 2+h) }
+			rows := func() []string { return viewRows(a.frame(), 2, 2+h) }
 			shown := checkShown(t, what, rows(), h, len(files), a.cursor, nil, index)
 			for _, k := range sweepKeys(len(files)) {
 				pressApp(a, k)
@@ -740,7 +732,7 @@ func TestFileListArrows(t *testing.T) {
 	name := func(r string) string { return r[strings.LastIndex(r, " ")+1:] }
 	check := func(step string, want ...string) {
 		t.Helper()
-		got := viewRows(a.View(), 2, 2+a.listHeight())
+		got := viewRows(a.frame(), 2, 2+a.listHeight())
 		for i := range got {
 			if !strings.HasPrefix(got[i], "  ↑") && !strings.HasPrefix(got[i], "  ↓") {
 				got[i] = name(got[i])
@@ -797,8 +789,8 @@ func TestDiffSwitchErrorWidens(t *testing.T) {
 	msg := "git diff: fatal: ambiguous argument 'HEAD~99': unknown revision or path not in the working tree"
 	g.err = errors.New(msg + "\nmore")
 	pressRoot(s, "d", "HEAD~99", "enter")
-	if !strings.Contains(ansi.Strip(s.View()), msg[:96-4]) {
-		t.Errorf("the message is cut before the screen's edge:\n%s", ansi.Strip(s.View()))
+	if !strings.Contains(ansi.Strip(s.frame()), msg[:96-4]) {
+		t.Errorf("the message is cut before the screen's edge:\n%s", ansi.Strip(s.frame()))
 	}
 }
 
@@ -818,9 +810,9 @@ func TestAppPathsDrawnPrintable(t *testing.T) {
 			t.Errorf("%s does not show the path printable:\n%s", what, ansi.Strip(view))
 		}
 	}
-	check("list", a.View())
+	check("list", a.frame())
 	pressApp(a, "j", "enter") // the binary file: not opened, named in the status
-	check("binary message", a.View())
+	check("binary message", a.frame())
 	pressApp(a, "k", "enter")
-	check("diff titles", a.View())
+	check("diff titles", a.frame())
 }

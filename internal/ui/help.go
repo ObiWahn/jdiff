@@ -2,10 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -108,7 +107,7 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		h.width, h.height = msg.Width, msg.Height
 		h.scroll(0)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if cmd, ok := popupKeys(msg, h.open, "?", h.key); ok {
 			return h, cmd
 		}
@@ -117,47 +116,34 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-// popupKeys passes the key presses of msg to key, when the popup is open or
-// they open it with opener, and reports whether it did; else msg is for the
-// page below. A burst of runes is split, so each key goes where it would
-// have gone pressed alone.
-func popupKeys(msg tea.KeyMsg, open bool, opener string, key func(string, tea.KeyMsg) tea.Cmd) (tea.Cmd, bool) {
-	keys := keyNames(msg)
-	if !open && !slices.Contains(keys, opener) {
+// popupKeys passes the key press msg to key, when the popup is open or msg
+// opens it with opener, and reports whether it did; else msg is for the
+// page below.
+func popupKeys(msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
+	k := msg.String()
+	if !open && k != opener {
 		return nil, false
 	}
-	if len(keys) == 1 {
-		return key(keys[0], msg), true
-	}
-	for _, k := range keys {
-		if cmd := key(k, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}); cmd != nil {
-			return cmd, true
-		}
-	}
-	return nil, true
+	return key(k), true
 }
 
-// key handles k, pressed as msg, in the popup, or passes msg to the page.
-func (h *Help) key(k string, msg tea.KeyMsg) tea.Cmd {
-	if h.open {
-		switch k {
-		case "?", "esc", "q":
-			h.open = false
-		case "ctrl+c":
-			return tea.Quit
-		case "down", "j":
-			h.scroll(1)
-		case "up", "k":
-			h.scroll(-1)
-		}
-		return nil
-	}
-	if k == "?" {
+// key handles k in the popup, or opens it on ?.
+func (h *Help) key(k string) tea.Cmd {
+	if !h.open {
 		h.open, h.top = true, 0
 		return nil
 	}
-	_, cmd := h.Model.Update(msg)
-	return cmd
+	switch k {
+	case "?", "esc", "q":
+		h.open = false
+	case "ctrl+c":
+		return tea.Quit
+	case "down", "j":
+		h.scroll(1)
+	case "up", "k":
+		h.scroll(-1)
+	}
+	return nil
 }
 
 // boxHeight is the height of the popup: all lines when they fit, else the
@@ -174,8 +160,10 @@ func (h *Help) scroll(delta int) {
 	h.top = windowAt(top, h.boxHeight()-2, len(bindings)).first
 }
 
-func (h *Help) View() string {
-	base := h.Model.View()
+func (h *Help) View() tea.View { return tea.NewView(h.frame()) }
+
+func (h *Help) frame() string {
+	base := h.Model.View().Content
 	if !h.open || h.width == 0 {
 		return base
 	}

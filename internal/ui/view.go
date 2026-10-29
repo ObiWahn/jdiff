@@ -8,6 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -114,7 +115,9 @@ func (m *Model) help() string {
 	return strings.Join(append(keys, "? help", "q quit"), " · ")
 }
 
-func (m *Model) View() string {
+func (m *Model) View() tea.View { return tea.NewView(m.frame()) }
+
+func (m *Model) frame() string {
 	if m.width == 0 {
 		return ""
 	}

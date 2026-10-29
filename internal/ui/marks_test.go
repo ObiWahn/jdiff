@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -149,7 +149,7 @@ func TestMarksPopup(t *testing.T) {
 	p := WithMarks(m.cfg, m)
 	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(p, "\\")
-	if view := ansi.Strip(p.View()); !strings.Contains(view, "no marks") {
+	if view := ansi.Strip(p.frame()); !strings.Contains(view, "no marks") {
 		t.Errorf("empty popup:\n%s", view)
 	}
 	pressRoot(p, "esc", "ctrl+space")
@@ -159,7 +159,7 @@ func TestMarksPopup(t *testing.T) {
 	pressRoot(p, "m", "b", "g")
 
 	pressRoot(p, "\\")
-	view := ansi.Strip(p.View())
+	view := ansi.Strip(p.frame())
 	for _, want := range []string{"╭─ marks ", "a  new:11  x10", "b  new:31  x30"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("popup lacks %q:\n%s", want, view)
@@ -175,7 +175,7 @@ func TestMarksPopup(t *testing.T) {
 		t.Errorf("enter: popup open %v, right line %d, msg %q; want closed on mark a", p.open, m.lineAt(right, m.cursor), m.msg)
 	}
 	pressRoot(p, "\\", "q")
-	if p.open || strings.Contains(ansi.Strip(p.View()), "╭─ marks") {
+	if p.open || strings.Contains(ansi.Strip(p.frame()), "╭─ marks") {
 		t.Error("q did not close the popup")
 	}
 }
@@ -216,7 +216,7 @@ func TestMarksPopupExpandsTabs(t *testing.T) {
 		t.Fatal(err)
 	}
 	pressRoot(p, "\\")
-	view := p.View()
+	view := p.frame()
 	if line := rawText(view, 80); line != "" {
 		t.Errorf("popup line with raw text: %q", line)
 	}
@@ -259,7 +259,7 @@ func TestMarksPopupArrows(t *testing.T) {
 	pressRoot(p, "\\")
 	shown := func() []string {
 		var out []string
-		for _, r := range popupRows(p.View()) {
+		for _, r := range popupRows(p.frame()) {
 			if strings.HasPrefix(r, "  ↑ ") || strings.HasPrefix(r, "  ↓ ") {
 				out = append(out, r)
 			} else {
@@ -321,11 +321,11 @@ func TestMarksPopupArrowsAllHeights(t *testing.T) {
 		pressRoot(p, "\\")
 		what := fmt.Sprintf("jump list, height %d", height)
 		h := p.boxHeight() - 2
-		shown := checkShown(t, what, popupRows(p.View()), h, n, p.cursor, nil, index)
+		shown := checkShown(t, what, popupRows(p.frame()), h, n, p.cursor, nil, index)
 		keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
 		for _, k := range keys {
 			pressRoot(p, k)
-			shown = checkShown(t, what+", "+k, popupRows(p.View()), h, n, p.cursor, shown, index)
+			shown = checkShown(t, what+", "+k, popupRows(p.frame()), h, n, p.cursor, shown, index)
 		}
 	}
 }

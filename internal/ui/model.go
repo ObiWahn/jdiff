@@ -4,7 +4,7 @@ package ui
 import (
 	"slices"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
@@ -94,8 +94,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width, m.height = msg.Width, msg.Height
 			m.syncLayout() // wrapped lines take other pieces
 		})
-	case tea.KeyMsg:
-		return m, pressKeys(msg, m.key)
+	case tea.KeyPressMsg:
+		return m, m.key(msg.String())
 	case watchTickMsg:
 		if msg.owner != nil && msg.owner != m {
 			return m, nil
@@ -224,7 +224,7 @@ func (m *Model) key(k string) tea.Cmd {
 	case "r":
 		m.msg = toggle(m.cfg, &m.cfg.Settings.Wrap)
 		m.syncLayout()
-	case "enter", "esc", " ", "ctrl+@":
+	case "enter", "esc", "space", "ctrl+space":
 		m.act(k)
 	case "o":
 		return m.jump()

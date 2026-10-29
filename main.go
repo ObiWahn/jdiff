@@ -10,7 +10,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
@@ -84,7 +84,7 @@ func main() {
 	// the new view too.
 	wrap := func(m tea.Model) tea.Model { return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m))) }
 	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitsrc.Repo{}.Diff))
-	if _, err := tea.NewProgram(page, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(page).Run(); err != nil {
 		fatal(err)
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -347,9 +347,14 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.input, s.regex, s.err = &lineInput{}, s.cfg.Settings.SearchRegex, ""
 		s.hist = len(s.cfg.Search.History)
 		return s, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if s.input != nil {
 			return s, s.key(msg)
+		}
+	case tea.PasteMsg:
+		if s.input != nil {
+			s.input.text += msg.Content
+			return s, nil
 		}
 	}
 	var cmd tea.Cmd
@@ -361,19 +366,19 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // backspace on it closes the bar; tab switches between changed and all
 // lines, shift+tab between plain text and regular expression; up and
 // down go through the history, each query in its mode.
-func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
+func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
 	in, history, st := s.input, s.cfg.Search.History, &s.cfg.Settings
 	s.err = ""
 	show := func(q config.Query) { in.text, s.regex = q.Text, q.Regex }
 	switch {
-	case k.Type == tea.KeyCtrlC:
+	case k.String() == "ctrl+c":
 		return tea.Quit
 	case in.cancels(k):
 		s.input = nil
 		return nil
 	}
-	switch k.Type {
-	case tea.KeyEnter:
+	switch k.String() {
+	case "enter":
 		q := config.Query{Text: in.text, Regex: s.regex}
 		if q.Text == "" {
 			s.input = nil
@@ -390,13 +395,13 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 			s.err = saveState(s.cfg)
 		}
 		return func() tea.Msg { return findMsg(1) }
-	case tea.KeyTab:
+	case "tab":
 		s.err = toggle(s.cfg, &st.SearchAll)
-	case tea.KeyShiftTab:
+	case "shift+tab":
 		s.regex = !s.regex
 		st.SearchRegex = s.regex
 		s.err = saveState(s.cfg)
-	case tea.KeyUp:
+	case "up":
 		if s.hist == len(history) {
 			s.draft = config.Query{Text: in.text, Regex: s.regex}
 		}
@@ -404,7 +409,7 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 			s.hist--
 			show(history[s.hist])
 		}
-	case tea.KeyDown:
+	case "down":
 		if s.hist < len(history) {
 			s.hist++
 			if s.hist == len(history) {
@@ -419,11 +424,13 @@ func (s *SearchBar) key(k tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// View draws the bar over the view, above its status line, while it is
+// frame draws the bar over the view, above its status line, while it is
 // open: the query, and why its regular expression does not compile, see
 // inputBox.
-func (s *SearchBar) View() string {
-	base := s.Model.View()
+func (s *SearchBar) View() tea.View { return tea.NewView(s.frame()) }
+
+func (s *SearchBar) frame() string {
+	base := s.Model.View().Content
 	if s.input == nil || s.width == 0 {
 		return base
 	}

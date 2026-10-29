@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -454,7 +454,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if a.open != nil {
-		if k, ok := msg.(tea.KeyMsg); ok && k.String() == "backspace" {
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "backspace" {
 			a.open.updateStats()
 			a.open = nil
 			if a.inLog() && a.single() {
@@ -465,8 +465,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := a.open.view.Update(msg)
 		return a, cmd
 	}
-	if k, ok := msg.(tea.KeyMsg); ok {
-		return a, pressKeys(k, a.key)
+	if k, ok := msg.(tea.KeyPressMsg); ok {
+		return a, a.key(k.String())
 	}
 	return a, nil
 }
@@ -740,12 +740,14 @@ func (a *App) preview(e *entry, height int) string {
 	return box(t, a.width, height, title, lines)
 }
 
-func (a *App) View() string {
+func (a *App) View() tea.View { return tea.NewView(a.frame()) }
+
+func (a *App) frame() string {
 	if a.flowShown() {
-		return a.flow.View()
+		return a.flow.frame()
 	}
 	if a.open != nil {
-		return a.open.view.View()
+		return a.open.view.frame()
 	}
 	if a.width == 0 {
 		return ""

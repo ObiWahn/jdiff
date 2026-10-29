@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -17,7 +17,7 @@ func TestHelpPopup(t *testing.T) {
 	h := WithHelp(config.Default(), a)
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 76}) // room for all bindings
 	pressRoot(h, "?")
-	view := ansi.Strip(h.View())
+	view := ansi.Strip(h.frame())
 	for _, want := range []string{"╭─ keys ─", "Commit list", "File list", "Diff view", "Flow view",
 		"ctrl+space", "next, previous commit"} {
 		if !strings.Contains(view, want) {
@@ -33,7 +33,7 @@ func TestHelpPopup(t *testing.T) {
 		t.Errorf("keys reached the file list: cursor %d open %v", a.cursor, a.open)
 	}
 	pressRoot(h, "esc")
-	if h.open || strings.Contains(ansi.Strip(h.View()), "╭─ keys") {
+	if h.open || strings.Contains(ansi.Strip(h.frame()), "╭─ keys") {
 		t.Errorf("esc did not close the help")
 	}
 	pressRoot(h, "j")
@@ -46,12 +46,12 @@ func TestHelpScrolls(t *testing.T) {
 	h := WithHelp(config.Default(), newTestApp())
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	pressRoot(h, "?")
-	if !strings.Contains(ansi.Strip(h.View()), " 1/") {
-		t.Fatalf("small help lacks its position:\n%s", ansi.Strip(h.View()))
+	if !strings.Contains(ansi.Strip(h.frame()), " 1/") {
+		t.Fatalf("small help lacks its position:\n%s", ansi.Strip(h.frame()))
 	}
 	// From the top, j moves by two: line 1 would only stand behind an arrow.
 	pressRoot(h, "j")
-	if h.top != 2 || !strings.Contains(ansi.Strip(h.View()), " 3/") {
+	if h.top != 2 || !strings.Contains(ansi.Strip(h.frame()), " 3/") {
 		t.Errorf("j: top %d", h.top)
 	}
 	pressRoot(h, "j")
@@ -61,21 +61,6 @@ func TestHelpScrolls(t *testing.T) {
 	pressRoot(h, "G", "k", "k", "k")
 	if h.top != 0 {
 		t.Errorf("k past the top: top %d", h.top)
-	}
-}
-
-func TestHelpInKeyBurst(t *testing.T) {
-	a := newTestApp()
-	h := WithHelp(config.Default(), a)
-	h.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
-	// Runes read together arrive as one message.
-	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j?j")})
-	if a.cursor != 1 || !h.open || h.top != 2 {
-		t.Errorf("j?j: cursor %d, help open %v top %d; want 1, true, 2", a.cursor, h.open, h.top)
-	}
-	h.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?j")})
-	if h.open || a.cursor != 2 {
-		t.Errorf("?j: help open %v cursor %d; want false, 2", h.open, a.cursor)
 	}
 }
 
@@ -90,7 +75,7 @@ func TestSizeGuardWhenTooSmall(t *testing.T) {
 	a := newTestApp()
 	g := WithSizeGuard(a.cfg, a)
 	g.Update(tea.WindowSizeMsg{Width: 15, Height: 3})
-	view := g.View()
+	view := g.frame()
 	if v := ansi.Strip(view); !strings.Contains(v, "too small") || !strings.Contains(v, "15x3, need 20x4") {
 		t.Errorf("15x3: no notice:\n%s", ansi.Strip(view))
 	}
@@ -107,8 +92,8 @@ func TestSizeGuardWhenTooSmall(t *testing.T) {
 	}
 	// Large enough: the page again, sized while it was hidden.
 	g.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if a.width != 80 || strings.Contains(ansi.Strip(g.View()), "too small") {
-		t.Errorf("80x20: page width %d:\n%s", a.width, ansi.Strip(g.View()))
+	if a.width != 80 || strings.Contains(ansi.Strip(g.frame()), "too small") {
+		t.Errorf("80x20: page width %d:\n%s", a.width, ansi.Strip(g.frame()))
 	}
 	pressRoot(g, "j")
 	if a.cursor != 1 {
@@ -169,7 +154,7 @@ func TestNoViewOverflows(t *testing.T) {
 		for _, w := range widths {
 			for _, h := range sizes {
 				g.Update(tea.WindowSizeMsg{Width: w, Height: h})
-				view := g.View()
+				view := g.frame()
 				if n := len(strings.Split(view, "\n")); n > h {
 					t.Errorf("%s at %dx%d: %d lines", v.name, w, h, n)
 				}
@@ -202,7 +187,7 @@ func TestHelpArrowsEverywhere(t *testing.T) {
 			if k != "" {
 				pressRoot(h, k)
 			}
-			got := popupRows(h.View())
+			got := popupRows(h.frame())
 			fail := func(why string) {
 				t.Fatalf("height %d, step %d, top %d: %s\n%q", height, step, h.top, why, got)
 			}

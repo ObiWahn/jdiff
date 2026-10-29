@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -61,14 +61,14 @@ func TestFlowStaysOn(t *testing.T) {
 	if !flowAt(a, 0, -1) {
 		t.Fatalf("f in the list should show the flow on the bar of a.go")
 	}
-	view := ansi.Strip(a.View())
+	view := ansi.Strip(a.frame())
 	for _, want := range []string{"a.go   +2 -2", "new9"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("flow view lacks %q:\n%s", want, view)
 		}
 	}
 	pressApp(a, "n")
-	view = ansi.Strip(a.View())
+	view = ansi.Strip(a.frame())
 	for _, want := range []string{"b.bin   binary", "binary file"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("flow view lacks %q:\n%s", want, view)
@@ -141,7 +141,7 @@ func TestFlowAnchorShared(t *testing.T) {
 	if len(m.anchors) != 1 || !strings.HasPrefix(a.flow.msg, "anchored L10↔R10") {
 		t.Fatalf("anchors %v, msg %q", m.anchors, a.flow.msg)
 	}
-	if !strings.Contains(ansi.Strip(a.View()), "anchors 1") {
+	if !strings.Contains(ansi.Strip(a.frame()), "anchors 1") {
 		t.Errorf("flow status lacks the anchor count")
 	}
 	pressApp(a, "f")
@@ -198,7 +198,7 @@ func TestFlowFoldKeepsScreenRow(t *testing.T) {
 
 // topLines returns the first n lines of the view of m.
 func topLines(m tea.Model, n int) []string {
-	return strings.SplitN(ansi.Strip(m.View()), "\n", n+1)[:n]
+	return strings.SplitN(ansi.Strip(m.View().Content), "\n", n+1)[:n]
 }
 
 func TestFlowHeaderFollowsFile(t *testing.T) {
@@ -215,7 +215,7 @@ func TestFlowHeaderFollowsFile(t *testing.T) {
 
 func TestAppDiffPreview(t *testing.T) {
 	a := newFlowApp() // height 20: 17 rows, 3 for the list, 13 for the box
-	view := ansi.Strip(a.View())
+	view := ansi.Strip(a.frame())
 	lines := strings.Split(view, "\n")
 	if len(lines) != 20 || a.listHeight() != 3 || a.boxHeight() != 13 {
 		t.Fatalf("%d lines, list %d box %d:\n%s", len(lines), a.listHeight(), a.boxHeight(), view)
@@ -226,11 +226,11 @@ func TestAppDiffPreview(t *testing.T) {
 		t.Errorf("preview of a.go:\n%s", view)
 	}
 	pressApp(a, "j")
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "╭─ b.bin ─") || !strings.Contains(view, "│ binary file") {
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "╭─ b.bin ─") || !strings.Contains(view, "│ binary file") {
 		t.Errorf("preview of b.bin:\n%s", view)
 	}
 	pressApp(a, "v")
-	if a.boxHeight() != 0 || a.listHeight() != 17 || strings.Contains(ansi.Strip(a.View()), "╭─") {
+	if a.boxHeight() != 0 || a.listHeight() != 17 || strings.Contains(ansi.Strip(a.frame()), "╭─") {
 		t.Errorf("v should hide the preview: list %d box %d", a.listHeight(), a.boxHeight())
 	}
 }
@@ -257,7 +257,7 @@ func TestAppPreviewScrolls(t *testing.T) {
 			}
 			// first returns the number of the first line in the preview.
 			first := func() int {
-				lines := strings.Split(ansi.Strip(a.View()), "\n")
+				lines := strings.Split(ansi.Strip(a.frame()), "\n")
 				for i, l := range lines {
 					if strings.HasPrefix(l, "╭─ ") {
 						var n int
@@ -304,18 +304,18 @@ func TestAppPreviewOfEmptyFile(t *testing.T) {
 		modified("c.go", []string{"old"}, []string{"new"}),
 	})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "╭─ empty ─") {
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "╭─ empty ─") {
 		t.Errorf("preview of the empty file:\n%s", view)
 	}
 }
 
 func TestFlowAndPreviewLayout(t *testing.T) {
 	a := newFlowApp()
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "+10│ new9") {
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "+10│ new9") {
 		t.Errorf("side by side preview lacks +10│ new9:\n%s", view)
 	}
 	pressApp(a, "s")
-	if view := ansi.Strip(a.View()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
 		t.Errorf("normal preview:\n%s", view)
 	}
 
@@ -358,7 +358,7 @@ func TestFlowHandsOverOnlyItsFile(t *testing.T) {
 	press := func(keys ...string) {
 		for _, k := range keys {
 			pressApp(a, k)
-			a.View() // drawing the flow must not change the diff views
+			a.frame() // drawing the flow must not change the diff views
 		}
 	}
 	press("enter", "f", "j", "j", "l", "l", "f")
@@ -435,8 +435,8 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
 		t.Errorf("flow, r: cursor on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
 	}
-	if !strings.Contains(ansi.Strip(a.View()), "↪") {
-		t.Errorf("flow, r: no wrapped lines:\n%s", ansi.Strip(a.View()))
+	if !strings.Contains(ansi.Strip(a.frame()), "↪") {
+		t.Errorf("flow, r: no wrapped lines:\n%s", ansi.Strip(a.frame()))
 	}
 	pressApp(a, "f") // back to the diff view, still wrapped
 	if m := a.open.view; m.lineAt(right, m.cursor) != 15 || cursorRow(m) != 8 {

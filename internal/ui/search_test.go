@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -161,7 +161,7 @@ func TestSearchBarToggles(t *testing.T) {
 		return string(b)
 	}
 	title := func() string {
-		for _, r := range strings.Split(ansi.Strip(s.View()), "\n") {
+		for _, r := range strings.Split(ansi.Strip(s.frame()), "\n") {
 			if i := strings.Index(r, "╭─ "); i >= 0 {
 				return strings.TrimRight(strings.TrimLeft(r[i+len("╭─ "):], " "), "─╮ ")
 			}
@@ -343,10 +343,10 @@ func newSearchBar(m tea.Model) *SearchBar {
 func TestSearchBar(t *testing.T) {
 	m := newSearchModel()
 	s := newSearchBar(m)
-	status := func() string { v := ansi.Strip(s.View()); return v[strings.LastIndex(v, "\n")+1:] }
+	status := func() string { v := ansi.Strip(s.frame()); return v[strings.LastIndex(v, "\n")+1:] }
 	before := status()
 	pressRoot(s, "/")
-	view := ansi.Strip(s.View())
+	view := ansi.Strip(s.frame())
 	rows := strings.Split(view, "\n")
 	// The bar above the status line, which stays.
 	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines  enter find · tab all · shift+tab regex · esc cancel") ||
@@ -355,8 +355,8 @@ func TestSearchBar(t *testing.T) {
 	}
 	// ? goes into the line, not to the help popup.
 	pressRoot(s, "x3?", "backspace")
-	if !strings.Contains(ansi.Strip(s.View()), "/x3█") {
-		t.Errorf("typed:\n%s", ansi.Strip(s.View()))
+	if !strings.Contains(ansi.Strip(s.frame()), "/x3█") {
+		t.Errorf("typed:\n%s", ansi.Strip(s.frame()))
 	}
 	pressRoot(s, "enter") // in changed lines: the removed x30
 	if s.input != nil || s.cfg.Search.Query != (config.Query{Text: "x3"}) || m.lineAt(m.active, m.cursor) != 30 {
@@ -364,7 +364,7 @@ func TestSearchBar(t *testing.T) {
 	}
 	// A broken regular expression keeps the bar open and says why.
 	pressRoot(s, "/", "shift+tab", "([", "enter")
-	if v := ansi.Strip(s.View()); s.input == nil || !strings.Contains(v, "╭─ regex") || !strings.Contains(v, "missing closing ]") {
+	if v := ansi.Strip(s.frame()); s.input == nil || !strings.Contains(v, "╭─ regex") || !strings.Contains(v, "missing closing ]") {
 		t.Errorf("broken regex:\n%s", v)
 	}
 	pressRoot(s, "backspace", "backspace", "x[12]", "enter")

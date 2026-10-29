@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -129,7 +129,7 @@ func (p *MarksPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		p.width, p.height = msg.Width, msg.Height
 		p.move(0)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if cmd, ok := popupKeys(msg, p.open, "\\", p.key); ok {
 			return p, cmd
 		}
@@ -138,15 +138,11 @@ func (p *MarksPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return p, cmd
 }
 
-// key handles k, pressed as msg, in the popup, or passes msg to the page.
-func (p *MarksPopup) key(k string, msg tea.KeyMsg) tea.Cmd {
+// key handles k in the popup, or opens it on \\.
+func (p *MarksPopup) key(k string) tea.Cmd {
 	if !p.open {
-		if k == "\\" {
-			p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
-			return nil
-		}
-		_, cmd := p.Model.Update(msg)
-		return cmd
+		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
+		return nil
 	}
 	marks := p.cfg.Marks()
 	switch k {
@@ -169,8 +165,8 @@ func (p *MarksPopup) key(k string, msg tea.KeyMsg) tea.Cmd {
 		if p.cursor < len(marks) {
 			// Jump as ' and the letter do on the page.
 			p.open = false
-			p.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("'")})
-			_, cmd := p.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(marks[p.cursor].Letter)})
+			p.Model.Update(runeKey("'"))
+			_, cmd := p.Model.Update(runeKey(marks[p.cursor].Letter))
 			return cmd
 		}
 	}
@@ -189,8 +185,10 @@ func (p *MarksPopup) move(delta int) {
 	p.top = windowAround(p.cursor, p.top, p.boxHeight()-2, n).first
 }
 
-func (p *MarksPopup) View() string {
-	base := p.Model.View()
+func (p *MarksPopup) View() tea.View { return tea.NewView(p.frame()) }
+
+func (p *MarksPopup) frame() string {
+	base := p.Model.View().Content
 	if !p.open || p.width == 0 {
 		return base
 	}

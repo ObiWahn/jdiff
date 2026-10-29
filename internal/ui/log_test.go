@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -77,7 +77,7 @@ func shownFile(l *Log) string {
 
 func TestLogListShowsCommits(t *testing.T) {
 	l, loads := newTestLog()
-	view := ansi.Strip(l.View())
+	view := ansi.Strip(l.frame())
 	for _, want := range []string{"main (4 commits)", "c3", "2026-10-22", "+12 -3", "subject c1"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("log view lacks %q:\n%s", want, view)
@@ -198,7 +198,7 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 	if flowCommitAt(l) != 0 || len(loads) != 1 || loads["c3"] != 1 {
 		t.Fatalf("f: flow at %d, loads %v, want c3 only", flowCommitAt(l), loads)
 	}
-	view := ansi.Strip(l.View())
+	view := ansi.Strip(l.frame())
 	for _, want := range []string{"commit c3 · T · 2026-10-22", "    subject c3", "    body c3", "a.go", "b.go"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("flow view lacks %q:\n%s", want, view)
@@ -209,8 +209,8 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 		t.Errorf("j: loads %v, want c2 loaded as it comes near, c1 not", loads)
 	}
 	pressLog(l, "G")
-	if flowCommitAt(l) != 3 || !strings.Contains(ansi.Strip(l.View()), "cannot load c0") {
-		t.Errorf("G: flow at %d, want c0 with its error:\n%s", flowCommitAt(l), ansi.Strip(l.View()))
+	if flowCommitAt(l) != 3 || !strings.Contains(ansi.Strip(l.frame()), "cannot load c0") {
+		t.Errorf("G: flow at %d, want c0 with its error:\n%s", flowCommitAt(l), ansi.Strip(l.frame()))
 	}
 	for h, n := range loads {
 		if n != 1 {
@@ -333,7 +333,7 @@ func TestLogMessageBox(t *testing.T) {
 	l.commits[0].Body = "first line\nsecond line\nthird line"
 	// Height 12: 9 rows below the branch, 4 for the list, 1 empty, 4 for
 	// the box.
-	view := ansi.Strip(l.View())
+	view := ansi.Strip(l.frame())
 	lines := strings.Split(view, "\n")
 	if len(lines) != 12 || l.listHeight() != 4 || l.boxHeight() != 4 {
 		t.Fatalf("%d lines, list %d box %d:\n%s", len(lines), l.listHeight(), l.boxHeight(), view)
@@ -354,7 +354,7 @@ func TestLogMessageBox(t *testing.T) {
 	// The box shows the selected commit and grows when there is room.
 	pressLog(l, "j")
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	view = ansi.Strip(l.View())
+	view = ansi.Strip(l.frame())
 	if l.listHeight() != 4 || l.boxHeight() != 22 || !strings.Contains(view, "│ subject c2") {
 		t.Errorf("height 30: list %d box %d:\n%s", l.listHeight(), l.boxHeight(), view)
 	}
@@ -377,17 +377,17 @@ func TestLogFileListHeading(t *testing.T) {
 func TestLogPreviewToggleShared(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "v")
-	if l.boxHeight() != 0 || strings.Contains(ansi.Strip(l.View()), "╭─") {
+	if l.boxHeight() != 0 || strings.Contains(ansi.Strip(l.frame()), "╭─") {
 		t.Fatalf("v should hide the message box")
 	}
 	// The file list of a commit follows the same setting.
 	pressLog(l, "enter")
-	if strings.Contains(ansi.Strip(l.View()), "╭─") {
+	if strings.Contains(ansi.Strip(l.frame()), "╭─") {
 		t.Errorf("file list shows a preview after v on the commit list")
 	}
 	pressLog(l, "v")
-	if !strings.Contains(ansi.Strip(l.View()), "╭─ a.go ─") {
-		t.Errorf("v in the file list should show the preview:\n%s", ansi.Strip(l.View()))
+	if !strings.Contains(ansi.Strip(l.frame()), "╭─ a.go ─") {
+		t.Errorf("v in the file list should show the preview:\n%s", ansi.Strip(l.frame()))
 	}
 }
 
@@ -442,7 +442,7 @@ func TestFlowMessageToggle(t *testing.T) {
 		t.Errorf("c: %d header rows, full %v, cursor on %v; want 4, off and the subject",
 			headerRows(), l.cfg.Settings.FullMessages, r)
 	}
-	if strings.Contains(ansi.Strip(l.View()), "body c3") {
+	if strings.Contains(ansi.Strip(l.frame()), "body c3") {
 		t.Errorf("short messages still show the body")
 	}
 	pressLog(l, "c")
@@ -475,7 +475,7 @@ func TestFlowStayInCommit(t *testing.T) {
 			t.Errorf("%s at the end of c3: cursor %d, msg %q; want %d and the warning", k, f.cursor, f.msg, last)
 		}
 	}
-	if !strings.Contains(ansi.Strip(l.View()), "commit 1/4 (C)") {
+	if !strings.Contains(ansi.Strip(l.frame()), "commit 1/4 (C)") {
 		t.Errorf("status lacks (C)")
 	}
 	// N and P still switch; the commit switched to is the one to stay in.
@@ -504,16 +504,16 @@ func TestLogExpandsTabsInCommits(t *testing.T) {
 	}
 	l := NewLog(config.Default(), "main", commits, false, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
-	if line := rawText(l.View(), 60); line != "" {
+	if line := rawText(l.frame(), 60); line != "" {
 		t.Errorf("commit list line with raw text: %q", line)
 	}
 	l.cfg.Settings.Flow = true
 	pressLog(l, "enter")
-	if line := rawText(l.View(), 60); line != "" {
+	if line := rawText(l.frame(), 60); line != "" {
 		t.Errorf("flow line with raw text: %q", line)
 	}
-	if !strings.Contains(ansi.Strip(l.View()), "    body    line") {
-		t.Errorf("body not shown with its tab expanded:\n%s", ansi.Strip(l.View()))
+	if !strings.Contains(ansi.Strip(l.frame()), "    body    line") {
+		t.Errorf("body not shown with its tab expanded:\n%s", ansi.Strip(l.frame()))
 	}
 }
 
@@ -560,7 +560,7 @@ func newCountingLog(fail bool) (*Log, *[][]string) {
 
 // listLine returns the line of the commit list that shows commit short.
 func listLine(l *Log, short string) string {
-	for _, line := range strings.Split(ansi.Strip(l.View()), "\n") {
+	for _, line := range strings.Split(ansi.Strip(l.frame()), "\n") {
 		if strings.HasPrefix(line, " "+short+" ") {
 			return line
 		}
@@ -708,7 +708,7 @@ func TestCommitListArrows(t *testing.T) {
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 8}) // 5 rows
 	shown := func() []string {
 		var out []string
-		for _, r := range viewRows(l.View(), 2, 2+l.listHeight()) {
+		for _, r := range viewRows(l.frame(), 2, 2+l.listHeight()) {
 			if strings.HasPrefix(r, "  ↑") || strings.HasPrefix(r, "  ↓") {
 				out = append(out, r)
 			} else {
@@ -744,7 +744,7 @@ func TestLogFlowBackToFiles(t *testing.T) {
 	if l.flowShown() || l.open == nil || l.open.Hash != "c3" || l.open.app.open != nil || l.open.app.cursor != 1 {
 		t.Fatalf("backspace from the flow: flow %v, open %v; want c3's file list on b.go", l.flowShown(), l.open)
 	}
-	if v := ansi.Strip(l.View()); !strings.Contains(v, "b.go") || !strings.Contains(v, "backspace commits") {
+	if v := ansi.Strip(l.frame()); !strings.Contains(v, "b.go") || !strings.Contains(v, "backspace commits") {
 		t.Errorf("file list view:\n%s", v)
 	}
 	// enter: back into the flow, on the file chosen.
@@ -776,7 +776,7 @@ func TestLogFlowBackToFiles(t *testing.T) {
 func TestStatusBarKeys(t *testing.T) {
 	l, _ := newTestLog()
 	status := func() string {
-		v := ansi.Strip(l.View())
+		v := ansi.Strip(l.frame())
 		return strings.TrimSpace(v[strings.LastIndex(v, "\n")+1:])
 	}
 	l.Update(tea.WindowSizeMsg{Width: 250, Height: 12}) // room for all keys
@@ -825,7 +825,7 @@ func TestCommitListArrowsAllHeights(t *testing.T) {
 			l.Update(tea.WindowSizeMsg{Width: 40, Height: height})
 			what := fmt.Sprintf("commit list, height %d, preview %v", height, preview)
 			h := l.listHeight()
-			rows := func() []string { return viewRows(l.View(), 2, 2+h) }
+			rows := func() []string { return viewRows(l.frame(), 2, 2+h) }
 			shown := checkShown(t, what, rows(), h, len(commits), l.cursor, nil, index)
 			for _, k := range sweepKeys(len(commits)) {
 				pressLog(l, k)
@@ -877,7 +877,7 @@ func TestStatusBarOneColor(t *testing.T) {
 	ansiColors(t)
 	l, _ := newTestLog()
 	hint := l.cfg.Theme.Hint
-	if v := l.View(); !strings.Contains(v, hint.Render("enter open · f flow · v message · d git diff · ? help · q quit")) {
+	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · v message · d git diff · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
 	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {

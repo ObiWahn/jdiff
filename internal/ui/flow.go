@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -115,8 +115,8 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.width, f.height = msg.Width, msg.Height
 			f.relocate() // wrapped lines take other pieces
 		})
-	case tea.KeyMsg:
-		cmd = pressKeys(msg, f.key)
+	case tea.KeyPressMsg:
+		cmd = f.key(msg.String())
 	case findMsg:
 		f.findText(int(msg))
 	}
@@ -185,7 +185,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		default:
 			f.msg = ends(historyDir(k) > 0, "last commit", "first commit")
 		}
-	case "enter", "esc", " ", "ctrl+@":
+	case "enter", "esc", "space", "ctrl+space":
 		f.delegate(k)
 	case "R", "f5":
 		return refreshAll
@@ -813,7 +813,9 @@ func (f *Flow) help() string {
 	return strings.Join(keys, " · ")
 }
 
-func (f *Flow) View() string {
+func (f *Flow) View() tea.View { return tea.NewView(f.frame()) }
+
+func (f *Flow) frame() string {
 	if f.width == 0 {
 		return ""
 	}

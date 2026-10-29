@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -210,8 +210,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		_, cmd := l.open.app.Update(msg)
 		return cmd
 	}
-	if k, ok := msg.(tea.KeyMsg); ok {
-		return pressKeys(k, l.key)
+	if k, ok := msg.(tea.KeyPressMsg); ok {
+		return l.key(k.String())
 	}
 	return nil
 }
@@ -488,12 +488,14 @@ func (l *Log) setMsg(msg string) {
 // maxAuthorWidth caps the author column.
 const maxAuthorWidth = 16
 
-func (l *Log) View() string {
+func (l *Log) View() tea.View { return tea.NewView(l.frame()) }
+
+func (l *Log) frame() string {
 	if l.flowShown() {
-		return l.flow.View()
+		return l.flow.frame()
 	}
 	if l.open != nil {
-		return l.open.app.View()
+		return l.open.app.frame()
 	}
 	if l.width == 0 {
 		return ""

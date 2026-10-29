@@ -292,9 +292,9 @@ func (d *fileDiff) act(k string, at spot, sh shape) (spot, string) {
 		}
 	case "enter":
 		return d.enter(at, sh)
-	case " ":
+	case "space":
 		return d.toggleNearestBlock(at)
-	case "ctrl+@": // ctrl+space
+	case "ctrl+space":
 		return d.toggleAllBlocks(at)
 	}
 	return at, ""
