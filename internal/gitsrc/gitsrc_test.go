@@ -436,9 +436,15 @@ func TestDiffUntracked(t *testing.T) {
 	write("a.txt", "changed\n")
 	write("x0", "new 0\n")
 	write("sub/x1", "new 1\n")
-	write("x*2", "new 2\n") // a pathspec, if taken for one, would match x0 too
 	write(".gitignore", "*.log\n")
 	write("i.log", "ignored\n")
+	want := []string{".gitignore", "a.txt", "sub/x1", "x0"}
+	// A pathspec, if taken for one, would also add the broken link below.
+	// Windows forbids * in file names.
+	if runtime.GOOS != "windows" {
+		write("broken*", "new 2\n")
+		want = []string{".gitignore", "a.txt", "broken*", "sub/x1", "x0"}
+	}
 	// Left out: they cannot be shown, and must not fail the others.
 	if err := os.Symlink("nowhere", filepath.Join(r.Dir, "broken")); err != nil {
 		t.Fatal(err)
@@ -461,7 +467,6 @@ func TestDiffUntracked(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{".gitignore", "a.txt", "sub/x1", "x*2", "x0"}
 	for _, args := range [][]string{nil, {"HEAD"}} {
 		files := diff(args...)
 		if got := paths(files); !slices.Equal(got, want) {
