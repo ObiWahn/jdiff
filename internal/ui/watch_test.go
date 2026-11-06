@@ -412,3 +412,19 @@ func TestStaleTickDropped(t *testing.T) {
 		}
 	}
 }
+
+func TestWatchDropsAnchors(t *testing.T) {
+	m, dir := newWatchedModel(t, numbered("x", 30), numbered("x", 30))
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	m.fileDiff.addAnchor(diff.Anchor{Left: 10, Right: 10}, right, shape{})
+	m.fileDiff.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
+	m.realign()
+	lines := numbered("x", 30)
+	lines[10], lines[20] = "changed10", "changed20"
+	writeLines(t, filepath.Join(dir, "new.txt"), lines)
+	m.Update(watchTickMsg{})
+	if len(m.anchors) != 0 || m.msg != "new.txt reloaded, 2 anchors dropped" {
+		t.Errorf("both anchored lines changed: anchors %v, msg %q", m.anchors, m.msg)
+	}
+}

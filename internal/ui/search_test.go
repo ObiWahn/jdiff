@@ -409,3 +409,49 @@ func TestSearchInAppReachesView(t *testing.T) {
 		t.Errorf("search from the file list's diff view: on %v line %d", v.active, v.lineAt(v.active, v.cursor))
 	}
 }
+
+func TestSearchBarPaste(t *testing.T) {
+	m := newSearchModel()
+	s := newSearchBar(m)
+	s.Update(tea.PasteMsg{Content: "x3"})
+	if s.input != nil || s.cfg.Search.Query != (config.Query{}) {
+		t.Fatalf("pasted with the bar closed: %+v, %+v", s.input, s.cfg.Search.Query)
+	}
+	pressRoot(s, "/")
+	s.Update(tea.PasteMsg{Content: "x"})
+	s.Update(tea.PasteMsg{Content: "3"})
+	if !strings.Contains(ansi.Strip(s.frame()), "/x3█") {
+		t.Errorf("pasted:\n%s", ansi.Strip(s.frame()))
+	}
+	pressRoot(s, "enter")
+	if s.cfg.Search.Query != (config.Query{Text: "x3"}) || m.lineAt(m.active, m.cursor) != 30 {
+		t.Errorf("enter: search %+v, cursor line %d", s.cfg.Search.Query, m.lineAt(m.active, m.cursor))
+	}
+}
+
+// Text with line ends, as a selection of several lines, leaves the bar in one
+// line and the frame in its height.
+func TestSearchBarPasteLines(t *testing.T) {
+	s := newSearchBar(newSearchModel())
+	want := strings.Count(s.frame(), "\n")
+	pressRoot(s, "/")
+	s.Update(tea.PasteMsg{Content: "x0\nx1\tx2\r\n"})
+	if got := strings.Count(s.frame(), "\n"); got != want {
+		t.Errorf("%d rows, want %d:\n%s", got+1, want+1, ansi.Strip(s.frame()))
+	}
+	if line := rawText(s.frame(), 80); line != "" {
+		t.Errorf("raw text in the frame: %q", line)
+	}
+}
+
+func TestFlowSearchAgainWithoutQuery(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f", nextKey)
+	if a.flow.msg != "nothing searched yet: / searches" {
+		t.Errorf("%s: msg %q", nextKey, a.flow.msg)
+	}
+	pressApp(a, "j", prevKey)
+	if a.flow.msg != "nothing searched yet: / searches" {
+		t.Errorf("%s: msg %q", prevKey, a.flow.msg)
+	}
+}

@@ -912,3 +912,85 @@ func TestUntrackedOutsideGitDiff(t *testing.T) {
 		t.Errorf("log: setting %v, msg %q", l.cfg.Settings.Untracked, l.msg)
 	}
 }
+
+func TestRefreshedMessage(t *testing.T) {
+	for _, c := range []struct {
+		added, gone, changed, dropped int
+		want                          string
+	}{
+		{0, 0, 0, 0, "nothing changed"},
+		{1, 0, 0, 0, "1 new"},
+		{0, 2, 0, 0, "2 gone"},
+		{0, 0, 3, 0, "3 changed"},
+		{0, 0, 1, 1, "1 changed, 1 anchor dropped"},
+		{0, 0, 1, 2, "1 changed, 2 anchors dropped"},
+		{1, 2, 3, 4, "1 new, 2 gone, 3 changed, 4 anchors dropped"},
+	} {
+		if got := refreshed(c.added, c.gone, c.changed, c.dropped); got != c.want {
+			t.Errorf("refreshed(%d, %d, %d, %d) = %q, want %q", c.added, c.gone, c.changed, c.dropped, got, c.want)
+		}
+	}
+}
+
+func TestAppRelistDropsAnchors(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	pressApp(a, "enter")
+	a.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
+	a.open.view.addAnchor(diff.Anchor{Left: 8, Right: 7}, right, shape{})
+	changed := numbered("x", 10)[1:]
+	changed[4] = "changed4"
+	files = []source.File{{Path: "a.go", Old: numbered("x", 10), New: changed, InOld: true, InNew: true}, files[1], files[2]}
+	pressApp(a, "R")
+	if m := a.open.view; m.msg != "1 changed, 1 anchor dropped" || len(m.anchors) != 1 {
+		t.Errorf("one anchored line changed: msg %q, anchors %v", m.msg, m.anchors)
+	}
+}
+
+// Pasted text goes into the line while the popup asks, also clearing why git
+// failed, and to the view otherwise.
+func TestDiffSwitchPaste(t *testing.T) {
+	s, g := newDiffSwitch(newTestApp())
+	s.Update(tea.PasteMsg{Content: "x0"})
+	if s.input != nil {
+		t.Fatalf("pasted with the popup closed: %q", s.input.text)
+	}
+	pressRoot(s, "d")
+	s.Update(tea.PasteMsg{Content: "x0 "})
+	s.Update(tea.PasteMsg{Content: "x1"})
+	if s.input == nil || s.input.text != "x0 x1" {
+		t.Fatalf("pasted: %+v", s.input)
+	}
+	g.err = errors.New("x2")
+	pressRoot(s, "enter")
+	if s.err != "x2" {
+		t.Fatalf("git failed: err %q", s.err)
+	}
+	s.Update(tea.PasteMsg{Content: "x3"})
+	if s.err != "" || s.input.text != "x0 x1x3" {
+		t.Errorf("pasted after the failure: err %q, line %q", s.err, s.input.text)
+	}
+}
+
+func TestLineInputEdit(t *testing.T) {
+	for _, c := range []struct{ text, key, want string }{
+		{"x0 x1", "ctrl+w", "x0 "},
+		{"x0 x1  ", "ctrl+w", "x0 "},
+		{"x0  x1", "ctrl+w", "x0  "},
+		{"x0", "ctrl+w", ""},
+		{"  ", "ctrl+w", ""},
+		{"", "ctrl+w", ""},
+		{"äö üß", "ctrl+w", "äö "},
+		{"x0 x1", "ctrl+u", ""},
+		{"", "ctrl+u", ""},
+		{"xä", "backspace", "x"},
+		{"", "backspace", ""},
+	} {
+		in := &lineInput{text: c.text}
+		in.edit(keyMsg(c.key))
+		if in.text != c.want {
+			t.Errorf("%s on %q: %q, want %q", c.key, c.text, in.text, c.want)
+		}
+	}
+}

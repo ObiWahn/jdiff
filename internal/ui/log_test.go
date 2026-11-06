@@ -884,3 +884,27 @@ func TestStatusBarOneColor(t *testing.T) {
 		t.Errorf("popup title %q", got)
 	}
 }
+
+func TestLogFlowOffInCommits(t *testing.T) {
+	l, _ := newTestLog()
+	pressLog(l, "f", "n", "backspace", "backspace")
+	if l.open != nil || !l.cfg.Settings.Flow {
+		t.Fatalf("backspace twice: open %v, flow %v; want the commits with flow on", l.open, l.cfg.Settings.Flow)
+	}
+	pressLog(l, "f")
+	if l.cfg.Settings.Flow || l.msg != "flow off" || l.open != nil {
+		t.Errorf("f: flow %v, msg %q, open %v; want the commits with flow off", l.cfg.Settings.Flow, l.msg, l.open)
+	}
+}
+
+func TestLogFlowFromFileList(t *testing.T) {
+	l, _ := newTestLog() // c3: a.go, b.go
+	pressLog(l, "enter", "j")
+	if l.open == nil || l.open.app.open != nil || l.open.app.cursor != 1 {
+		t.Fatalf("enter j: open %v; want c3's file list on b.go", l.open)
+	}
+	pressLog(l, "f")
+	if _, file, _ := l.flow.position(); !l.flowShown() || file != 1 {
+		t.Errorf("f: flow %v on file %d, want the flow on b.go", l.flowShown(), file)
+	}
+}

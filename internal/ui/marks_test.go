@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -330,5 +332,214 @@ func TestMarksPopupArrowsSweep(t *testing.T) {
 				shown = checkShown(t, what+", "+k, popupRows(p.frame()), h, n, p.cursor, shown, index)
 			}
 		})
+	}
+}
+
+func TestRepoPath(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := filepath.Join(dir, "repo")
+	for _, c := range []struct {
+		name, repo, file, want string
+	}{
+		{"in the repository", repo, filepath.Join(repo, "x0"), "x0"},
+		{"in a directory of it", repo, filepath.Join(repo, "d0", "x0"), "d0/x0"},
+		{"a name starting with two dots", repo, filepath.Join(repo, "..x0"), "..x0"},
+		{"the repository itself", repo, repo, "."},
+		{"above it", repo, dir, dir},
+		{"beside it", repo, filepath.Join(dir, "other", "x0"), filepath.Join(dir, "other", "x0")},
+		{"its name a prefix", repo, filepath.Join(dir, "repo2", "x0"), filepath.Join(dir, "repo2", "x0")},
+		{"no repository", "", filepath.Join(repo, "x0"), filepath.Join(repo, "x0")},
+	} {
+		if got := repoPath(c.repo, c.file); got != c.want {
+			t.Errorf("%s: repoPath(%q, %q) = %q, want %q", c.name, c.repo, c.file, got, c.want)
+		}
+	}
+	// Relative to the current directory.
+	t.Chdir(dir)
+	if got, want := repoPath(repo, filepath.Join("repo", "x0")), "x0"; got != want {
+		t.Errorf("relative: %q, want %q", got, want)
+	}
+	if got, want := repoPath("", "x0"), filepath.Join(dir, "x0"); got != want {
+		t.Errorf("relative, no repository: %q, want %q", got, want)
+	}
+}
+
+// The repository as git names it, without symlinks: a file reached through a
+// link to it is in it.
+func TestRepoPathThroughSymlink(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, link := filepath.Join(dir, "repo"), filepath.Join(dir, "link")
+	if err := os.Mkdir(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(repo, link); err != nil {
+		t.Skip(err) // on Windows it takes a privilege
+	}
+	writeLines(t, filepath.Join(repo, "x0"), []string{"x0"})
+	if got := repoPath(repo, filepath.Join(link, "x0")); got != "x0" {
+		t.Errorf("through a link: %q, want x0", got)
+	}
+}
+
+// A mark set in the diff of two files is kept relative to the repository, so
+// that it is found again from any directory.
+func TestWatchedMarkIsRelativeToRepo(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := source.File{Path: "x0", OldFile: filepath.Join(dir, "x0"), NewFile: filepath.Join(dir, "d0", "x0"),
+		New: numbered("x", 3), Old: numbered("x", 3), InOld: true, InNew: true}
+	cfg := polling()
+	cfg.LoadMarks(dir)
+	m := NewWatched(cfg, f)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	press(m, "ctrl+space")
+	moveTo(t, m, right, 2)
+	press(m, "m", "a")
+	if mk, ok := cfg.Mark("a"); !ok || mk != (config.Mark{Path: "d0/x0", Line: 3, Text: "x2"}) {
+		t.Errorf("mark a = %+v, %v", mk, ok)
+	}
+	if m.msg != "mark a: d0/x0:3" {
+		t.Errorf("msg %q", m.msg)
+	}
+	press(m, "g", "'", "a")
+	if m.lineAt(right, m.cursor) != 2 || m.msg != "mark a" {
+		t.Errorf("' a: right line %d, msg %q", m.lineAt(right, m.cursor), m.msg)
+	}
+}
+
+func TestIsMarkLetter(t *testing.T) {
+	for k, want := range map[string]bool{
+		"a": true, "z": true, "A": true, "Z": true,
+		"": false, "0": false, "@": false, "[": false, "`": false, "{": false, "ä": false, "ab": false, "enter": false,
+	} {
+		if got := isMarkLetter(k); got != want {
+			t.Errorf("isMarkLetter(%q) = %v", k, got)
+		}
+	}
+}
+
+func TestMarkOnEmptyNewFile(t *testing.T) {
+	m := newTestModel([]string{"x0"}, nil)
+	if err := m.cfg.SetMark("a", config.Mark{Path: "new", Line: 1, Text: "x0"}); err != nil {
+		t.Fatal(err)
+	}
+	press(m, "'", "a")
+	if m.msg != "mark a: the new file is empty" {
+		t.Errorf("' a: msg %q", m.msg)
+	}
+}
+
+func TestMarkMessagesInList(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "'", "q")
+	if a.msg != "no mark q" || a.open != nil {
+		t.Errorf("' q: msg %q, open %v", a.msg, a.open)
+	}
+	if err := a.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	pressApp(a, "'", "z")
+	if a.msg != "mark z: x0 is not in this diff" || a.open != nil {
+		t.Errorf("' z: msg %q, open %v", a.msg, a.open)
+	}
+}
+
+func TestFlowMarkMessages(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f")
+	if !flowAt(a, 0, -1) {
+		t.Fatal("not on the file bar of a.go")
+	}
+	// On the file bar there is no line to mark, and a non-letter is no mark.
+	pressApp(a, "m", "a")
+	if _, ok := a.cfg.Mark("a"); ok || a.flow.msg != "no line of the new file here" {
+		t.Errorf("m a on the file bar: msg %q", a.flow.msg)
+	}
+	pressApp(a, "j", "m", "1")
+	if _, ok := a.cfg.Mark("1"); ok || a.flow.msg != "" {
+		t.Errorf("m 1: msg %q, want no mark and no message", a.flow.msg)
+	}
+	pressApp(a, "'", "q")
+	if a.flow.msg != "no mark q" {
+		t.Errorf("' q: msg %q", a.flow.msg)
+	}
+	if err := a.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	pressApp(a, "'", "z")
+	if a.flow.msg != "mark z: x0 is not in this diff" {
+		t.Errorf("' z: msg %q", a.flow.msg)
+	}
+	// In a file of the diff the cursor goes to the line.
+	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	pressApp(a, "'", "c")
+	if !flowAt(a, 2, a.flow.rows[a.flow.cursor].line) || a.flow.msg != "mark c" {
+		_, f, _ := a.flow.position()
+		t.Errorf("' c: on file %d, msg %q; want c.go", f, a.flow.msg)
+	}
+}
+
+func TestFlowMarkOnEmptyNewFile(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		{Path: "x0", Old: []string{"x0"}, InOld: true},
+		modified("x1", []string{"x1"}, []string{"x2"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if err := a.cfg.SetMark("a", config.Mark{Path: "x0", Line: 1, Text: "x0"}); err != nil {
+		t.Fatal(err)
+	}
+	pressApp(a, "f", "'", "a")
+	if a.flow.msg != "mark a: the new file is empty" {
+		t.Errorf("' a: msg %q", a.flow.msg)
+	}
+}
+
+func TestMarksPopupJumpsInFlow(t *testing.T) {
+	a := newFlowApp()
+	p := WithMarks(a.cfg, a)
+	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	pressRoot(p, "f", "\\", "enter")
+	if _, file, line := a.flow.position(); !a.flowShown() || file != 2 || line < 0 || a.flow.msg != "mark c" {
+		t.Errorf("enter on a mark in c.go: flow %v, file %d, line %d, msg %q", a.flowShown(), file, line, a.flow.msg)
+	}
+}
+
+func TestFlowMarkInCommitNotLoaded(t *testing.T) {
+	l, _ := newTestLog() // the oldest commit, c0, cannot be loaded
+	if err := l.cfg.SetMark("a", config.Mark{Path: "a.go", Line: 1, Text: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	pressLog(l, "f", "G", "'", "a")
+	if r := l.flow.rows[l.flow.cursor]; l.flow.parts[r.part].app != nil || l.flow.msg != "mark a: a.go is not in this diff" {
+		t.Errorf("' a in c0: row %+v, msg %q", r, l.flow.msg)
+	}
+}
+
+// From the file list with flow on, a mark opens the flow view at its line.
+func TestMarkFromListOpensFlow(t *testing.T) {
+	a := newFlowApp()
+	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	pressApp(a, "f", "backspace")
+	if a.open != nil {
+		t.Fatalf("backspace: open %v, want the list", a.open)
+	}
+	pressApp(a, "'", "c")
+	if _, file, line := a.flow.position(); !a.flowShown() || file != 2 || line < 0 || a.flow.msg != "mark c" {
+		t.Errorf("' c: flow %v, file %d, line %d, msg %q", a.flowShown(), file, line, a.flow.msg)
 	}
 }

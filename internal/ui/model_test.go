@@ -42,6 +42,7 @@ var keyCodes = map[string]rune{
 	"enter": tea.KeyEnter, "tab": tea.KeyTab, "esc": tea.KeyEsc, "backspace": tea.KeyBackspace,
 	"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "f5": tea.KeyF5, "up": tea.KeyUp,
 	"down": tea.KeyDown, "space": tea.KeySpace, "delete": tea.KeyDelete, "f8": tea.KeyF8,
+	"left": tea.KeyLeft, "right": tea.KeyRight,
 }
 
 // keyMsg returns the key press named k, with ctrl+ or shift+ before a
@@ -1278,5 +1279,136 @@ func TestFlowMarkPromptStays(t *testing.T) {
 	pressApp(a, "k")
 	if strings.Contains(view(), "marked ") {
 		t.Errorf("mark cancelled, k:\n%s", view())
+	}
+}
+
+func TestScrollsSideways(t *testing.T) {
+	m := newTestModel([]string{"x0"}, []string{"x1"})
+	for _, c := range []struct {
+		key  string
+		want int
+	}{{"l", 8}, {"right", 16}, {"h", 8}, {"left", 0}, {"h", 0}} {
+		press(m, c.key)
+		if m.xoff != c.want {
+			t.Errorf("%s: xoff %d, want %d", c.key, m.xoff, c.want)
+		}
+	}
+}
+
+func TestChangesBothWays(t *testing.T) {
+	a, b := numbered("x", 30), numbered("x", 30)
+	b[5], b[20] = "new5", "new20"
+	m := newTestModel(a, b)
+	m.cfg.Settings.CollapseUnchanged = false
+	m.realign()
+	for _, c := range []struct {
+		key  string
+		want int
+		msg  string
+	}{
+		{"]", 5, ""},
+		{"]", 20, ""},
+		{"]", 20, "no more changes"},
+		{"[", 5, ""},
+		{"[", 5, "no more changes"},
+	} {
+		press(m, c.key)
+		if got := m.lineAt(right, m.cursor); got != c.want || m.msg != c.msg {
+			t.Errorf("%s: right line %d, msg %q; want %d, msg %q", c.key, got, m.msg, c.want, c.msg)
+		}
+	}
+}
+
+// newReplacePrompt gives m, of two files of 4 lines, an anchor, a mark on left
+// line 3 and the cursor on right line 0: enter there crosses the anchor.
+func newReplacePrompt(t *testing.T, m *Model) {
+	t.Helper()
+	m.anchors = []diff.Anchor{{Left: 1, Right: 2}}
+	m.realign()
+	moveTo(t, m, left, 3)
+	press(m, "enter")
+	moveTo(t, m, right, 0)
+}
+
+// Any key but enter and esc ends the question, and does what it does.
+func TestOtherKeyCancelsReplace(t *testing.T) {
+	m := newTestModel([]string{"1", "2", "3", "4"}, []string{"w", "x", "y", "z"})
+	newReplacePrompt(t, m)
+	press(m, "enter")
+	if m.replace == nil {
+		t.Fatalf("no replace prompt: msg %q", m.msg)
+	}
+	before := m.cursor
+	press(m, "j")
+	if m.replace != nil || m.msg != "" || m.cursor != before+1 {
+		t.Errorf("j: replace %v, msg %q, cursor %d; want the question gone, the cursor moved from %d", m.replace, m.msg, m.cursor, before)
+	}
+	if want := []diff.Anchor{{Left: 1, Right: 2}}; !slices.Equal(m.anchors, want) {
+		t.Errorf("anchors %v, want %v", m.anchors, want)
+	}
+}
+
+func TestFlowOtherKeyCancelsReplace(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		modified("x0", []string{"1", "2", "3", "4"}, []string{"w", "x", "y", "z"}),
+		modified("x1", []string{"x"}, []string{"y"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "enter")
+	m := a.open.view
+	newReplacePrompt(t, m)
+	pressApp(a, "f", "enter")
+	if a.flow.replacing == nil || m.replace == nil {
+		t.Fatalf("no replace prompt in the flow: msg %q", a.flow.msg)
+	}
+	pressApp(a, "j")
+	if a.flow.replacing != nil || m.replace != nil || a.flow.msg != "" {
+		t.Errorf("j: replacing %v, replace %v, msg %q; want the question gone", a.flow.replacing, m.replace, a.flow.msg)
+	}
+	if want := []diff.Anchor{{Left: 1, Right: 2}}; !slices.Equal(m.anchors, want) {
+		t.Errorf("anchors %v, want %v", m.anchors, want)
+	}
+}
+
+// q quits where it is no text and closes no popup, ctrl+c everywhere.
+func TestQuitKeys(t *testing.T) {
+	model := func() tea.Model { return newTestModel([]string{"x0"}, []string{"x1"}) }
+	commits := func() tea.Model { l, _ := newTestLog(); return l }
+	files := func() tea.Model { return newFlowApp() }
+	help := func() tea.Model { return WithHelp(config.Default(), model()) }
+	marks := func() tea.Model { return WithMarks(config.Default(), model()) }
+	search := func() tea.Model { return newSearchBar(model()) }
+	ask := func() tea.Model { s, _ := newDiffSwitch(files()); return s }
+	for _, c := range []struct {
+		name string
+		page func() tea.Model
+		open string
+		q    bool // q quits too
+	}{
+		{"diff view", model, "", true},
+		{"file list", files, "", true},
+		{"file flow", files, "f", true},
+		{"commits", commits, "", true},
+		{"commit flow", commits, "f", true},
+		{"help", help, "?", false},
+		{"marks", marks, "\\", false},
+		{"search bar", search, "/", false},
+		{"git diff popup", ask, "d", false},
+	} {
+		for key, want := range map[string]bool{"q": c.q, "ctrl+c": true} {
+			m := c.page()
+			m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			if c.open != "" {
+				pressRoot(m, c.open)
+			}
+			_, cmd := m.Update(keyMsg(key))
+			got := false
+			if cmd != nil {
+				_, got = cmd().(tea.QuitMsg)
+			}
+			if got != want {
+				t.Errorf("%s: %s quits: %v, want %v", c.name, key, got, want)
+			}
+		}
 	}
 }

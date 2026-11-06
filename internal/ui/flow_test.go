@@ -519,3 +519,102 @@ func TestFlowLineEndTakesPieceWhenWrapped(t *testing.T) {
 		t.Errorf("w with wrapped lines: %d flow rows, %d before; want one more for the full line's ¶", len(a.flow.rows), before)
 	}
 }
+
+// newFlowSearch returns the flow view of newFlowApp, on its file bar, with
+// new searched for: lines 10 and 25 of a.go and line 2 of c.go.
+func newFlowSearch() *App {
+	a := newFlowApp()
+	a.cfg.Search.Query = config.Query{Text: "new"}
+	pressApp(a, "f")
+	return a
+}
+
+func TestFlowSearchAgainBothWays(t *testing.T) {
+	a := newFlowSearch()
+	at := func() string {
+		_, file, line := a.flow.position()
+		d := a.flow.parts[0].app.files[file].diff
+		return fmt.Sprintf("file %d: %s", file, d.lines[right][d.lineAt(right, line)])
+	}
+	for _, c := range []struct{ key, want, msg string }{
+		{nextKey, "file 0: new9", "/new: match 1/3 · . next · , previous"},
+		{nextKey, "file 0: new24", "/new: match 2/3 · . next · , previous"},
+		{nextKey, "file 2: new", "/new: match 3/3 · . next · , previous"},
+		{nextKey, "file 2: new", "/new: no match further down"},
+		{prevKey, "file 0: new24", "/new: match 2/3 · . next · , previous"},
+		{prevKey, "file 0: new9", "/new: match 1/3 · . next · , previous"},
+		{prevKey, "file 0: new9", "/new: no match further up"},
+	} {
+		pressApp(a, c.key)
+		if got := at(); got != c.want || a.flow.msg != c.msg {
+			t.Errorf("%s: on %q, msg %q; want %q, msg %q", c.key, got, a.flow.msg, c.want, c.msg)
+		}
+	}
+}
+
+// Enter in the search bar finds the text in the flow view, as . does.
+func TestFlowSearchFromBar(t *testing.T) {
+	a := newFlowApp()
+	s := WithSearch(a.cfg, a)
+	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(s, "f", "/", "new24", "enter")
+	_, file, line := a.flow.position()
+	d := a.flow.parts[0].app.files[file].diff
+	if file != 0 || d.lines[right][d.lineAt(right, line)] != "new24" {
+		t.Errorf("enter: file %d, row %d, msg %q; want new24 in a.go", file, line, a.flow.msg)
+	}
+}
+
+func TestFlowScrollsSideways(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f")
+	for _, c := range []struct {
+		key  string
+		want int
+	}{{"l", 8}, {"right", 16}, {"h", 8}, {"left", 0}, {"h", 0}} {
+		pressApp(a, c.key)
+		if a.flow.xoff != c.want {
+			t.Errorf("%s: xoff %d, want %d", c.key, a.flow.xoff, c.want)
+		}
+	}
+}
+
+func TestFlowOffInList(t *testing.T) {
+	a := newFlowApp()
+	pressApp(a, "f", "backspace")
+	if a.open != nil || !a.cfg.Settings.Flow {
+		t.Fatalf("backspace: open %v, flow %v; want the list with flow on", a.open, a.cfg.Settings.Flow)
+	}
+	pressApp(a, "f")
+	if a.cfg.Settings.Flow || a.msg != "flow off" || a.open != nil {
+		t.Errorf("f: flow %v, msg %q, open %v; want the list with flow off", a.cfg.Settings.Flow, a.msg, a.open)
+	}
+}
+
+// Without files there is nothing to show in the flow, only the toggle to keep.
+func TestFlowOnWithoutFiles(t *testing.T) {
+	a := NewApp(config.Default(), nil)
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if a.msg != "no changed files" {
+		t.Errorf("msg %q", a.msg)
+	}
+	pressApp(a, "f")
+	if !a.cfg.Settings.Flow || a.flowShown() {
+		t.Errorf("f: flow %v, shown %v; want the toggle on and nothing shown", a.cfg.Settings.Flow, a.flowShown())
+	}
+	if v := ansi.Strip(a.frame()); !strings.Contains(v, "0 files changed") {
+		t.Errorf("view:\n%s", v)
+	}
+}
+
+// d asks for the arguments of git diff from the flow views too.
+func TestFlowAsksForDiff(t *testing.T) {
+	log, _ := newTestLog()
+	for name, view := range map[string]tea.Model{"files": newFlowApp(), "log": log} {
+		s, _ := newDiffSwitch(view)
+		pressRoot(s, "f", "d")
+		if s.input == nil {
+			t.Errorf("%s: d in the flow does not ask", name)
+		}
+	}
+}

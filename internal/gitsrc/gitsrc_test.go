@@ -562,3 +562,84 @@ func TestDiffUntrackedNoCommits(t *testing.T) {
 		t.Error("an index appeared in the repository")
 	}
 }
+
+func TestFilesDeletedFile(t *testing.T) {
+	r := newRepo(t)
+	gitIn(t, r.Dir, "rm", "-q", "a.txt")
+	gitIn(t, r.Dir, "commit", "-qm", "delete")
+	commits, err := r.Log([]string{"-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.Files(commits[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Path != "a.txt" || !files[0].InOld || files[0].InNew ||
+		!slices.Equal(files[0].Old, []string{"one", "2", "three"}) || files[0].New != nil {
+		t.Errorf("files = %+v, want a.txt deleted, with its lines", files)
+	}
+}
+
+// A submodule has no blob to read: it is listed like a binary file.
+func TestFilesSubmodule(t *testing.T) {
+	r := newRepo(t)
+	const commit = "1111111111111111111111111111111111111111"
+	gitIn(t, r.Dir, "update-index", "--add", "--cacheinfo", "160000,"+commit+",sub")
+	gitIn(t, r.Dir, "commit", "-qm", "add a submodule")
+	commits, err := r.Log([]string{"-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.Files(commits[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Path != "sub" || !files[0].Binary || files[0].InOld || !files[0].InNew {
+		t.Errorf("files = %+v, want sub, added, as binary", files)
+	}
+}
+
+func TestDiffBinaryInWorkingTree(t *testing.T) {
+	r := newRepo(t)
+	path := filepath.Join(r.Dir, "a.txt")
+	if err := os.WriteFile(path, []byte("one\x00\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.Diff(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Path != "a.txt" || !files[0].Binary || files[0].NewFile != path {
+		t.Errorf("files = %+v, want a.txt as binary, its working copy watched", files)
+	}
+}
+
+// A file with conflicts is listed once, with what the working tree holds, and
+// not again for its entry without contents, of status U.
+func TestDiffUnmerged(t *testing.T) {
+	r := newRepo(t)
+	path := filepath.Join(r.Dir, "a.txt")
+	gitIn(t, r.Dir, "checkout", "-qb", "other", "HEAD~1")
+	if err := os.WriteFile(path, []byte("one\nother\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, r.Dir, "commit", "-qam", "other")
+	gitIn(t, r.Dir, "checkout", "-q", "main")
+	if err := os.WriteFile(path, []byte("one\nmain\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, r.Dir, "commit", "-qam", "main")
+	cmd := exec.Command("git", "-c", "user.name=T", "-c", "user.email=t@example.com", "merge", "other")
+	cmd.Dir = r.Dir
+	if out, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("the merge has no conflict:\n%s", out)
+	}
+	files, err := r.Diff(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Path != "a.txt" || files[0].NewFile != path || !slices.Contains(files[0].New, "=======") {
+		t.Errorf("files = %+v, want a.txt once, with the conflict markers", files)
+	}
+}

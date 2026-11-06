@@ -2,6 +2,8 @@ package theme
 
 import (
 	"image/color"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -232,5 +234,72 @@ func TestSearchStyle(t *testing.T) {
 	th := Resolve(FromGit(Config{"jdiff.search-style": "reverse bright-magenta"}, nil))
 	if !th.Search.GetReverse() || th.Search.GetForeground() != lipgloss.Color("13") {
 		t.Errorf("jdiff.search-style: %v", th.Search.GetForeground())
+	}
+}
+
+func TestParseStyleAttributes(t *testing.T) {
+	for _, c := range []struct {
+		word string
+		set  func(lipgloss.Style) bool
+	}{
+		{"bold", lipgloss.Style.GetBold},
+		{"dim", lipgloss.Style.GetFaint},
+		{"italic", lipgloss.Style.GetItalic},
+		{"ul", lipgloss.Style.GetUnderline},
+		{"underline", lipgloss.Style.GetUnderline},
+		{"blink", lipgloss.Style.GetBlink},
+		{"reverse", lipgloss.Style.GetReverse},
+		{"strike", lipgloss.Style.GetStrikethrough},
+	} {
+		st, err := ParseStyle(c.word, nil)
+		if err != nil {
+			t.Errorf("ParseStyle(%q): %v", c.word, err)
+			continue
+		}
+		if !c.set(st) {
+			t.Errorf("ParseStyle(%q) does not set it", c.word)
+		}
+		if c.set(lipgloss.NewStyle()) {
+			t.Errorf("%s is set without being asked for", c.word)
+		}
+	}
+	st, err := ParseStyle("dim italic blink strike red", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.GetFaint() || !st.GetItalic() || !st.GetBlink() || !st.GetStrikethrough() || st.GetForeground() != lipgloss.Color("1") {
+		t.Errorf("several attributes: %+v", st)
+	}
+}
+
+func TestReadGitConfig(t *testing.T) {
+	t.Chdir(t.TempDir()) // outside any repository
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	if err := os.WriteFile(global, []byte("[user]\n\tname = x0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// git fails when no entry matches.
+	if cfg := ReadGitConfig(); len(cfg) != 0 {
+		t.Errorf("no matching entries: %v", cfg)
+	}
+	if err := os.WriteFile(global, []byte("[user]\n\tname = x0\n[delta]\n\tfeatures = F0\n[delta \"F0\"]\n\tminus-style = red\n[jdiff]\n\tx1 = x2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := ReadGitConfig()
+	want := Config{"delta.features": "F0", "delta.F0.minus-style": "red", "jdiff.x1": "x2"}
+	if len(cfg) != len(want) {
+		t.Fatalf("cfg = %v, want %v", cfg, want)
+	}
+	for k, v := range want {
+		if cfg[k] != v {
+			t.Errorf("cfg[%q] = %q, want %q", k, cfg[k], v)
+		}
+	}
+	// Without git: the defaults.
+	t.Setenv("PATH", "")
+	if cfg := ReadGitConfig(); len(cfg) != 0 {
+		t.Errorf("without git: %v", cfg)
 	}
 }
