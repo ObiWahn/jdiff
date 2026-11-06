@@ -153,6 +153,9 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 
 | Key | Action |
 |---|---|
+| `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
+| `esc` | cancel the mark |
+| `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `j` `k` | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
 | `g` `G` | top, bottom |
@@ -160,10 +163,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `]` `[` | next, previous change |
 | `n` `p` | next, previous file |
 | `N` `P` | next, previous commit in history (in the log) |
-| `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `tab` | switch pane |
-| `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
-| `esc` | cancel the mark |
 | `/` | search in a bar at the bottom: type the text; `tab` switches between changed lines (added, removed and moved; the default) and all lines, `shift+tab` between plain text and a regular expression (Go syntax), both kept in `state.toml`; `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` or `backspace` on nothing typed cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
 | `.` `,` | next, previous match; past the last or first one the cursor stays. In the flow view in all files, in the log in those of the current commit: `N` `P` go to the others |
 | `o` | other end of moved code |
@@ -191,14 +191,15 @@ The keys of the diff view, and:
 | `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
 | `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc`, or `enter` or `backspace` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
 | `s` | side by side or normal layout, also of the preview |
-| `v` | show or hide the message box or diff preview |
+| `f` | flow view of all files or commits; in it, the single file view |
+| `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
+| `w` | wrap long lines or cut them |
 | `W` | show all whitespace and line ends or only changed |
 | `ctrl+w` | mark changed whitespace or not |
 | `t` | show trailing whitespace or not |
 | `e` | show all `\r\n` line ends (`␍`) or only changed |
 | `b` | bold or plain changed words |
-| `w` | wrap long lines or cut them |
-| `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
+| `v` | show or hide the message box or diff preview |
 | `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them, and, only there, the minutes until auto reload ends, typed in a line after `enter` on them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
 | `r` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `R` | auto reload: load again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff; the status bar says `auto reload` while it is on. It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch; so new files and edits of files not yet in the diff take up to that long. After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands. Not saved: off at each start |
@@ -214,7 +215,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `b` `c` `C` `e` `f` `s` `t` `u` `v` `w` `W` `ctrl+w`, the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `s` `f` `u` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C`, the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 
 Unknown keys and invalid values are reported in the status bar.
@@ -237,18 +238,18 @@ precedes = "«"                  # first column of a line scrolled out to the le
 # The toggles, also kept in state.toml:
 side_by_side = true
 flow = false
-preview = true
+untracked = false               # jdiff diff also shows untracked files (u)
+wrap = false
 show_whitespaces = false
 mark_whitespace = true
 show_trailing = false
 show_cr = false
-wrap = false
 bold_changes = true
+preview = true
 full_messages = true
 stay_in_commit = false
 search_regex = false            # / searches for a regular expression (shift+tab in its bar)
 search_all = false              # / searches all lines, not only changed ones (tab)
-untracked = false               # jdiff diff also shows untracked files (u)
 auto_reload_timeout = 5         # minutes without keys or changes until auto reload (R) ends; 0 never
 ```
 

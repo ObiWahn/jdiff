@@ -29,16 +29,16 @@ type settingOption struct {
 var settingOptions = []settingOption{
 	{key: "s", what: "side by side layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
 	{key: "f", what: "flow view of all files or commits", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
-	{key: "v", what: "show the message box, the diff preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
+	{key: untrackedKey, what: "also show untracked files, in a git diff", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
+	{key: "w", what: "wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
 	{key: "W", what: "show all whitespace and line ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
 	{key: "ctrl+w", what: "mark changed whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
 	{key: "t", what: "show trailing whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
 	{key: "e", what: "show all \\r\\n line ends (␍)", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
 	{key: "b", what: "bold changed words", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
-	{key: "w", what: "wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
+	{key: "v", what: "show the message box, the diff preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
 	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
 	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
-	{key: untrackedKey, what: "also show untracked files, in a git diff", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
 	{what: "minutes without keys or changes until auto reload ends; 0 never", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
 }
 
