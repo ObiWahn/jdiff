@@ -1,0 +1,15 @@
+{
+    "version": "0.0.4",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/ObiWahn/jdiff/releases/download/v0.0.4/jdiff-v0.0.4-windows-amd64.zip",
+            "bin": [
+                "jdiff.exe"
+            ],
+            "hash": "dea6b02603d5c8f2b401b31f0f694feeebe0ead6eaf733cddab0be4841050315"
+        }
+    },
+    "homepage": "https://github.com/ObiWahn/jdiff",
+    "license": "MIT",
+    "description": "Interactive terminal diff viewer with manual line alignment"
+}
