@@ -199,9 +199,9 @@ The keys of the diff view, and:
 | `b` | bold or plain changed words |
 | `w` | wrap long lines or cut them |
 | `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
-| `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
+| `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them, and, only there, the minutes until auto reload ends, typed in a line after `enter` on them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
 | `r` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
-| `R` | auto reload: load again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff; the status bar says `auto reload` while it is on. It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch; so new files and edits of files not yet in the diff take up to that long. After `auto_reload_timeout` minutes (5) without a key pressed or a change it ends, and with it its git commands. Not saved: off at each start |
+| `R` | auto reload: load again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff; the status bar says `auto reload` while it is on. It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch; so new files and edits of files not yet in the diff take up to that long. After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands. Not saved: off at each start |
 | `?` | help |
 | `q` `ctrl+c` | quit |
 
@@ -214,7 +214,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `b` `c` `C` `e` `f` `s` `t` `u` `v` `w` `W` `ctrl+w`, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `b` `c` `C` `e` `f` `s` `t` `u` `v` `w` `W` `ctrl+w`, the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 
 Unknown keys and invalid values are reported in the status bar.

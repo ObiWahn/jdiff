@@ -26,6 +26,9 @@ func setOption(m tea.Model, cfg *config.Config, keys ...string) {
 func optionValues(cfg *config.Config) []bool {
 	var out []bool
 	for _, o := range settingOptions {
+		if o.setting == nil {
+			continue // a number: see TestSettingsNumber
+		}
 		out = append(out, *o.setting(cfg))
 	}
 	return out
@@ -73,8 +76,8 @@ func TestSettingsOptions(t *testing.T) {
 	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "W": "show_whitespaces", "ctrl+w": "mark_whitespace",
 		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "w": "wrap", "c": "full_messages", "C": "stay_in_commit"}
 	for i, o := range settingOptions {
-		if o.ask != nil {
-			continue // the page toggles it: see TestUntracked...
+		if o.ask != nil || o.number != nil {
+			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber
 		}
 		dir := t.TempDir()
 		cfg, err := config.Load(dir, nil, "", "")
@@ -308,8 +311,8 @@ func TestHelpListsSharedKeysOnce(t *testing.T) {
 func TestSettingKeysOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
 		for _, o := range settingOptions {
-			if o.ask != nil || o.logFlow {
-				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere
+			if o.ask != nil || o.logFlow || o.number != nil {
+				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere, TestSettingsNumber
 			}
 			m, cfg := page.make()
 			s := WithSettings(cfg, m)
@@ -481,4 +484,68 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 			t.Errorf("popup msg %q, page msg %q", s.msg, m.msg)
 		}
 	})
+}
+
+// The last option has no key: enter on it asks for the minutes in a line: enter sets and saves them, what is no
+// number stays asked for, esc keeps them. The columns stay aligned.
+func TestSettingsNumber(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Settings.AutoReloadTimeout != 5 {
+		t.Errorf("default timeout %d, want 5", cfg.Settings.AutoReloadTimeout)
+	}
+	s := WithSettings(cfg, newTestModel(numbered("x", 30), numbered("y", 30)))
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	// a is free, on the page and in the popup.
+	pressRoot(s, "a")
+	if s.input != nil || s.open {
+		t.Errorf("a on the page: input %+v, popup %v", s.input, s.open)
+	}
+	pressRoot(s, "S", "a")
+	if s.input != nil {
+		t.Errorf("a in the popup: input %+v", s.input)
+	}
+	for range len(settingOptions) - 1 {
+		pressRoot(s, "j")
+	}
+	pressRoot(s, "enter")
+	if s.input == nil || s.input.text != "5" {
+		t.Fatalf("enter on the last option: input %+v, want the minutes to edit", s.input)
+	}
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "auto reload timeout") {
+		t.Errorf("the line is not shown:\n%s", view)
+	}
+	pressRoot(s, "ctrl+u", "x", "enter")
+	if s.input == nil || !strings.Contains(ansi.Strip(s.frame()), "a whole number") || cfg.Settings.AutoReloadTimeout != 5 {
+		t.Errorf("x: input %+v, timeout %d; want it asked for again", s.input, cfg.Settings.AutoReloadTimeout)
+	}
+	pressRoot(s, "esc")
+	if s.input != nil || !s.open || cfg.Settings.AutoReloadTimeout != 5 {
+		t.Errorf("esc: input %+v, open %v, timeout %d", s.input, s.open, cfg.Settings.AutoReloadTimeout)
+	}
+	pressRoot(s, "enter", "ctrl+u", "1", "2", "0", "enter")
+	if s.input != nil || !s.open || cfg.Settings.AutoReloadTimeout != 120 {
+		t.Errorf("120: input %+v, open %v, timeout %d", s.input, s.open, cfg.Settings.AutoReloadTimeout)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "auto_reload_timeout = 120") {
+		t.Errorf("state.toml lacks the timeout:\n%s", data)
+	}
+	var cols []int
+	for _, line := range strings.Split(ansi.Strip(s.frame()), "\n") {
+		for _, what := range []string{"mark changed whitespace", "minutes without keys", "side by side layout"} {
+			if i := strings.Index(line, what); i >= 0 {
+				cols = append(cols, ansi.StringWidth(line[:i]))
+			}
+		}
+	}
+	if len(cols) != 3 || cols[0] != cols[1] || cols[1] != cols[2] {
+		t.Errorf("columns of the options: %v, want 3 the same", cols)
+	}
 }

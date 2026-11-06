@@ -105,7 +105,7 @@ type Toggles struct {
 	Untracked bool `toml:"untracked"`
 	// AutoReloadTimeout (auto_reload_timeout) is after how many minutes
 	// without a key pressed or a change of the repository auto reload ends,
-	// and with it its git commands; 0 is never.
+	// and with it its git commands; 0 is never. The settings popup sets it.
 	AutoReloadTimeout int `toml:"auto_reload_timeout"`
 }
 
