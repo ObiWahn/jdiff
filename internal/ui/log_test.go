@@ -374,7 +374,7 @@ func TestLogFileListHeading(t *testing.T) {
 
 func TestLogPreviewToggleShared(t *testing.T) {
 	l, _ := newTestLog()
-	pressLog(l, "v")
+	setOption(l, l.cfg, "v")
 	if l.boxHeight() != 0 || strings.Contains(ansi.Strip(l.frame()), "╭─") {
 		t.Fatalf("v should hide the message box")
 	}
@@ -383,7 +383,7 @@ func TestLogPreviewToggleShared(t *testing.T) {
 	if strings.Contains(ansi.Strip(l.frame()), "╭─") {
 		t.Errorf("file list shows a preview after v on the commit list")
 	}
-	pressLog(l, "v")
+	setOption(l, l.cfg, "v")
 	if !strings.Contains(ansi.Strip(l.frame()), "╭─ a.go ─") {
 		t.Errorf("v in the file list should show the preview:\n%s", ansi.Strip(l.frame()))
 	}
@@ -432,7 +432,7 @@ func TestFlowMessageToggle(t *testing.T) {
 		t.Fatalf("c3 header: %d rows, full %v; want 6 with the body", n, l.cfg.Settings.FullMessages)
 	}
 	pressLog(l, "j", "j", "j", "j") // on the body line
-	pressLog(l, "c")
+	setOption(l, l.cfg, "c")
 	if r := l.flow.rows[l.flow.cursor]; headerRows() != 4 || l.cfg.Settings.FullMessages ||
 		r.kind != flowCommit || r.line != 2 {
 		t.Errorf("c: %d header rows, full %v, cursor on %v; want 4, off and the subject",
@@ -441,7 +441,7 @@ func TestFlowMessageToggle(t *testing.T) {
 	if strings.Contains(ansi.Strip(l.frame()), "body c3") {
 		t.Errorf("short messages still show the body")
 	}
-	pressLog(l, "c")
+	setOption(l, l.cfg, "c")
 	if r := l.flow.rows[l.flow.cursor]; headerRows() != 6 || r.kind != flowCommit || r.line != 2 {
 		t.Errorf("c again: %d header rows, cursor on %v; want 6 and still the subject", headerRows(), r)
 	}
@@ -449,7 +449,8 @@ func TestFlowMessageToggle(t *testing.T) {
 
 func TestFlowStayInCommit(t *testing.T) {
 	l, _ := newTestLog()
-	pressLog(l, "f", "C") // on the bar of c3
+	pressLog(l, "f")
+	setOption(l, l.cfg, "C") // on the bar of c3
 	f := l.flow
 	part := func() int { return f.rows[f.cursor].part }
 	last := 0
@@ -486,7 +487,8 @@ func TestFlowStayInCommit(t *testing.T) {
 			t.Errorf("%s at the start of c2: cursor %d, msg %q; want %d and the warning", k, f.cursor, f.msg, first)
 		}
 	}
-	pressLog(l, "C", "k")
+	setOption(l, l.cfg, "C")
+	pressLog(l, "k")
 	if l.cfg.Settings.StayInCommit || part() != 0 {
 		t.Errorf("C off, k: setting %v, on commit %d; want off and back in c3", l.cfg.Settings.StayInCommit, part())
 	}
@@ -780,10 +782,10 @@ func TestStatusBarKeys(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{nil, "enter open · f flow · v message · d git diff · ? help · q quit"},
-		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · v preview · d git diff · ? help · q quit"},
-		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · ? help · q quit"},
-		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · ? help · q quit"},
+		{nil, "enter open · f flow · d git diff · S settings · ? help · q quit"},
+		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · d git diff · S settings · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · S settings · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · S settings · ? help · q quit"},
 	} {
 		pressLog(l, tt.keys...)
 		if got := status(); !strings.HasPrefix(got, tt.want) {
@@ -797,7 +799,7 @@ func TestStatusBarKeys(t *testing.T) {
 	}
 	// Two files, without a list: neither n/p, N/P, f nor backspace.
 	m := newTestModel([]string{"a"}, []string{"b"})
-	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · ? help · q quit" {
+	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · S settings · ? help · q quit" {
 		t.Errorf("two files: %q", got)
 	}
 }
@@ -875,7 +877,7 @@ func TestCommitListHistoryKeys(t *testing.T) {
 func TestStatusBarOneColor(t *testing.T) {
 	l, _ := newTestLog()
 	hint := l.cfg.Theme.Hint
-	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · v message · d git diff · ? help · q quit")) {
+	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · d git diff · S settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
 	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {

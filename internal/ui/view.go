@@ -111,7 +111,7 @@ func (m *Model) help() string {
 	if m.canBack {
 		keys = append(keys, "f flow")
 	}
-	keys = append(keys, "d git diff")
+	keys = append(keys, "d git diff", "S settings")
 	return strings.Join(append(keys, "? help", "q quit"), " · ")
 }
 

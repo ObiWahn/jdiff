@@ -177,6 +177,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 			l.flow.Update(msg)
 			return nil
 		}
+	case settingChangedMsg:
+		l.scrollToCursor() // the message box takes room from the list
 	case backMsg:
 		if l.flowShown() {
 			l.filesOfFlow()
@@ -247,10 +249,10 @@ func (l *Log) key(k string) tea.Cmd {
 		return toggleFlow
 	case "R", "f5":
 		return refreshAll
-	case untrackedKey:
-		return toggleUntracked
 	case diffKey:
 		return askDiff
+	case settingsKey, settingsFKey:
+		return askSettings
 	case "n", "p", "N", "P":
 		// The next or previous commit in history, as N and P go from its files.
 		dir := historyDir(k)
@@ -261,9 +263,6 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
-	case "v":
-		l.msg = toggle(l.cfg, &l.cfg.Settings.Preview)
-		l.scrollToCursor()
 	}
 	return nil
 }
@@ -530,7 +529,7 @@ func (l *Log) frame() string {
 			st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
 			st(t.Decoration).Render(c.Date)
 	}
-	hints := "enter open · f flow · v message · d git diff · ? help · q quit"
+	hints := "enter open · f flow · d git diff · S settings · ? help · q quit"
 	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, statusText(t, l.msg, hints))
 }
 

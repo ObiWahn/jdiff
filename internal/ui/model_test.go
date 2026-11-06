@@ -40,7 +40,7 @@ func keyMsgs(k string) []tea.KeyPressMsg {
 var keyCodes = map[string]rune{
 	"enter": tea.KeyEnter, "tab": tea.KeyTab, "esc": tea.KeyEsc, "backspace": tea.KeyBackspace,
 	"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "f5": tea.KeyF5, "up": tea.KeyUp,
-	"down": tea.KeyDown, "space": tea.KeySpace, "delete": tea.KeyDelete,
+	"down": tea.KeyDown, "space": tea.KeySpace, "delete": tea.KeyDelete, "f8": tea.KeyF8,
 }
 
 // keyMsg returns the key press named k, with ctrl+ or shift+ before a
@@ -476,17 +476,18 @@ func TestHighlightTrailingAndLineEnds(t *testing.T) {
 
 func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
 	m := newTestModel([]string{"x  "}, []string{"y  "})
-	press(m, "t")
+	setOption(m, m.cfg, "t")
 	if !m.cfg.Settings.ShowTrailing || !strings.Contains(ansi.Strip(m.screenLine(m.screen[0], false)), "y··") {
 		t.Errorf("t: setting %v, row %q; want the trailing spaces shown", m.cfg.Settings.ShowTrailing,
 			ansi.Strip(m.screenLine(m.screen[0], false)))
 	}
 	a := newFlowApp()
-	pressApp(a, "t")
+	setOption(a, a.cfg, "t")
 	if !a.cfg.Settings.ShowTrailing {
 		t.Error("t in the file list did not toggle show_trailing")
 	}
-	pressApp(a, "f", "t")
+	pressApp(a, "f")
+	setOption(a, a.cfg, "t")
 	if a.cfg.Settings.ShowTrailing {
 		t.Error("t in the flow view did not toggle show_trailing")
 	}
@@ -494,14 +495,16 @@ func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
 	// With wrapping, a line as wide as its pane gets a piece for ¶ when w
 	// shows line ends.
 	m = newTestModel([]string{"same"}, []string{"same"})
-	press(m, "s", "r")
+	setOption(m, m.cfg, "s")
+	setOption(m, m.cfg, "r")
 	full := strings.Repeat("x", m.contentWidth(m.width, true))
 	m = newTestModel([]string{full}, []string{full})
-	press(m, "s", "r")
+	setOption(m, m.cfg, "s")
+	setOption(m, m.cfg, "r")
 	if len(m.screen) != 1 {
 		t.Fatalf("a line as wide as the pane takes %d screen lines, want 1", len(m.screen))
 	}
-	press(m, "w")
+	setOption(m, m.cfg, "w")
 	if len(m.screen) != 2 || !strings.Contains(ansi.Strip(m.screenLine(m.screen[1], false)), "¶") {
 		t.Errorf("w: %d screen lines, want 2 with ¶ on the second", len(m.screen))
 	}
@@ -572,7 +575,7 @@ func TestLineEndChangeShows(t *testing.T) {
 	if strings.Contains(ansi.Strip(m.screenLine(m.screen[0], false)), "␍") {
 		t.Error("unchanged \\r shown without e")
 	}
-	press(m, "e")
+	setOption(m, m.cfg, "e")
 	if !m.cfg.Settings.ShowCR || strings.Count(ansi.Strip(m.screenLine(m.screen[0], false)), "␍") != 2 {
 		t.Errorf("e: %q, want ␍ on both sides of the unchanged line", ansi.Strip(m.screenLine(m.screen[0], false)))
 	}
@@ -581,11 +584,12 @@ func TestLineEndChangeShows(t *testing.T) {
 	probe := newTestModel([]string{"x"}, []string{"x"})
 	full := strings.Repeat("x", probe.contentWidth(80, true)) + "\r"
 	m = newTestModel([]string{full, "a"}, []string{full, "b"})
-	press(m, "s", "r")
+	setOption(m, m.cfg, "s")
+	setOption(m, m.cfg, "r")
 	if m.rowLines(0, m.screenShape) != 1 {
 		t.Errorf("hidden ␍: the full line takes %d screen lines, want 1", m.rowLines(0, m.screenShape))
 	}
-	press(m, "e")
+	setOption(m, m.cfg, "e")
 	if m.rowLines(0, m.screenShape) != 2 {
 		t.Errorf("e: the full line takes %d screen lines, want 2 for its ␍", m.rowLines(0, m.screenShape))
 	}
@@ -644,7 +648,7 @@ func TestCutLineMarkers(t *testing.T) {
 			ansi.Strip(w.screenLine(w.screen[0], false)))
 	}
 
-	press(m, "r")
+	setOption(m, m.cfg, "r")
 	if strings.ContainsAny(ansi.Strip(m.frame()), "«»") {
 		t.Errorf("wrapped lines with markers:\n%s", ansi.Strip(m.frame()))
 	}
@@ -679,17 +683,18 @@ func TestMarkWhitespaceToggle(t *testing.T) {
 	if !strings.Contains(ansi.Strip(row), "a ··b") {
 		t.Fatalf("the two removed spaces not marked by default: %q", ansi.Strip(row))
 	}
-	press(m, "W")
+	setOption(m, m.cfg, "W")
 	row = m.screenLine(m.screen[0], false)
 	if m.cfg.Settings.MarkWhitespace || strings.Contains(ansi.Strip(row), "·") {
 		t.Errorf("W: setting %v, row %q; want the changed space plain", m.cfg.Settings.MarkWhitespace, ansi.Strip(row))
 	}
 	a := newFlowApp()
-	pressApp(a, "W")
+	setOption(a, a.cfg, "W")
 	if a.cfg.Settings.MarkWhitespace {
 		t.Error("W in the file list did not toggle mark_whitespace")
 	}
-	pressApp(a, "f", "W")
+	pressApp(a, "f")
+	setOption(a, a.cfg, "W")
 	if !a.cfg.Settings.MarkWhitespace {
 		t.Error("W in the flow view did not toggle mark_whitespace")
 	}
@@ -712,7 +717,7 @@ func newUnifiedTestModel() *Model {
 	cfg.Settings.CollapseUnchanged = false
 	m := New(cfg, "old", "new", []string{"same", "alpha beta", "keep", "gone"}, []string{"same", "alpha gamma", "keep"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	return m
 }
 
@@ -738,11 +743,12 @@ func TestUnifiedCursor(t *testing.T) {
 		t.Errorf("j: cursor rows %v, want %v", got, want)
 	}
 	// Switching layouts keeps the cursor row, and back on the added line.
-	press(m, "k", "k", "s")
+	press(m, "k", "k")
+	setOption(m, m.cfg, "s")
 	if m.cursor != 1 || m.pos() != 1 {
 		t.Errorf("s to side by side: cursor %d pos %d, want row 1", m.cursor, m.pos())
 	}
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	if m.cursor != 1 || m.pos() != 2 {
 		t.Errorf("s to normal: cursor %d pos %d, want the added line of row 1", m.cursor, m.pos())
 	}
@@ -750,13 +756,13 @@ func TestUnifiedCursor(t *testing.T) {
 
 func TestUnifiedShowsAnchors(t *testing.T) {
 	m := newUnifiedTestModel()
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	moveTo(t, m, left, 1)
 	press(m, "enter", "enter")
 	if len(m.anchors) != 1 {
 		t.Fatalf("anchoring side by side: anchors %v", m.anchors)
 	}
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	if lines := strings.Split(ansi.Strip(m.frame()), "\n"); !strings.HasPrefix(lines[2], "◆2  │ alpha beta") ||
 		!strings.HasPrefix(lines[3], "◆  2│ alpha gamma") {
 		t.Errorf("anchored lines in the normal layout: %q", lines[2:4])
@@ -881,7 +887,7 @@ func TestCursorLine(t *testing.T) {
 		if plain := m.screenLine(m.screen[0], false); strings.Contains(plain, "\x1b[1m") || reverse.MatchString(plain) {
 			t.Errorf("%s: line without cursor is highlighted: %q", layout, plain)
 		}
-		press(m, "s")
+		setOption(m, m.cfg, "s")
 	}
 }
 
@@ -959,7 +965,7 @@ func TestHeaderFocus(t *testing.T) {
 	if h := m.header(); !strings.Contains(h, "\x1b[2m old") || !strings.Contains(h, "\x1b[1m new") {
 		t.Errorf("side by side: header %q, want the old name faint and the active new one bold", h)
 	}
-	press(m, "s") // the normal layout: one column, no pane has the focus
+	setOption(m, m.cfg, "s") // the normal layout: one column, no pane has the focus
 	if h := m.header(); strings.Contains(h, "\x1b[2m") || !strings.Contains(h, "\x1b[1m old") || !strings.Contains(h, "\x1b[1m new") {
 		t.Errorf("normal layout: header %q, want both names bold", h)
 	}
@@ -989,7 +995,7 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 	m.scrollToCursor()
 	row, lines := cursorRow(m), len(m.screen)
 
-	press(m, "r")
+	setOption(m, m.cfg, "r")
 	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row {
 		t.Errorf("r: cursor on line %d at screen row %d, want line 15 at row %d", m.lineAt(right, m.cursor), cursorRow(m), row)
 	}
@@ -1010,7 +1016,7 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 	m.sub = 0
 	m.scrollToCursor()
 	row = cursorRow(m)
-	press(m, "r")
+	setOption(m, m.cfg, "r")
 	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row || len(m.screen) != lines {
 		t.Errorf("r off: cursor on line %d at row %d with %d screen lines, want line 15 at row %d with %d",
 			m.lineAt(right, m.cursor), cursorRow(m), len(m.screen), row, lines)
@@ -1021,10 +1027,10 @@ func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 	a, b := wrapLines("x"), wrapLines("x")
 	b[6] = "changed " + b[6] // a changed row of two wrapped lines
 	m := newTestModel(a, b)
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	moveTo(t, m, right, 6)
 	m.sub = 1 // the new line of the changed row
-	press(m, "r")
+	setOption(m, m.cfg, "r")
 	if s, piece := m.unifiedPiece(m.cursor, m.sub, m.screenShape); s != right || piece != 0 {
 		t.Fatalf("r: cursor on side %d piece %d, want the new line's first piece", s, piece)
 	}
@@ -1035,7 +1041,8 @@ func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 	if m.pending == nil || m.pending.side != right || m.pending.line != 6 {
 		t.Errorf("enter on a piece of new line 6 marked %+v", m.pending)
 	}
-	press(m, "esc", "r")
+	press(m, "esc")
+	setOption(m, m.cfg, "r")
 	if m.lineAt(right, m.cursor) != 6 || m.sub != 1 {
 		t.Errorf("r off: cursor on line %d sub %d, want the new line 6, sub 1", m.lineAt(right, m.cursor), m.sub)
 	}
@@ -1045,7 +1052,7 @@ func TestWrapFollowsResize(t *testing.T) {
 	m := newTestModel(wrapLines("x"), wrapLines("y"))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
-	press(m, "r")
+	setOption(m, m.cfg, "r")
 	moveTo(t, m, right, 15)
 	m.sub = 0
 	m.scrollToCursor()
@@ -1077,7 +1084,7 @@ func TestBoldChangesToggle(t *testing.T) {
 	}
 	color := strings.TrimPrefix(strings.TrimPrefix(bold.FindString(emph(row)), "\x1b["), "1;")
 
-	press(m, "b")
+	setOption(m, m.cfg, "b")
 	if m.cfg.Settings.BoldChanges {
 		t.Fatal("b did not turn off bold_changes")
 	}
@@ -1091,18 +1098,19 @@ func TestBoldChangesToggle(t *testing.T) {
 	if cur := m.screenLine(m.screen[0], true); !strings.Contains(cur, "\x1b[1msame") {
 		t.Errorf("b: cursor line %q, want it still bold", cur)
 	}
-	press(m, "b")
+	setOption(m, m.cfg, "b")
 	if !m.cfg.Settings.BoldChanges || !bold.MatchString(emph(m.screenLine(m.screen[1], false))) {
 		t.Error("b again: changed word not bold")
 	}
 
 	// The file list and the flow view toggle the same setting.
 	a := newFlowApp()
-	pressApp(a, "b")
+	setOption(a, a.cfg, "b")
 	if a.cfg.Settings.BoldChanges {
 		t.Error("b in the file list did not toggle bold_changes")
 	}
-	pressApp(a, "f", "b")
+	pressApp(a, "f")
+	setOption(a, a.cfg, "b")
 	if !a.cfg.Settings.BoldChanges {
 		t.Error("b in the flow view did not toggle bold_changes")
 	}
@@ -1120,7 +1128,7 @@ func screenTexts(m *Model) []string {
 
 func TestNormalLayoutShowsBlocks(t *testing.T) {
 	m := newTestModel([]string{"same", "old1", "old2", "old3", "end"}, []string{"same", "new1", "new2", "add", "add2", "end"})
-	press(m, "s")
+	setOption(m, m.cfg, "s")
 	// As git diff: the old lines of the block, then the new ones.
 	want := []string{"1 1│ same", "2  │ old1", "3  │ old2", "4  │ old3", "  2│ new1", "  3│ new2", "  4│ add", "  5│ add2", "5 6│ end"}
 	got := screenTexts(m)
@@ -1145,7 +1153,7 @@ func TestNormalLayoutShowsBlocks(t *testing.T) {
 	// Switching the layout keeps the line: new2, side by side and back.
 	press(m, "j", "j")
 	row := cursorRow(m)
-	press(m, "s", "s")
+	setOption(m, m.cfg, "s", "s")
 	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != right || m.lineAt(right, m.cursor) != 2 || cursorRow(m) != row {
 		t.Errorf("s s on new2: side %d new line %d row %d, want new2 at row %d", s, m.lineAt(right, m.cursor), cursorRow(m), row)
 	}
@@ -1157,7 +1165,8 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	m := newTestModel([]string{"a", "X", "b"}, []string{"a", "ins", "Y", "b"})
 	m.fileDiff.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
 	m.realign()
-	press(m, "s", "g", "]")
+	setOption(m, m.cfg, "s")
+	press(m, "g", "]")
 	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│ X") {
 		t.Errorf("]: cursor on %q, want the block's first line, old X:\n%s", got, strings.Join(screenTexts(m), "\n"))
 	}

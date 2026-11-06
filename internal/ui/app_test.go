@@ -169,7 +169,9 @@ func TestTogglesSaveState(t *testing.T) {
 	a := NewApp(cfg, []source.File{{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true}})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "v", "s", "w", "f")
+	setOption(a, a.cfg, "v", "s")
+	setOption(a, a.cfg, "w")
+	pressApp(a, "f")
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
 		t.Fatal(err)
@@ -845,7 +847,7 @@ func TestUntrackedToggle(t *testing.T) {
 	f00 := a.files[0]
 
 	// In the file list.
-	pressApp(a, "u")
+	setOption(a, a.cfg, "u")
 	if !a.cfg.Settings.Untracked || len(a.files) != 3 || a.files[2].Path != "x0" {
 		t.Fatalf("u: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
 	}
@@ -857,7 +859,7 @@ func TestUntrackedToggle(t *testing.T) {
 		t.Error("u: f00 got a new entry")
 	}
 
-	pressApp(a, "u")
+	setOption(a, a.cfg, "u")
 	if a.cfg.Settings.Untracked || len(a.files) != 2 {
 		t.Fatalf("u again: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
 	}
@@ -866,7 +868,8 @@ func TestUntrackedToggle(t *testing.T) {
 	}
 
 	// In the diff view of a file that stays, it stays open.
-	pressApp(a, "enter", "u")
+	pressApp(a, "enter")
+	setOption(a, a.cfg, "u")
 	if a.open != f00 || len(a.files) != 3 {
 		t.Errorf("u in f00's diff: open %v, %d files", a.open, len(a.files))
 	}
@@ -875,13 +878,14 @@ func TestUntrackedToggle(t *testing.T) {
 	if a.open == nil || a.open.Path != "x0" {
 		t.Fatalf("x0 not open: %v", a.open)
 	}
-	pressApp(a, "u")
+	setOption(a, a.cfg, "u")
 	if a.open != nil || len(a.files) != 2 || !strings.Contains(a.msg, "x0 is gone") {
 		t.Errorf("u in x0's diff: open %v, %d files, msg %q", a.open, len(a.files), a.msg)
 	}
 
 	// In the flow view.
-	pressApp(a, "enter", "f", "u")
+	pressApp(a, "enter", "f")
+	setOption(a, a.cfg, "u")
 	if !a.flowShown() || !a.cfg.Settings.Untracked || len(a.files) != 3 {
 		t.Errorf("u in the flow view: flow %v, setting %v, %d files", a.flowShown(), a.cfg.Settings.Untracked, len(a.files))
 	}
@@ -890,20 +894,20 @@ func TestUntrackedToggle(t *testing.T) {
 // Outside a git diff, u says so and leaves the setting alone.
 func TestUntrackedOutsideGitDiff(t *testing.T) {
 	a := newTestApp() // as for two directories
-	pressApp(a, "u")
+	setOption(a, a.cfg, "u")
 	if a.cfg.Settings.Untracked || a.msg != untrackedOnlyInDiff {
 		t.Errorf("file list: setting %v, msg %q", a.cfg.Settings.Untracked, a.msg)
 	}
 
 	f := source.File{Path: "f00", Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
 	m := New(config.Default(), "old", "new", f.Old, f.New)
-	pressRoot(m, "u")
+	setOption(m, m.cfg, "u")
 	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
 		t.Errorf("two files: setting %v, msg %q", m.cfg.Settings.Untracked, m.msg)
 	}
 
 	l, _ := newTestLog()
-	pressLog(l, "u")
+	setOption(l, l.cfg, "u")
 	if l.cfg.Settings.Untracked || l.msg != untrackedOnlyInDiff {
 		t.Errorf("log: setting %v, msg %q", l.cfg.Settings.Untracked, l.msg)
 	}

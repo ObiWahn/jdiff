@@ -229,7 +229,7 @@ func TestAppDiffPreview(t *testing.T) {
 	if view := ansi.Strip(a.frame()); !strings.Contains(view, "╭─ b.bin ─") || !strings.Contains(view, "│ binary file") {
 		t.Errorf("preview of b.bin:\n%s", view)
 	}
-	pressApp(a, "v")
+	setOption(a, a.cfg, "v")
 	if a.boxHeight() != 0 || a.listHeight() != 17 || strings.Contains(ansi.Strip(a.frame()), "╭─") {
 		t.Errorf("v should hide the preview: list %d box %d", a.listHeight(), a.boxHeight())
 	}
@@ -290,7 +290,8 @@ func TestAppPreviewScrolls(t *testing.T) {
 			check("ctrl+b to the top", 0)
 			pressApp(a, "ctrl+f", "j", "k")
 			check("j k", 27)
-			pressApp(a, "v", "pgdown")
+			setOption(a, a.cfg, "v")
+			pressApp(a, "pgdown")
 			if a.cursor != 1 {
 				t.Errorf("height %d, preview hidden: pgdn on file %d, want the list paged to c.go", height, a.cursor)
 			}
@@ -314,15 +315,16 @@ func TestFlowAndPreviewLayout(t *testing.T) {
 	if view := ansi.Strip(a.frame()); !strings.Contains(view, "+10│ new9") {
 		t.Errorf("side by side preview lacks +10│ new9:\n%s", view)
 	}
-	pressApp(a, "s")
+	setOption(a, a.cfg, "s")
 	if view := ansi.Strip(a.frame()); !strings.Contains(view, "-10   │ x9") || !strings.Contains(view, "+   10│ new9") {
 		t.Errorf("normal preview:\n%s", view)
 	}
 
-	pressApp(a, "s", "f", "]")
+	setOption(a, a.cfg, "s")
+	pressApp(a, "f", "]")
 	rows := len(a.flow.rows)
 	_, file, line := a.flow.position()
-	pressApp(a, "s")
+	setOption(a, a.cfg, "s")
 	if len(a.flow.rows) != rows+3 || !flowAt(a, file, line) || a.flow.cursorSub() != 0 {
 		t.Fatalf("s in the flow: %d rows (was %d, 3 changed rows), cursor %d.%d",
 			len(a.flow.rows), rows, line, a.flow.cursorSub())
@@ -411,11 +413,18 @@ func TestFlowPageKeysKeepScreenRow(t *testing.T) {
 	}
 }
 
-func TestFlowMessageToggleOnlyInLog(t *testing.T) {
+// Outside the log, c and C only keep the preference for the log's flow view:
+// the flow view of files has no commits to change.
+func TestFlowMessageOptionsOutsideLog(t *testing.T) {
 	a := newFlowApp()
-	pressApp(a, "f", "c")
-	if !a.cfg.Settings.FullMessages {
-		t.Errorf("c outside the log toggled the commit messages")
+	pressApp(a, "f")
+	rows, cursor := len(a.flow.rows), a.flow.cursor
+	setOption(a, a.cfg, "c", "C")
+	if a.cfg.Settings.FullMessages || !a.cfg.Settings.StayInCommit {
+		t.Errorf("c C: full messages %v, stay in commit %v; want both flipped", a.cfg.Settings.FullMessages, a.cfg.Settings.StayInCommit)
+	}
+	if len(a.flow.rows) != rows || a.flow.cursor != cursor || a.flow.msg != "" {
+		t.Errorf("c C outside the log: %d rows, cursor %d, msg %q; want %d, %d and no message", len(a.flow.rows), a.flow.cursor, a.flow.msg, rows, cursor)
 	}
 }
 
@@ -431,7 +440,8 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	a.open.view.show(at, 8)
 	line := func() int { _, _, l := a.flow.position(); return d.lineAt(right, l) }
 
-	pressApp(a, "f", "r")
+	pressApp(a, "f")
+	setOption(a, a.cfg, "r")
 	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
 		t.Errorf("flow, r: cursor on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
 	}
@@ -442,17 +452,18 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	if m := a.open.view; m.lineAt(right, m.cursor) != 15 || cursorRow(m) != 8 {
 		t.Errorf("f: diff view on line %d at screen row %d, want line 15 at row 8", m.lineAt(right, m.cursor), cursorRow(m))
 	}
-	pressApp(a, "r", "f") // unwrapped in the diff view, then flow
+	setOption(a, a.cfg, "r")
+	pressApp(a, "f") // unwrapped in the diff view, then flow
 	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
 		t.Errorf("r, f: flow on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
 	}
 }
 
 func TestFlowRebuildsAfterDiffView(t *testing.T) {
-	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"r"}} {
+	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"S", "r", "esc"}} {
 		a := newFlowApp()
 		pressApp(a, "f", "f", "enter") // the flow is built, then the diff view of a.go
-		pressApp(a, keys...)
+		pressRoot(WithSettings(a.cfg, a), keys...)
 		pressApp(a, "f")
 		want := 0
 		for _, e := range a.files {
@@ -477,7 +488,8 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 		modified("b.go", []string{"x"}, []string{"y"}),
 	})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "s", "f", "g", "]")
+	setOption(a, a.cfg, "s")
+	pressApp(a, "f", "g", "]")
 	var got []string
 	for i := a.flow.cursor; i < a.flow.cursor+4; i++ {
 		got = append(got, strings.TrimRight(ansi.Strip(a.flow.row(i)), " "))
@@ -499,9 +511,10 @@ func TestFlowLineEndTakesPieceWhenWrapped(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
 	a.cfg.Settings.CollapseUnchanged = false
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "f", "r")
+	pressApp(a, "f")
+	setOption(a, a.cfg, "r")
 	before := len(a.flow.rows)
-	pressApp(a, "w")
+	setOption(a, a.cfg, "w")
 	if len(a.flow.rows) != before+1 {
 		t.Errorf("w with wrapped lines: %d flow rows, %d before; want one more for the full line's ¶", len(a.flow.rows), before)
 	}

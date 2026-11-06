@@ -18,7 +18,7 @@ func TestHelpPopup(t *testing.T) {
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 76}) // room for all bindings
 	pressRoot(h, "?")
 	view := ansi.Strip(h.frame())
-	for _, want := range []string{"╭─ keys ─", "Commit list", "File list", "Diff view", "Flow view",
+	for _, want := range []string{"╭─ keys ─", "Everywhere", "Commit list and file list", "Diff and flow view",
 		"ctrl+space", "next, previous commit"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("help lacks %q:\n%s", want, view)
@@ -121,18 +121,19 @@ func TestNoViewOverflows(t *testing.T) {
 		keys []string
 	}{
 		{"diff", long, nil},
-		{"diff normal", long, []string{"s"}},
-		{"diff wrapped", long, []string{"r"}},
-		{"diff normal wrapped", long, []string{"s", "r", "j", "j", "j", "j", "j"}},
+		{"diff normal", long, []string{"S", "s", "esc"}},
+		{"diff wrapped", long, []string{"S", "r", "esc"}},
+		{"diff normal wrapped", long, []string{"S", "s", "r", "esc", "j", "j", "j", "j", "j"}},
 		{"big diff", big, []string{"]"}},
-		{"big diff normal", big, []string{"s", "]"}},
+		{"big diff normal", big, []string{"S", "s", "esc", "]"}},
 		{"file list", func() tea.Model { return newTestApp() }, nil},
 		{"flow", func() tea.Model { return newFlowApp() }, []string{"f"}},
-		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "r"}},
+		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "S", "r", "esc"}},
 		{"commit list", func() tea.Model { l, _ := newTestLog(); return l }, nil},
 		{"log flow", func() tea.Model { l, _ := newTestLog(); return l }, []string{"f", "enter"}},
 		{"help", func() tea.Model { return newTestApp() }, []string{"?"}},
 		{"marks", func() tea.Model { return newMarkModel() }, []string{"m", "a", "\\"}},
+		{"settings", func() tea.Model { return newTestApp() }, []string{"S"}},
 	}
 	sizes := []int{1, 2, 3, 4, 5, 8, 12}
 	widths := []int{1, 5, 10, 15, 19, 20, 21, 25, 30, 41, 60}
@@ -147,7 +148,7 @@ func TestNoViewOverflows(t *testing.T) {
 		case *Log:
 			cfg = p.cfg
 		}
-		g := WithSizeGuard(cfg, WithHelp(cfg, WithMarks(cfg, m)))
+		g := WithSizeGuard(cfg, WithHelp(cfg, WithSettings(cfg, WithMarks(cfg, m))))
 		g.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 		pressRoot(g, v.keys...)
 		// One view is resized through all sizes, as a terminal is.

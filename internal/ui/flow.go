@@ -119,6 +119,13 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = f.key(msg.String())
 	case findMsg:
 		f.findText(int(msg))
+	case settingChangedMsg:
+		// Wrapped lines take other pieces, and end in line_end or ␍, which take
+		// a column.
+		f.keepScreenRow(f.relocate)
+		if msg.key == "C" && f.inLog() && f.cfg.Settings.StayInCommit {
+			f.msg = "staying in commit " + f.parts[f.rows[f.cursor].part].commit.Short
+		}
 	}
 	f.loadVisible()
 	return f, cmd
@@ -191,8 +198,6 @@ func (f *Flow) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
-	case untrackedKey:
-		return toggleUntracked
 	case searchKey:
 		return askSearch
 	case nextKey:
@@ -205,36 +210,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.prefix, f.msg = k, "set mark: press a letter"
 	case "'":
 		f.prefix, f.msg = k, "jump to mark: press its letter"
-	case "s":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.SideBySide)
-		f.keepScreenRow(f.relocate)
-	case "w":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowWhitespaces)
-		f.keepScreenRow(f.relocate) // wrapped lines end in line_end, which takes a column
-	case "W":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.MarkWhitespace)
-	case "t":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowTrailing)
-	case "e":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.ShowCR)
-		f.keepScreenRow(f.relocate) // wrapped lines end in ␍, which takes a column
-	case "b":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.BoldChanges)
-	case "r":
-		f.msg = toggle(f.cfg, &f.cfg.Settings.Wrap)
-		f.keepScreenRow(f.relocate)
-	case "c":
-		if f.inLog() {
-			f.msg = toggle(f.cfg, &f.cfg.Settings.FullMessages)
-			f.keepScreenRow(f.relocate)
-		}
-	case "C":
-		if f.inLog() {
-			f.msg = toggle(f.cfg, &f.cfg.Settings.StayInCommit)
-			if f.msg == "" && f.cfg.Settings.StayInCommit {
-				f.msg = "staying in commit " + f.parts[f.rows[f.cursor].part].commit.Short
-			}
-		}
+	case settingsKey, settingsFKey:
+		return askSettings
 	}
 	return nil
 }
@@ -811,7 +788,7 @@ func (f *Flow) help() string {
 	if f.inLog() {
 		keys = append(keys, "N/P commit")
 	}
-	keys = append(keys, "f single file", "d git diff", "? help", "q quit")
+	keys = append(keys, "f single file", "d git diff", "S settings", "? help", "q quit")
 	return strings.Join(keys, " · ")
 }
 

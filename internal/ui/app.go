@@ -403,6 +403,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width, a.height = msg.Width, msg.Height
 		a.scrollToCursor()
+	case settingChangedMsg:
+		a.scrollToCursor() // the preview takes room from the list
 	case watchTickMsg:
 		if msg.owner != nil && msg.owner != a {
 			return a, nil
@@ -532,29 +534,12 @@ func (a *App) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
-	case untrackedKey:
-		return toggleUntracked
 	case "f":
 		return toggleFlow
 	case "'":
 		a.prefix, a.msg = k, "jump to mark: press its letter"
-	case "v":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.Preview)
-		a.scrollToCursor()
-	case "s":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.SideBySide)
-	case "w":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowWhitespaces)
-	case "W":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.MarkWhitespace)
-	case "t":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowTrailing)
-	case "e":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.ShowCR)
-	case "b":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.BoldChanges)
-	case "r":
-		a.msg = toggle(a.cfg, &a.cfg.Settings.Wrap)
+	case settingsKey, settingsFKey:
+		return askSettings
 	}
 	return nil
 }
@@ -801,9 +786,9 @@ func (a *App) frame() string {
 		lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	hints := "enter open · f flow · v preview · d git diff · ? help · q quit"
+	hints := "enter open · f flow · d git diff · S settings · ? help · q quit"
 	if a.inLog() {
-		hints = "enter open · backspace commits · N/P commit · f flow · v preview · d git diff · ? help · q quit"
+		hints = "enter open · backspace commits · N/P commit · f flow · d git diff · S settings · ? help · q quit"
 	}
 	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, statusText(t, a.msg, hints))
 }

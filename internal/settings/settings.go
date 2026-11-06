@@ -48,40 +48,45 @@ type Toggles struct {
 	// at a time; f toggles it.
 	Flow bool `toml:"flow"`
 	// SideBySide (side_by_side) shows the old and new file next to each
-	// other; off, they are shown in one column like git diff. s toggles it.
+	// other; off, they are shown in one column like git diff. s in the settings
+	// popup toggles it.
 	SideBySide bool `toml:"side_by_side"`
 	// Preview (preview) shows a box below the commit and file lists with
-	// the selected commit's message or file's diff; v toggles it.
+	// the selected commit's message or file's diff; v in the settings popup
+	// toggles it.
 	Preview bool `toml:"preview"`
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
 	// not only changed whitespace, and the end of lines as LineEnd; w
-	// toggles it.
+	// in the settings popup toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
 	// MarkWhitespace (mark_whitespace) draws changed whitespace as · and →
 	// in the style of changed words: indentation, tabs and runs of spaces,
 	// not a single space between changed words; off, all changed whitespace
-	// looks like unchanged whitespace. W toggles it.
+	// looks like unchanged whitespace. W in the settings popup
+	// toggles it.
 	MarkWhitespace bool `toml:"mark_whitespace"`
 	// ShowTrailing (show_trailing) draws whitespace at the end of lines as ·
-	// and → in the trailing whitespace style. t toggles it.
+	// and → in the trailing whitespace style. t in the settings popup toggles
+	// it.
 	ShowTrailing bool `toml:"show_trailing"`
 	// ShowCR (show_cr) draws the \r of all \r\n line ends as CREnd, not
-	// only of changed ones. e toggles it.
+	// only of changed ones. e in the settings popup toggles it.
 	ShowCR bool `toml:"show_cr"`
 	// Wrap (wrap) wraps lines longer than their pane onto further screen
-	// lines; off, they are cut and h and l scroll them. r (reflow) toggles
-	// it.
+	// lines; off, they are cut and h and l scroll them. r (reflow) in the
+	// settings popup toggles it.
 	Wrap bool `toml:"wrap"`
 	// BoldChanges (bold_changes) draws changed words and whitespace bold
 	// where the theme says so; off, without bold, which terminals often
-	// draw brighter. b toggles it.
+	// draw brighter. b in the settings popup toggles it.
 	BoldChanges bool `toml:"bold_changes"`
 	// FullMessages (full_messages) shows the whole commit message in the
-	// flow view of the log; off, only the subject. c toggles it.
+	// flow view of the log; off, only the subject. c in the settings popup
+	// toggles it.
 	FullMessages bool `toml:"full_messages"`
 	// StayInCommit (stay_in_commit) keeps the cursor of the flow view of the
 	// log in the current commit: moves out of it stop with a warning, N and
-	// P still switch commits. C toggles it.
+	// P still switch commits. C in the settings popup toggles it.
 	StayInCommit bool `toml:"stay_in_commit"`
 	// SearchRegex (search_regex) searches with / for a regular expression;
 	// off, for plain text. shift+tab in the search bar toggles it.
@@ -91,7 +96,8 @@ type Toggles struct {
 	// it.
 	SearchAll bool `toml:"search_all"`
 	// Untracked (untracked) also shows the untracked files in jdiff diff,
-	// as added, where it compares with the working tree. u toggles it.
+	// as added, where it compares with the working tree. u in the settings
+	// popup toggles it.
 	Untracked bool `toml:"untracked"`
 }
 

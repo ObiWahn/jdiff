@@ -198,8 +198,6 @@ func (m *Model) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
-	case untrackedKey:
-		return toggleUntracked
 	case searchKey:
 		return askSearch
 	case nextKey:
@@ -210,24 +208,8 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.canBack {
 			return toggleFlow
 		}
-	case "s":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.SideBySide)
-		m.syncLayout()
-	case "w":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowWhitespaces)
-		m.syncLayout() // wrapped lines end in line_end, which takes a column
-	case "W":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.MarkWhitespace)
-	case "t":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowTrailing)
-	case "e":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.ShowCR)
-		m.syncLayout() // wrapped lines end in ␍, which takes a column
-	case "b":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.BoldChanges)
-	case "r":
-		m.msg = toggle(m.cfg, &m.cfg.Settings.Wrap)
-		m.syncLayout()
+	case settingsKey, settingsFKey:
+		return askSettings
 	case "enter", "esc", "space", "ctrl+space":
 		m.act(k)
 	case "o":

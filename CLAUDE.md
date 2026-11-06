@@ -27,7 +27,7 @@
 ## Keys and status bars
 
 - The status bars list their keys in one order on all pages:
-  enter · backspace · space · ]/[ · / · n/p · N/P · f · v · d · ? · q;
+  enter · backspace · space · ]/[ · / · n/p · N/P · f · d · S · ? · q;
   each page shows only the keys that work there. The anchors stand at the right end.
 - The direction in history (N n next, P p previous, also with `--reverse`) is decided in one
   place only: `historyDir` and `historyOrder.step` in `internal/ui/messages.go`.

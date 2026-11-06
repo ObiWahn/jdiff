@@ -75,7 +75,22 @@ type askDiffMsg struct{}
 
 func askDiff() tea.Msg { return askDiffMsg{} }
 
-// untrackedKey toggles the untracked files of a git diff.
+// settingsKey and settingsFKey open the settings popup. The pages hand them
+// on, as diffKey, and not the popup itself as ? and \: S is a mark letter too,
+// which m and ' take before the page looks at the key.
+const settingsKey, settingsFKey = "S", "f8"
+
+// askSettingsMsg asks SettingsPopup to open.
+type askSettingsMsg struct{}
+
+func askSettings() tea.Msg { return askSettingsMsg{} }
+
+// settingChangedMsg tells the page below SettingsPopup that a toggle changed,
+// so that it lays out what depends on it. The diff view does on any message.
+type settingChangedMsg struct{ key string }
+
+// untrackedKey toggles the untracked files of a git diff, in the settings
+// popup.
 const untrackedKey = "u"
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of

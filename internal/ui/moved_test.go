@@ -107,7 +107,7 @@ func TestJumpWithinFile(t *testing.T) {
 	for _, layout := range []string{"side by side", "normal"} {
 		m := newMovedModel()
 		if layout == "normal" {
-			press(m, "s")
+			setOption(m, m.cfg, "s")
 		}
 		moveTo(t, m, left, 1) // "return x * 2", moved down
 		row := m.pos() - m.top
