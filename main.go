@@ -52,7 +52,7 @@ func main() {
 		return
 	}
 	if *showReadme {
-		fmt.Print(readme)
+		fmt.Print(withoutBadges(readme))
 		return
 	}
 	mode := ""
@@ -178,6 +178,18 @@ func gitDiff(cfg *config.Config) ui.DiffFunc {
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "jdiff:", err)
 	os.Exit(1)
+}
+
+// withoutBadges drops the lines of badges from a README: images to load are of
+// no use in a terminal.
+func withoutBadges(readme string) string {
+	var b strings.Builder
+	for _, line := range strings.SplitAfter(readme, "\n") {
+		if !strings.HasPrefix(line, "[![") {
+			b.WriteString(line)
+		}
+	}
+	return b.String()
 }
 
 // printLicense prints jdiff's license and the modules linked into this binary.

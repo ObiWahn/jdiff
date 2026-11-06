@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_TIMEOUT: 300s # 15s is for local runs, not a cold cache with -race
+    outputs:
+      coverage: ${{ steps.coverage.outputs.total }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
@@ -25,7 +27,10 @@ jobs:
       - run: make vet
       - run: make test
       - run: make cover
-      - run: tail -n 1 bin/cover.log >> "$GITHUB_STEP_SUMMARY"
+      - id: coverage
+        run: |
+          tail -n 1 bin/cover.log >> "$GITHUB_STEP_SUMMARY"
+          echo "total=$(tail -n 1 bin/cover.log | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage
@@ -114,6 +119,34 @@ jobs:
       - run: >
           docker run --rm -v "$PWD:/d" -w /d ${{ matrix.image }}
           sh -c '${{ matrix.install }} && jdiff --version && git --version'
+
+  # The README's badge reads coverage.json in the branch badges, so that the
+  # commits stay out of master's history. A job of its own: only it may write.
+  # Its commits start no workflow: they are made with the GITHUB_TOKEN.
+  badge:
+    if: github.repository == 'ObiWahn/jdiff' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - env:
+          TOTAL: ${{ needs.linux.outputs.coverage }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch -q --depth=1 origin badges; then
+            git checkout -q -b badges FETCH_HEAD
+          else
+            git checkout -q --orphan badges
+            git rm -rfq .
+          fi
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s","color":"blue"}\n' "$TOTAL" > coverage.json
+          git add coverage.json
+          git diff --cached --quiet && exit 0
+          git commit -qm "Coverage $TOTAL"
+          git push -q origin badges
 
   # Only upstream tags publish a release and update the upstream Homebrew tap.
   release:
