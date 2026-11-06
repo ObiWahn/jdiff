@@ -247,7 +247,7 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
-	case "R", "f5":
+	case "R", "f5", "ctrl+r":
 		return refreshAll
 	case diffKey:
 		return askDiff

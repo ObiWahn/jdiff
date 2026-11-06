@@ -25,7 +25,7 @@ var bindings = []binding{
 	{"f", "flow view of all files or commits; in it, the single file view"},
 	{"'<letter>", "jump to a mark, when its file is in this diff"},
 	{"\\", "jump marks: enter jumps, d or del deletes"},
-	{"R F5", "load again: git diff, git log, the directories or the files"},
+	{"R F5 ctrl+r", "load again: git diff, git log, the directories or the files"},
 	{"d", "popup: show git diff ARGS instead; ↑ the current ARGS, enter show"},
 	{"", "  esc or backspace on nothing typed cancel"},
 	{"S F8", "settings: layout, preview, whitespace, bold, reflow, commit messages, untracked"},

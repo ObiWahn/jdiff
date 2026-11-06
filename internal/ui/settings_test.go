@@ -141,6 +141,28 @@ func TestSettingsMoveAndClose(t *testing.T) {
 	}
 }
 
+// R, F5 and ctrl+r load again on every page, and r does not.
+func TestReloadKeysOnAllPages(t *testing.T) {
+	for _, page := range settingsPages() {
+		shown := func(k string) bool {
+			m, cfg := page.make()
+			s := WithSettings(cfg, m)
+			s.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
+			pressRoot(s, page.keys...)
+			pressRoot(s, k)
+			return strings.Contains(ansi.Strip(s.frame()), "nothing to load again")
+		}
+		for _, k := range []string{"R", "f5", "ctrl+r"} {
+			if !shown(k) {
+				t.Errorf("%s: %s does not load again", page.name, k)
+			}
+		}
+		if shown("r") {
+			t.Errorf("%s: r loads again", page.name)
+		}
+	}
+}
+
 // The letters of the options do nothing on the pages themselves.
 func TestSettingsKeysLeftThePages(t *testing.T) {
 	for _, page := range settingsPages() {
