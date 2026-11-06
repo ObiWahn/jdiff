@@ -121,19 +121,19 @@ func TestNoViewOverflows(t *testing.T) {
 		keys []string
 	}{
 		{"diff", long, nil},
-		{"diff normal", long, []string{"S", "s", "esc"}},
-		{"diff wrapped", long, []string{"S", "w", "esc"}},
-		{"diff normal wrapped", long, []string{"S", "s", "w", "esc", "j", "j", "j", "j", "j"}},
+		{"diff normal", long, []string{"o", "s", "esc"}},
+		{"diff wrapped", long, []string{"o", "w", "esc"}},
+		{"diff normal wrapped", long, []string{"o", "s", "w", "esc", "j", "j", "j", "j", "j"}},
 		{"big diff", big, []string{"]"}},
-		{"big diff normal", big, []string{"S", "s", "esc", "]"}},
+		{"big diff normal", big, []string{"o", "s", "esc", "]"}},
 		{"file list", func() tea.Model { return newTestApp() }, nil},
 		{"flow", func() tea.Model { return newFlowApp() }, []string{"f"}},
-		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "S", "w", "esc"}},
+		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "o", "w", "esc"}},
 		{"commit list", func() tea.Model { l, _ := newTestLog(); return l }, nil},
 		{"log flow", func() tea.Model { l, _ := newTestLog(); return l }, []string{"f", "enter"}},
 		{"help", func() tea.Model { return newTestApp() }, []string{"?"}},
 		{"marks", func() tea.Model { return newMarkModel() }, []string{"m", "a", "\\"}},
-		{"settings", func() tea.Model { return newTestApp() }, []string{"S"}},
+		{"settings", func() tea.Model { return newTestApp() }, []string{"o"}},
 	}
 	sizes := []int{1, 2, 3, 4, 5, 8, 12}
 	widths := []int{1, 5, 10, 15, 19, 20, 21, 25, 30, 41, 60}

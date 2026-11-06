@@ -60,7 +60,7 @@ func settingsPages() []struct {
 
 func TestSettingsOpenOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
-		for _, opener := range []string{"S", "f8"} {
+		for _, opener := range []string{"o", "f8"} {
 			m, cfg := page.make()
 			s := WithSettings(cfg, m)
 			s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -88,7 +88,7 @@ func TestSettingsOptions(t *testing.T) {
 		s := WithSettings(cfg, newTestModel(numbered("x", 10), numbered("y", 10)))
 		s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		was := *o.setting(cfg)
-		pressRoot(s, "S", o.key)
+		pressRoot(s, "o", o.key)
 		if *o.setting(cfg) == was || !s.open || s.cursor != i {
 			t.Errorf("%s: value %v (was %v), open %v, cursor %d; want it flipped, open, on %d", o.key, *o.setting(cfg), was, s.open, s.cursor, i)
 		}
@@ -115,7 +115,7 @@ func TestSettingsMoveAndClose(t *testing.T) {
 	a := newTestApp()
 	s := WithSettings(a.cfg, a)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	pressRoot(s, "S", "j", "j", "k")
+	pressRoot(s, "o", "j", "j", "k")
 	if s.cursor != 1 || a.cursor != 0 {
 		t.Errorf("j j k: popup cursor %d, want 1; list cursor %d, want 0: keys must not reach the page", s.cursor, a.cursor)
 	}
@@ -130,14 +130,14 @@ func TestSettingsMoveAndClose(t *testing.T) {
 		t.Errorf("past the last option: cursor %d", s.cursor)
 	}
 	pressRoot(s, "esc")
-	for _, k := range []string{"S", "f8", "esc", "q"} {
-		pressRoot(s, "S")
+	for _, k := range []string{"o", "f8", "esc", "q"} {
+		pressRoot(s, "o")
 		pressRoot(s, k)
 		if s.open {
 			t.Errorf("%s does not close the settings", k)
 		}
 	}
-	pressRoot(s, "S")
+	pressRoot(s, "o")
 	if _, cmd := s.Update(keyMsg("ctrl+c")); cmd == nil {
 		t.Errorf("ctrl+c does not quit in the settings")
 	} else if _, ok := cmd().(tea.QuitMsg); !ok {
@@ -191,34 +191,34 @@ func TestSettingsStayInCommitMessage(t *testing.T) {
 	l, _ := newTestLog()
 	s := WithSettings(l.cfg, l)
 	s.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
-	pressRoot(s, "f", "S", "C")
+	pressRoot(s, "f", "o", "C")
 	if !strings.Contains(ansi.Strip(s.frame()), "staying in commit") {
 		t.Errorf("C in the popup does not say so:\n%s", ansi.Strip(s.frame()))
 	}
 }
 
-// S is a mark letter too: after m and ' it names the mark, not the popup.
+// o is a mark letter too: after m and ' it names the mark, not the popup.
 func TestSettingsKeyAsMarkLetter(t *testing.T) {
 	m := newMarkModel()
 	s := WithSettings(m.cfg, m)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	line := m.lineAt(right, m.cursor)
-	pressRoot(s, "m", "S")
+	pressRoot(s, "m", "o")
 	if s.open {
-		t.Errorf("m S opened the settings")
+		t.Errorf("m o opened the settings")
 	}
-	if mk, ok := m.cfg.Mark("S"); !ok || mk.Line != line+1 {
-		t.Errorf("m S: mark %+v, set %v; want line %d", mk, ok, line+1)
+	if mk, ok := m.cfg.Mark("o"); !ok || mk.Line != line+1 {
+		t.Errorf("m o: mark %+v, set %v; want line %d", mk, ok, line+1)
 	}
-	pressRoot(s, "end", "'", "S")
+	pressRoot(s, "end", "'", "o")
 	if s.open {
-		t.Errorf("' S opened the settings")
+		t.Errorf("' o opened the settings")
 	}
 	if got := m.lineAt(right, m.cursor); got != line {
-		t.Errorf("' S: on line %d, want %d", got, line)
+		t.Errorf("' o: on line %d, want %d", got, line)
 	}
-	if pressRoot(s, "S"); !s.open {
-		t.Errorf("S after the marks does not open the settings")
+	if pressRoot(s, "o"); !s.open {
+		t.Errorf("o after the marks does not open the settings")
 	}
 }
 
@@ -231,7 +231,7 @@ func TestSettingsWrapInFlowBelowPopup(t *testing.T) {
 	a.cfg.Settings.CollapseUnchanged = false
 	s := WithSettings(a.cfg, a)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressRoot(s, "f", "S")
+	pressRoot(s, "f", "o")
 	before := len(a.flow.rows)
 	pressRoot(s, "w")
 	if len(a.flow.rows) <= before {
@@ -253,7 +253,7 @@ func TestSettingsPopupSweep(t *testing.T) {
 			cfg := config.Default()
 			s := WithSettings(cfg, newTestModel(numbered("x", 40), numbered("y", 40)))
 			s.Update(tea.WindowSizeMsg{Width: 30, Height: height})
-			pressRoot(s, "S")
+			pressRoot(s, "o")
 			rows := max(min(n, height-4), 1)
 			check := func(step int) {
 				t.Helper()
@@ -482,7 +482,7 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 		m := New(cfg, "old", "new", files[0].Old, files[0].New)
 		s := WithSettings(cfg, m)
 		s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-		pressRoot(s, "S", "w")
+		pressRoot(s, "o", "w")
 		if !strings.HasPrefix(s.msg, "state: ") || m.msg != "" {
 			t.Errorf("popup msg %q, page msg %q", s.msg, m.msg)
 		}
@@ -507,7 +507,7 @@ func TestSettingsNumber(t *testing.T) {
 	if s.input != nil || s.open {
 		t.Errorf("a on the page: input %+v, popup %v", s.input, s.open)
 	}
-	pressRoot(s, "S", "a")
+	pressRoot(s, "o", "a")
 	if s.input != nil {
 		t.Errorf("a in the popup: input %+v", s.input)
 	}
@@ -564,7 +564,7 @@ func TestSettingsFlow(t *testing.T) {
 	a := NewApp(cfg, []source.File{modified("f00", []string{"x0"}, []string{"x1"}), modified("f01", []string{"x2"}, []string{"x3"})})
 	s := WithSettings(cfg, a)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	pressRoot(s, "S", "f")
+	pressRoot(s, "o", "f")
 	if !cfg.Settings.Flow || !a.flowShown() || !s.open {
 		t.Errorf("f: flow %v, shown %v, popup %v", cfg.Settings.Flow, a.flowShown(), s.open)
 	}
@@ -586,7 +586,7 @@ func TestSettingsFlow(t *testing.T) {
 	m := newMarkModel()
 	s = WithSettings(m.cfg, m)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	pressRoot(s, "S", "f")
+	pressRoot(s, "o", "f")
 	if m.cfg.Settings.Flow || m.msg != flowOnlyOfSeveral {
 		t.Errorf("f on two files: flow %v, msg %q", m.cfg.Settings.Flow, m.msg)
 	}
@@ -595,10 +595,10 @@ func TestSettingsFlow(t *testing.T) {
 // A README with its rows in another order, under the heading that counts; the
 // same keys under another heading do not count.
 const orderedReadme = "# x\n### File list\n| `w` | no |\n### Everywhere\n| Key | Action |\n|---|---|\n" +
-	"| `\\` | jump marks |\n| `b` | bold |\n| `f` | flow |\n| `s` | layout |\n| `S` `F8` | popup |\n\n## Next\n| `t` | no |\n"
+	"| `\\` | jump marks |\n| `b` | bold |\n| `f` | flow |\n| `s` | layout |\n| `o` `F8` | popup |\n\n## Next\n| `t` | no |\n"
 
 func TestKeyRows(t *testing.T) {
-	want := []string{`\`, "b", "f", "s", "S"}
+	want := []string{`\`, "b", "f", "s", "o"}
 	if got := keyRows(orderedReadme); !slices.Equal(got, want) {
 		t.Errorf("keyRows: %q, want %q", got, want)
 	}
@@ -610,7 +610,7 @@ func TestOrderSettings(t *testing.T) {
 	type o = settingOption
 	options, bs := orderSettings(keyRows(orderedReadme),
 		[]o{{key: "s"}, {key: "f"}, {key: "t"}, {key: "b"}, {key: "c", logFlow: true}, {what: "x0"}},
-		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"S F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
+		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"o F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
 	var keys []string
 	for _, opt := range options {
 		keys = append(keys, opt.key)

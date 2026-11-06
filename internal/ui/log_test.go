@@ -782,10 +782,10 @@ func TestStatusBarKeys(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{nil, "enter open · f flow · d git diff · S settings · ? help · q quit"},
-		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · d git diff · S settings · ? help · q quit"},
-		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · S settings · ? help · q quit"},
-		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · S settings · ? help · q quit"},
+		{nil, "enter open · f flow · d git diff · o settings · ? help · q quit"},
+		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · d git diff · o settings · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · o settings · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · o settings · ? help · q quit"},
 	} {
 		pressLog(l, tt.keys...)
 		if got := status(); !strings.HasPrefix(got, tt.want) {
@@ -799,7 +799,7 @@ func TestStatusBarKeys(t *testing.T) {
 	}
 	// Two files, without a list: neither n/p, N/P, f nor backspace.
 	m := newTestModel([]string{"a"}, []string{"b"})
-	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · S settings · ? help · q quit" {
+	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · o settings · ? help · q quit" {
 		t.Errorf("two files: %q", got)
 	}
 }
@@ -877,7 +877,7 @@ func TestCommitListHistoryKeys(t *testing.T) {
 func TestStatusBarOneColor(t *testing.T) {
 	l, _ := newTestLog()
 	hint := l.cfg.Theme.Hint
-	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · d git diff · S settings · ? help · q quit")) {
+	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · d git diff · o settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
 	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {

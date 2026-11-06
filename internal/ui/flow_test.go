@@ -460,7 +460,7 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 }
 
 func TestFlowRebuildsAfterDiffView(t *testing.T) {
-	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"S", "w", "esc"}} {
+	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"o", "w", "esc"}} {
 		a := newFlowApp()
 		pressApp(a, "f", "f", "enter") // the flow is built, then the diff view of a.go
 		pressRoot(WithSettings(a.cfg, a), keys...)

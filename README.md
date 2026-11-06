@@ -200,7 +200,7 @@ The keys of the diff view, and:
 | `e` | show all `\r\n` line ends (`␍`) or only changed |
 | `b` | bold or plain changed words |
 | `v` | show or hide the message box or diff preview |
-| `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them, and, only there, the minutes until auto reload ends, typed in a line after `enter` on them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
+| `o` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them, and, only there, the minutes until auto reload ends, typed in a line after `enter` on them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `o`, `F8`, `esc` or `q` close it |
 | `r` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `R` | auto reload: load again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff; the status bar says `auto reload` while it is on. It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch; so new files and edits of files not yet in the diff take up to that long. After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands. Not saved: off at each start |
 | `?` | help |

@@ -92,9 +92,9 @@ type askDiffMsg struct{}
 func askDiff() tea.Msg { return askDiffMsg{} }
 
 // settingsKey and settingsFKey open the settings popup. The pages hand them
-// on, as diffKey, and not the popup itself as ? and \: S is a mark letter too,
+// on, as diffKey, and not the popup itself as ? and \: o is a mark letter too,
 // which m and ' take before the page looks at the key.
-const settingsKey, settingsFKey = "S", "f8"
+const settingsKey, settingsFKey = "o", "f8"
 
 // askSettingsMsg asks SettingsPopup to open.
 type askSettingsMsg struct{}

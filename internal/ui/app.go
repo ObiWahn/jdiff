@@ -799,9 +799,9 @@ func (a *App) frame() string {
 		lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	hints := "enter open · f flow · d git diff · S settings · ? help · q quit"
+	hints := "enter open · f flow · d git diff · o settings · ? help · q quit"
 	if a.inLog() {
-		hints = "enter open · backspace commits · N/P commit · f flow · d git diff · S settings · ? help · q quit"
+		hints = "enter open · backspace commits · N/P commit · f flow · d git diff · o settings · ? help · q quit"
 	}
 	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, pageStatus(a.cfg, a.msg, hints))
 }

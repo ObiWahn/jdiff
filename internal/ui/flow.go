@@ -795,7 +795,7 @@ func (f *Flow) help() string {
 	if f.inLog() {
 		keys = append(keys, "N/P commit")
 	}
-	keys = append(keys, "f single file", "d git diff", "S settings", "? help", "q quit")
+	keys = append(keys, "f single file", "d git diff", "o settings", "? help", "q quit")
 	return strings.Join(keys, " · ")
 }
 

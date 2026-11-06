@@ -542,7 +542,7 @@ func (l *Log) frame() string {
 			st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
 			st(t.Decoration).Render(c.Date)
 	}
-	hints := "enter open · f flow · d git diff · S settings · ? help · q quit"
+	hints := "enter open · f flow · d git diff · o settings · ? help · q quit"
 	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, pageStatus(l.cfg, l.msg, hints))
 }
 
