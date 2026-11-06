@@ -115,7 +115,7 @@ func TestJumpWithinFile(t *testing.T) {
 		row := m.pos() - m.top
 		press(m, "g")
 		if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from old:2" {
-			t.Errorf("%s: o on a moved-away line: right line %d, active %v, msg %q; want 41, right, moved from old:2",
+			t.Errorf("%s: g on a moved-away line: right line %d, active %v, msg %q; want 41, right, moved from old:2",
 				layout, m.lineAt(right, m.cursor), m.active, m.msg)
 		}
 		if m.pos()-m.top != row {
@@ -126,7 +126,7 @@ func TestJumpWithinFile(t *testing.T) {
 		}
 		press(m, "g")
 		if m.lineAt(left, m.cursor) != 1 || m.active != left || m.msg != "moved to new:42" {
-			t.Errorf("%s: o back: left line %d, active %v, msg %q; want 1, left, moved to new:42",
+			t.Errorf("%s: g back: left line %d, active %v, msg %q; want 1, left, moved to new:42",
 				layout, m.lineAt(left, m.cursor), m.active, m.msg)
 		}
 	}
@@ -138,12 +138,12 @@ func TestJumpFromEitherPane(t *testing.T) {
 	press(m, "tab")       // the right pane, empty in this row
 	press(m, "g")
 	if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from old:2" {
-		t.Errorf("o from the empty pane: right line %d, active %v, msg %q; want 41, right, moved from old:2",
+		t.Errorf("g from the empty pane: right line %d, active %v, msg %q; want 41, right, moved from old:2",
 			m.lineAt(right, m.cursor), m.active, m.msg)
 	}
 	press(m, "tab", "g") // the left pane, empty in the added line's row
 	if m.lineAt(left, m.cursor) != 1 || m.active != left || m.msg != "moved to new:42" {
-		t.Errorf("o back from the empty pane: left line %d, active %v, msg %q; want 1, left", m.lineAt(left, m.cursor), m.active, m.msg)
+		t.Errorf("g back from the empty pane: left line %d, active %v, msg %q; want 1, left", m.lineAt(left, m.cursor), m.active, m.msg)
 	}
 }
 
@@ -151,7 +151,7 @@ func TestFlowJumpFromEitherPane(t *testing.T) {
 	a := newMovedApp()
 	pressApp(a, "f", "j", "j", "j", "tab", "g") // a.go line 2, from the empty right pane
 	if _, file, line := a.flow.position(); file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.msg != "moved from a.go:3" {
-		t.Errorf("o in the flow from the empty pane: file %d, right line %d, msg %q", file, a.files[1].diff.lineAt(right, line), a.flow.msg)
+		t.Errorf("g in the flow from the empty pane: file %d, right line %d, msg %q", file, a.files[1].diff.lineAt(right, line), a.flow.msg)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestJumpNotMoved(t *testing.T) {
 	cursor := m.cursor
 	press(m, "g")
 	if m.cursor != cursor || m.msg != "not moved" {
-		t.Errorf("o on a line changed in place: cursor %d (was %d), msg %q", m.cursor, cursor, m.msg)
+		t.Errorf("g on a line changed in place: cursor %d (was %d), msg %q", m.cursor, cursor, m.msg)
 	}
 }
 
@@ -183,11 +183,11 @@ func TestJumpToAnotherFile(t *testing.T) {
 	pressApp(a, "g")
 	m := a.open.view
 	if a.open.Path != "b.go" || m.lineAt(right, m.cursor) != 3 || m.active != right || m.msg != "moved from a.go:3" {
-		t.Fatalf("o into b.go: file %s, right line %d, active %v, msg %q", a.open.Path, m.lineAt(right, m.cursor), m.active, m.msg)
+		t.Fatalf("g into b.go: file %s, right line %d, active %v, msg %q", a.open.Path, m.lineAt(right, m.cursor), m.active, m.msg)
 	}
 	pressApp(a, "g")
 	if m := a.open.view; a.open.Path != "a.go" || m.lineAt(left, m.cursor) != 2 || m.msg != "moved to b.go:4" {
-		t.Errorf("o back: file %s, left line %d, msg %q", a.open.Path, m.lineAt(left, m.cursor), m.msg)
+		t.Errorf("g back: file %s, left line %d, msg %q", a.open.Path, m.lineAt(left, m.cursor), m.msg)
 	}
 }
 
@@ -225,7 +225,7 @@ func TestFlowJumpToAnotherFile(t *testing.T) {
 	pressApp(a, "g")
 	_, file, line = a.flow.position()
 	if file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.active != right || a.flow.msg != "moved from a.go:3" {
-		t.Errorf("o in the flow: file %d, right line %d, active %v, msg %q",
+		t.Errorf("g in the flow: file %d, right line %d, active %v, msg %q",
 			file, a.files[1].diff.lineAt(right, line), a.flow.active, a.flow.msg)
 	}
 }
@@ -263,11 +263,11 @@ func TestJumpOnScreenDoesNotScroll(t *testing.T) {
 	top := m.top
 	press(m, "g")
 	if m.lineAt(right, m.cursor) != 16 || m.top != top {
-		t.Errorf("o: right line %d, top %d; want 16 and the screen as it was, %d", m.lineAt(right, m.cursor), m.top, top)
+		t.Errorf("g: right line %d, top %d; want 16 and the screen as it was, %d", m.lineAt(right, m.cursor), m.top, top)
 	}
 	press(m, "g")
 	if m.lineAt(left, m.cursor) != 11 || m.top != top {
-		t.Errorf("o back: left line %d, top %d; want 11, %d", m.lineAt(left, m.cursor), m.top, top)
+		t.Errorf("g back: left line %d, top %d; want 11, %d", m.lineAt(left, m.cursor), m.top, top)
 	}
 
 	// A mark on screen: the cursor goes there, the screen stays.
@@ -295,10 +295,10 @@ func TestFlowJumpKeepsBothEndsInView(t *testing.T) {
 	from := a.flow.cursor
 	pressApp(a, "g")
 	if _, file, _ := a.flow.position(); file != 1 || !inView(from) || !inView(a.flow.cursor) {
-		t.Errorf("o in the flow: file %d, rows %d and %d, window from %d; want b.go with both in view",
+		t.Errorf("g in the flow: file %d, rows %d and %d, window from %d; want b.go with both in view",
 			file, from, a.flow.cursor, a.flow.top)
 	}
-	// A mark there, back with o, and to the mark: again both in view.
+	// A mark there, back with g, and to the mark: again both in view.
 	to := a.flow.cursor
 	pressApp(a, "m", "k", "g", "'", "k")
 	if a.flow.cursor != to || !inView(from) || !inView(to) {
