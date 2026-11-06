@@ -143,8 +143,9 @@ func (m *Model) refresh() {
 }
 
 func (m *Model) key(k string) tea.Cmd {
+	m.msg = ""
 	if p := m.prefix; p != "" {
-		m.prefix, m.msg = "", ""
+		m.prefix = ""
 		switch {
 		case !isMarkLetter(k):
 		case p == "m":
@@ -156,7 +157,6 @@ func (m *Model) key(k string) tea.Cmd {
 	}
 	if m.replace != nil && k != "enter" && k != "esc" {
 		m.replace = nil
-		m.msg = ""
 	}
 
 	page := max(m.bodyHeight()-1, 1)

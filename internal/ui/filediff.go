@@ -300,6 +300,15 @@ func (d *fileDiff) act(k string, at spot, sh shape) (spot, string) {
 	return at, ""
 }
 
+// markPrompt returns what to do with the pending mark, "" without one: the
+// status lines show it until another message, while the mark waits.
+func (d *fileDiff) markPrompt() string {
+	if d.pending == nil {
+		return ""
+	}
+	return fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)", sideName(d.pending.side), d.pending.line+1)
+}
+
 // enter implements the anchor workflow: mark a line, then pick its partner
 // in the other pane. Enter on an anchored line removes that anchor. In the
 // normal layout the line under the cursor decides the side.
@@ -326,8 +335,7 @@ func (d *fileDiff) enter(at spot, sh shape) (spot, string) {
 		}
 		d.pending = &mark{at.side, line}
 		at.side = at.side.other()
-		return at, fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)",
-			sideName(d.pending.side), line+1)
+		return at, d.markPrompt()
 	}
 
 	an := diff.Anchor{Left: d.pending.line, Right: line}

@@ -14,6 +14,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/source"
 )
 
 func newTestModel(a, b []string) *Model {
@@ -1169,5 +1170,113 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	press(m, "g", "]")
 	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│ X") {
 		t.Errorf("]: cursor on %q, want the block's first line, old X:\n%s", got, strings.Join(screenTexts(m), "\n"))
+	}
+}
+
+// A message lasts until the next key, as in the other views.
+func TestKeyClearsMessage(t *testing.T) {
+	a, b := numbered("x", 30), numbered("x", 30)
+	b[5], b[20] = "new5", "new20"
+	m := newTestModel(a, b)
+	press(m, "]", "]", "]")
+	if m.msg != "no more changes" {
+		t.Fatalf("] past the last change: msg %q", m.msg)
+	}
+	press(m, "[")
+	if m.msg != "" {
+		t.Errorf("[ to a change: msg %q", m.msg)
+	}
+	for _, k := range []string{"j", "k", "l", "h", "tab", "ctrl+d", "ctrl+u", "x"} {
+		m.msg = "x0"
+		press(m, k)
+		if m.msg != "" {
+			t.Errorf("%s: msg %q", k, m.msg)
+		}
+	}
+	// A key with a message of its own shows that.
+	press(m, "m")
+	if m.msg != "set mark: press a letter" {
+		t.Errorf("m: msg %q", m.msg)
+	}
+}
+
+// The prompt of a pending mark stays while the mark waits, after a message of
+// another key too.
+func TestMarkPromptStays(t *testing.T) {
+	const prompt = "marked L4, pick the matching line (esc cancels)"
+	status := func(m *Model) string { return ansi.Strip(m.status()) }
+	m := newTestModel(numbered("x", 10), numbered("y", 10))
+	moveTo(t, m, left, 3)
+	press(m, "enter")
+	for _, k := range []string{"j", "k", "tab"} {
+		press(m, k)
+		if !strings.Contains(status(m), prompt) {
+			t.Errorf("%s: status %q", k, status(m))
+		}
+	}
+	press(m, "'", "q")
+	if !strings.Contains(status(m), "no mark q") {
+		t.Errorf("' q: status %q", status(m))
+	}
+	press(m, "j")
+	if !strings.Contains(status(m), prompt) {
+		t.Errorf("after the message: status %q", status(m))
+	}
+	press(m, "esc")
+	if !strings.Contains(status(m), "mark cancelled") {
+		t.Errorf("esc: status %q", status(m))
+	}
+	press(m, "j")
+	if strings.Contains(status(m), "marked") || !strings.Contains(status(m), "enter mark/anchor") {
+		t.Errorf("mark cancelled, j: status %q", status(m))
+	}
+	// Anchoring ends it too.
+	moveTo(t, m, left, 3)
+	press(m, "enter")
+	moveTo(t, m, right, 3)
+	press(m, "enter", "j")
+	if len(m.anchors) != 1 || !strings.Contains(status(m), "enter mark/anchor") {
+		t.Errorf("anchored, j: anchors %v, status %q", m.anchors, status(m))
+	}
+}
+
+func TestFlowMarkPromptStays(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		modified("x0", numbered("x", 10), numbered("y", 10)),
+		modified("x1", []string{"x"}, []string{"y"}),
+	})
+	a.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	view := func() string { return ansi.Strip(a.frame()) }
+	pressApp(a, "f", "j", "enter")
+	prompt := a.flow.msg
+	if !strings.HasPrefix(prompt, "marked ") {
+		t.Fatalf("enter: msg %q", prompt)
+	}
+	for _, k := range []string{"j", "k", "tab"} {
+		pressApp(a, k)
+		if !strings.Contains(view(), prompt) {
+			t.Errorf("%s: no prompt:\n%s", k, view())
+		}
+	}
+	// Also with the cursor in another file than the mark.
+	pressApp(a, "n")
+	if _, file, _ := a.flow.position(); file != 1 || !strings.Contains(view(), prompt) {
+		t.Errorf("n: file %d:\n%s", file, view())
+	}
+	pressApp(a, "'", "q")
+	if !strings.Contains(view(), "no mark q") {
+		t.Errorf("' q:\n%s", view())
+	}
+	pressApp(a, "j")
+	if !strings.Contains(view(), prompt) {
+		t.Errorf("after the message:\n%s", view())
+	}
+	pressApp(a, "esc")
+	if !strings.Contains(view(), "mark cancelled") {
+		t.Errorf("esc:\n%s", view())
+	}
+	pressApp(a, "k")
+	if strings.Contains(view(), "marked ") {
+		t.Errorf("mark cancelled, k:\n%s", view())
 	}
 }

@@ -844,7 +844,11 @@ func (f *Flow) status() string {
 			where = append(where, fmt.Sprintf("anchors %d", len(d.anchors)))
 		}
 	}
-	left := statusText(f.cfg.Theme, f.msg, f.help())
+	msg := f.msg
+	if msg == "" && f.marked != nil {
+		msg = f.marked.markPrompt()
+	}
+	left := statusText(f.cfg.Theme, msg, f.help())
 	return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))
 }
 

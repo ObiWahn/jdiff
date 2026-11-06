@@ -208,7 +208,11 @@ func (d *fileDiff) bodyRow(v, sub int, cursor bool, lo layout) string {
 }
 
 func (m *Model) status() string {
-	left := statusText(m.cfg.Theme, m.msg, m.help())
+	msg := m.msg
+	if msg == "" {
+		msg = m.markPrompt()
+	}
+	left := statusText(m.cfg.Theme, msg, m.help())
 	row := 0
 	if m.cursor < len(m.view) {
 		row = m.view[m.cursor].row + 1
