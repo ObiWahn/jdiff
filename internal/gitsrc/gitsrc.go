@@ -160,6 +160,38 @@ func (r Repo) Branch() string {
 	return strings.TrimSpace(string(out))
 }
 
+// WatchPaths returns the files that change when the repository does: HEAD, the
+// index, the packed refs and the ref of the checked out branch. They are where
+// git has them, also in a worktree.
+func (r Repo) WatchPaths() ([]string, error) {
+	names := []string{"HEAD", "index", "packed-refs"}
+	if ref, err := r.git("symbolic-ref", "-q", "HEAD"); err == nil {
+		names = append(names, strings.TrimSpace(string(ref)))
+	}
+	args := []string{"rev-parse"}
+	for _, n := range names {
+		args = append(args, "--git-path", n)
+	}
+	out, err := r.git(args...)
+	if err != nil {
+		return nil, err
+	}
+	paths := strings.Split(strings.TrimSpace(string(out)), "\n")
+	for i, p := range paths {
+		if !filepath.IsAbs(p) {
+			paths[i] = filepath.Join(r.Dir, p) // relative to where git ran
+		}
+	}
+	return paths, nil
+}
+
+// Status returns the state of the repository: the commit of HEAD, the branch,
+// staged, changed and untracked files. It does not write the index.
+func (r Repo) Status() (string, error) {
+	out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, "status", "--porcelain=v2", "--branch", "--untracked-files=all")
+	return string(out), err
+}
+
 // Files returns the files c changed against its first parent, or against
 // the empty tree for a root commit, with their contents.
 func (r Repo) Files(c Commit) ([]source.File, error) {

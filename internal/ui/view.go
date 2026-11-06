@@ -212,7 +212,7 @@ func (m *Model) status() string {
 	if msg == "" {
 		msg = m.markPrompt()
 	}
-	left := statusText(m.cfg.Theme, msg, m.help())
+	left := pageStatus(m.cfg, msg, m.help())
 	row := 0
 	if m.cursor < len(m.view) {
 		row = m.view[m.cursor].row + 1

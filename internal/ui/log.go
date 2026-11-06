@@ -196,7 +196,10 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		l.switchCommit(int(msg))
 		return nil
 	case refreshMsg:
-		l.relistCommits()
+		l.relistCommits(msg.quiet)
+		return nil
+	case showMsg:
+		l.setMsg(string(msg))
 		return nil
 	case toggleUntrackedMsg:
 		l.setMsg(untrackedOnlyInDiff)
@@ -252,6 +255,8 @@ func (l *Log) key(k string) tea.Cmd {
 		return toggleFlow
 	case "r", "f5", "ctrl+r":
 		return refreshAll
+	case autoReloadKey:
+		return askAutoReload
 	case diffKey:
 		return askDiff
 	case settingsKey, settingsFKey:
@@ -396,8 +401,9 @@ func (l *Log) switchCommit(dir int) {
 // relistCommits lists the commits again (r). New commits are added and gone
 // ones dropped; a commit still there keeps its entry, and so its files with
 // their anchors and folds: its content cannot change. The cursor stays on
-// its commit; when the commit shown is gone, the list is shown.
-func (l *Log) relistCommits() {
+// its commit; when the commit shown is gone, the list is shown. With quiet, it
+// does not say when nothing changed.
+func (l *Log) relistCommits(quiet bool) {
 	if l.relist == nil {
 		l.setMsg("nothing to load again")
 		return
@@ -457,7 +463,9 @@ func (l *Log) relistCommits() {
 		l.cursor = slices.Index(l.commits, open)
 	}
 	l.scrollToCursor()
-	l.setMsg(msg)
+	if !quiet || msg != nothingChanged {
+		l.setMsg(msg)
+	}
 }
 
 // filesOfFlow shows the file list of the commit under the flow view's
@@ -535,7 +543,7 @@ func (l *Log) frame() string {
 			st(t.Decoration).Render(c.Date)
 	}
 	hints := "enter open · f flow · d git diff · S settings · ? help · q quit"
-	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, statusText(t, l.msg, hints))
+	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, pageStatus(l.cfg, l.msg, hints))
 }
 
 // messageBox renders the full message of c in a box height lines high,

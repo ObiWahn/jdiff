@@ -39,9 +39,24 @@ type jumpMsg struct {
 
 // refreshMsg asks the top-level view to load what it shows again: run git
 // diff or git log again, list the directories again or read the two files.
-type refreshMsg struct{}
+// With quiet, as auto reload asks, it does not say when nothing changed.
+type refreshMsg struct{ quiet bool }
 
 func refreshAll() tea.Msg { return refreshMsg{} }
+
+// nothingChanged is the message after loading again the same.
+const nothingChanged = "nothing changed"
+
+// autoReloadKey toggles auto reload. The pages hand it on, as diffKey.
+const autoReloadKey = "R"
+
+// askAutoReloadMsg asks DiffSwitch to toggle auto reload.
+type askAutoReloadMsg struct{}
+
+func askAutoReload() tea.Msg { return askAutoReloadMsg{} }
+
+// showMsg asks the top-level view to show a message in its status bar.
+type showMsg string
 
 // refreshed returns the message after loading again: what was added,
 // removed and changed, and the anchors dropped from changed files.
@@ -62,7 +77,7 @@ func refreshed(added, gone, changed, dropped int) string {
 		parts = append(parts, fmt.Sprintf("%d anchors dropped", dropped))
 	}
 	if len(parts) == 0 {
-		return "nothing changed"
+		return nothingChanged
 	}
 	return strings.Join(parts, ", ")
 }

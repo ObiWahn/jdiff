@@ -199,6 +199,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.delegate(k)
 	case "r", "f5", "ctrl+r":
 		return refreshAll
+	case autoReloadKey:
+		return askAutoReload
 	case diffKey:
 		return askDiff
 	case searchKey:
@@ -853,7 +855,7 @@ func (f *Flow) status() string {
 	if msg == "" && f.marked != nil {
 		msg = f.marked.markPrompt()
 	}
-	left := statusText(f.cfg.Theme, msg, f.help())
+	left := pageStatus(f.cfg, msg, f.help())
 	return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))
 }
 

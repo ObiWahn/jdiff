@@ -26,6 +26,7 @@ var bindings = []binding{
 	{"'<letter>", "jump to a mark, when its file is in this diff"},
 	{"\\", "jump marks: enter jumps, d or del deletes"},
 	{"r F5 ctrl+r", "load again: git diff, git log, the directories or the files"},
+	{"R", "auto reload: load again when the repository changes; off at each start"},
 	{"d", "popup: show git diff ARGS instead; ↑ the current ARGS, enter show"},
 	{"", "  esc or backspace on nothing typed cancel"},
 	{"s", "side by side or normal layout, also of the preview"},

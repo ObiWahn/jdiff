@@ -113,7 +113,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, waitChanges(m.notify)
 	case refreshMsg:
-		m.refresh()
+		m.refresh(msg.quiet)
+	case showMsg:
+		m.msg = string(msg)
 	case toggleUntrackedMsg:
 		m.msg = untrackedOnlyInDiff
 	case settingChangedMsg:
@@ -133,16 +135,19 @@ func (m *Model) stop() {
 	}
 }
 
-// refresh reads both files again, whether their stamps changed or not.
-func (m *Model) refresh() {
+// refresh reads both files again, whether their stamps changed or not. With
+// quiet, it does not say when nothing changed.
+func (m *Model) refresh(quiet bool) {
 	if m.watch == nil {
 		m.msg = "nothing to load again"
 		return
 	}
 	m.watch.OldStamp, m.watch.NewStamp = source.Stamp{}, source.Stamp{}
-	m.msg = refreshFile(m.watch, m.fileDiff, m.syncLayout)
-	if m.msg == "" {
-		m.msg = "nothing changed"
+	switch msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); {
+	case msg != "":
+		m.msg = msg
+	case !quiet:
+		m.msg = nothingChanged
 	}
 }
 
@@ -200,6 +205,8 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 	case "r", "f5", "ctrl+r":
 		return refreshAll
+	case autoReloadKey:
+		return askAutoReload
 	case diffKey:
 		return askDiff
 	case searchKey:

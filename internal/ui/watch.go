@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -63,6 +64,151 @@ func startWatching(cfg *config.Config, owner tea.Model, paths []string) (w *noti
 		}
 	}
 	return nil, watchTick(cfg, owner), msg
+}
+
+// autoTickMsg asks DiffSwitch for the next check of auto reload number gen;
+// a later or ended one drops it.
+type autoTickMsg struct{ gen int }
+
+// autoStatusMsg is the result of git status for auto reload number gen.
+type autoStatusMsg struct {
+	gen    int
+	status string
+	err    error
+}
+
+// toggleAutoReload starts or stops auto reload and returns the commands of
+// its checks. Starting also loads again, since the repository may have changed
+// since the last load. When it cannot start, the view says why.
+func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
+	if s.cfg.AutoReload {
+		s.stopAutoReload()
+		return nil
+	}
+	if s.repoStatus == nil {
+		return showAutoReloadError(errors.New("nothing to watch"))
+	}
+	if s.cfg.Settings.AutoReloadInterval <= 0 {
+		return showAutoReloadError(errors.New("auto_reload_interval is 0"))
+	}
+	status, err := s.repoStatus()
+	if err != nil {
+		return showAutoReloadError(err)
+	}
+	s.cfg.AutoReload, s.lastStatus, s.lastActive = true, status, time.Now()
+	s.autoGen++
+	s.watchRepo()
+	var cmd tea.Cmd
+	s.Model, cmd = s.Model.Update(refreshMsg{quiet: true})
+	return tea.Batch(cmd, s.autoTick(), s.waitRepo())
+}
+
+// stopAutoReload ends auto reload: no git commands run for it from now on.
+func (s *DiffSwitch) stopAutoReload() {
+	s.cfg.AutoReload = false
+	s.autoGen++
+	if s.repoWatch != nil {
+		s.repoWatch.Close()
+		s.repoWatch = nil
+	}
+}
+
+// autoTick returns the command for the next regular check.
+func (s *DiffSwitch) autoTick() tea.Cmd {
+	gen := s.autoGen
+	every := time.Duration(s.cfg.Settings.AutoReloadInterval) * time.Second
+	return tea.Tick(every, func(time.Time) tea.Msg { return autoTickMsg{gen} })
+}
+
+// checkStatus returns the command running git status.
+func (s *DiffSwitch) checkStatus() tea.Cmd {
+	s.statusRuns++
+	gen, status := s.autoGen, s.repoStatus
+	return func() tea.Msg {
+		st, err := status()
+		return autoStatusMsg{gen, st, err}
+	}
+}
+
+// onAutoTick ends auto reload after the timeout without activity, else checks
+// the status, unless git is still at it, as in a large repository.
+func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
+	if msg.gen != s.autoGen {
+		return nil
+	}
+	if m := s.cfg.Settings.AutoReloadTimeout; m > 0 && time.Since(s.lastActive) >= time.Duration(m)*time.Minute {
+		s.stopAutoReload()
+		return func() tea.Msg { return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }
+	}
+	if s.statusRuns > 0 {
+		return s.autoTick()
+	}
+	return tea.Batch(s.autoTick(), s.checkStatus())
+}
+
+// onAutoStatus loads what is shown again when the status differs from the last
+// one, which counts as activity. git status elsewhere, or git diff refreshing
+// the index, makes the watcher report a change but leaves the status as it is.
+// When git fails, auto reload ends.
+func (s *DiffSwitch) onAutoStatus(msg autoStatusMsg) tea.Cmd {
+	s.statusRuns--
+	if msg.gen != s.autoGen {
+		return nil
+	}
+	if msg.err != nil {
+		s.stopAutoReload()
+		return showAutoReloadError(msg.err)
+	}
+	if msg.status == s.lastStatus {
+		return nil
+	}
+	s.lastStatus, s.lastActive = msg.status, time.Now()
+	var cmd tea.Cmd
+	s.Model, cmd = s.Model.Update(refreshMsg{quiet: true})
+	return cmd
+}
+
+// onRepoChanged checks the status at once after the watcher reported a change.
+// The files are watched anew, since a checkout changes the branch's ref.
+func (s *DiffSwitch) onRepoChanged() tea.Cmd {
+	s.watchRepo()
+	return tea.Batch(s.checkStatus(), s.waitRepo())
+}
+
+// watchRepo starts watching the repository's files, in place of the watcher
+// before, which stays when that fails: the regular checks still see all
+// changes, only later. A symlink counts with the directory of its target.
+func (s *DiffSwitch) watchRepo() {
+	if s.repoPaths == nil {
+		return
+	}
+	paths, err := s.repoPaths()
+	if err != nil {
+		return
+	}
+	w, err := notify.New(paths, 2*len(paths))
+	if err != nil {
+		return
+	}
+	if s.repoWatch != nil {
+		s.repoWatch.Close()
+	}
+	s.repoWatch = w
+}
+
+// waitRepo returns the command waiting for the watcher's next change, nil
+// without one.
+func (s *DiffSwitch) waitRepo() tea.Cmd {
+	if s.repoWatch == nil {
+		return nil
+	}
+	return waitChanges(s.repoWatch)
+}
+
+// showAutoReloadError returns the command showing why auto reload is off.
+func showAutoReloadError(err error) tea.Cmd {
+	msg, _, _ := strings.Cut(err.Error(), "\n")
+	return func() tea.Msg { return showMsg("auto reload: " + msg) }
 }
 
 // diskPaths returns the paths of the sides of f on disk, cleaned as

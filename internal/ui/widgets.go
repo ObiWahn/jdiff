@@ -3,12 +3,14 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/notify"
 	"jdiff/internal/theme"
 )
 
@@ -50,6 +52,15 @@ func statusText(t *theme.Theme, msg, hints string) string {
 		return t.Hint.Render(printable(msg))
 	}
 	return t.Hint.Render(hints)
+}
+
+// pageStatus returns the left part of the status bar of a page, see
+// statusText; while auto reload is on, its name comes first.
+func pageStatus(cfg *config.Config, msg, hints string) string {
+	if cfg.AutoReload {
+		return popupTitle(cfg.Theme, "auto reload", msg, hints)
+	}
+	return statusText(cfg.Theme, msg, hints)
 }
 
 // minBoxHeight fits the borders and one line.
@@ -259,16 +270,35 @@ type DiffSwitch struct {
 	wrap      func(tea.Model) tea.Model
 	cfg       *config.Config
 	gitDiff   DiffFunc
-	input     *lineInput // while it asks
-	err       string     // why git failed, until the next key
-	width     int
-	height    int
+	// Auto reload: repoStatus returns the state of the repository, nil
+	// without auto reload, which is checked every auto_reload_interval and at once
+	// when repoWatch, if the system has one, reports a change of the files of
+	// repoPaths. statusRuns counts the checks under way; autoGen tells this
+	// run of auto reload from earlier ones.
+	repoStatus func() (string, error)
+	repoPaths  func() ([]string, error)
+	repoWatch  *notify.Watcher
+	lastStatus string
+	lastActive time.Time
+	statusRuns int
+	autoGen    int
+	input      *lineInput // while it asks
+	err        string     // why git failed, until the next key
+	width      int
+	height     int
 }
 
 // WithDiffSwitch returns the switch for view, which wrap puts in its
 // wrappers, as it does the views that replace it; gitDiff runs git diff.
 func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, gitDiff DiffFunc) *DiffSwitch {
 	return &DiffSwitch{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, gitDiff: gitDiff}
+}
+
+// WithAutoReload sets how auto reload gets the state of the repository and
+// the files to watch for changes of it, and returns s.
+func (s *DiffSwitch) WithAutoReload(status func() (string, error), paths func() ([]string, error)) *DiffSwitch {
+	s.repoStatus, s.repoPaths = status, paths
+	return s
 }
 
 // current returns the arguments of the git diff shown, and whether the view
@@ -287,7 +317,18 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case askDiffMsg:
 		s.input, s.err = &lineInput{}, ""
 		return s, nil
+	case askAutoReloadMsg:
+		return s, s.toggleAutoReload()
+	case autoTickMsg:
+		return s, s.onAutoTick(msg)
+	case autoStatusMsg:
+		return s, s.onAutoStatus(msg)
+	case changedMsg:
+		if s.repoWatch != nil && msg.w == s.repoWatch {
+			return s, s.onRepoChanged()
+		}
 	case tea.KeyPressMsg:
+		s.lastActive = time.Now()
 		if s.input != nil {
 			s.err = ""
 			return s, s.key(msg)

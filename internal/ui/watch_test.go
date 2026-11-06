@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
@@ -426,5 +428,229 @@ func TestWatchDropsAnchors(t *testing.T) {
 	m.Update(watchTickMsg{})
 	if len(m.anchors) != 0 || m.msg != "new.txt reloaded, 2 anchors dropped" {
 		t.Errorf("both anchored lines changed: anchors %v, msg %q", m.anchors, m.msg)
+	}
+}
+
+// fakeRepo is the repository auto reload checks.
+type fakeRepo struct {
+	status string
+	err    error
+	paths  []string
+}
+
+func (r *fakeRepo) getStatus() (string, error)  { return r.status, r.err }
+func (r *fakeRepo) getPaths() ([]string, error) { return r.paths, nil }
+
+// newAutoReload returns the switch around a file selector of git diff, with
+// the repository of a watched file, and the file. The view and the switch share
+// their configuration, as in the program.
+func newAutoReload(t *testing.T) (*DiffSwitch, *fakeGitDiff, *fakeRepo, string) {
+	t.Helper()
+	g := &fakeGitDiff{}
+	file := filepath.Join(t.TempDir(), "HEAD")
+	writeLines(t, file, []string{"x0"})
+	repo := &fakeRepo{status: "s0", paths: []string{file}}
+	cfg := config.Default()
+	cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
+	a := NewApp(cfg, nil).WithGitDiff(nil, g.diff)
+	s := WithDiffSwitch(cfg, a, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths)
+	s.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	t.Cleanup(func() {
+		if s.repoWatch != nil {
+			s.repoWatch.Close()
+		}
+	})
+	return s, g, repo, file
+}
+
+// R goes to the switch on every page; off, nothing is checked or shown.
+func TestAutoReloadKeyOnAllPages(t *testing.T) {
+	for _, page := range settingsPages() {
+		m, _ := page.make()
+		m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+		pressRoot(m, page.keys...)
+		_, cmd := m.Update(keyMsg("R"))
+		if cmd == nil {
+			t.Errorf("%s: R does nothing", page.name)
+			continue
+		}
+		if _, ok := cmd().(askAutoReloadMsg); !ok {
+			t.Errorf("%s: R asks for %T", page.name, cmd())
+		}
+	}
+}
+
+func TestAutoReloadOnAndOff(t *testing.T) {
+	s, g, repo, _ := newAutoReload(t)
+	if strings.Contains(ansi.Strip(s.frame()), "auto reload") {
+		t.Errorf("the badge shows while off:\n%s", ansi.Strip(s.frame()))
+	}
+	s.Update(askAutoReloadMsg{})
+	if !s.cfg.AutoReload || len(g.runs) != 1 {
+		t.Fatalf("on: %v, runs %v; want one load", s.cfg.AutoReload, g.runs)
+	}
+	if !strings.Contains(ansi.Strip(s.frame()), "auto reload") {
+		t.Errorf("the badge does not show:\n%s", ansi.Strip(s.frame()))
+	}
+	// The same status does not load again, nor say so; a new one loads.
+	gen := s.autoGen
+	s.statusRuns++
+	s.Update(autoStatusMsg{gen: gen, status: "s0"})
+	if len(g.runs) != 1 {
+		t.Errorf("same status: runs %v", g.runs)
+	}
+	repo.status = "s1"
+	s.statusRuns++
+	s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	if len(g.runs) != 2 {
+		t.Errorf("new status: runs %v", g.runs)
+	}
+	if strings.Contains(ansi.Strip(s.frame()), nothingChanged) {
+		t.Errorf("says nothing changed:\n%s", ansi.Strip(s.frame()))
+	}
+	// Off: results and ticks under way are dropped.
+	s.Update(askAutoReloadMsg{})
+	s.statusRuns++
+	s.Update(autoStatusMsg{gen: gen, status: "s2"})
+	if _, cmd := s.Update(autoTickMsg{gen}); s.cfg.AutoReload || s.repoWatch != nil || len(g.runs) != 2 || cmd != nil {
+		t.Errorf("off: on %v, watcher %v, runs %v, tick goes on %v", s.cfg.AutoReload, s.repoWatch, g.runs, cmd != nil)
+	}
+	if s.statusRuns != 0 {
+		t.Errorf("checks under way: %d", s.statusRuns)
+	}
+}
+
+// The timeout ends auto reload and so the git commands; keys and changes put it
+// off, a check that finds the same status does not; 0 is never.
+func TestAutoReloadTimeout(t *testing.T) {
+	s, _, _, _ := newAutoReload(t)
+	const idle = 6 * time.Minute
+	s.Update(askAutoReloadMsg{})
+	gen := s.autoGen
+	if _, cmd := s.Update(autoTickMsg{gen}); cmd == nil || s.statusRuns != 1 {
+		t.Fatalf("active: cmd %v, checks %d; want a check", cmd != nil, s.statusRuns)
+	}
+	// While git is at it, no second check starts.
+	if s.Update(autoTickMsg{gen}); s.statusRuns != 1 {
+		t.Errorf("checks %d, want 1", s.statusRuns)
+	}
+	s.lastActive = time.Now().Add(-idle)
+	s.Update(autoStatusMsg{gen: gen, status: "s0"})
+	if time.Since(s.lastActive) < idle {
+		t.Error("the same status counts as activity")
+	}
+	s.Update(keyMsg("j"))
+	if time.Since(s.lastActive) >= idle {
+		t.Error("a key does not count as activity")
+	}
+	s.lastActive = time.Now().Add(-idle)
+	s.statusRuns++
+	s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	if time.Since(s.lastActive) >= idle {
+		t.Error("a change does not count as activity")
+	}
+	s.cfg.Settings.AutoReloadTimeout = 0
+	s.lastActive = time.Now().Add(-idle)
+	if s.Update(autoTickMsg{gen}); !s.cfg.AutoReload {
+		t.Error("timeout 0 ended it")
+	}
+	s.statusRuns = 0
+	s.cfg.Settings.AutoReloadTimeout = 5
+	_, cmd := s.Update(autoTickMsg{gen})
+	if s.cfg.AutoReload || s.repoWatch != nil || s.statusRuns != 0 || cmd == nil {
+		t.Fatalf("idle: on %v, watcher %v, checks %d", s.cfg.AutoReload, s.repoWatch, s.statusRuns)
+	}
+	s.Update(cmd())
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "auto reload off: 5 min") {
+		t.Errorf("does not say why:\n%s", view)
+	}
+}
+
+func TestAutoReloadSurvivesDiffSwitch(t *testing.T) {
+	s, g, _, _ := newAutoReload(t)
+	s.Update(askAutoReloadMsg{})
+	gen := s.autoGen
+	s.show([]string{"HEAD~1"})
+	s.statusRuns++
+	s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	if !s.cfg.AutoReload || len(g.runs) < 2 || !slices.Equal(g.runs[len(g.runs)-1], []string{"HEAD~1"}) {
+		t.Errorf("on %v, runs %v; want the new diff loaded", s.cfg.AutoReload, g.runs)
+	}
+}
+
+// Without a repository it does not start, and says why; git failing later ends it.
+func TestAutoReloadErrors(t *testing.T) {
+	s, _, repo, _ := newAutoReload(t)
+	repo.err = errors.New("not a git repository\nmore")
+	_, cmd := s.Update(askAutoReloadMsg{})
+	s.Update(cmd())
+	view := ansi.Strip(s.frame())
+	if s.cfg.AutoReload || !strings.Contains(view, "auto reload: not a git repository") || strings.Contains(view, "more") {
+		t.Errorf("on %v:\n%s", s.cfg.AutoReload, view)
+	}
+	repo.err = nil
+	s.Update(askAutoReloadMsg{})
+	if !s.cfg.AutoReload {
+		t.Fatal("does not start")
+	}
+	s.statusRuns++
+	_, cmd = s.Update(autoStatusMsg{gen: s.autoGen, err: errors.New("gone")})
+	s.Update(cmd())
+	if s.cfg.AutoReload || !strings.Contains(ansi.Strip(s.frame()), "auto reload: gone") {
+		t.Errorf("on %v:\n%s", s.cfg.AutoReload, ansi.Strip(s.frame()))
+	}
+	s.cfg.Settings.AutoReloadInterval = 0
+	_, cmd = s.Update(askAutoReloadMsg{})
+	s.Update(cmd())
+	if s.cfg.AutoReload || !strings.Contains(ansi.Strip(s.frame()), "auto_reload_interval is 0") {
+		t.Errorf("interval 0: on %v:\n%s", s.cfg.AutoReload, ansi.Strip(s.frame()))
+	}
+}
+
+// A change the watcher reports is checked at once, and the files watched anew;
+// a change from the watcher before is not.
+func TestAutoReloadWatcher(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("inotify is Linux only")
+	}
+	s, _, _, file := newAutoReload(t)
+	s.Update(askAutoReloadMsg{})
+	old := s.repoWatch
+	if old == nil {
+		t.Fatal("not watched")
+	}
+	writeLines(t, file, []string{"x1"})
+	msg := awaitMsg(t, waitChanges(old))
+	s.Update(msg)
+	if s.statusRuns != 1 || s.repoWatch == old {
+		t.Errorf("checks %d, watched anew %v", s.statusRuns, s.repoWatch != old)
+	}
+	if _, ok := <-old.Changes(); ok {
+		t.Error("the watcher replaced is still open")
+	}
+	s.Update(msg)
+	if s.statusRuns != 1 {
+		t.Errorf("stale change: checks %d", s.statusRuns)
+	}
+}
+
+// Auto reload is not saved, the timeout is.
+func TestAutoReloadNotSaved(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.AutoReload = true
+	cfg.Settings.AutoReloadTimeout = 7
+	if err := cfg.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.AutoReload || again.Settings.AutoReloadTimeout != 7 {
+		t.Errorf("after a restart: on %v, timeout %d; want off, 7", again.AutoReload, again.Settings.AutoReloadTimeout)
 	}
 }

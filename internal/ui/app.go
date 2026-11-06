@@ -313,8 +313,9 @@ func (a *App) refresh(which func(i int) bool) {
 // and folds, reloaded where its content changed. A file that became binary
 // or stopped being binary counts as gone and new. The cursor stays on its
 // file; when the file shown is gone, the list is shown. The files are
-// watched anew; it returns the command waiting for their changes.
-func (a *App) relistFiles() tea.Cmd {
+// watched anew; it returns the command waiting for their changes. With quiet,
+// it does not say when nothing changed.
+func (a *App) relistFiles(quiet bool) tea.Cmd {
 	if a.relist == nil {
 		a.setMsg("nothing to load again")
 		return nil
@@ -387,7 +388,9 @@ func (a *App) relistFiles() tea.Cmd {
 		a.open = nil
 	}
 	a.scrollToCursor()
-	a.setMsg(msg)
+	if !quiet || msg != nothingChanged {
+		a.setMsg(msg)
+	}
 	if a.inLog() {
 		return nil
 	}
@@ -448,14 +451,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.open = nil
 		return a, nil
 	case refreshMsg:
-		return a, a.relistFiles()
+		return a, a.relistFiles(msg.quiet)
+	case showMsg:
+		a.setMsg(string(msg))
+		return a, nil
 	case toggleUntrackedMsg:
 		if a.gitDiff == nil {
 			a.setMsg(untrackedOnlyInDiff)
 			return a, nil
 		}
 		w := toggle(a.cfg, &a.cfg.Settings.Untracked)
-		cmd := a.relistFiles()
+		cmd := a.relistFiles(false)
 		if w != "" {
 			a.setMsg(w)
 		}
@@ -535,6 +541,8 @@ func (a *App) key(k string) tea.Cmd {
 		}
 	case "r", "f5", "ctrl+r":
 		return refreshAll
+	case autoReloadKey:
+		return askAutoReload
 	case diffKey:
 		return askDiff
 	case "f":
@@ -795,5 +803,5 @@ func (a *App) frame() string {
 	if a.inLog() {
 		hints = "enter open · backspace commits · N/P commit · f flow · d git diff · S settings · ? help · q quit"
 	}
-	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, statusText(t, a.msg, hints))
+	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, pageStatus(a.cfg, a.msg, hints))
 }

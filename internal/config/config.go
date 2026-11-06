@@ -40,6 +40,11 @@ type Config struct {
 
 	marks marksState // jump marks, see LoadMarks
 
+	// AutoReload is whether what is shown is loaded again when the repository
+	// changes; R toggles it. It is not saved, so it is off at each start, as
+	// it ends by itself: see Settings.AutoReloadTimeout.
+	AutoReload bool
+
 	// Search is what / searched for, which . and , search again and the
 	// views highlight; it is not saved.
 	Search Search

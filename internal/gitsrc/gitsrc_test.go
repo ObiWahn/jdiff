@@ -643,3 +643,96 @@ func TestDiffUnmerged(t *testing.T) {
 		t.Errorf("files = %+v, want a.txt once, with the conflict markers", files)
 	}
 }
+
+func TestWatchPaths(t *testing.T) {
+	r := newRepo(t)
+	git := filepath.Join(r.Dir, ".git")
+	want := []string{filepath.Join(git, "HEAD"), filepath.Join(git, "index"), filepath.Join(git, "packed-refs"),
+		filepath.Join(git, "refs", "heads", "main")}
+	got, err := r.WatchPaths()
+	if err != nil || !slices.Equal(got, want) {
+		t.Errorf("WatchPaths() = %q, %v; want %q", got, err, want)
+	}
+	// Detached, there is no ref to watch.
+	gitIn(t, r.Dir, "checkout", "-q", "--detach")
+	if got, err = r.WatchPaths(); err != nil || !slices.Equal(got, want[:3]) {
+		t.Errorf("detached: %q, %v; want %q", got, err, want[:3])
+	}
+	gitIn(t, r.Dir, "checkout", "-q", "main")
+	// A worktree has its own HEAD and index, and the refs of the repository.
+	dir := filepath.Join(t.TempDir(), "wt")
+	gitIn(t, r.Dir, "worktree", "add", "-q", "-b", "wt", dir)
+	got, err = Repo{Dir: dir}.WatchPaths()
+	if err != nil || len(got) != 4 {
+		t.Fatalf("worktree: %q, %v", got, err)
+	}
+	if !slices.Contains(got, filepath.Join(git, "refs", "heads", "wt")) || !slices.Contains(got, filepath.Join(git, "worktrees", "wt", "HEAD")) {
+		t.Errorf("worktree: %q", got)
+	}
+	if _, err := (Repo{Dir: t.TempDir()}).WatchPaths(); err == nil {
+		t.Error("outside a repository: no error")
+	}
+}
+
+// Status differs after a new file, also in a new directory, an edit, git add
+// and a commit, and does not write the index.
+func TestStatus(t *testing.T) {
+	r := newRepo(t)
+	seen := map[string]bool{}
+	check := func(what string) {
+		t.Helper()
+		s, err := r.Status()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seen[s] {
+			t.Errorf("%s: status seen before:\n%s", what, s)
+		}
+		seen[s] = true
+	}
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(r.Dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check("start")
+	write("new/x0.txt", "x0\n")
+	check("new file")
+	write("new/x1.txt", "x1\n")
+	check("another new file in the new directory")
+	write("a.txt", "edited\n")
+	check("edit")
+	gitIn(t, r.Dir, "add", "a.txt")
+	check("add")
+	gitIn(t, r.Dir, "commit", "-q", "-m", "next")
+	check("commit")
+
+	// The index stays as it is, though a file's times changed.
+	index := filepath.Join(r.Dir, ".git", "index")
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(r.Dir, "a.txt"), future, future); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Status(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Error("Status wrote the index")
+	}
+	if _, err := (Repo{Dir: t.TempDir()}).Status(); err == nil {
+		t.Error("outside a repository: no error")
+	}
+}

@@ -96,7 +96,7 @@ func main() {
 	wrap := func(m tea.Model) tea.Model {
 		return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 	}
-	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)))
+	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths))
 	// 16 color mode: colors are drawn as ANSI colors, so the terminal
 	// palette applies. Terminals without color support stay without.
 	var opts []tea.ProgramOption

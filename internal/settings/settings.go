@@ -26,6 +26,10 @@ type Settings struct {
 	// subdirectories. With inotify, all files are reloaded when they
 	// change. 0 turns inotify off.
 	InotifyMaxDirs int `toml:"inotify_max_dirs"`
+	// AutoReloadInterval (auto_reload_interval) is how often, in seconds, auto
+	// reload runs git status, which sees new files, and all changes where
+	// Linux does not report them at once.
+	AutoReloadInterval int `toml:"auto_reload_interval"`
 	// LineEnd (line_end) is drawn at the end of lines while all whitespace
 	// is shown; it must be one column wide.
 	LineEnd string `toml:"line_end"`
@@ -99,6 +103,10 @@ type Toggles struct {
 	// as added, where it compares with the working tree. u in the settings
 	// popup toggles it.
 	Untracked bool `toml:"untracked"`
+	// AutoReloadTimeout (auto_reload_timeout) is after how many minutes
+	// without a key pressed or a change of the repository auto reload ends,
+	// and with it its git commands; 0 is never.
+	AutoReloadTimeout int `toml:"auto_reload_timeout"`
 }
 
 // Default returns the default settings.
@@ -109,6 +117,7 @@ func Default() Settings {
 		OnlyChangedWhitespaces: true,
 		WatchInterval:          1,
 		InotifyMaxDirs:         20,
+		AutoReloadInterval:     10,
 		LineEnd:                "¶",
 		CREnd:                  "␍",
 		Extends:                "»",
@@ -120,6 +129,8 @@ func Default() Settings {
 			MarkWhitespace:  true,
 			BoldChanges:     true,
 			FullMessages:    true,
+
+			AutoReloadTimeout: 5,
 		},
 	}
 }
