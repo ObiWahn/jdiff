@@ -29,6 +29,11 @@
 - The status bars list their keys in one order on all pages:
   enter · backspace · space · ]/[ · / · n/p · N/P · f · d · S · ? · q;
   each page shows only the keys that work there. The anchors stand at the right end.
+- The README's table of keys under `### Everywhere` decides the order of the settings: the popup
+  and the help's block of settings follow it at startup (`ui.OrderSettings`). Change the order
+  there, not in `settingOptions` or `bindings`. A setting with a key of its own is a row of that
+  table, unless it works only in one view (`logFlow`); `TestReadmeKeyOrder` checks that. The status
+  bars keep their own order, above.
 - The direction in history (N n next, P p previous, also with `--reverse`) is decided in one
   place only: `historyDir` and `historyOrder.step` in `internal/ui/messages.go`.
 - Toggles are fields of `settings.Toggles`, kept in `state.toml`; list a new one in the help's

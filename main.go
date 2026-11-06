@@ -90,6 +90,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	ui.OrderSettings(readme)
 	// d replaces whatever is shown by the files of git diff, which runs in
 	// the current directory; the search bar and the popups are put around
 	// the new view too.

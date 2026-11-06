@@ -301,3 +301,10 @@ func TestReadmeBadge(t *testing.T) {
 		t.Errorf("--readme starts with %.40q", got)
 	}
 }
+
+// The README decides the order of the settings: its table must fit them.
+func TestReadmeKeyOrder(t *testing.T) {
+	if problems := ui.KeyOrderProblems(readme); len(problems) != 0 {
+		t.Errorf("README: %q", problems)
+	}
+}

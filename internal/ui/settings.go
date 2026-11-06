@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -40,6 +42,85 @@ var settingOptions = []settingOption{
 	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
 	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{what: "minutes without keys or changes until auto reload ends; 0 never", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
+}
+
+// keyRow matches a row of a table of keys in the README, with its first key.
+var keyRow = regexp.MustCompile("^\\| `([^`]+)`")
+
+// keyRows returns the first key of each row of the README's table of keys of
+// all pages, which decides the order of the settings.
+func keyRows(readme string) []string {
+	var keys []string
+	inTable := false
+	for _, line := range strings.Split(readme, "\n") {
+		if strings.HasPrefix(line, "#") {
+			inTable = line == "### Everywhere"
+		} else if m := keyRow.FindStringSubmatch(line); inTable && m != nil {
+			keys = append(keys, m[1])
+		}
+	}
+	return keys
+}
+
+// orderSettings returns options and bindings with the settings in the order of
+// keys. Options not in keys, as c and C, which the README lists with the flow
+// view, stay behind, as they are; the other bindings stay where they are.
+func orderSettings(keys []string, options []settingOption, bs []binding) ([]settingOption, []binding) {
+	rank := func(k string) int {
+		if i := slices.Index(keys, k); i >= 0 {
+			return i
+		}
+		return len(keys)
+	}
+	options = slices.Clone(options)
+	slices.SortStableFunc(options, func(a, b settingOption) int { return cmp.Compare(rank(a.key), rank(b.key)) })
+
+	isSetting := func(b binding) bool {
+		return b.key != "" && slices.Contains(keys, b.key) && slices.ContainsFunc(options, func(o settingOption) bool { return o.key == b.key })
+	}
+	bs = slices.Clone(bs)
+	var at []int
+	var settings []binding
+	for i, b := range bs {
+		if isSetting(b) {
+			at, settings = append(at, i), append(settings, b)
+		}
+	}
+	slices.SortStableFunc(settings, func(a, b binding) int { return cmp.Compare(rank(a.key), rank(b.key)) })
+	for i, b := range settings {
+		bs[at[i]] = b
+	}
+	return options, bs
+}
+
+// OrderSettings puts the settings of the popup and the help in the order of
+// readme. Call it before the first view is drawn.
+func OrderSettings(readme string) {
+	settingOptions, bindings = orderSettings(keyRows(readme), settingOptions, bindings)
+}
+
+// KeyOrderProblems returns what is wrong with readme's table of keys of all
+// pages: a key that does not exist or stands twice, a setting missing.
+func KeyOrderProblems(readme string) []string {
+	var problems []string
+	keys := keyRows(readme)
+	if len(keys) == 0 {
+		return []string{"no table of keys under ### Everywhere"}
+	}
+	for i, k := range keys {
+		if slices.Contains(keys[:i], k) {
+			problems = append(problems, "key "+k+" stands twice")
+		}
+		if !slices.ContainsFunc(bindings, func(b binding) bool { return slices.Contains(strings.Fields(b.key), k) }) {
+			problems = append(problems, "key "+k+" is not in the help")
+		}
+	}
+	for _, o := range settingOptions {
+		if o.key != "" && !o.logFlow && !slices.Contains(keys, o.key) {
+			problems = append(problems, "setting "+o.key+" is not in the table")
+		}
+	}
+	return problems
 }
 
 // SettingsPopup wraps the top-level model and shows the display toggles in a

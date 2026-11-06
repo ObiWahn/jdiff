@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -588,5 +589,68 @@ func TestSettingsFlow(t *testing.T) {
 	pressRoot(s, "S", "f")
 	if m.cfg.Settings.Flow || m.msg != flowOnlyOfSeveral {
 		t.Errorf("f on two files: flow %v, msg %q", m.cfg.Settings.Flow, m.msg)
+	}
+}
+
+// A README with its rows in another order, under the heading that counts; the
+// same keys under another heading do not count.
+const orderedReadme = "# x\n### File list\n| `w` | no |\n### Everywhere\n| Key | Action |\n|---|---|\n" +
+	"| `\\` | jump marks |\n| `b` | bold |\n| `f` | flow |\n| `s` | layout |\n| `S` `F8` | popup |\n\n## Next\n| `t` | no |\n"
+
+func TestKeyRows(t *testing.T) {
+	want := []string{`\`, "b", "f", "s", "S"}
+	if got := keyRows(orderedReadme); !slices.Equal(got, want) {
+		t.Errorf("keyRows: %q, want %q", got, want)
+	}
+}
+
+// The settings follow the rows, those not in them stay behind and all else
+// stays where it is.
+func TestOrderSettings(t *testing.T) {
+	type o = settingOption
+	options, bs := orderSettings(keyRows(orderedReadme),
+		[]o{{key: "s"}, {key: "f"}, {key: "t"}, {key: "b"}, {key: "c", logFlow: true}, {what: "x0"}},
+		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"S F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
+	var keys []string
+	for _, opt := range options {
+		keys = append(keys, opt.key)
+	}
+	if want := []string{"b", "f", "s", "t", "c", ""}; !slices.Equal(keys, want) {
+		t.Errorf("options: %q, want %q", keys, want)
+	}
+	var whats []string
+	for _, b := range bs {
+		whats = append(whats, b.what)
+	}
+	if want := []string{"Everywhere", "x1", "x4", "x3", "x2", "x5", "Flow", "x6"}; !slices.Equal(whats, want) {
+		t.Errorf("bindings: %q, want %q", whats, want)
+	}
+	// Without a table, all stays.
+	before := []o{{key: "s"}, {key: "f"}}
+	if got, _ := orderSettings(nil, before, nil); got[0].key != "s" || got[1].key != "f" {
+		t.Errorf("no table: %+v", got)
+	}
+}
+
+func TestKeyOrderProblems(t *testing.T) {
+	table := "### Everywhere\n"
+	for _, o := range settingOptions {
+		if o.key != "" && !o.logFlow {
+			table += "| `" + o.key + "` | x |\n"
+		}
+	}
+	if got := KeyOrderProblems(table); len(got) != 0 {
+		t.Errorf("all there: %q", got)
+	}
+	for _, c := range []struct{ readme, want string }{
+		{"# x\n", "no table"},
+		{table + "| `s` | again |\n", "key s stands twice"},
+		{table + "| `x0` | typo |\n", "key x0 is not in the help"},
+		{strings.Replace(table, "| `t` | x |\n", "", 1), "setting t is not in the table"},
+	} {
+		got := KeyOrderProblems(c.readme)
+		if len(got) != 1 || !strings.Contains(got[0], c.want) {
+			t.Errorf("%q: problems %q, want %q", c.want, got, c.want)
+		}
 	}
 }
