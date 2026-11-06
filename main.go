@@ -3,6 +3,7 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
@@ -20,15 +21,19 @@ import (
 	"jdiff/internal/ui"
 )
 
+//go:embed README.md
+var readme string
+
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	showReadme := flag.Bool("readme", false, "print the README and exit")
 	features := flag.String("features", "",
 		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
 			"your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
 			"unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
 			"to them.")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--features NAMES] OLD NEW\n"+
+		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--readme] [--features NAMES] OLD NEW\n"+
 			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
 			"       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
 		flag.PrintDefaults()
@@ -36,6 +41,10 @@ func main() {
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(resolveVersion())
+		return
+	}
+	if *showReadme {
+		fmt.Print(readme)
 		return
 	}
 	mode := ""
