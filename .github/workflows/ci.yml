@@ -34,7 +34,9 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage
-          path: bin/coverage.html
+          path: |
+            bin/coverage.txt
+            bin/coverage.html
       - run: make build
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: make vuln

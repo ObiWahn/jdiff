@@ -28,9 +28,16 @@ test-race: | $(BUILD_DIR)/
 	timeout $(RACE_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee $(BUILD_DIR)/test-race.log
 
 # Coverage over all packages: settings has no tests of its own, ui tests it.
+# The profile has each block once per package tested: count it once, as run
+# if any of them ran it.
 cover: | $(BUILD_DIR)/
 	timeout $(TEST_TIMEOUT) go test -count=1 -coverpkg=./... -coverprofile=$(BUILD_DIR)/coverage.out ./... 2>&1 | tee $(BUILD_DIR)/cover.log
-	go tool cover -func=$(BUILD_DIR)/coverage.out 2>&1 | tail -n 1 | tee -a $(BUILD_DIR)/cover.log
+	awk 'NR > 1 { size[$$1] = $$2; if ($$3 > 0) ran[$$1] = 1 } \
+		END { for (b in size) { p = b; sub(/\/[^\/]*$$/, "", p); all[p] += size[b]; if (b in ran) hit[p] += size[b] } \
+			for (p in all) printf "%-24s %5.1f%%\n", p, 100 * hit[p] / all[p] }' $(BUILD_DIR)/coverage.out | sort > $(BUILD_DIR)/coverage.txt
+	echo >> $(BUILD_DIR)/coverage.txt
+	go tool cover -func=$(BUILD_DIR)/coverage.out >> $(BUILD_DIR)/coverage.txt
+	tail -n 1 $(BUILD_DIR)/coverage.txt | tee -a $(BUILD_DIR)/cover.log
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
 
 # Tags HEAD of master with the next version, the last tag vX.Y.Z with Z one
