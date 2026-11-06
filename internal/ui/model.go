@@ -118,6 +118,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.msg = string(msg)
 	case toggleUntrackedMsg:
 		m.msg = untrackedOnlyInDiff
+	case toggleFlowMsg:
+		m.msg = flowOnlyOfSeveral
 	case settingChangedMsg:
 		if msg.problem != "" {
 			m.msg = msg.problem

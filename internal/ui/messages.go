@@ -135,6 +135,9 @@ func toggleUntracked() tea.Msg { return toggleUntrackedMsg{} }
 // untrackedOnlyInDiff is the answer of the other views.
 const untrackedOnlyInDiff = "untracked files: only in jdiff diff"
 
+// flowOnlyOfSeveral is the answer of the diff view of two files.
+const flowOnlyOfSeveral = "flow: only with a file list or the log"
+
 // toggleFlowMsg asks the log or the file selector to switch between the diff
 // view of one file and the flow view of all files.
 type toggleFlowMsg struct{}

@@ -28,6 +28,7 @@ type settingOption struct {
 
 var settingOptions = []settingOption{
 	{key: "s", what: "side by side layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
+	{key: "f", what: "flow view of all files or commits", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
 	{key: "v", what: "show the message box, the diff preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
 	{key: "W", what: "show all whitespace and line ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
 	{key: "ctrl+w", what: "mark changed whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},

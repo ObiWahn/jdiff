@@ -174,7 +174,9 @@ func TestSettingsKeysLeftThePages(t *testing.T) {
 		pressRoot(m, page.keys...)
 		before := fmt.Sprint(optionValues(cfg))
 		for _, o := range settingOptions {
-			pressRoot(m, o.key)
+			if o.key != "f" { // the pages' own key: see TestSettingsFlow
+				pressRoot(m, o.key)
+			}
 		}
 		if got := fmt.Sprint(optionValues(cfg)); got != before {
 			t.Errorf("%s: the letters changed the options: %s, was %s", page.name, got, before)
@@ -547,5 +549,44 @@ func TestSettingsNumber(t *testing.T) {
 	}
 	if len(cols) != 3 || cols[0] != cols[1] || cols[1] != cols[2] {
 		t.Errorf("columns of the options: %v, want 3 the same", cols)
+	}
+}
+
+// f in the popup switches the page below to the flow view and back, as on the
+// pages, and saves it; two files have none, which it says.
+func TestSettingsFlow(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := NewApp(cfg, []source.File{modified("f00", []string{"x0"}, []string{"x1"}), modified("f01", []string{"x2"}, []string{"x3"})})
+	s := WithSettings(cfg, a)
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	pressRoot(s, "S", "f")
+	if !cfg.Settings.Flow || !a.flowShown() || !s.open {
+		t.Errorf("f: flow %v, shown %v, popup %v", cfg.Settings.Flow, a.flowShown(), s.open)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "flow = true") {
+		t.Errorf("state.toml:\n%s", data)
+	}
+	if !strings.Contains(ansi.Strip(s.frame()), "[x] f ") {
+		t.Errorf("f is not ticked:\n%s", ansi.Strip(s.frame()))
+	}
+	pressRoot(s, "f")
+	if cfg.Settings.Flow || a.flowShown() || !s.open {
+		t.Errorf("f again: flow %v, shown %v, popup %v", cfg.Settings.Flow, a.flowShown(), s.open)
+	}
+
+	m := newMarkModel()
+	s = WithSettings(m.cfg, m)
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	pressRoot(s, "S", "f")
+	if m.cfg.Settings.Flow || m.msg != flowOnlyOfSeveral {
+		t.Errorf("f on two files: flow %v, msg %q", m.cfg.Settings.Flow, m.msg)
 	}
 }
