@@ -1,6 +1,7 @@
 package gitsrc
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -395,5 +396,164 @@ func TestFilesNewlineInPath(t *testing.T) {
 	}
 	if len(files) != 1 || files[0].Path != "a\nHEAD:b.txt" || files[0].InOld || !slices.Equal(files[0].New, []string{"own"}) {
 		t.Errorf("files = %+v, want the new file with its own content", files)
+	}
+}
+
+func TestDiffUntracked(t *testing.T) {
+	r := newRepo(t)
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(r.Dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := func(files []source.File) []string {
+		var out []string
+		for _, f := range files {
+			out = append(out, f.Path)
+		}
+		slices.Sort(out)
+		return out
+	}
+	diff := func(args ...string) []source.File {
+		t.Helper()
+		files, err := r.DiffUntracked(args)
+		if err != nil {
+			t.Fatalf("DiffUntracked %v: %v", args, err)
+		}
+		return files
+	}
+
+	// Nothing untracked: as Diff, and no index made.
+	if files := diff(); len(files) != 0 {
+		t.Errorf("clean tree: %v", paths(files))
+	}
+
+	write("a.txt", "changed\n")
+	write("x0", "new 0\n")
+	write("sub/x1", "new 1\n")
+	write("x*2", "new 2\n") // a pathspec, if taken for one, would match x0 too
+	write(".gitignore", "*.log\n")
+	write("i.log", "ignored\n")
+	// Left out: they cannot be shown, and must not fail the others.
+	if err := os.Symlink("nowhere", filepath.Join(r.Dir, "broken")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(r.Dir, "nest"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, filepath.Join(r.Dir, "nest"), "init", "-q") // no commit: git add fails on it
+	if err := os.Mkdir(filepath.Join(r.Dir, "nest1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, filepath.Join(r.Dir, "nest1"), "init", "-q")
+	write("nest1/n", "n\n")
+	gitIn(t, filepath.Join(r.Dir, "nest1"), "add", ".")
+	gitIn(t, filepath.Join(r.Dir, "nest1"), "commit", "-qm", "n")
+
+	index := filepath.Join(r.Dir, ".git", "index")
+	before, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{".gitignore", "a.txt", "sub/x1", "x*2", "x0"}
+	for _, args := range [][]string{nil, {"HEAD"}} {
+		files := diff(args...)
+		if got := paths(files); !slices.Equal(got, want) {
+			t.Errorf("%v: files %v, want %v", args, got, want)
+		}
+		for _, f := range files {
+			switch f.Path {
+			case "a.txt":
+				if !f.InOld || !slices.Equal(f.New, []string{"changed"}) {
+					t.Errorf("%v: a.txt = %+v", args, f)
+				}
+			case "sub/x1":
+				if f.InOld || !f.InNew || !slices.Equal(f.New, []string{"new 1"}) ||
+					f.NewFile != filepath.Join(r.Dir, "sub", "x1") || f.NewStamp.Size == 0 {
+					t.Errorf("%v: sub/x1 = %+v, want added and watched", args, f)
+				}
+			}
+		}
+	}
+
+	// Without the working tree on a side, or the index, no new files.
+	for _, args := range [][]string{{"--cached"}, {"HEAD~1", "HEAD"}} {
+		wantFiles, err := r.Diff(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := paths(diff(args...)); !slices.Equal(got, paths(wantFiles)) {
+			t.Errorf("%v: files %v, want as without: %v", args, got, paths(wantFiles))
+		}
+	}
+
+	// Paths limit them, and reversed they are the old side.
+	if got := paths(diff("HEAD", "--", "sub")); !slices.Equal(got, []string{"sub/x1"}) {
+		t.Errorf("path sub: %v", got)
+	}
+	for _, f := range diff("-R") {
+		if f.Path == "x0" && (f.InNew || f.OldFile == "" || !slices.Equal(f.Old, []string{"new 0"})) {
+			t.Errorf("reversed x0 = %+v, want the working copy as the old side", f)
+		}
+	}
+
+	// From a subdirectory all files are found, with paths from the top.
+	sub := Repo{Dir: filepath.Join(r.Dir, "sub")}
+	files, err := sub.DiffUntracked([]string{"HEAD"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := paths(files); !slices.Equal(got, want) {
+		t.Errorf("from sub: %v, want %v", got, want)
+	}
+
+	// The real index stays, the files are still untracked.
+	after, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Error("the index changed")
+	}
+	out, err := r.git("status", "--porcelain", "--", "x0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "?? x0\n" {
+		t.Errorf("status of x0 = %q", out)
+	}
+	if plain, err := r.Diff([]string{"HEAD"}); err != nil || !slices.Equal(paths(plain), []string{"a.txt"}) {
+		t.Errorf("Diff still: %v, %v", paths(plain), err)
+	}
+}
+
+// A repository without commits has no index to copy.
+func TestDiffUntrackedNoCommits(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, dir, "init", "-q")
+	r := Repo{Dir: dir}
+	if files, err := r.DiffUntracked(nil); err != nil || len(files) != 0 {
+		t.Errorf("no files: %v, %v", files, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "x0"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.DiffUntracked(nil)
+	if err != nil || len(files) != 1 || files[0].Path != "x0" || files[0].InOld {
+		t.Errorf("x0: %+v, %v", files, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "index")); err == nil {
+		t.Error("an index appeared in the repository")
 	}
 }

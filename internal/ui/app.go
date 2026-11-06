@@ -444,6 +444,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case refreshMsg:
 		return a, a.relistFiles()
+	case toggleUntrackedMsg:
+		if a.gitDiff == nil {
+			a.setMsg(untrackedOnlyInDiff)
+			return a, nil
+		}
+		w := toggle(a.cfg, &a.cfg.Settings.Untracked)
+		cmd := a.relistFiles()
+		if w != "" {
+			a.setMsg(w)
+		}
+		return a, cmd
 	}
 	if a.flowShown() {
 		_, cmd := a.flow.Update(msg)
@@ -521,6 +532,8 @@ func (a *App) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
+	case untrackedKey:
+		return toggleUntracked
 	case "f":
 		return toggleFlow
 	case "'":
@@ -772,7 +785,11 @@ func (a *App) frame() string {
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 	if a.gitDiff != nil {
-		head += "  " + t.Hint.Render(diffCommand(a.diffArgs))
+		cmd := diffCommand(a.diffArgs)
+		if a.cfg.Settings.Untracked {
+			cmd += " + untracked"
+		}
+		head += "  " + t.Hint.Render(cmd)
 	}
 
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {

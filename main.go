@@ -77,7 +77,7 @@ func main() {
 	// the current directory; the search bar and the popups are put around
 	// the new view too.
 	wrap := func(m tea.Model) tea.Model { return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithMarks(cfg, m))) }
-	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitsrc.Repo{}.Diff))
+	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)))
 	// 16 color mode: colors are drawn as ANSI colors, so the terminal
 	// palette applies. Terminals without color support stay without.
 	var opts []tea.ProgramOption
@@ -136,12 +136,24 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-	repo := gitsrc.Repo{}
-	files, err := repo.Diff(args)
+	diff := gitDiff(cfg)
+	files, err := diff(args)
 	if err != nil {
 		return nil, err
 	}
-	return ui.NewApp(cfg, files).WithGitDiff(args, repo.Diff), nil
+	return ui.NewApp(cfg, files).WithGitDiff(args, diff), nil
+}
+
+// gitDiff returns the function running git diff, which follows the toggle of
+// the untracked files.
+func gitDiff(cfg *config.Config) ui.DiffFunc {
+	repo := gitsrc.Repo{}
+	return func(args []string) ([]source.File, error) {
+		if cfg.Settings.Untracked {
+			return repo.DiffUntracked(args)
+		}
+		return repo.Diff(args)
+	}
 }
 
 func fatal(err error) {

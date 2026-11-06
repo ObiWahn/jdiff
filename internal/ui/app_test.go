@@ -819,3 +819,92 @@ func TestAppPathsDrawnPrintable(t *testing.T) {
 	pressApp(a, "k", "enter")
 	check("diff titles", a.frame())
 }
+
+// newUntrackedApp returns the file selector of a git diff of f00 and f01,
+// with the new file x0 while the untracked files are shown.
+func newUntrackedApp() *App {
+	cfg := config.Default()
+	file := func(name string) source.File {
+		return source.File{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
+	}
+	list := func([]string) ([]source.File, error) {
+		files := []source.File{file("f00"), file("f01")}
+		if cfg.Settings.Untracked {
+			files = append(files, source.File{Path: "x0", New: []string{"new"}, InNew: true})
+		}
+		return files, nil
+	}
+	files, _ := list(nil)
+	a := NewApp(cfg, files).WithGitDiff([]string{"HEAD"}, list)
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	return a
+}
+
+func TestUntrackedToggle(t *testing.T) {
+	a := newUntrackedApp()
+	f00 := a.files[0]
+
+	// In the file list.
+	pressApp(a, "u")
+	if !a.cfg.Settings.Untracked || len(a.files) != 3 || a.files[2].Path != "x0" {
+		t.Fatalf("u: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	}
+	if view := ansi.Strip(a.frame()); !strings.Contains(view, "git diff HEAD + untracked") {
+		t.Errorf("u: header lacks the hint:\n%s", view)
+	}
+	// Files that stay keep their entry, and so anchors and folds.
+	if a.files[0] != f00 {
+		t.Error("u: f00 got a new entry")
+	}
+
+	pressApp(a, "u")
+	if a.cfg.Settings.Untracked || len(a.files) != 2 {
+		t.Fatalf("u again: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	}
+	if view := ansi.Strip(a.frame()); strings.Contains(view, "untracked") {
+		t.Errorf("u again: header still has the hint:\n%s", view)
+	}
+
+	// In the diff view of a file that stays, it stays open.
+	pressApp(a, "enter", "u")
+	if a.open != f00 || len(a.files) != 3 {
+		t.Errorf("u in f00's diff: open %v, %d files", a.open, len(a.files))
+	}
+	// Off in the diff view of the new file, the list is shown.
+	pressApp(a, "backspace", "G", "enter")
+	if a.open == nil || a.open.Path != "x0" {
+		t.Fatalf("x0 not open: %v", a.open)
+	}
+	pressApp(a, "u")
+	if a.open != nil || len(a.files) != 2 || !strings.Contains(a.msg, "x0 is gone") {
+		t.Errorf("u in x0's diff: open %v, %d files, msg %q", a.open, len(a.files), a.msg)
+	}
+
+	// In the flow view.
+	pressApp(a, "enter", "f", "u")
+	if !a.flowShown() || !a.cfg.Settings.Untracked || len(a.files) != 3 {
+		t.Errorf("u in the flow view: flow %v, setting %v, %d files", a.flowShown(), a.cfg.Settings.Untracked, len(a.files))
+	}
+}
+
+// Outside a git diff, u says so and leaves the setting alone.
+func TestUntrackedOutsideGitDiff(t *testing.T) {
+	a := newTestApp() // as for two directories
+	pressApp(a, "u")
+	if a.cfg.Settings.Untracked || a.msg != untrackedOnlyInDiff {
+		t.Errorf("file list: setting %v, msg %q", a.cfg.Settings.Untracked, a.msg)
+	}
+
+	f := source.File{Path: "f00", Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
+	m := New(config.Default(), "old", "new", f.Old, f.New)
+	pressRoot(m, "u")
+	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
+		t.Errorf("two files: setting %v, msg %q", m.cfg.Settings.Untracked, m.msg)
+	}
+
+	l, _ := newTestLog()
+	pressLog(l, "u")
+	if l.cfg.Settings.Untracked || l.msg != untrackedOnlyInDiff {
+		t.Errorf("log: setting %v, msg %q", l.cfg.Settings.Untracked, l.msg)
+	}
+}

@@ -73,7 +73,7 @@ The other make targets: `make test`, `make test-race`, `make tag`, `make vet`, `
 jdiff OLD NEW                 # compare two files
 jdiff DIR1 DIR2               # compare two directories
 jdiff log [GIT LOG ARGS]      # browse commits, e.g. jdiff log -20 or jdiff log main..topic
-jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdiff diff --cached (the index), jdiff diff HEAD
+jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdiff diff --cached (the index), jdiff diff HEAD; u adds the untracked files
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
@@ -189,6 +189,7 @@ The keys of the diff view, and:
 |---|---|
 | `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
 | `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc`, or `enter` or `backspace` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
+| `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
 | `R` `F5` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `?` | help |
 | `q` `ctrl+c` | quit |
@@ -202,7 +203,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `c` `C` `f` `s` `v` `w`, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `c` `C` `f` `s` `u` `v` `w`, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 
 Unknown keys and invalid values are reported in the status bar.
@@ -235,6 +236,7 @@ full_messages = true
 stay_in_commit = false
 search_regex = false            # / searches for a regular expression (shift+tab in its bar)
 search_all = false              # / searches all lines, not only changed ones (tab)
+untracked = false               # jdiff diff also shows untracked files (u)
 ```
 
 ### Themes

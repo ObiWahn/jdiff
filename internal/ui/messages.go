@@ -75,6 +75,18 @@ type askDiffMsg struct{}
 
 func askDiff() tea.Msg { return askDiffMsg{} }
 
+// untrackedKey toggles the untracked files of a git diff.
+const untrackedKey = "u"
+
+// toggleUntrackedMsg asks the top-level view to toggle the untracked files of
+// its git diff, which only the file selector of one has.
+type toggleUntrackedMsg struct{}
+
+func toggleUntracked() tea.Msg { return toggleUntrackedMsg{} }
+
+// untrackedOnlyInDiff is the answer of the other views.
+const untrackedOnlyInDiff = "untracked files: only in jdiff diff"
+
 // toggleFlowMsg asks the log or the file selector to switch between the diff
 // view of one file and the flow view of all files.
 type toggleFlowMsg struct{}

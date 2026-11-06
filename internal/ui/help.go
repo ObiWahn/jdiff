@@ -84,7 +84,8 @@ var bindings = []binding{
 	{"R F5", "load again: git diff, git log, the directories or the files"},
 	{"d", "popup: show git diff ARGS instead; ↑ the current ARGS, enter show"},
 	{"", "  esc or backspace on nothing typed cancel"},
-	{"", "  b c C e f r s t v w W, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml"},
+	{"u", "also show untracked files, in a git diff"},
+	{"", "  b c C e f r s t u v w W, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml"},
 	{"?", "this help (? esc q close, j k scroll)"},
 	{"q ctrl+c", "quit"},
 }

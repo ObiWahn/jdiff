@@ -193,6 +193,9 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 	case refreshMsg:
 		l.relistCommits()
 		return nil
+	case toggleUntrackedMsg:
+		l.setMsg(untrackedOnlyInDiff)
+		return nil
 	case toggleFlowMsg:
 		l.toggleFlow()
 		if w := saveState(l.cfg); w != "" {
@@ -244,6 +247,8 @@ func (l *Log) key(k string) tea.Cmd {
 		return toggleFlow
 	case "R", "f5":
 		return refreshAll
+	case untrackedKey:
+		return toggleUntracked
 	case diffKey:
 		return askDiff
 	case "n", "p", "N", "P":

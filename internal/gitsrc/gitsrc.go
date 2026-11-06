@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -34,9 +36,16 @@ type LineCounts struct{ Added, Removed int }
 // Repo runs git in a directory; the empty Dir means the current directory.
 type Repo struct{ Dir string }
 
-func (r Repo) git(args ...string) ([]byte, error) {
+func (r Repo) git(args ...string) ([]byte, error) { return r.run(nil, nil, args...) }
+
+// run runs git with env added to its environment and stdin as its input.
+func (r Repo) run(env []string, stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
+	cmd.Env = append(cmd.Environ(), env...)
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -213,13 +222,105 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 // index against HEAD, commits and paths. Sides in the working tree, which
 // git names by the zero id, are read from disk and set OldFile or NewFile,
 // so that they can be watched. Unmerged files are left out.
-func (r Repo) Diff(args []string) ([]source.File, error) {
+func (r Repo) Diff(args []string) ([]source.File, error) { return r.diff(nil, args) }
+
+// DiffUntracked returns what Diff does, and the untracked files as added
+// where git diff compares with the working tree. They are marked with git add
+// -N in a copy of the index, which is gone on return: the real one stays as
+// it is. Directories, as nested repositories, and files that cannot be read,
+// as broken symlinks, are left out.
+func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
+	top, err := r.TopLevel()
+	if err != nil {
+		return nil, err
+	}
+	paths, err := Repo{Dir: top}.untracked()
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return r.Diff(args)
+	}
+	dir, err := os.MkdirTemp("", "jdiff-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	index, err := r.copyIndex(dir)
+	if err != nil {
+		return nil, err
+	}
+	env := []string{"GIT_INDEX_FILE=" + index}
+	// One file may be named like a pathspec, say with a * in it.
+	list := []byte(strings.Join(paths, "\x00"))
+	if _, err := (Repo{Dir: top}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
+		"add", "-N", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
+		return nil, err
+	}
+	return r.diff(env, args)
+}
+
+// untracked returns the paths of the untracked files that are not ignored,
+// relative to r.Dir, which must be the top of the working tree.
+func (r Repo) untracked() ([]string, error) {
+	out, err := r.git("ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, p := range strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00") {
+		if p != "" && readableFile(filepath.Join(r.Dir, filepath.FromSlash(p))) {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
+}
+
+// readableFile reports whether path is, or links to, a regular file that can
+// be opened.
+func readableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
+}
+
+// copyIndex copies the index into dir and returns the path of the copy. A
+// repository without an index yet leaves nothing to copy.
+func (r Repo) copyIndex(dir string) (string, error) {
+	out, err := r.git("rev-parse", "--git-path", "index")
+	if err != nil {
+		return "", err
+	}
+	from := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(from) {
+		from = filepath.Join(r.Dir, from)
+	}
+	to := filepath.Join(dir, "index")
+	data, err := os.ReadFile(from)
+	if errors.Is(err, fs.ErrNotExist) {
+		return to, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return to, os.WriteFile(to, data, 0o600)
+}
+
+// diff is Diff with env added to the environment of git diff.
+func (r Repo) diff(env, args []string) ([]source.File, error) {
 	top, err := r.TopLevel()
 	if err != nil {
 		return nil, err
 	}
 	// Paths relative to the top, also with diff.relative set.
-	out, err := r.git(append([]string{"diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M"},
+	out, err := r.run(env, nil, append([]string{"diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M"},
 		args...)...)
 	if err != nil {
 		return nil, err

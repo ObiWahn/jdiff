@@ -90,6 +90,9 @@ type Toggles struct {
 	// changed ones, added, removed and moved. tab in the search bar toggles
 	// it.
 	SearchAll bool `toml:"search_all"`
+	// Untracked (untracked) also shows the untracked files in jdiff diff,
+	// as added, where it compares with the working tree. u toggles it.
+	Untracked bool `toml:"untracked"`
 }
 
 // Default returns the default settings.

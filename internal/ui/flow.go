@@ -191,6 +191,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		return refreshAll
 	case diffKey:
 		return askDiff
+	case untrackedKey:
+		return toggleUntracked
 	case searchKey:
 		return askSearch
 	case nextKey:
