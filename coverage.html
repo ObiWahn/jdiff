@@ -57,7 +57,7 @@
 				
 				<option value="file0">jdiff/internal/config/config.go (94.7%)</option>
 				
-				<option value="file1">jdiff/internal/config/marks.go (93.1%)</option>
+				<option value="file1">jdiff/internal/config/marks.go (96.6%)</option>
 				
 				<option value="file2">jdiff/internal/diff/align.go (100.0%)</option>
 				
@@ -67,7 +67,7 @@
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (89.1%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (90.7%)</option>
 				
 				<option value="file7">jdiff/internal/notify/notify.go (100.0%)</option>
 				
@@ -75,45 +75,45 @@
 				
 				<option value="file9">jdiff/internal/settings/settings.go (100.0%)</option>
 				
-				<option value="file10">jdiff/internal/source/source.go (86.8%)</option>
+				<option value="file10">jdiff/internal/source/source.go (89.7%)</option>
 				
-				<option value="file11">jdiff/internal/theme/config.go (89.5%)</option>
+				<option value="file11">jdiff/internal/theme/config.go (100.0%)</option>
 				
 				<option value="file12">jdiff/internal/theme/spec.go (100.0%)</option>
 				
-				<option value="file13">jdiff/internal/theme/style.go (90.2%)</option>
+				<option value="file13">jdiff/internal/theme/style.go (100.0%)</option>
 				
 				<option value="file14">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file15">jdiff/internal/ui/app.go (92.7%)</option>
+				<option value="file15">jdiff/internal/ui/app.go (95.1%)</option>
 				
 				<option value="file16">jdiff/internal/ui/filediff.go (95.5%)</option>
 				
-				<option value="file17">jdiff/internal/ui/flow.go (91.2%)</option>
+				<option value="file17">jdiff/internal/ui/flow.go (94.9%)</option>
 				
-				<option value="file18">jdiff/internal/ui/help.go (96.6%)</option>
+				<option value="file18">jdiff/internal/ui/help.go (98.3%)</option>
 				
-				<option value="file19">jdiff/internal/ui/log.go (95.4%)</option>
+				<option value="file19">jdiff/internal/ui/log.go (96.8%)</option>
 				
-				<option value="file20">jdiff/internal/ui/marks.go (91.4%)</option>
+				<option value="file20">jdiff/internal/ui/marks.go (96.8%)</option>
 				
-				<option value="file21">jdiff/internal/ui/messages.go (93.2%)</option>
+				<option value="file21">jdiff/internal/ui/messages.go (97.7%)</option>
 				
-				<option value="file22">jdiff/internal/ui/model.go (91.1%)</option>
+				<option value="file22">jdiff/internal/ui/model.go (95.3%)</option>
 				
 				<option value="file23">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file24">jdiff/internal/ui/search.go (95.3%)</option>
+				<option value="file24">jdiff/internal/ui/search.go (99.1%)</option>
 				
 				<option value="file25">jdiff/internal/ui/settings.go (100.0%)</option>
 				
 				<option value="file26">jdiff/internal/ui/view.go (98.8%)</option>
 				
-				<option value="file27">jdiff/internal/ui/watch.go (88.2%)</option>
+				<option value="file27">jdiff/internal/ui/watch.go (90.2%)</option>
 				
-				<option value="file28">jdiff/internal/ui/widgets.go (94.2%)</option>
+				<option value="file28">jdiff/internal/ui/widgets.go (97.6%)</option>
 				
-				<option value="file29">jdiff/main.go (4.4%)</option>
+				<option value="file29">jdiff/main.go (81.4%)</option>
 				
 				</select>
 			</div>
@@ -427,7 +427,7 @@ type marksState struct {
 func (c *Config) LoadMarks(repo string) {
         <span class="cov8" title="1">c.marks = marksState{repo: repo, all: map[string]map[string]Mark{}}
         if c.dir == "" </span>{
-                <span class="cov0" title="0">return
+                <span class="cov8" title="1">return
 </span>        }
         <span class="cov8" title="1">c.marks.path = filepath.Join(c.dir, "marks.toml")
         if _, err := toml.DecodeFile(c.marks.path, &amp;c.marks.all); err != nil &amp;&amp; !errors.Is(err, fs.ErrNotExist) </span>{
@@ -1336,7 +1336,7 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
                 case 'A':
                         <span class="cov8" title="1">f.InOld = false</span>
                 case 'D':
-                        <span class="cov0" title="0">f.InNew = false</span>
+                        <span class="cov8" title="1">f.InNew = false</span>
                 case 'R', 'C':
                         <span class="cov8" title="1">if i &gt;= len(tokens) </span>{
                                 <span class="cov0" title="0">return nil, fmt.Errorf("git diff: truncated rename of %s", f.Path)
@@ -1503,7 +1503,7 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
                         <span class="cov8" title="1">f.OldPath, f.Path = f.Path, tokens[i]
                         i++</span>
                 case 'U':
-                        <span class="cov0" title="0">continue</span>
+                        <span class="cov8" title="1">continue</span>
                 }
                 <span class="cov8" title="1">files = append(files, f)
                 for _, sd := range []struct {
@@ -1545,7 +1545,7 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
                                 l, stamp, err := source.Read(path)
                                 switch </span>{
                                 case errors.Is(err, source.ErrBinary):
-                                        <span class="cov0" title="0">binary = true</span>
+                                        <span class="cov8" title="1">binary = true</span>
                                 case err != nil:
                                         <span class="cov0" title="0">return nil, err</span>
                                 }
@@ -1571,7 +1571,7 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 // binary content as binary.
 func lines(b blob, binary bool) ([]string, bool) {
         <span class="cov8" title="1">if b.missing </span>{
-                <span class="cov0" title="0">return nil, true
+                <span class="cov8" title="1">return nil, true
 </span>        }
         <span class="cov8" title="1">l, err := source.SplitLines(b.data)
         return l, binary || errors.Is(err, source.ErrBinary)</span>
@@ -2050,11 +2050,11 @@ func ReadLines(path string) ([]string, error) {
 func Read(path string) ([]string, Stamp, error) {
         <span class="cov8" title="1">st, err := StampOf(path)
         if err != nil </span>{
-                <span class="cov0" title="0">return nil, Stamp{}, err
+                <span class="cov8" title="1">return nil, Stamp{}, err
 </span>        }
         <span class="cov8" title="1">data, err := os.ReadFile(path)
         if err != nil </span>{
-                <span class="cov0" title="0">return nil, Stamp{}, err
+                <span class="cov8" title="1">return nil, Stamp{}, err
 </span>        }
         <span class="cov8" title="1">lines, err := SplitLines(data)
         return lines, st, err</span>
@@ -2165,11 +2165,11 @@ type Config map[string]string
 // config, so includes and repository config apply as they do for delta.
 // Without git or any matching entries the result is empty.
 func ReadGitConfig() Config {
-        <span class="cov0" title="0">out, err := exec.Command("git", "config", "--null", "--get-regexp", `^(delta|jdiff)\.`).Output()
+        <span class="cov8" title="1">out, err := exec.Command("git", "config", "--null", "--get-regexp", `^(delta|jdiff)\.`).Output()
         if err != nil </span>{
-                <span class="cov0" title="0">return Config{}
+                <span class="cov8" title="1">return Config{}
 </span>        }
-        <span class="cov0" title="0">return parseGitConfig(out)</span>
+        <span class="cov8" title="1">return parseGitConfig(out)</span>
 }
 
 // parseGitConfig parses the output of git config --null --get-regexp: one
@@ -2460,17 +2460,17 @@ func ParseStyle(s string, named map[string]string) (lipgloss.Style, error) {
                 case "bold":
                         <span class="cov8" title="1">style = style.Bold(true)</span>
                 case "dim":
-                        <span class="cov0" title="0">style = style.Faint(true)</span>
+                        <span class="cov8" title="1">style = style.Faint(true)</span>
                 case "italic":
-                        <span class="cov0" title="0">style = style.Italic(true)</span>
+                        <span class="cov8" title="1">style = style.Italic(true)</span>
                 case "ul", "underline":
                         <span class="cov8" title="1">style = style.Underline(true)</span>
                 case "blink":
-                        <span class="cov0" title="0">style = style.Blink(true)</span>
+                        <span class="cov8" title="1">style = style.Blink(true)</span>
                 case "reverse":
                         <span class="cov8" title="1">style = style.Reverse(true)</span>
                 case "strike":
-                        <span class="cov0" title="0">style = style.Strikethrough(true)</span>
+                        <span class="cov8" title="1">style = style.Strikethrough(true)</span>
                 case "hidden", "omit", "raw", "line-number", "file", "omit-code-fragment", "box", "ol", "none":<span class="cov8" title="1"></span>
                 default:
                         <span class="cov8" title="1">c, err := parseColor(word, named)
@@ -2877,7 +2877,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
         }
         <span class="cov8" title="1">a.list = list{n: len(a.files), preview: &amp;cfg.Settings.Preview}
         if len(files) == 0 </span>{
-                <span class="cov0" title="0">a.msg = "no changed files"
+                <span class="cov8" title="1">a.msg = "no changed files"
 </span>        }
         <span class="cov8" title="1">if w := cfg.Warning(); w != "" </span>{
                 <span class="cov0" title="0">a.msg = w
@@ -3209,7 +3209,7 @@ func (a *App) key(k string) tea.Cmd {
         }
         <span class="cov8" title="1">switch k </span>{
         case "q", "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "p":
                 <span class="cov8" title="1">a.moveCursor(-1)</span>
         case "n":
@@ -3296,7 +3296,7 @@ func (a *App) toggleFlow() {
         if !st.Flow </span>{
                 <span class="cov8" title="1">st.Flow = true
                 switch </span>{
-                case len(a.files) == 0:<span class="cov0" title="0"></span>
+                case len(a.files) == 0:<span class="cov8" title="1"></span>
                 case a.open == nil:
                         <span class="cov8" title="1">a.showFlow(a.cursor, nil)</span>
                 default:
@@ -3306,7 +3306,7 @@ func (a *App) toggleFlow() {
         }
         <span class="cov8" title="1">st.Flow = false
         if a.open == nil </span>{
-                <span class="cov0" title="0">a.msg = "flow off"
+                <span class="cov8" title="1">a.msg = "flow off"
                 return
 </span>        }
         <span class="cov8" title="1">_, file, line := a.flow.position()
@@ -3329,17 +3329,17 @@ func (a *App) toggleFlow() {
 func (a *App) gotoMark(letter string, screenRow int) {
         <span class="cov8" title="1">mk, ok := a.cfg.Mark(letter)
         if !ok </span>{
-                <span class="cov0" title="0">a.setMsg("no mark " + letter)
+                <span class="cov8" title="1">a.setMsg("no mark " + letter)
                 return
 </span>        }
         <span class="cov8" title="1">i := a.fileByPath(mk.Path)
         if i &lt; 0 </span>{
-                <span class="cov0" title="0">a.setMsg(notInDiff(letter, mk))
+                <span class="cov8" title="1">a.setMsg(notInDiff(letter, mk))
                 return
 </span>        }
         <span class="cov8" title="1">a.openIndex(i)
         if a.flowShown() </span>{
-                <span class="cov0" title="0">a.flow.gotoMark(letter)
+                <span class="cov8" title="1">a.flow.gotoMark(letter)
                 return
 </span>        }
         <span class="cov8" title="1">if at, ok := a.open.view.markSpot(letter, mk); ok </span>{
@@ -3794,6 +3794,15 @@ func (d *fileDiff) act(k string, at spot, sh shape) (spot, string) {
         <span class="cov0" title="0">return at, ""</span>
 }
 
+// markPrompt returns what to do with the pending mark, "" without one: the
+// status lines show it until another message, while the mark waits.
+func (d *fileDiff) markPrompt() string {
+        <span class="cov8" title="1">if d.pending == nil </span>{
+                <span class="cov8" title="1">return ""
+</span>        }
+        <span class="cov8" title="1">return fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)", sideName(d.pending.side), d.pending.line+1)</span>
+}
+
 // enter implements the anchor workflow: mark a line, then pick its partner
 // in the other pane. Enter on an anchored line removes that anchor. In the
 // normal layout the line under the cursor decides the side.
@@ -3820,8 +3829,7 @@ func (d *fileDiff) enter(at spot, sh shape) (spot, string) {
 </span>                }
                 <span class="cov8" title="1">d.pending = &amp;mark{at.side, line}
                 at.side = at.side.other()
-                return at, fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)",
-                        sideName(d.pending.side), line+1)</span>
+                return at, d.markPrompt()</span>
         }
 
         <span class="cov8" title="1">an := diff.Anchor{Left: d.pending.line, Right: line}
@@ -4324,7 +4332,7 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">cmd = f.key(msg.String())</span>
         case findMsg:
-                <span class="cov0" title="0">f.findText(int(msg))</span>
+                <span class="cov8" title="1">f.findText(int(msg))</span>
         case settingChangedMsg:
                 // Wrapped lines take other pieces, and end in line_end or ␍, which take
                 // a column.
@@ -4339,14 +4347,14 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (f *Flow) key(k string) tea.Cmd {
         <span class="cov8" title="1">if f.replacing != nil &amp;&amp; k != "enter" &amp;&amp; k != "esc" </span>{
-                <span class="cov0" title="0">f.replacing.replace = nil
+                <span class="cov8" title="1">f.replacing.replace = nil
                 f.replacing = nil
 </span>        }
         <span class="cov8" title="1">f.msg = ""
         if p := f.prefix; p != "" </span>{
                 <span class="cov8" title="1">f.prefix = ""
                 switch </span>{
-                case !isMarkLetter(k):<span class="cov0" title="0"></span>
+                case !isMarkLetter(k):<span class="cov8" title="1"></span>
                 case p == "m":
                         <span class="cov8" title="1">f.setMark(k)</span>
                 default:
@@ -4365,7 +4373,7 @@ func (f *Flow) key(k string) tea.Cmd {
         }
         <span class="cov8" title="1">switch k </span>{
         case "q", "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "f":
                 <span class="cov8" title="1">return toggleFlow</span>
         case "backspace":
@@ -4377,7 +4385,7 @@ func (f *Flow) key(k string) tea.Cmd {
         case "ctrl+d":
                 <span class="cov8" title="1">f.scroll(page / 2)</span>
         case "left", "h":
-                <span class="cov0" title="0">f.xoff = max(f.xoff-8, 0)</span>
+                <span class="cov8" title="1">f.xoff = max(f.xoff-8, 0)</span>
         case "right", "l":
                 <span class="cov8" title="1">f.xoff += 8</span>
         case "]", "[":
@@ -4403,13 +4411,13 @@ func (f *Flow) key(k string) tea.Cmd {
         case "R", "f5", "ctrl+r":
                 <span class="cov8" title="1">return refreshAll</span>
         case diffKey:
-                <span class="cov0" title="0">return askDiff</span>
+                <span class="cov8" title="1">return askDiff</span>
         case searchKey:
-                <span class="cov0" title="0">return askSearch</span>
+                <span class="cov8" title="1">return askSearch</span>
         case nextKey:
                 <span class="cov8" title="1">f.findText(1)</span>
         case prevKey:
-                <span class="cov0" title="0">f.findText(-1)</span>
+                <span class="cov8" title="1">f.findText(-1)</span>
         case "o":
                 <span class="cov8" title="1">f.jump()</span>
         case "m":
@@ -4458,7 +4466,7 @@ func (f *Flow) delegate(k string) {
         <span class="cov8" title="1">f.active = at.side
         f.replacing = nil
         if d.replace != nil </span>{
-                <span class="cov0" title="0">f.replacing = d
+                <span class="cov8" title="1">f.replacing = d
 </span>        }
         <span class="cov8" title="1">if d.pending != nil </span>{
                 <span class="cov8" title="1">f.marked = d
@@ -4505,7 +4513,7 @@ func (f *Flow) jumpTo(i int) {
 // setMark sets jump mark letter on the new-file line under the cursor.
 func (f *Flow) setMark(letter string) {
         <span class="cov8" title="1">if len(f.rows) == 0 || f.rows[f.cursor].kind != flowDiff </span>{
-                <span class="cov0" title="0">f.msg = "no line of the new file here"
+                <span class="cov8" title="1">f.msg = "no line of the new file here"
                 return
 </span>        }
         <span class="cov8" title="1">r := f.rows[f.cursor]
@@ -4518,11 +4526,11 @@ func (f *Flow) setMark(letter string) {
 func (f *Flow) gotoMark(letter string) {
         <span class="cov8" title="1">mk, ok := f.cfg.Mark(letter)
         if !ok </span>{
-                <span class="cov0" title="0">f.msg = "no mark " + letter
+                <span class="cov8" title="1">f.msg = "no mark " + letter
                 return
 </span>        }
         <span class="cov8" title="1">if len(f.rows) == 0 || f.parts[f.rows[f.cursor].part].app == nil </span>{
-                <span class="cov0" title="0">f.msg = notInDiff(letter, mk)
+                <span class="cov8" title="1">f.msg = notInDiff(letter, mk)
                 return
 </span>        }
         <span class="cov8" title="1">r := f.rows[f.cursor]
@@ -4535,7 +4543,7 @@ func (f *Flow) gotoMark(letter string) {
         <span class="cov8" title="1">d := app.files[i].diff
         line, note, ok := d.markLine(mk)
         if !ok </span>{
-                <span class="cov0" title="0">f.msg = markMsg(letter, "the new file is empty")
+                <span class="cov8" title="1">f.msg = markMsg(letter, "the new file is empty")
                 return
 </span>        }
         <span class="cov8" title="1">at := d.reveal(right, line, f.built)
@@ -5050,7 +5058,11 @@ func (f *Flow) status() string {
                         <span class="cov8" title="1">where = append(where, fmt.Sprintf("anchors %d", len(d.anchors)))
 </span>                }
         }
-        <span class="cov8" title="1">left := statusText(f.cfg.Theme, f.msg, f.help())
+        <span class="cov8" title="1">msg := f.msg
+        if msg == "" &amp;&amp; f.marked != nil </span>{
+                <span class="cov8" title="1">msg = f.marked.markPrompt()
+</span>        }
+        <span class="cov8" title="1">left := statusText(f.cfg.Theme, msg, f.help())
         return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))</span>
 }
 
@@ -5227,7 +5239,7 @@ func (h *Help) key(k string) tea.Cmd {
         case "?", "esc", "q":
                 <span class="cov8" title="1">h.open = false</span>
         case "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "down", "j":
                 <span class="cov8" title="1">h.scroll(1)</span>
         case "up", "k":
@@ -5547,7 +5559,7 @@ func (l *Log) key(k string) tea.Cmd {
 </span>        }
         <span class="cov8" title="1">switch k </span>{
         case "q", "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "enter":
                 <span class="cov8" title="1">if l.cfg.Settings.Flow </span>{
                         <span class="cov8" title="1">l.showFlow(-1, nil)
@@ -5598,7 +5610,7 @@ func (l *Log) toggleFlow() {
                 case l.open == nil:
                         <span class="cov8" title="1">l.showFlow(-1, nil)</span>
                 case l.open.app.open == nil:
-                        <span class="cov0" title="0">l.showFlow(l.open.app.cursor, nil)</span>
+                        <span class="cov8" title="1">l.showFlow(l.open.app.cursor, nil)</span>
                 default:
                         <span class="cov8" title="1">l.showFlow(l.open.app.cursor, l.open.app.open.view)</span>
                 }
@@ -5606,7 +5618,7 @@ func (l *Log) toggleFlow() {
         }
         <span class="cov8" title="1">st.Flow = false
         if l.open == nil </span>{
-                <span class="cov0" title="0">l.msg = "flow off"
+                <span class="cov8" title="1">l.msg = "flow off"
                 return
 </span>        }
         <span class="cov8" title="1">if l.files </span>{ // the file list stays
@@ -5887,7 +5899,7 @@ type markJumpMsg struct {
 // isMarkLetter reports whether k names a mark: a letter a-z or A-Z.
 func isMarkLetter(k string) bool {
         <span class="cov8" title="1">if utf8.RuneCountInString(k) != 1 </span>{
-                <span class="cov0" title="0">return false
+                <span class="cov8" title="1">return false
 </span>        }
         <span class="cov8" title="1">c := k[0]
         return 'a' &lt;= c &amp;&amp; c &lt;= 'z' || 'A' &lt;= c &amp;&amp; c &lt;= 'Z'</span>
@@ -5904,8 +5916,8 @@ func repoPath(repo, file string) string {
                 <span class="cov8" title="1">abs = real
 </span>        }
         <span class="cov8" title="1">if repo != "" </span>{
-                <span class="cov0" title="0">if rel, err := filepath.Rel(repo, abs); err == nil &amp;&amp; rel != ".." &amp;&amp; !strings.HasPrefix(rel, "../") </span>{
-                        <span class="cov0" title="0">return filepath.ToSlash(rel)
+                <span class="cov8" title="1">if rel, err := filepath.Rel(repo, abs); err == nil &amp;&amp; filepath.IsLocal(rel) </span>{
+                        <span class="cov8" title="1">return filepath.ToSlash(rel)
 </span>                }
         }
         <span class="cov8" title="1">return abs</span>
@@ -5931,7 +5943,7 @@ func setMark(cfg *config.Config, d *fileDiff, letter string, v int) string {
 func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
         <span class="cov8" title="1">lines := d.lines[right]
         if len(lines) == 0 </span>{
-                <span class="cov0" title="0">return 0, "", false
+                <span class="cov8" title="1">return 0, "", false
 </span>        }
         <span class="cov8" title="1">want := m.Line - 1
 </span>        // Out from the old line until both directions left the file, which may
@@ -6014,7 +6026,7 @@ func (p *MarksPopup) key(k string) tea.Cmd {
         case "\\", "esc", "q":
                 <span class="cov8" title="1">p.open = false</span>
         case "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "down", "j":
                 <span class="cov8" title="1">p.move(1)</span>
         case "up", "k":
@@ -6140,9 +6152,9 @@ func refreshed(added, gone, changed, dropped int) string {
         }
         <span class="cov8" title="1">switch </span>{
         case dropped == 1:
-                <span class="cov0" title="0">parts = append(parts, "1 anchor dropped")</span>
+                <span class="cov8" title="1">parts = append(parts, "1 anchor dropped")</span>
         case dropped &gt; 1:
-                <span class="cov0" title="0">parts = append(parts, fmt.Sprintf("%d anchors dropped", dropped))</span>
+                <span class="cov8" title="1">parts = append(parts, fmt.Sprintf("%d anchors dropped", dropped))</span>
         }
         <span class="cov8" title="1">if len(parts) == 0 </span>{
                 <span class="cov8" title="1">return "nothing changed"
@@ -6426,8 +6438,9 @@ func (m *Model) refresh() {
 }
 
 func (m *Model) key(k string) tea.Cmd {
-        <span class="cov8" title="1">if p := m.prefix; p != "" </span>{
-                <span class="cov8" title="1">m.prefix, m.msg = "", ""
+        <span class="cov8" title="1">m.msg = ""
+        if p := m.prefix; p != "" </span>{
+                <span class="cov8" title="1">m.prefix = ""
                 switch </span>{
                 case !isMarkLetter(k):<span class="cov8" title="1"></span>
                 case p == "m":
@@ -6438,8 +6451,7 @@ func (m *Model) key(k string) tea.Cmd {
                 <span class="cov8" title="1">return nil</span>
         }
         <span class="cov8" title="1">if m.replace != nil &amp;&amp; k != "enter" &amp;&amp; k != "esc" </span>{
-                <span class="cov0" title="0">m.replace = nil
-                m.msg = ""
+                <span class="cov8" title="1">m.replace = nil
 </span>        }
 
         <span class="cov8" title="1">page := max(m.bodyHeight()-1, 1)
@@ -6453,7 +6465,7 @@ func (m *Model) key(k string) tea.Cmd {
         }
         <span class="cov8" title="1">switch k </span>{
         case "q", "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case "tab":
                 <span class="cov8" title="1">m.active = m.active.other()</span>
         case "ctrl+u":
@@ -6461,13 +6473,13 @@ func (m *Model) key(k string) tea.Cmd {
         case "ctrl+d":
                 <span class="cov8" title="1">m.scroll(page / 2)</span>
         case "left", "h":
-                <span class="cov0" title="0">m.xoff = max(m.xoff-8, 0)</span>
+                <span class="cov8" title="1">m.xoff = max(m.xoff-8, 0)</span>
         case "right", "l":
                 <span class="cov8" title="1">m.xoff += 8</span>
         case "]":
                 <span class="cov8" title="1">m.nextChange(1)</span>
         case "[":
-                <span class="cov0" title="0">m.nextChange(-1)</span>
+                <span class="cov8" title="1">m.nextChange(-1)</span>
         case "n", "p":
                 <span class="cov8" title="1">if m.canBack </span>{
                         <span class="cov8" title="1">dir := switchFileMsg(direction(k == "n"))
@@ -6532,7 +6544,7 @@ func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
 func (m *Model) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
         <span class="cov8" title="1">line, note, ok := m.markLine(mk)
         if !ok </span>{
-                <span class="cov0" title="0">m.msg = markMsg(letter, "the new file is empty")
+                <span class="cov8" title="1">m.msg = markMsg(letter, "the new file is empty")
                 return spot{}, false
 </span>        }
         <span class="cov8" title="1">m.msg = markMsg(letter, note)
@@ -6701,7 +6713,7 @@ func (m *Model) nextChange(dir int) {
                         return
 </span>                }
         }
-        <span class="cov0" title="0">m.msg = "no more changes"</span>
+        <span class="cov8" title="1">m.msg = "no more changes"</span>
 }
 
 func (m *Model) bodyHeight() int { <span class="cov8" title="1">return max(m.height-2, 1) }</span>
@@ -7078,7 +7090,7 @@ func (f *Flow) findText(dir int) {
         <span class="cov8" title="1">q := f.cfg.Search.Query
         mt := matcherOf(q)
         if mt == nil </span>{
-                <span class="cov0" title="0">f.msg = "nothing searched yet: / searches"
+                <span class="cov8" title="1">f.msg = "nothing searched yet: / searches"
                 return
 </span>        }
         <span class="cov8" title="1">cur := 0 // the cursor's part
@@ -7096,7 +7108,7 @@ func (f *Flow) findText(dir int) {
                 }
                 <span class="cov8" title="1">for i, e := range part.app.files </span>{
                         <span class="cov8" title="1">if e.Binary </span>{
-                                <span class="cov0" title="0">continue</span>
+                                <span class="cov8" title="1">continue</span>
                         }
                         <span class="cov8" title="1">for _, h := range part.app.diffOf(e).hits(mt, f.cfg.Settings.SearchAll) </span>{
                                 <span class="cov8" title="1">hits = append(hits, flowHit{p, i, h})
@@ -7124,7 +7136,7 @@ func (f *Flow) findText(dir int) {
                 <span class="cov8" title="1">if dir &gt; 0 </span>{
                         <span class="cov8" title="1">return compare(hits[i], pos) &lt;= 0
 </span>                }
-                <span class="cov0" title="0">return compare(hits[i], pos) &lt; 0</span>
+                <span class="cov8" title="1">return compare(hits[i], pos) &lt; 0</span>
         }
         <span class="cov8" title="1">i, ok := nextHit(len(hits), dir, before)
         if !ok </span>{
@@ -7179,8 +7191,8 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">return s, s.key(msg)
 </span>                }
         case tea.PasteMsg:
-                <span class="cov0" title="0">if s.input != nil </span>{
-                        <span class="cov0" title="0">s.input.text += msg.Content
+                <span class="cov8" title="1">if s.input != nil </span>{
+                        <span class="cov8" title="1">s.input.text += msg.Content
                         return s, nil
 </span>                }
         }
@@ -7199,7 +7211,7 @@ func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
         show := func(q config.Query) </span>{ <span class="cov8" title="1">in.text, s.regex = q.Text, q.Regex }</span>
         <span class="cov8" title="1">switch </span>{
         case k.String() == "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case in.cancels(k):
                 <span class="cov8" title="1">s.input = nil
                 return nil</span>
@@ -7640,7 +7652,11 @@ func (d *fileDiff) bodyRow(v, sub int, cursor bool, lo layout) string {
 }
 
 func (m *Model) status() string {
-        <span class="cov8" title="1">left := statusText(m.cfg.Theme, m.msg, m.help())
+        <span class="cov8" title="1">msg := m.msg
+        if msg == "" </span>{
+                <span class="cov8" title="1">msg = m.markPrompt()
+</span>        }
+        <span class="cov8" title="1">left := statusText(m.cfg.Theme, msg, m.help())
         row := 0
         if m.cursor &lt; len(m.view) </span>{
                 <span class="cov8" title="1">row = m.view[m.cursor].row + 1
@@ -8114,7 +8130,7 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
         case dropped == 1:
                 <span class="cov8" title="1">return f.Path + " reloaded, 1 anchor dropped"</span>
         case dropped &gt; 1:
-                <span class="cov0" title="0">return fmt.Sprintf("%s reloaded, %d anchors dropped", f.Path, dropped)</span>
+                <span class="cov8" title="1">return fmt.Sprintf("%s reloaded, %d anchors dropped", f.Path, dropped)</span>
         }
         <span class="cov8" title="1">return f.Path + " reloaded"</span>
 }
@@ -8415,8 +8431,8 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         return s, s.key(msg)
 </span>                }
         case tea.PasteMsg:
-                <span class="cov0" title="0">if s.input != nil </span>{
-                        <span class="cov0" title="0">s.err = ""
+                <span class="cov8" title="1">if s.input != nil </span>{
+                        <span class="cov8" title="1">s.err = ""
                         s.input.text += msg.Content
                         return s, nil
 </span>                }
@@ -8434,7 +8450,7 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
         <span class="cov8" title="1">in := s.input
         switch </span>{
         case k.String() == "ctrl+c":
-                <span class="cov0" title="0">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit</span>
         case in.cancels(k):
                 <span class="cov8" title="1">s.input = nil
                 return nil</span>
@@ -8544,7 +8560,7 @@ func (in *lineInput) edit(k tea.KeyPressMsg) {
                         <span class="cov8" title="1">in.text = string(r[:len(r)-1])
 </span>                }
         case "ctrl+w":
-                <span class="cov0" title="0">in.text = strings.TrimRight(in.text, " ")
+                <span class="cov8" title="1">in.text = strings.TrimRight(in.text, " ")
                 in.text = in.text[:strings.LastIndex(in.text, " ")+1]</span>
         case "ctrl+u":
                 <span class="cov8" title="1">in.text = ""</span>
@@ -8676,7 +8692,7 @@ var license string
 var readme string
 
 func main() {
-        <span class="cov0" title="0">showVersion := flag.Bool("version", false, "print the version and exit")
+        <span class="cov8" title="1">showVersion := flag.Bool("version", false, "print the version and exit")
         showLicense := flag.Bool("license", false, "print the license and the dependencies and exit")
         showReadme := flag.Bool("readme", false, "print the README and exit")
         features := flag.String("features", "",
@@ -8685,58 +8701,58 @@ func main() {
                         "unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
                         "to them.")
         flag.Usage = func() </span>{
-                <span class="cov0" title="0">fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
+                <span class="cov8" title="1">fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
                         "       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
                         "       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
                 flag.PrintDefaults()
 </span>        }
-        <span class="cov0" title="0">flag.Parse()
+        <span class="cov8" title="1">flag.Parse()
         if *showVersion </span>{
-                <span class="cov0" title="0">fmt.Println(resolveVersion())
+                <span class="cov8" title="1">fmt.Println(resolveVersion())
                 return
 </span>        }
-        <span class="cov0" title="0">if *showLicense </span>{
-                <span class="cov0" title="0">printLicense()
+        <span class="cov8" title="1">if *showLicense </span>{
+                <span class="cov8" title="1">printLicense()
                 return
 </span>        }
-        <span class="cov0" title="0">if *showReadme </span>{
-                <span class="cov0" title="0">fmt.Print(withoutBadges(readme))
+        <span class="cov8" title="1">if *showReadme </span>{
+                <span class="cov8" title="1">fmt.Print(withoutBadges(readme))
                 return
 </span>        }
-        <span class="cov0" title="0">mode := ""
+        <span class="cov8" title="1">mode := ""
         if flag.NArg() &gt; 0 &amp;&amp; (flag.Arg(0) == "log" || flag.Arg(0) == "diff") </span>{
-                <span class="cov0" title="0">mode = flag.Arg(0)
+                <span class="cov8" title="1">mode = flag.Arg(0)
 </span>        }
-        <span class="cov0" title="0">if mode == "" &amp;&amp; flag.NArg() != 2 </span>{
-                <span class="cov0" title="0">flag.Usage()
+        <span class="cov8" title="1">if mode == "" &amp;&amp; flag.NArg() != 2 </span>{
+                <span class="cov8" title="1">flag.Usage()
                 os.Exit(2)
 </span>        }
 
-        <span class="cov0" title="0">dir, err := config.Dir()
+        <span class="cov8" title="1">dir, err := config.Dir()
         if err != nil </span>{
                 <span class="cov0" title="0">dir = "" // no home: defaults only
 </span>        }
-        <span class="cov0" title="0">cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), *features)
+        <span class="cov8" title="1">cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), *features)
         if err != nil </span>{
                 <span class="cov0" title="0">fatal(err)
 </span>        }
-        <span class="cov0" title="0">repo, err := gitsrc.Repo{}.TopLevel()
+        <span class="cov8" title="1">repo, err := gitsrc.Repo{}.TopLevel()
         if err != nil </span>{
                 <span class="cov0" title="0">repo = "" // not in a repository: marks with absolute paths
 </span>        }
-        <span class="cov0" title="0">cfg.LoadMarks(repo)
+        <span class="cov8" title="1">cfg.LoadMarks(repo)
 </span>
-        <span class="cov0" title="0">var m tea.Model
+        <span class="cov8" title="1">var m tea.Model
         switch mode </span>{
         case "log":
-                <span class="cov0" title="0">m, err = loadLog(cfg, flag.Args()[1:])</span>
+                <span class="cov8" title="1">m, err = loadLog(cfg, flag.Args()[1:])</span>
         case "diff":
-                <span class="cov0" title="0">m, err = loadDiff(cfg, flag.Args()[1:])</span>
+                <span class="cov8" title="1">m, err = loadDiff(cfg, flag.Args()[1:])</span>
         default:
-                <span class="cov0" title="0">m, err = load(cfg, flag.Arg(0), flag.Arg(1))</span>
+                <span class="cov8" title="1">m, err = load(cfg, flag.Arg(0), flag.Arg(1))</span>
         }
-        <span class="cov0" title="0">if err != nil </span>{
-                <span class="cov0" title="0">fatal(err)
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov8" title="1">fatal(err)
 </span>        }
         // d replaces whatever is shown by the files of git diff, which runs in
         // the current directory; the search bar and the popups are put around
@@ -8760,71 +8776,71 @@ func main() {
 // git difftool --dir-diff, and the diff view for two files; both reload
 // files that change on disk.
 func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
-        <span class="cov0" title="0">oldInfo, errOld := os.Stat(oldPath)
+        <span class="cov8" title="1">oldInfo, errOld := os.Stat(oldPath)
         newInfo, errNew := os.Stat(newPath)
         if errOld == nil &amp;&amp; errNew == nil &amp;&amp; oldInfo.IsDir() &amp;&amp; newInfo.IsDir() </span>{
-                <span class="cov0" title="0">files, err := source.LoadDirs(oldPath, newPath)
+                <span class="cov8" title="1">files, err := source.LoadDirs(oldPath, newPath)
                 if err != nil </span>{
                         <span class="cov0" title="0">return nil, err
 </span>                }
-                <span class="cov0" title="0">relist := func() ([]source.File, error) </span>{ <span class="cov0" title="0">return source.LoadDirs(oldPath, newPath) }</span>
-                <span class="cov0" title="0">return ui.NewApp(cfg, files).WithRelist(relist), nil</span>
+                <span class="cov8" title="1">relist := func() ([]source.File, error) </span>{ <span class="cov8" title="1">return source.LoadDirs(oldPath, newPath) }</span>
+                <span class="cov8" title="1">return ui.NewApp(cfg, files).WithRelist(relist), nil</span>
         }
 
         // Path names the file in messages; the panes show the paths as given.
-        <span class="cov0" title="0">f := source.File{Path: filepath.Base(newPath), OldFile: oldPath, NewFile: newPath, InOld: true, InNew: true}
+        <span class="cov8" title="1">f := source.File{Path: filepath.Base(newPath), OldFile: oldPath, NewFile: newPath, InOld: true, InNew: true}
         var err error
         if f.Old, f.OldStamp, err = source.Read(oldPath); err != nil </span>{
-                <span class="cov0" title="0">return nil, fmt.Errorf("%s: %w", oldPath, err)
+                <span class="cov8" title="1">return nil, fmt.Errorf("%s: %w", oldPath, err)
 </span>        }
-        <span class="cov0" title="0">if f.New, f.NewStamp, err = source.Read(newPath); err != nil </span>{
-                <span class="cov0" title="0">return nil, fmt.Errorf("%s: %w", newPath, err)
+        <span class="cov8" title="1">if f.New, f.NewStamp, err = source.Read(newPath); err != nil </span>{
+                <span class="cov8" title="1">return nil, fmt.Errorf("%s: %w", newPath, err)
 </span>        }
-        <span class="cov0" title="0">return ui.NewWatched(cfg, f), nil</span>
+        <span class="cov8" title="1">return ui.NewWatched(cfg, f), nil</span>
 }
 
 // loadLog opens the commit list for the commits git log selects with args.
 func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
-        <span class="cov0" title="0">repo := gitsrc.Repo{}
+        <span class="cov8" title="1">repo := gitsrc.Repo{}
         commits, err := repo.Log(args)
         if err != nil </span>{
-                <span class="cov0" title="0">return nil, err
+                <span class="cov8" title="1">return nil, err
 </span>        }
-        <span class="cov0" title="0">if len(commits) == 0 </span>{
-                <span class="cov0" title="0">return nil, fmt.Errorf("no commits")
+        <span class="cov8" title="1">if len(commits) == 0 </span>{
+                <span class="cov8" title="1">return nil, fmt.Errorf("no commits")
 </span>        }
-        <span class="cov0" title="0">relist := func() (string, []gitsrc.Commit, error) </span>{
-                <span class="cov0" title="0">commits, err := repo.Log(args)
+        <span class="cov8" title="1">relist := func() (string, []gitsrc.Commit, error) </span>{
+                <span class="cov8" title="1">commits, err := repo.Log(args)
                 return repo.Branch(), commits, err
 </span>        }
-        <span class="cov0" title="0">return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts).WithRelist(relist), nil</span>
+        <span class="cov8" title="1">return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts).WithRelist(relist), nil</span>
 }
 
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-        <span class="cov0" title="0">diff := gitDiff(cfg)
+        <span class="cov8" title="1">diff := gitDiff(cfg)
         files, err := diff(args)
         if err != nil </span>{
-                <span class="cov0" title="0">return nil, err
+                <span class="cov8" title="1">return nil, err
 </span>        }
-        <span class="cov0" title="0">return ui.NewApp(cfg, files).WithGitDiff(args, diff), nil</span>
+        <span class="cov8" title="1">return ui.NewApp(cfg, files).WithGitDiff(args, diff), nil</span>
 }
 
 // gitDiff returns the function running git diff, which follows the toggle of
 // the untracked files.
 func gitDiff(cfg *config.Config) ui.DiffFunc {
-        <span class="cov0" title="0">repo := gitsrc.Repo{}
+        <span class="cov8" title="1">repo := gitsrc.Repo{}
         return func(args []string) ([]source.File, error) </span>{
-                <span class="cov0" title="0">if cfg.Settings.Untracked </span>{
-                        <span class="cov0" title="0">return repo.DiffUntracked(args)
+                <span class="cov8" title="1">if cfg.Settings.Untracked </span>{
+                        <span class="cov8" title="1">return repo.DiffUntracked(args)
 </span>                }
-                <span class="cov0" title="0">return repo.Diff(args)</span>
+                <span class="cov8" title="1">return repo.Diff(args)</span>
         }
 }
 
 func fatal(err error) {
-        <span class="cov0" title="0">fmt.Fprintln(os.Stderr, "jdiff:", err)
+        <span class="cov8" title="1">fmt.Fprintln(os.Stderr, "jdiff:", err)
         os.Exit(1)
 </span>}
 
@@ -8842,25 +8858,25 @@ func withoutBadges(readme string) string {
 
 // printLicense prints jdiff's license and the modules linked into this binary.
 func printLicense() {
-        <span class="cov0" title="0">fmt.Print(license)
+        <span class="cov8" title="1">fmt.Print(license)
         bi, ok := debug.ReadBuildInfo()
         if !ok || len(bi.Deps) == 0 </span>{
                 <span class="cov0" title="0">return
 </span>        }
-        <span class="cov0" title="0">fmt.Println("\nDependencies:")
+        <span class="cov8" title="1">fmt.Println("\nDependencies:")
         for _, d := range bi.Deps </span>{
-                <span class="cov0" title="0">fmt.Println(" ", d.Path, d.Version)
+                <span class="cov8" title="1">fmt.Println(" ", d.Path, d.Version)
 </span>        }
 }
 
 func resolveVersion() string {
-        <span class="cov0" title="0">bi, ok := debug.ReadBuildInfo()
+        <span class="cov8" title="1">bi, ok := debug.ReadBuildInfo()
         if !ok </span>{
                 <span class="cov0" title="0">return "dev"
 </span>        }
-        <span class="cov0" title="0">var rev, dirty string
+        <span class="cov8" title="1">var rev, dirty string
         for _, s := range bi.Settings </span>{
-                <span class="cov0" title="0">switch s.Key </span>{
+                <span class="cov8" title="1">switch s.Key </span>{
                 case "vcs.revision":
                         <span class="cov0" title="0">rev = s.Value</span>
                 case "vcs.modified":
@@ -8869,8 +8885,8 @@ func resolveVersion() string {
 </span>                        }
                 }
         }
-        <span class="cov0" title="0">if rev == "" </span>{
-                <span class="cov0" title="0">return "dev"
+        <span class="cov8" title="1">if rev == "" </span>{
+                <span class="cov8" title="1">return "dev"
 </span>        }
         // Main.Version is the tag, or a pseudo-version containing the revision.
         <span class="cov0" title="0">v := strings.TrimSuffix(bi.Main.Version, "+dirty")
