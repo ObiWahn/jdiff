@@ -123,7 +123,8 @@ jobs:
           sh -c '${{ matrix.install }} && jdiff --version && git --version'
 
   # The README's badge reads coverage.json in the branch badges, so that the
-  # commits stay out of master's history. A job of its own: only it may write.
+  # commits stay out of master's history; GitHub Pages serves the reports next
+  # to it. A job of its own: only it may write.
   # Its commits start no workflow: they are made with the GITHUB_TOKEN.
   badge:
     if: github.repository == 'ObiWahn/jdiff' && github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -133,6 +134,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: coverage
+          path: ${{ runner.temp }}/coverage
       - env:
           TOTAL: ${{ needs.linux.outputs.coverage }}
         run: |
@@ -145,7 +150,8 @@ jobs:
             git rm -rfq .
           fi
           printf '{"schemaVersion":1,"label":"coverage","message":"%s","color":"blue"}\n' "$TOTAL" > coverage.json
-          git add coverage.json
+          cp "$RUNNER_TEMP"/coverage/coverage.html "$RUNNER_TEMP"/coverage/coverage.txt .
+          git add coverage.json coverage.html coverage.txt
           git diff --cached --quiet && exit 0
           git commit -qm "Coverage $TOTAL"
           git push -q origin badges
