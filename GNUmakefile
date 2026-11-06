@@ -10,7 +10,7 @@ RACE_TIMEOUT ?= 40s
 # go install golang.org/x/vuln/cmd/govulncheck@latest
 GOVULNCHECK  ?= $(shell go env GOPATH)/bin/govulncheck
 
-.PHONY: all build test test-race tag vet vuln fmt fmt-check clean
+.PHONY: all build test test-race cover tag vet vuln fmt fmt-check clean
 
 all: build
 
@@ -26,6 +26,12 @@ test: | $(BUILD_DIR)/
 # All tests with the race detector, the sweeps too: before a release.
 test-race: | $(BUILD_DIR)/
 	timeout $(RACE_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee $(BUILD_DIR)/test-race.log
+
+# Coverage over all packages: settings has no tests of its own, ui tests it.
+cover: | $(BUILD_DIR)/
+	timeout $(TEST_TIMEOUT) go test -count=1 -coverpkg=./... -coverprofile=$(BUILD_DIR)/coverage.out ./... 2>&1 | tee $(BUILD_DIR)/cover.log
+	go tool cover -func=$(BUILD_DIR)/coverage.out 2>&1 | tail -n 1 | tee -a $(BUILD_DIR)/cover.log
+	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
 
 # Tags HEAD of master with the next version, the last tag vX.Y.Z with Z one
 # higher, when the tree is clean, HEAD has no tag yet and test-race passes.

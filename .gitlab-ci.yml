@@ -12,5 +12,12 @@ variables:
   SECRET_DETECTION_ENABLED: 'true'
 secret_detection:
   stage: secret-detection
+coverage:
+  stage: test
+  image: golang:1.26
+  script:
+  - go test -count=1 -coverpkg=./... -coverprofile=coverage.out ./...
+  - go tool cover -func=coverage.out
+  coverage: '/total:\s+\(statements\)\s+\d+\.\d+%/'
 include:
 - template: Security/Secret-Detection.gitlab-ci.yml

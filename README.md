@@ -81,7 +81,7 @@ go install .      # or install it into $GOBIN
 
 `jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and the dependencies linked into it, `jdiff --readme` this README.
 
-The other make targets: `make test`, `make test-race`, `make tag`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
+The other make targets: `make test`, `make test-race`, `make cover`, `make tag`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
 
 ## Usage
 
@@ -266,6 +266,7 @@ Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`,
 ```sh
 make test        # go test -race with a timeout; the sweeps (tests named ...Sweep) without -race
 make test-race   # all tests with -race, the sweeps too: before a release
+make cover       # test coverage over all packages, lines in bin/coverage.html
 make tag         # on a clean master, after test-race: tag HEAD with the next vX.Y.Z, not pushed
 make vet
 make vuln   # govulncheck, installed with go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -273,6 +274,7 @@ make fmt
 ```
 
 CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to any branch and every Monday, for new vulnerabilities.
+GitLab CI (`.gitlab-ci.yml`) reports the test coverage.
 When they pass, [GoReleaser](https://goreleaser.com/) builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64).
 Branches and scheduled runs (including on forks) build snapshots and attach the archives, binaries, packages, SHA-256 sums and generated cask to the run without publishing.
 A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives, binaries, packages and `sha256sums.txt` as a GitHub release, then updates `Casks/jdiff.rb` on upstream's `master` branch.
