@@ -227,7 +227,7 @@ func (m *Model) key(k string) tea.Cmd {
 		return settingKey(k, false)
 	case "enter", "esc", "space", "ctrl+space":
 		m.act(k)
-	case "o":
+	case "g":
 		return m.jump()
 	case "m":
 		m.prefix, m.msg = k, "set mark: press a letter"

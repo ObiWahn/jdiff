@@ -18,7 +18,7 @@ delta formats the output of git once and hands it to a pager; jdiff is a program
   - A cut line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
 - **More or less context:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them. delta shows the context lines git gave it.
 - **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
-- **Following moved code:** like delta, jdiff colors blocks moved within a file or between the files of one commit or diff, magenta where they moved away and cyan where they moved to, as git's `--color-moved` does. `o` jumps to the other end, also into another file.
+- **Following moved code:** like delta, jdiff colors blocks moved within a file or between the files of one commit or diff, magenta where they moved away and cyan where they moved to, as git's `--color-moved` does. `g` jumps to the other end, also into another file.
 - **Auto reload:** outside the log, files on disk are watched: on Linux the kernel reports their changes (inotify), elsewhere, or when the files are in more than `inotify_max_dirs` directories, they are checked every second. When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. `r`, `F5` or `ctrl+r` runs `git diff` or `git log` again, or lists the directories again, so new files and commits show up too; `R` does so by itself whenever the repository changes, see [Keys](#keys). delta shows the diff as it was when git ran.
 - **Anchors:** mark a line with `enter`, then its partner in the other pane. jdiff realigns around it. Anchors that would cross are offered for replacement.
 - **Jump marks:** `m` plus a letter marks a line of the new file, `'` plus the letter jumps back to it within the diff. `\` lists the marks; there, `enter` jumps and `d` deletes.
@@ -166,7 +166,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `tab` | switch pane |
 | `/` | search in a bar at the bottom: type the text; `tab` switches between changed lines (added, removed and moved; the default) and all lines, `shift+tab` between plain text and a regular expression (Go syntax), both kept in `state.toml`; `↑` `↓` go through the earlier searches of this session, `enter` finds, `esc` or `backspace` on nothing typed cancels. Case is ignored unless the text holds a capital letter. Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view |
 | `.` `,` | next, previous match; past the last or first one the cursor stays. In the flow view in all files, in the log in those of the current commit: `N` `P` go to the others |
-| `o` | other end of moved code |
+| `g` | go to the other end of moved code |
 | `m`*letter* | set a jump mark on the line of the new file |
 | `'`*letter* | jump to a mark, when its file is in this diff |
 | `f` | flow view |

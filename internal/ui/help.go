@@ -58,7 +58,7 @@ var bindings = []binding{
 	{"h l", "scroll left, right, unless lines are wrapped"},
 	{"] [", "next, previous change"},
 	{"tab", "switch pane"},
-	{"o", "other end of moved code (magenta: moved away, cyan: moved here)"},
+	{"g", "go to the other end of moved code (magenta: moved away, cyan: moved here)"},
 	{"m<letter>", "set a jump mark on the line of the new file"},
 	{"/", "search: enter find, tab changed or all lines, shift+tab text or regex"},
 	{"", "  ↑ ↓ earlier searches, esc or backspace on nothing typed cancel"},

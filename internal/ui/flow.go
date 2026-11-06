@@ -209,7 +209,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.findText(1)
 	case prevKey:
 		f.findText(-1)
-	case "o":
+	case "g":
 		f.jump()
 	case "m":
 		f.prefix, f.msg = k, "set mark: press a letter"
