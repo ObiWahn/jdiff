@@ -58,7 +58,7 @@ func TestHelpScrolls(t *testing.T) {
 	if h.top != 3 {
 		t.Errorf("j j: top %d", h.top)
 	}
-	pressRoot(h, "G", "k", "k", "k")
+	pressRoot(h, "end", "k", "k", "k")
 	if h.top != 0 {
 		t.Errorf("k past the top: top %d", h.top)
 	}

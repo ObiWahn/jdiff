@@ -18,7 +18,7 @@ type binding struct{ key, what string }
 var bindings = []binding{
 	{"", "Everywhere"},
 	{"j k", "move"},
-	{"g G", "first, last; top, bottom"},
+	{"home end", "first, last; top, bottom"},
 	{"pgup pgdn", "page up, down (also ctrl+b ctrl+f); the file list scrolls its preview"},
 	{"n p", "next, previous file; in the commit list commit"},
 	{"N P", "next, previous commit in history (in the log)"},

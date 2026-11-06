@@ -120,14 +120,14 @@ func TestFlowNavigation(t *testing.T) {
 		t.Errorf("p from c.go should reach the bar of b.bin")
 	}
 
-	// j and k cross file borders; G goes to the end.
+	// j and k cross file borders; end goes to the last row.
 	pressApp(a, "k")
 	if _, f, l := a.flow.position(); f != 0 || l < 0 {
 		t.Errorf("k from the bar of b.bin: file %d line %d, want the last row of a.go", f, l)
 	}
-	pressApp(a, "G")
+	pressApp(a, "end")
 	if _, f, l := a.flow.position(); f != 2 || l != len(a.files[2].diff.view)-1 {
-		t.Errorf("G: file %d line %d, want the last row of c.go", f, l)
+		t.Errorf("end: file %d line %d, want the last row of c.go", f, l)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestFlowMarkMovesBetweenFiles(t *testing.T) {
 	if a.files[0].diff.pending != nil || a.files[2].diff.pending == nil {
 		t.Errorf("marking in c.go should drop the mark in a.go")
 	}
-	pressApp(a, "G", "esc")
+	pressApp(a, "end", "esc")
 	if a.files[2].diff.pending != nil || a.flow.msg != "mark cancelled" {
 		t.Errorf("esc away from the mark: msg %q", a.flow.msg)
 	}
@@ -172,14 +172,14 @@ func TestFlowTakesOverMarkOfDiffView(t *testing.T) {
 	if a.files[0].diff.pending == nil {
 		t.Fatalf("enter did not mark a line in a.go")
 	}
-	pressApp(a, "G", "esc")
+	pressApp(a, "end", "esc")
 	if a.files[0].diff.pending != nil || a.flow.msg != "mark cancelled" {
 		t.Errorf("esc in c.go: a.go mark %v, msg %q; want the mark of the diff view cancelled",
 			a.files[0].diff.pending, a.flow.msg)
 	}
 
 	a = newFlowApp()
-	pressApp(a, "enter", "]", "enter", "f", "G", "enter")
+	pressApp(a, "enter", "]", "enter", "f", "end", "enter")
 	if a.files[0].diff.pending != nil || a.files[2].diff.pending == nil {
 		t.Errorf("marking in c.go should drop the mark set in the diff view of a.go")
 	}
@@ -489,7 +489,7 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 	})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	setOption(a, a.cfg, "s")
-	pressApp(a, "f", "g", "]")
+	pressApp(a, "f", "home", "]")
 	var got []string
 	for i := a.flow.cursor; i < a.flow.cursor+4; i++ {
 		got = append(got, strings.TrimRight(ansi.Strip(a.flow.row(i)), " "))

@@ -210,7 +210,7 @@ func TestSettingsKeyAsMarkLetter(t *testing.T) {
 	if mk, ok := m.cfg.Mark("S"); !ok || mk.Line != line+1 {
 		t.Errorf("m S: mark %+v, set %v; want line %d", mk, ok, line+1)
 	}
-	pressRoot(s, "G", "'", "S")
+	pressRoot(s, "end", "'", "S")
 	if s.open {
 		t.Errorf("' S opened the settings")
 	}

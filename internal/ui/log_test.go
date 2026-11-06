@@ -206,9 +206,9 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 	if loads["c2"] != 1 || loads["c1"] != 0 {
 		t.Errorf("j: loads %v, want c2 loaded as it comes near, c1 not", loads)
 	}
-	pressLog(l, "G")
+	pressLog(l, "end")
 	if flowCommitAt(l) != 3 || !strings.Contains(ansi.Strip(l.frame()), "cannot load c0") {
-		t.Errorf("G: flow at %d, want c0 with its error:\n%s", flowCommitAt(l), ansi.Strip(l.frame()))
+		t.Errorf("end: flow at %d, want c0 with its error:\n%s", flowCommitAt(l), ansi.Strip(l.frame()))
 	}
 	for h, n := range loads {
 		if n != 1 {
@@ -392,7 +392,7 @@ func TestLogPreviewToggleShared(t *testing.T) {
 func TestFlowCursorRowsInverted(t *testing.T) {
 	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
 	l, _ := newTestLog()
-	pressLog(l, "f", "G") // load all commits
+	pressLog(l, "f", "end") // load all commits
 	f := l.flow
 	kinds := map[flowKind]bool{}
 	for i, r := range f.rows {
@@ -462,9 +462,9 @@ func TestFlowStayInCommit(t *testing.T) {
 	if !l.cfg.Settings.StayInCommit || f.msg != "staying in commit c3" {
 		t.Fatalf("C: setting %v, msg %q", l.cfg.Settings.StayInCommit, f.msg)
 	}
-	pressLog(l, "G")
+	pressLog(l, "end")
 	if f.cursor != last || f.msg != "stays in commit c3 (C)" {
-		t.Errorf("G: cursor %d (last row of c3: %d), msg %q", f.cursor, last, f.msg)
+		t.Errorf("end: cursor %d (last row of c3: %d), msg %q", f.cursor, last, f.msg)
 	}
 	for _, k := range []string{"j", "n", "]", "pgdown"} {
 		pressLog(l, k)
@@ -481,7 +481,7 @@ func TestFlowStayInCommit(t *testing.T) {
 		t.Fatalf("P: on commit %d, want 1", part())
 	}
 	first := f.cursor
-	for _, k := range []string{"k", "pgup", "g"} {
+	for _, k := range []string{"k", "pgup", "home"} {
 		pressLog(l, k)
 		if f.cursor != first || f.msg != "stays in commit c2 (C)" {
 			t.Errorf("%s at the start of c2: cursor %d, msg %q; want %d and the warning", k, f.cursor, f.msg, first)
@@ -597,9 +597,9 @@ func TestLogCountsInBackground(t *testing.T) {
 	}
 
 	// At the end of the list, its commits are counted, the ones between not.
-	pressLog(l, "G")
+	pressLog(l, "end")
 	if line := listLine(l, "h99"); !strings.Contains(line, "+100") {
-		t.Errorf("G: h99 line %q, want +100", line)
+		t.Errorf("end: h99 line %q, want +100", line)
 	}
 	seen := map[string]bool{}
 	for _, call := range *asked {
@@ -622,7 +622,7 @@ func TestLogCountsFail(t *testing.T) {
 	if !strings.Contains(l.msg, "line counts: git broke") {
 		t.Errorf("msg %q, want the error", l.msg)
 	}
-	pressLog(l, "G", "g")
+	pressLog(l, "end", "home")
 	if len(*asked) != 1 {
 		t.Errorf("counted %d times after an error, want once: %v", len(*asked), *asked)
 	}
@@ -721,7 +721,7 @@ func TestCommitListArrows(t *testing.T) {
 	}{
 		{nil, []string{"c00", "c01", "c02", "c03", "  ↓ 26 more"}},
 		{[]string{"j", "j", "j", "j"}, []string{"  ↑ 2 more", "c02", "c03", "c04", "  ↓ 25 more"}},
-		{[]string{"G"}, []string{"  ↑ 26 more", "c26", "c27", "c28", "c29"}},
+		{[]string{"end"}, []string{"  ↑ 26 more", "c26", "c27", "c28", "c29"}},
 		{[]string{"k", "k", "k", "k"}, []string{"  ↑ 25 more", "c25", "c26", "c27", "  ↓ 2 more"}},
 	} {
 		pressLog(l, tt.keys...)

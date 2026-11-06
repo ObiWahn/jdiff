@@ -34,7 +34,7 @@ func TestMarkSetAndJump(t *testing.T) {
 	if mk, ok := m.cfg.Mark("a"); !ok || mk != (config.Mark{Path: "new", Line: 31, Text: "x30"}) {
 		t.Errorf("mark a = %+v, %v", mk, ok)
 	}
-	press(m, "ctrl+space", "g") // fold all again, to the top
+	press(m, "ctrl+space", "home") // fold all again, to the top
 	press(m, "'", "a")
 	if m.lineAt(right, m.cursor) != 30 || m.msg != "mark a" {
 		t.Errorf("' a: right line %d, msg %q; want 30 and mark a, its fold opened", m.lineAt(right, m.cursor), m.msg)
@@ -74,7 +74,7 @@ func TestMarkFindsLineInShrunkFile(t *testing.T) {
 	// The file shrank to 3 lines, the marked line among them: it is found
 	// by its text, although its old number is far past the end.
 	m.reload(right, []string{"x0", m.lines[right][30], "x2"})
-	press(m, "g", "'", "a")
+	press(m, "home", "'", "a")
 	if m.lineAt(right, m.cursor) != 1 || m.msg != "mark a" {
 		t.Errorf("shrunk file: right line %d, msg %q; want line 1 found by its text", m.lineAt(right, m.cursor), m.msg)
 	}
@@ -87,7 +87,7 @@ func TestMarkFindsMovedLine(t *testing.T) {
 	press(m, "m", "a")
 	// Three lines inserted above: the line is found by its text.
 	m.reload(right, append([]string{"n1", "n2", "n3"}, m.lines[right]...))
-	press(m, "g", "'", "a")
+	press(m, "home", "'", "a")
 	if m.lineAt(right, m.cursor) != 33 || m.msg != "mark a" {
 		t.Errorf("after an insert: right line %d, msg %q; want 33", m.lineAt(right, m.cursor), m.msg)
 	}
@@ -95,7 +95,7 @@ func TestMarkFindsMovedLine(t *testing.T) {
 	lines := slices.Clone(m.lines[right])
 	lines[33] = "rewritten"
 	m.reload(right, lines)
-	press(m, "g", "'", "a")
+	press(m, "home", "'", "a")
 	if m.lineAt(right, m.cursor) != 30 || m.msg != "mark a: line changed" {
 		t.Errorf("text gone: right line %d, msg %q; want 30 and the note", m.lineAt(right, m.cursor), m.msg)
 	}
@@ -158,7 +158,7 @@ func TestMarksPopup(t *testing.T) {
 	moveTo(t, m, right, 10)
 	pressRoot(p, "m", "a")
 	moveTo(t, m, right, 30)
-	pressRoot(p, "m", "b", "g")
+	pressRoot(p, "m", "b", "home")
 
 	pressRoot(p, "\\")
 	view := ansi.Strip(p.frame())
@@ -409,7 +409,7 @@ func TestWatchedMarkIsRelativeToRepo(t *testing.T) {
 	if m.msg != "mark a: d0/x0:3" {
 		t.Errorf("msg %q", m.msg)
 	}
-	press(m, "g", "'", "a")
+	press(m, "home", "'", "a")
 	if m.lineAt(right, m.cursor) != 2 || m.msg != "mark a" {
 		t.Errorf("' a: right line %d, msg %q", m.lineAt(right, m.cursor), m.msg)
 	}
@@ -522,7 +522,7 @@ func TestFlowMarkInCommitNotLoaded(t *testing.T) {
 	if err := l.cfg.SetMark("a", config.Mark{Path: "a.go", Line: 1, Text: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	pressLog(l, "f", "G", "'", "a")
+	pressLog(l, "f", "end", "'", "a")
 	if r := l.flow.rows[l.flow.cursor]; l.flow.parts[r.part].app != nil || l.flow.msg != "mark a: a.go is not in this diff" {
 		t.Errorf("' a in c0: row %+v, msg %q", r, l.flow.msg)
 	}

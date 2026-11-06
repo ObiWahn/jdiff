@@ -132,7 +132,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `j` `k` | move |
 | `N` `P`, `n` `p` | next, previous commit in history, also with `--reverse` |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
-| `g` `G` | first, last commit |
+| `home` `end` | first, last commit |
 | `enter` | show the files of the commit |
 | `f` | flow view of all commits |
 
@@ -142,7 +142,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 |---|---|
 | `j` `k`, `n` `p` | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
-| `g` `G` | first, last file |
+| `home` `end` | first, last file |
 | `enter` | show the diff of the file |
 | `'`*letter* | open the file of a jump mark |
 | `N` `P` | next, previous commit in history (in the log) |
@@ -158,7 +158,7 @@ Files of the working tree are watched, so edits you save while jdiff is open sho
 | `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `j` `k` | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
-| `g` `G` | top, bottom |
+| `home` `end` | top, bottom |
 | `h` `l` | scroll left, right, unless lines are wrapped |
 | `]` `[` | next, previous change |
 | `n` `p` | next, previous file |

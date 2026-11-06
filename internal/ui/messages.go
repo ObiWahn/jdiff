@@ -209,9 +209,9 @@ func motion(k string, page, far int) (delta int, paging, ok bool) {
 		return -page, true, true
 	case "pgdown", "ctrl+f":
 		return page, true, true
-	case "home", "g":
+	case "home":
 		return -far, false, true
-	case "end", "G":
+	case "end":
 		return far, false, true
 	}
 	return 0, false, false

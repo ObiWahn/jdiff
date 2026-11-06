@@ -42,7 +42,7 @@ var keyCodes = map[string]rune{
 	"enter": tea.KeyEnter, "tab": tea.KeyTab, "esc": tea.KeyEsc, "backspace": tea.KeyBackspace,
 	"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "f5": tea.KeyF5, "up": tea.KeyUp,
 	"down": tea.KeyDown, "space": tea.KeySpace, "delete": tea.KeyDelete, "f8": tea.KeyF8,
-	"left": tea.KeyLeft, "right": tea.KeyRight,
+	"left": tea.KeyLeft, "right": tea.KeyRight, "home": tea.KeyHome, "end": tea.KeyEnd,
 }
 
 // keyMsg returns the key press named k, with ctrl+ or shift+ before a
@@ -258,7 +258,7 @@ func TestFoldUnchanged(t *testing.T) {
 
 	// On a fold row, space opens that fold; inside an open block, space
 	// closes it and the cursor lands on the fold row.
-	press(m, "g", " ")
+	press(m, "home", " ")
 	if got, want := folds(m.view), []vrow{{24, 17, 1}}; !slices.Equal(got, want) {
 		t.Fatalf("after space on the first fold: folds = %v, want %v", got, want)
 	}
@@ -1140,7 +1140,7 @@ func TestNormalLayoutShowsBlocks(t *testing.T) {
 		}
 	}
 	// The cursor walks the old block, then the new one, and back.
-	press(m, "g", "]")
+	press(m, "home", "]")
 	if s := m.unifiedSide(spot{m.cursor, m.sub, m.active}, m.screenShape); s != left || m.lineAt(left, m.cursor) != 1 {
 		t.Errorf("]: cursor on side %d line %d, want old1, the top of the block", s, m.lineAt(s, m.cursor))
 	}
@@ -1168,7 +1168,7 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	m.fileDiff.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
 	m.realign()
 	setOption(m, m.cfg, "s")
-	press(m, "g", "]")
+	press(m, "home", "]")
 	if got := strings.TrimRight(ansi.Strip(m.screenLine(m.screen[m.pos()], false)), " "); !strings.HasSuffix(got, "│ X") {
 		t.Errorf("]: cursor on %q, want the block's first line, old X:\n%s", got, strings.Join(screenTexts(m), "\n"))
 	}

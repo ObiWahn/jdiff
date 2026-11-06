@@ -78,7 +78,7 @@ func TestAppKeepsAnchors(t *testing.T) {
 
 func TestAppBinaryNotOpened(t *testing.T) {
 	a := newTestApp()
-	pressApp(a, "G", "enter")
+	pressApp(a, "end", "enter")
 	if a.open != nil || !strings.Contains(a.msg, "binary") {
 		t.Errorf("binary file opened: open=%v msg=%q", a.open, a.msg)
 	}
@@ -662,7 +662,7 @@ func checkShown(t *testing.T, what string, rows []string, h, n, cursor int, befo
 // one at a time and back up, then pages and the ends.
 func sweepKeys(n int) []string {
 	keys := append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...)
-	return append(keys, "pgdown", "pgdown", "pgup", "G", "pgup", "k", "g", "pgdown", "j")
+	return append(keys, "pgdown", "pgdown", "pgup", "end", "pgup", "k", "home", "pgdown", "j")
 }
 
 func TestFileListArrowsSweep(t *testing.T) {
@@ -757,8 +757,8 @@ func TestFileListArrows(t *testing.T) {
 	check("start", append(names(0, 8), "  ↓ 21 more")...)
 	pressApp(a, "j", "j", "j", "j", "j", "j", "j", "j", "j") // f09
 	check("past the arrow", append(append([]string{"  ↑ 2 more"}, names(2, 9)...), "  ↓ 20 more")...)
-	pressApp(a, "G")
-	check("G", append([]string{"  ↑ 21 more"}, names(21, 29)...)...)
+	pressApp(a, "end")
+	check("end", append([]string{"  ↑ 21 more"}, names(21, 29)...)...)
 
 	// With the preview box the list takes at most half of the room.
 	a.cfg.Settings.Preview = true
@@ -766,15 +766,15 @@ func TestFileListArrows(t *testing.T) {
 	if h := a.listHeight(); h != 5 {
 		t.Fatalf("list with the box: %d rows, want 5", h)
 	}
-	check("G with the box", append([]string{"  ↑ 26 more"}, names(26, 29)...)...)
+	check("end with the box", append([]string{"  ↑ 26 more"}, names(26, 29)...)...)
 	// The window shrinks: the cursor's file stays in view.
 	a.Update(tea.WindowSizeMsg{Width: 60, Height: 10}) // 3 rows, 3 for the box
 	if h := a.listHeight(); h != 3 {
 		t.Fatalf("smaller window: %d rows, want 3", h)
 	}
 	check("smaller window", "  ↑ 28 more", "f28.go", "f29.go")
-	pressApp(a, "g")
-	check("g in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
+	pressApp(a, "home")
+	check("home in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
 }
 
 func TestDiffSwitchBackspaceCloses(t *testing.T) {
@@ -874,7 +874,7 @@ func TestUntrackedToggle(t *testing.T) {
 		t.Errorf("u in f00's diff: open %v, %d files", a.open, len(a.files))
 	}
 	// Off in the diff view of the new file, the list is shown.
-	pressApp(a, "backspace", "G", "enter")
+	pressApp(a, "backspace", "end", "enter")
 	if a.open == nil || a.open.Path != "x0" {
 		t.Fatalf("x0 not open: %v", a.open)
 	}
