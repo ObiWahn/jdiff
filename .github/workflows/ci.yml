@@ -133,10 +133,12 @@ jobs:
 
   # The README's badge reads coverage.json in the branch badges, so that the
   # commits stay out of master's history; GitHub Pages serves the reports next
-  # to it. A job of its own: only it may write.
+  # to it, and a tag's reports in a directory named after it, for good. A job
+  # of its own: only it may write. The release does not wait for it: a failing
+  # report must not hold back a release.
   # Its commits start no workflow: they are made with the GITHUB_TOKEN.
   badge:
-    if: github.repository == 'ObiWahn/jdiff' && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.repository == 'ObiWahn/jdiff' && github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     needs: [linux]
     runs-on: ubuntu-latest
     permissions:
@@ -158,12 +160,25 @@ jobs:
             git checkout -q --orphan badges
             git rm -rfq .
           fi
-          printf '{"schemaVersion":1,"label":"coverage","message":"%s","color":"blue"}\n' "$TOTAL" > coverage.json
-          cp "$RUNNER_TEMP"/coverage/coverage.html "$RUNNER_TEMP"/coverage/coverage.txt .
-          git add coverage.json coverage.html coverage.txt
+          dir=.
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            dir=$GITHUB_REF_NAME
+            mkdir -p "$dir"
+          else
+            printf '{"schemaVersion":1,"label":"coverage","message":"%s","color":"blue"}\n' "$TOTAL" > coverage.json
+          fi
+          cp "$RUNNER_TEMP"/coverage/coverage.html "$RUNNER_TEMP"/coverage/coverage.txt "$dir"
+          git add .
           git diff --cached --quiet && exit 0
-          git commit -qm "Coverage $TOTAL"
-          git push -q origin badges
+          git commit -qm "Coverage $TOTAL of $GITHUB_REF_NAME"
+          # The runs of master and of a tag pushed with it may meet here.
+          for try in 1 2 3; do
+            git push -q origin badges && exit 0
+            sleep 5
+            git fetch -q --depth=1 origin badges
+            git rebase -q --onto FETCH_HEAD HEAD~1
+          done
+          exit 1
 
   # Only upstream tags publish a release and update the upstream Homebrew tap.
   release:

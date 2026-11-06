@@ -86,3 +86,5 @@ release:
     **Homebrew:** `brew install --cask obiwahn/jdiff/jdiff`
 
     **Others:** the Linux packages and bare binaries are under Assets below.
+
+    **Test coverage:** [report](https://obiwahn.github.io/jdiff/{{ .Tag }}/coverage.html)
