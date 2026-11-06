@@ -24,12 +24,12 @@ type settingOption struct {
 var settingOptions = []settingOption{
 	{key: "s", what: "side by side layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
 	{key: "v", what: "show the message box, the diff preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
-	{key: "w", what: "show all whitespace and line ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
-	{key: "W", what: "mark changed whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
+	{key: "W", what: "show all whitespace and line ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
+	{key: "ctrl+w", what: "mark changed whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
 	{key: "t", what: "show trailing whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
 	{key: "e", what: "show all \\r\\n line ends (␍)", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
 	{key: "b", what: "bold changed words", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
-	{key: "r", what: "reflow: wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
+	{key: "w", what: "wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
 	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
 	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{key: untrackedKey, what: "also show untracked files, in a git diff", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
@@ -130,13 +130,17 @@ func (p *SettingsPopup) frame() string {
 	t := p.cfg.Theme
 	n := len(settingOptions)
 	all := make([]string, n)
+	keyW := 0
+	for _, o := range settingOptions {
+		keyW = max(keyW, ansi.StringWidth(o.key))
+	}
 	widest := 0
 	for i, o := range settingOptions {
 		state := "[ ]"
 		if *o.setting(p.cfg) {
 			state = "[x]"
 		}
-		all[i] = fmt.Sprintf(" %s %s  %s ", state, o.key, o.what)
+		all[i] = fmt.Sprintf(" %s %-*s  %s ", state, keyW, o.key, o.what)
 		widest = max(widest, ansi.StringWidth(all[i]))
 	}
 	w := windowAround(p.cursor, p.top, p.boxHeight()-2, n)

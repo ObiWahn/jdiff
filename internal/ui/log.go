@@ -110,7 +110,7 @@ func newCommitEntry(c gitsrc.Commit, counted bool) *commitEntry {
 // CommitsFunc lists the commits of the log again, with the branch.
 type CommitsFunc func() (branch string, commits []gitsrc.Commit, err error)
 
-// WithRelist sets how R lists the commits again and returns l.
+// WithRelist sets how r lists the commits again and returns l.
 func (l *Log) WithRelist(list CommitsFunc) *Log {
 	l.relist = list
 	return l
@@ -250,7 +250,7 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
-	case "R", "f5", "ctrl+r":
+	case "r", "f5", "ctrl+r":
 		return refreshAll
 	case diffKey:
 		return askDiff
@@ -393,7 +393,7 @@ func (l *Log) switchCommit(dir int) {
 	}
 }
 
-// relistCommits lists the commits again (R). New commits are added and gone
+// relistCommits lists the commits again (r). New commits are added and gone
 // ones dropped; a commit still there keeps its entry, and so its files with
 // their anchors and folds: its content cannot change. The cursor stays on
 // its commit; when the commit shown is gone, the list is shown.

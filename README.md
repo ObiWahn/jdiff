@@ -14,12 +14,12 @@ delta formats the output of git once and hands it to a pager; jdiff is a program
 
 - **Resizing:** the diff is laid out again when the terminal changes size; delta lays it out once, for the width it started with.
 - **Switching the layout:** two panes or one column like `git diff`; `s` switches between them while you look at the diff. In delta, side by side is chosen at startup.
-- **Reflow:** `r` switches between wrapping long lines onto further lines, marked `↪`, and cutting them; delta wraps a line as often as `--wrap-max-lines` allows, set at startup, and truncates the rest.
+- **Wrap:** `w` switches between wrapping long lines onto further lines, marked `↪`, and cutting them; delta wraps a line as often as `--wrap-max-lines` allows, set at startup, and truncates the rest.
   - A cut line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
 - **More or less context:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them. delta shows the context lines git gave it.
 - **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
 - **Following moved code:** like delta, jdiff colors blocks moved within a file or between the files of one commit or diff, magenta where they moved away and cyan where they moved to, as git's `--color-moved` does. `o` jumps to the other end, also into another file.
-- **Auto reload:** outside the log, files on disk are watched: on Linux the kernel reports their changes (inotify), elsewhere, or when the files are in more than `inotify_max_dirs` directories, they are checked every second. When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. `R`, `F5` or `ctrl+r` runs `git diff` or `git log` again, or lists the directories again, so new files and commits show up too. delta shows the diff as it was when git ran.
+- **Auto reload:** outside the log, files on disk are watched: on Linux the kernel reports their changes (inotify), elsewhere, or when the files are in more than `inotify_max_dirs` directories, they are checked every second. When you save an edit, its diff updates while jdiff is open, and anchors, folds and the cursor follow their lines. `r`, `F5` or `ctrl+r` runs `git diff` or `git log` again, or lists the directories again, so new files and commits show up too. delta shows the diff as it was when git ran.
 - **Anchors:** mark a line with `enter`, then its partner in the other pane. jdiff realigns around it. Anchors that would cross are offered for replacement.
 - **Jump marks:** `m` plus a letter marks a line of the new file, `'` plus the letter jumps back to it within the diff. `\` lists the marks; there, `enter` jumps and `d` deletes.
   - Marks are kept per repository and survive restarts.
@@ -38,7 +38,7 @@ delta highlights syntax; jdiff does not.
 - **Search:** `/` searches the diff, as plain text or a regular expression, `.` and `,` go to the next and previous match, in the flow view through all files, in the log within the current commit.
 - **Long lists:** when the file or commit list, the help or the jump list goes on above or below, its first or last row says so, e.g. `↓ 21 more`; an arrow never stands for a single item, which is shown instead.
 - **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
-- **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
+- **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `W` draws all whitespace so and line ends as `¶` (`line_end`), `ctrl+w` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
 
 ## Install
@@ -192,15 +192,15 @@ The keys of the diff view, and:
 | `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc`, or `enter` or `backspace` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
 | `s` | side by side or normal layout, also of the preview |
 | `v` | show or hide the message box or diff preview |
-| `w` | show all whitespace and line ends or only changed |
-| `W` | mark changed whitespace or not |
+| `W` | show all whitespace and line ends or only changed |
+| `ctrl+w` | mark changed whitespace or not |
 | `t` | show trailing whitespace or not |
 | `e` | show all `\r\n` line ends (`␍`) or only changed |
 | `b` | bold or plain changed words |
-| `r` | reflow: wrap long lines or cut them |
+| `w` | wrap long lines or cut them |
 | `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
 | `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
-| `R` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
+| `r` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `?` | help |
 | `q` `ctrl+c` | quit |
 
@@ -213,7 +213,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `b` `c` `C` `e` `f` `r` `s` `t` `u` `v` `w` `W`, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `b` `c` `C` `e` `f` `s` `t` `u` `v` `w` `W` `ctrl+w`, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 
 Unknown keys and invalid values are reported in the status bar.
@@ -227,7 +227,7 @@ collapse_unchanged = true       # start with unchanged code folded
 only_changed_whitespaces = true # mark only the added or removed part of whitespace
 watch_interval = 1              # seconds between checks for changed files; 0 turns watching off
 inotify_max_dirs = 20           # Linux: up to so many directories of changed files, the kernel reports changes; 0 turns it off
-line_end = "¶"                  # drawn at the end of lines while w shows all whitespace; one column
+line_end = "¶"                  # drawn at the end of lines while W shows all whitespace; one column
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column
 precedes = "«"                  # first column of a line scrolled out to the left; one column

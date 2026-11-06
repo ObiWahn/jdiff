@@ -70,8 +70,8 @@ func TestSettingsOpenOnAllPages(t *testing.T) {
 }
 
 func TestSettingsOptions(t *testing.T) {
-	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "w": "show_whitespaces", "W": "mark_whitespace",
-		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "r": "wrap", "c": "full_messages", "C": "stay_in_commit"}
+	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "W": "show_whitespaces", "ctrl+w": "mark_whitespace",
+		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "w": "wrap", "c": "full_messages", "C": "stay_in_commit"}
 	for i, o := range settingOptions {
 		if o.ask != nil {
 			continue // the page toggles it: see TestUntracked...
@@ -141,7 +141,7 @@ func TestSettingsMoveAndClose(t *testing.T) {
 	}
 }
 
-// R, F5 and ctrl+r load again on every page, and r does not.
+// r, F5 and ctrl+r load again on every page, and R does not.
 func TestReloadKeysOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
 		shown := func(k string) bool {
@@ -152,13 +152,13 @@ func TestReloadKeysOnAllPages(t *testing.T) {
 			pressRoot(s, k)
 			return strings.Contains(ansi.Strip(s.frame()), "nothing to load again")
 		}
-		for _, k := range []string{"R", "f5", "ctrl+r"} {
+		for _, k := range []string{"r", "f5", "ctrl+r"} {
 			if !shown(k) {
 				t.Errorf("%s: %s does not load again", page.name, k)
 			}
 		}
-		if shown("r") {
-			t.Errorf("%s: r loads again", page.name)
+		if shown("R") {
+			t.Errorf("%s: R loads again", page.name)
 		}
 	}
 }
@@ -218,7 +218,7 @@ func TestSettingsKeyAsMarkLetter(t *testing.T) {
 
 // The flow view lays out its rows anew on a toggle while the popup stays open
 // over it.
-func TestSettingsReflowInFlowBelowPopup(t *testing.T) {
+func TestSettingsWrapInFlowBelowPopup(t *testing.T) {
 	probe := newTestModel([]string{"a"}, []string{"b"})
 	full := strings.Repeat("x", probe.contentWidth(80, false)+5)
 	a := NewApp(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
@@ -227,12 +227,12 @@ func TestSettingsReflowInFlowBelowPopup(t *testing.T) {
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(s, "f", "S")
 	before := len(a.flow.rows)
-	pressRoot(s, "r")
+	pressRoot(s, "w")
 	if len(a.flow.rows) <= before {
-		t.Errorf("r in the popup: %d flow rows, %d before; want more for the wrapped lines", len(a.flow.rows), before)
+		t.Errorf("w in the popup: %d flow rows, %d before; want more for the wrapped lines", len(a.flow.rows), before)
 	}
 	if !strings.Contains(s.frame(), "settings") {
-		t.Errorf("the popup closed on r:\n%s", s.frame())
+		t.Errorf("the popup closed on w:\n%s", s.frame())
 	}
 }
 
@@ -406,7 +406,7 @@ func TestSettingKeySaves(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := WithSettings(cfg, New(cfg, "old", "new", []string{"x0"}, []string{"x1"}))
-	pressRoot(s, "w")
+	pressRoot(s, "W")
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
 		t.Fatal(err)

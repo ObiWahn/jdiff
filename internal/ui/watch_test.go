@@ -244,7 +244,7 @@ func TestWatchSeesQuickSameSizeChange(t *testing.T) {
 func TestWatchedModelRefresh(t *testing.T) {
 	m, dir := newWatchedModel(t, numbered("x", 5), numbered("x", 5))
 	m.cfg.Settings.WatchInterval = 0
-	pressRoot(m, "R")
+	pressRoot(m, "r")
 	if m.msg != "nothing changed" {
 		t.Errorf("R on unchanged files: msg %q", m.msg)
 	}
@@ -254,7 +254,7 @@ func TestWatchedModelRefresh(t *testing.T) {
 		t.Errorf("F5 after a change: msg %q, %d lines", m.msg, len(m.lines[right]))
 	}
 	plain := newTestModel(numbered("x", 2), numbered("x", 2))
-	pressRoot(plain, "R")
+	pressRoot(plain, "r")
 	if plain.msg != "nothing to load again" {
 		t.Errorf("R without files: msg %q", plain.msg)
 	}
@@ -349,7 +349,7 @@ func TestAppRelistSwitchesWatching(t *testing.T) {
 	old := a.notify
 	_, cmd := a.Update(refreshMsg{})
 	if a.notify != nil || !a.ticking || cmd == nil {
-		t.Fatalf("over the limit after R: notify %v ticking %v; want polling", a.notify, a.ticking)
+		t.Fatalf("over the limit after r: notify %v ticking %v; want polling", a.notify, a.ticking)
 	}
 	if _, ok := <-old.Changes(); ok {
 		t.Error("the watcher replaced is still open")
@@ -358,7 +358,7 @@ func TestAppRelistSwitchesWatching(t *testing.T) {
 	list = list[:len(list)-1]
 	_, cmd = a.Update(refreshMsg{})
 	if a.notify == nil {
-		t.Fatal("under the limit after R: not watched by inotify")
+		t.Fatal("under the limit after r: not watched by inotify")
 	}
 	t.Cleanup(func() { a.notify.Close() })
 	if _, tick := a.Update(watchTickMsg{}); tick != nil {

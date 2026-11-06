@@ -149,7 +149,7 @@ type ListFunc func() ([]source.File, error)
 // DiffFunc returns the files git diff compares with args.
 type DiffFunc func(args []string) ([]source.File, error)
 
-// WithGitDiff makes a the files of git diff with args, which R runs again,
+// WithGitDiff makes a the files of git diff with args, which r runs again,
 // and returns a.
 func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
 	a.gitDiff, a.diffArgs = gitDiff, args
@@ -157,7 +157,7 @@ func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
 	return a
 }
 
-// WithRelist sets how R lists the files again and returns a.
+// WithRelist sets how r lists the files again and returns a.
 func (a *App) WithRelist(list ListFunc) *App {
 	a.relist = list
 	return a
@@ -308,7 +308,7 @@ func (a *App) refresh(which func(i int) bool) {
 	}
 }
 
-// relistFiles lists the files again (R). New files are added and gone ones
+// relistFiles lists the files again (r). New files are added and gone ones
 // dropped; a file still there keeps its entry, and so its diff with anchors
 // and folds, reloaded where its content changed. A file that became binary
 // or stopped being binary counts as gone and new. The cursor stays on its
@@ -533,7 +533,7 @@ func (a *App) key(k string) tea.Cmd {
 		if a.inLog() {
 			return switchCommit(k)
 		}
-	case "R", "f5", "ctrl+r":
+	case "r", "f5", "ctrl+r":
 		return refreshAll
 	case diffKey:
 		return askDiff

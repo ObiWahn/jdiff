@@ -170,7 +170,7 @@ func TestTogglesSaveState(t *testing.T) {
 		{Path: "b.go", New: []string{"new"}, InNew: true}})
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	setOption(a, a.cfg, "v", "s")
-	setOption(a, a.cfg, "w")
+	setOption(a, a.cfg, "W")
 	pressApp(a, "f")
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
@@ -184,7 +184,7 @@ func TestTogglesSaveState(t *testing.T) {
 }
 
 // newRelistApp returns the file selector of a.go, b.go and c.bin that lists
-// the files *files on R, or fails with *err.
+// the files *files on r, or fails with *err.
 func newRelistApp(files *[]source.File, err *error) *App {
 	*files = []source.File{
 		{Path: "a.go", Old: numbered("x", 10), New: numbered("x", 10)[1:], InOld: true, InNew: true},
@@ -210,9 +210,9 @@ func TestAppRelist(t *testing.T) {
 		{Path: "a.go", Old: numbered("x", 10), New: append([]string{"top"}, numbered("x", 10)[1:]...), InOld: true, InNew: true},
 		files[2],
 	}
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if a.open == nil || a.open.Path != "a.go" || a.open.view != view || a.cursor != 1 {
-		t.Fatalf("after R: open %v cursor %d; want a.go still open in its view, cursor on it", a.open, a.cursor)
+		t.Fatalf("after r: open %v cursor %d; want a.go still open in its view, cursor on it", a.open, a.cursor)
 	}
 	if view.msg != "1 new, 1 gone, 1 changed" {
 		t.Errorf("msg %q", view.msg)
@@ -231,7 +231,7 @@ func TestAppRelist(t *testing.T) {
 		t.Errorf("a.go +%d -%d, want +1 -1", a.files[1].added, a.files[1].removed)
 	}
 
-	// Nothing changed; F5 does the same as R.
+	// Nothing changed; F5 does the same as r.
 	pressApp(a, "f5")
 	if view.msg != "nothing changed" {
 		t.Errorf("F5 without changes: msg %q", view.msg)
@@ -239,7 +239,7 @@ func TestAppRelist(t *testing.T) {
 
 	// git fails: everything stays.
 	err = errors.New("git diff: broken")
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if view.msg != "git diff: broken" || len(a.files) != 3 || a.open.view != view {
 		t.Errorf("failed R: msg %q, %d files", view.msg, len(a.files))
 	}
@@ -251,7 +251,7 @@ func TestAppRelistOpenFileGone(t *testing.T) {
 	a := newRelistApp(&files, &err)
 	pressApp(a, "j", "enter")
 	files = files[:1]
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if a.open != nil || a.cursor != 0 || a.msg != "b.go is gone; 2 gone" {
 		t.Errorf("open %v cursor %d msg %q; want the list on a.go and the message", a.open, a.cursor, a.msg)
 	}
@@ -263,7 +263,7 @@ func TestAppRelistBinaryCountsAsNew(t *testing.T) {
 	a := newRelistApp(&files, &err)
 	files = slices.Clone(files)
 	files[2] = source.File{Path: "c.bin", Old: []string{"text"}, New: []string{"text", "now"}, InOld: true, InNew: true}
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if e := a.files[2]; a.msg != "1 new, 1 gone" || e.Binary || e.diff == nil || e.added != 1 {
 		t.Errorf("msg %q, c.bin %+v", a.msg, e)
 	}
@@ -275,12 +275,12 @@ func TestAppRelistFindsMovesInNewFile(t *testing.T) {
 	a := newRelistApp(&files, &err)
 	files = slices.Clone(files)
 	files[0].Old = append(slices.Clone(movedBlock), files[0].Old...)
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if _, ok := a.files[0].diff.movedTo(left, 0); ok {
 		t.Fatal("moved before the block was added anywhere")
 	}
 	files = append(files, source.File{Path: "d.go", New: movedBlock, InNew: true})
-	pressApp(a, "R")
+	pressApp(a, "r")
 	to, ok := a.files[0].diff.movedTo(left, 0)
 	if !ok || a.fileByGroup(to.File) != 3 {
 		t.Errorf("a.go's removed block: moved %v to %+v, want into d.go", ok, to)
@@ -298,7 +298,7 @@ func TestAppRelistFlowFollowsLine(t *testing.T) {
 	before := d.lineAt(left, line)
 	files = append([]source.File{{Path: "0.go", New: []string{"zero"}, InNew: true}}, files...)
 	files[1].New = append([]string{"top"}, files[1].New...)
-	pressApp(a, "R")
+	pressApp(a, "r")
 	_, file, line = a.flow.position()
 	if file != 1 || a.files[file].diff != d || d.lineAt(left, line) != before || a.open != a.files[1] {
 		t.Errorf("flow on file %d left line %d, want a.go, now file 1, line %d", file, d.lineAt(left, line), before)
@@ -310,7 +310,7 @@ func TestAppRelistFlowFollowsLine(t *testing.T) {
 
 func TestAppWithoutRelist(t *testing.T) {
 	a := newTestApp()
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if a.msg != "nothing to load again" {
 		t.Errorf("msg %q", a.msg)
 	}
@@ -385,10 +385,10 @@ func TestDiffSwitchTyped(t *testing.T) {
 			t.Errorf("view lacks %q:\n%s", want, view)
 		}
 	}
-	// R runs the new arguments again; up takes them to edit.
-	pressRoot(s, "R")
+	// r runs the new arguments again; up takes them to edit.
+	pressRoot(s, "r")
 	if len(g.runs) != 2 || !slices.Equal(g.runs[1], []string{"HEAD~3", "HEAD"}) {
-		t.Errorf("R after the switch: runs %v", g.runs)
+		t.Errorf("r after the switch: runs %v", g.runs)
 	}
 	pressRoot(s, "d", "up")
 	if s.input.text != "HEAD~3 HEAD" {
@@ -942,7 +942,7 @@ func TestAppRelistDropsAnchors(t *testing.T) {
 	changed := numbered("x", 10)[1:]
 	changed[4] = "changed4"
 	files = []source.File{{Path: "a.go", Old: numbered("x", 10), New: changed, InOld: true, InNew: true}, files[1], files[2]}
-	pressApp(a, "R")
+	pressApp(a, "r")
 	if m := a.open.view; m.msg != "1 changed, 1 anchor dropped" || len(m.anchors) != 1 {
 		t.Errorf("one anchored line changed: msg %q, anchors %v", m.msg, m.anchors)
 	}

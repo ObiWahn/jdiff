@@ -198,7 +198,7 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.commitNav {
 			return switchCommit(k)
 		}
-	case "R", "f5", "ctrl+r":
+	case "r", "f5", "ctrl+r":
 		return refreshAll
 	case diffKey:
 		return askDiff

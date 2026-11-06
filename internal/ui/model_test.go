@@ -498,15 +498,15 @@ func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
 	// shows line ends.
 	m = newTestModel([]string{"same"}, []string{"same"})
 	setOption(m, m.cfg, "s")
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	full := strings.Repeat("x", m.contentWidth(m.width, true))
 	m = newTestModel([]string{full}, []string{full})
 	setOption(m, m.cfg, "s")
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if len(m.screen) != 1 {
 		t.Fatalf("a line as wide as the pane takes %d screen lines, want 1", len(m.screen))
 	}
-	setOption(m, m.cfg, "w")
+	setOption(m, m.cfg, "W")
 	if len(m.screen) != 2 || !strings.Contains(ansi.Strip(m.screenLine(m.screen[1], false)), "¶") {
 		t.Errorf("w: %d screen lines, want 2 with ¶ on the second", len(m.screen))
 	}
@@ -587,7 +587,7 @@ func TestLineEndChangeShows(t *testing.T) {
 	full := strings.Repeat("x", probe.contentWidth(80, true)) + "\r"
 	m = newTestModel([]string{full, "a"}, []string{full, "b"})
 	setOption(m, m.cfg, "s")
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if m.rowLines(0, m.screenShape) != 1 {
 		t.Errorf("hidden ␍: the full line takes %d screen lines, want 1", m.rowLines(0, m.screenShape))
 	}
@@ -650,7 +650,7 @@ func TestCutLineMarkers(t *testing.T) {
 			ansi.Strip(w.screenLine(w.screen[0], false)))
 	}
 
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if strings.ContainsAny(ansi.Strip(m.frame()), "«»") {
 		t.Errorf("wrapped lines with markers:\n%s", ansi.Strip(m.frame()))
 	}
@@ -685,18 +685,18 @@ func TestMarkWhitespaceToggle(t *testing.T) {
 	if !strings.Contains(ansi.Strip(row), "a ··b") {
 		t.Fatalf("the two removed spaces not marked by default: %q", ansi.Strip(row))
 	}
-	setOption(m, m.cfg, "W")
+	setOption(m, m.cfg, "ctrl+w")
 	row = m.screenLine(m.screen[0], false)
 	if m.cfg.Settings.MarkWhitespace || strings.Contains(ansi.Strip(row), "·") {
 		t.Errorf("W: setting %v, row %q; want the changed space plain", m.cfg.Settings.MarkWhitespace, ansi.Strip(row))
 	}
 	a := newFlowApp()
-	setOption(a, a.cfg, "W")
+	setOption(a, a.cfg, "ctrl+w")
 	if a.cfg.Settings.MarkWhitespace {
 		t.Error("W in the file list did not toggle mark_whitespace")
 	}
 	pressApp(a, "f")
-	setOption(a, a.cfg, "W")
+	setOption(a, a.cfg, "ctrl+w")
 	if !a.cfg.Settings.MarkWhitespace {
 		t.Error("W in the flow view did not toggle mark_whitespace")
 	}
@@ -997,7 +997,7 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 	m.scrollToCursor()
 	row, lines := cursorRow(m), len(m.screen)
 
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row {
 		t.Errorf("r: cursor on line %d at screen row %d, want line 15 at row %d", m.lineAt(right, m.cursor), cursorRow(m), row)
 	}
@@ -1018,7 +1018,7 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 	m.sub = 0
 	m.scrollToCursor()
 	row = cursorRow(m)
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if m.lineAt(right, m.cursor) != 15 || cursorRow(m) != row || len(m.screen) != lines {
 		t.Errorf("r off: cursor on line %d at row %d with %d screen lines, want line 15 at row %d with %d",
 			m.lineAt(right, m.cursor), cursorRow(m), len(m.screen), row, lines)
@@ -1032,7 +1032,7 @@ func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 	setOption(m, m.cfg, "s")
 	moveTo(t, m, right, 6)
 	m.sub = 1 // the new line of the changed row
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if s, piece := m.unifiedPiece(m.cursor, m.sub, m.screenShape); s != right || piece != 0 {
 		t.Fatalf("r: cursor on side %d piece %d, want the new line's first piece", s, piece)
 	}
@@ -1044,7 +1044,7 @@ func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 		t.Errorf("enter on a piece of new line 6 marked %+v", m.pending)
 	}
 	press(m, "esc")
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	if m.lineAt(right, m.cursor) != 6 || m.sub != 1 {
 		t.Errorf("r off: cursor on line %d sub %d, want the new line 6, sub 1", m.lineAt(right, m.cursor), m.sub)
 	}
@@ -1054,7 +1054,7 @@ func TestWrapFollowsResize(t *testing.T) {
 	m := newTestModel(wrapLines("x"), wrapLines("y"))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
-	setOption(m, m.cfg, "r")
+	setOption(m, m.cfg, "w")
 	moveTo(t, m, right, 15)
 	m.sub = 0
 	m.scrollToCursor()

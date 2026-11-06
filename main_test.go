@@ -137,10 +137,10 @@ func shown(m tea.Model) string {
 	return ansi.Strip(m.View().Content)
 }
 
-// pressR presses R, which loads again, on m. The command after loading is not
+// pressReload presses r, which loads again, on m. The command after loading is not
 // run: it is the next check for changes of what is watched, which never ends.
-func pressR(m tea.Model) {
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'R', Text: "R"})
+func pressReload(m tea.Model) {
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	m.Update(cmd())
 }
 
@@ -183,11 +183,11 @@ func TestLoadDirs(t *testing.T) {
 	if view := shown(m); !strings.Contains(view, "f01") || strings.Contains(view, "f02") {
 		t.Errorf("two directories:\n%s", view)
 	}
-	// R lists the directories again.
+	// r lists the directories again.
 	write(t, filepath.Join(newDir, "f02"), "x2\n")
-	pressR(m)
+	pressReload(m)
 	if view := shown(m); !strings.Contains(view, "f02") || !strings.Contains(view, "1 new") {
-		t.Errorf("after R, f02 is not listed:\n%s", view)
+		t.Errorf("after r, f02 is not listed:\n%s", view)
 	}
 }
 
@@ -220,12 +220,12 @@ func TestLoadLog(t *testing.T) {
 	if view := shown(m); !strings.Contains(view, "s0") || !strings.Contains(view, "s1") {
 		t.Errorf("log:\n%s", view)
 	}
-	// R runs git log again.
+	// r runs git log again.
 	write(t, "a.txt", "x0\nchanged\nagain\n")
 	commit(t, "s2")
-	pressR(m)
+	pressReload(m)
 	if view := shown(m); !strings.Contains(view, "s2") {
-		t.Errorf("after R, s2 is not listed:\n%s", view)
+		t.Errorf("after r, s2 is not listed:\n%s", view)
 	}
 	// The arguments are git log's.
 	m, err = loadLog(config.Default(), []string{"-1"})
@@ -260,7 +260,7 @@ func TestLoadDiffFollowsUntracked(t *testing.T) {
 		t.Errorf("untracked off:\n%s", view)
 	}
 	cfg.Settings.Untracked = true
-	pressR(m)
+	pressReload(m)
 	if view := shown(m); !strings.Contains(view, "a.txt") || !strings.Contains(view, "1 new") {
 		t.Errorf("untracked on, f00 is not added:\n%s", view)
 	}

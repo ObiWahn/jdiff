@@ -441,7 +441,7 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	line := func() int { _, _, l := a.flow.position(); return d.lineAt(right, l) }
 
 	pressApp(a, "f")
-	setOption(a, a.cfg, "r")
+	setOption(a, a.cfg, "w")
 	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
 		t.Errorf("flow, r: cursor on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
 	}
@@ -452,7 +452,7 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	if m := a.open.view; m.lineAt(right, m.cursor) != 15 || cursorRow(m) != 8 {
 		t.Errorf("f: diff view on line %d at screen row %d, want line 15 at row 8", m.lineAt(right, m.cursor), cursorRow(m))
 	}
-	setOption(a, a.cfg, "r")
+	setOption(a, a.cfg, "w")
 	pressApp(a, "f") // unwrapped in the diff view, then flow
 	if line() != 15 || a.flow.cursor-a.flow.top != 8 {
 		t.Errorf("r, f: flow on line %d at screen row %d, want line 15 at row 8", line(), a.flow.cursor-a.flow.top)
@@ -460,7 +460,7 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 }
 
 func TestFlowRebuildsAfterDiffView(t *testing.T) {
-	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"S", "r", "esc"}} {
+	for _, keys := range [][]string{{"ctrl+space"}, {"s"}, {"S", "w", "esc"}} {
 		a := newFlowApp()
 		pressApp(a, "f", "f", "enter") // the flow is built, then the diff view of a.go
 		pressRoot(WithSettings(a.cfg, a), keys...)
@@ -512,9 +512,9 @@ func TestFlowLineEndTakesPieceWhenWrapped(t *testing.T) {
 	a.cfg.Settings.CollapseUnchanged = false
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressApp(a, "f")
-	setOption(a, a.cfg, "r")
-	before := len(a.flow.rows)
 	setOption(a, a.cfg, "w")
+	before := len(a.flow.rows)
+	setOption(a, a.cfg, "W")
 	if len(a.flow.rows) != before+1 {
 		t.Errorf("w with wrapped lines: %d flow rows, %d before; want one more for the full line's ¶", len(a.flow.rows), before)
 	}

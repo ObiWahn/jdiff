@@ -628,7 +628,7 @@ func TestLogCountsFail(t *testing.T) {
 	}
 }
 
-// relistTo makes R list the commits hashes of l, on branch, newest first.
+// relistTo makes r list the commits hashes of l, on branch, newest first.
 func relistTo(l *Log, branch string, hashes ...string) {
 	l.WithRelist(func() (string, []gitsrc.Commit, error) {
 		var commits []gitsrc.Commit
@@ -644,9 +644,9 @@ func TestLogRelist(t *testing.T) {
 	pressLog(l, "enter", "enter") // c3, a.go
 	view := l.open.app.open.view
 	relistTo(l, "topic", "c4", "c3", "c2", "c1")
-	pressLog(l, "R")
+	pressLog(l, "r")
 	if l.cursor != 1 || shownFile(l) != "a.go" || l.open.app.open.view != view {
-		t.Fatalf("after R: commit %d shown %q; want c3 a.go still open in its view", l.cursor, shownFile(l))
+		t.Fatalf("after r: commit %d shown %q; want c3 a.go still open in its view", l.cursor, shownFile(l))
 	}
 	if view.msg != "1 new, 1 gone" || l.branch != "topic" || l.list.n != 4 {
 		t.Errorf("msg %q branch %q n %d", view.msg, l.branch, l.list.n)
@@ -657,7 +657,7 @@ func TestLogRelist(t *testing.T) {
 	// N goes to the new commit, which the test cannot load.
 	pressLog(l, "N")
 	if !strings.Contains(view.msg, "cannot load c4") {
-		t.Errorf("N after R: msg %q, want it tried c4", view.msg)
+		t.Errorf("N after r: msg %q, want it tried c4", view.msg)
 	}
 }
 
@@ -675,12 +675,12 @@ func TestLogRelistFlowStaysOnCommit(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "f", "P") // c2 in the flow
 	relistTo(l, "main", "c4", "c3", "c2", "c1", "c0")
-	pressLog(l, "R")
+	pressLog(l, "r")
 	if flowCommitAt(l) != 2 || l.cursor != 2 || l.flow.msg != "1 new" {
 		t.Errorf("flow at %d, cursor %d, msg %q; want c2, now 2", flowCommitAt(l), l.cursor, l.flow.msg)
 	}
 	relistTo(l, "main", "c4", "c3")
-	pressLog(l, "R")
+	pressLog(l, "r")
 	if l.flowShown() || l.msg != "commit c2 is gone; 3 gone" {
 		t.Errorf("flow shown %v msg %q; want the list after c2 is gone", l.flowShown(), l.msg)
 	}
@@ -689,7 +689,7 @@ func TestLogRelistFlowStaysOnCommit(t *testing.T) {
 func TestLogRelistFails(t *testing.T) {
 	l, _ := newTestLog()
 	l.WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, errors.New("git log: broken") })
-	pressLog(l, "R")
+	pressLog(l, "r")
 	if l.msg != "git log: broken" || len(l.commits) != 4 || l.branch != "main" {
 		t.Errorf("msg %q, %d commits, branch %q", l.msg, len(l.commits), l.branch)
 	}

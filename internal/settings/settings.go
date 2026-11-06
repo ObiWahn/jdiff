@@ -56,13 +56,13 @@ type Toggles struct {
 	// toggles it.
 	Preview bool `toml:"preview"`
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
-	// not only changed whitespace, and the end of lines as LineEnd; w
+	// not only changed whitespace, and the end of lines as LineEnd; W
 	// in the settings popup toggles it.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
 	// MarkWhitespace (mark_whitespace) draws changed whitespace as · and →
 	// in the style of changed words: indentation, tabs and runs of spaces,
 	// not a single space between changed words; off, all changed whitespace
-	// looks like unchanged whitespace. W in the settings popup
+	// looks like unchanged whitespace. ctrl+w in the settings popup
 	// toggles it.
 	MarkWhitespace bool `toml:"mark_whitespace"`
 	// ShowTrailing (show_trailing) draws whitespace at the end of lines as ·
@@ -73,7 +73,7 @@ type Toggles struct {
 	// only of changed ones. e in the settings popup toggles it.
 	ShowCR bool `toml:"show_cr"`
 	// Wrap (wrap) wraps lines longer than their pane onto further screen
-	// lines; off, they are cut and h and l scroll them. r (reflow) in the
+	// lines; off, they are cut and h and l scroll them. w in the
 	// settings popup toggles it.
 	Wrap bool `toml:"wrap"`
 	// BoldChanges (bold_changes) draws changed words and whitespace bold
