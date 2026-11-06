@@ -405,6 +405,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.scrollToCursor()
 	case settingChangedMsg:
 		a.scrollToCursor() // the preview takes room from the list
+		if msg.problem != "" && a.open == nil {
+			a.msg = msg.problem
+		}
 	case watchTickMsg:
 		if msg.owner != nil && msg.owner != a {
 			return a, nil
@@ -540,6 +543,8 @@ func (a *App) key(k string) tea.Cmd {
 		a.prefix, a.msg = k, "jump to mark: press its letter"
 	case settingsKey, settingsFKey:
 		return askSettings
+	default:
+		return settingKey(k, false)
 	}
 	return nil
 }

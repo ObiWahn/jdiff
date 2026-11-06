@@ -11,12 +11,14 @@ import (
 )
 
 // settingOption is a line of the settings popup: the key that toggles it
-// there, what it does while on, and the toggle. With ask, the page below
-// toggles it, when it can.
+// there and on the pages, what it does while on, and the toggle. With ask,
+// the page below toggles it, when it can. With logFlow, its key works only in
+// the log's flow view, where it shows; in the popup always.
 type settingOption struct {
 	key, what string
 	setting   func(*config.Config) *bool
 	ask       tea.Cmd
+	logFlow   bool
 }
 
 var settingOptions = []settingOption{
@@ -28,8 +30,8 @@ var settingOptions = []settingOption{
 	{key: "e", what: "show all \\r\\n line ends (␍)", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
 	{key: "b", what: "bold changed words", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
 	{key: "r", what: "reflow: wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
-	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }},
-	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }},
+	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
+	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{key: untrackedKey, what: "also show untracked files, in a git diff", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
 }
 
@@ -58,6 +60,9 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case askSettingsMsg:
 		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
 		return p, nil
+	case toggleSettingMsg:
+		i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == msg.key })
+		return p, p.flip(settingOptions[i])
 	case tea.KeyPressMsg:
 		if p.open {
 			return p, p.key(msg.String())
@@ -79,24 +84,27 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 	case "up", "k":
 		p.move(-1)
 	case "enter", "space":
-		return p.flip()
+		return p.flip(settingOptions[p.cursor])
 	default:
 		if i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == k }); i >= 0 {
 			p.move(i - p.cursor)
-			return p.flip()
+			return p.flip(settingOptions[i])
 		}
 	}
 	return nil
 }
 
-// flip toggles the selected option and tells the page below.
-func (p *SettingsPopup) flip() tea.Cmd {
-	o := settingOptions[p.cursor]
+// flip toggles option o and tells the page below; a problem saving it shows
+// in the popup while that is open, else on the page.
+func (p *SettingsPopup) flip(o settingOption) tea.Cmd {
 	if o.ask != nil {
 		return o.ask
 	}
-	p.msg = toggle(p.cfg, o.setting(p.cfg))
-	_, cmd := p.Model.Update(settingChangedMsg{o.key})
+	problem := toggle(p.cfg, o.setting(p.cfg))
+	if p.open {
+		p.msg, problem = problem, ""
+	}
+	_, cmd := p.Model.Update(settingChangedMsg{o.key, problem})
 	return cmd
 }
 

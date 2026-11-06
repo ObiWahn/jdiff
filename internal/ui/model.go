@@ -116,6 +116,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh()
 	case toggleUntrackedMsg:
 		m.msg = untrackedOnlyInDiff
+	case settingChangedMsg:
+		if msg.problem != "" {
+			m.msg = msg.problem
+		}
 	case findMsg:
 		m.findText(int(msg))
 	}
@@ -210,6 +214,8 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 	case settingsKey, settingsFKey:
 		return askSettings
+	default:
+		return settingKey(k, false)
 	case "enter", "esc", "space", "ctrl+space":
 		m.act(k)
 	case "o":

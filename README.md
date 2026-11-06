@@ -13,8 +13,8 @@ jdiff is inspired by [delta](https://github.com/dandavison/delta), the syntax-hi
 delta formats the output of git once and hands it to a pager; jdiff is a program you work in, so it can do what a pager cannot:
 
 - **Resizing:** the diff is laid out again when the terminal changes size; delta lays it out once, for the width it started with.
-- **Switching the layout:** two panes or one column like `git diff`; `s` in the settings (`S`) switches between them while you look at the diff. In delta, side by side is chosen at startup.
-- **Reflow:** `r` in the settings (`S`) switches between wrapping long lines onto further lines, marked `↪`, and cutting them; delta wraps a line as often as `--wrap-max-lines` allows, set at startup, and truncates the rest.
+- **Switching the layout:** two panes or one column like `git diff`; `s` switches between them while you look at the diff. In delta, side by side is chosen at startup.
+- **Reflow:** `r` switches between wrapping long lines onto further lines, marked `↪`, and cutting them; delta wraps a line as often as `--wrap-max-lines` allows, set at startup, and truncates the rest.
   - A cut line that goes on past its pane ends in `»`, one scrolled out to the left (`h` `l`) starts with `«`.
 - **More or less context:** long unchanged runs collapse to a single row; `space` opens or closes the nearest one, `ctrl+space` all of them. delta shows the context lines git gave it.
 - **Walking the history:** `jdiff log` lists the commits, opens a commit's files one by one, and `N` `P` step to the next or previous commit, keeping the open file.
@@ -33,12 +33,12 @@ delta highlights syntax; jdiff does not.
 - **Switch what is compared:** `d` asks in a popup for the arguments of `git diff`, e.g. `HEAD~3 HEAD`, and shows its files instead of what is shown, from any view, also from the log.
 - **Word-level highlighting** of changed lines. Indentation changes are shown character by character, so only the added or removed part is marked.
 - **Flow view (`f`):** all files of a diff, or all commits of the log, one after the other in one scrollable view. Commits load as they come near the cursor.
-  - `c` in the settings (`S`) shows the full commit messages or only their subjects.
-  - `C` in the settings keeps the cursor inside the current commit.
+  - `c` shows the full commit messages or only their subjects.
+  - `C` keeps the cursor inside the current commit.
 - **Search:** `/` searches the diff, as plain text or a regular expression, `.` and `,` go to the next and previous match, in the flow view through all files, in the log within the current commit.
 - **Long lists:** when the file or commit list, the help or the jump list goes on above or below, its first or last row says so, e.g. `↓ 21 more`; an arrow never stands for a single item, which is shown instead.
-- **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v` in the settings, `S`).
-- **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; in the settings (`S`), `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
+- **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
+- **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words; `w` draws all whitespace so and line ends as `¶` (`line_end`), `W` turns the marking of changed whitespace off, `t` shows trailing whitespace. Changed `\r\n` line ends show as `␍`, all of them with `e`. Invisible characters, among them those that change the text direction, show as `☠`.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.
 
 ## Install
@@ -181,6 +181,8 @@ The keys of the diff view, and:
 | `n` `p` | next, previous file bar |
 | `N` `P` | next, previous commit bar in history |
 | `f` | single file view |
+| `c` | full or short commit messages, in the log |
+| `C` | stay in the current commit, in the log (`N` `P` still switch) |
 
 ### Everywhere
 
@@ -188,8 +190,16 @@ The keys of the diff view, and:
 |---|---|
 | `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
 | `d` | a popup: show the files of `git diff ARGS` instead of what is shown, also the log: type ARGS, e.g. `--cached` or `HEAD~3 HEAD`; `↑` the current ARGS to edit, while a `git diff` is shown; `enter` show, `esc`, or `enter` or `backspace` on nothing typed cancel. git runs in the directory jdiff was started in, also when it compares two directories or files. The popup grows with ARGS, up to the screen's width. When git fails, the popup stays and says why. |
-| `S` then `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
-| `S` `F8` | a popup with the settings: `s` side by side or normal layout, also of the preview, `v` show or hide the message box or diff preview, `w` show all whitespace and line ends or only changed, `W` mark changed whitespace or not, `t` show trailing whitespace or not, `e` show all `\r\n` line ends (`␍`) or only changed, `b` bold or plain changed words, `r` reflow: wrap long lines or cut them, `c` full or short commit messages and `C` stay in the current commit (`N` `P` still switch), in the flow view of the log, `u` untracked files, see below. `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
+| `s` | side by side or normal layout, also of the preview |
+| `v` | show or hide the message box or diff preview |
+| `w` | show all whitespace and line ends or only changed |
+| `W` | mark changed whitespace or not |
+| `t` | show trailing whitespace or not |
+| `e` | show all `\r\n` line ends (`␍`) or only changed |
+| `b` | bold or plain changed words |
+| `r` | reflow: wrap long lines or cut them |
+| `u` | in `jdiff diff`, also show the untracked files that are not ignored, as added, and list the files anew; kept in `state.toml`, so later runs show them too. They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits. Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`. Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out. |
+| `S` `F8` | a popup with all these settings, also `c` and `C` of the flow view, to find them: `j` `k` move, `enter`, `space` or the letter toggles, kept in `state.toml`; the popup stays open, `S`, `F8`, `esc` or `q` close it |
 | `R` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
 | `?` | help |
 | `q` `ctrl+c` | quit |

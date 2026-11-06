@@ -179,6 +179,9 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		}
 	case settingChangedMsg:
 		l.scrollToCursor() // the message box takes room from the list
+		if msg.problem != "" && l.open == nil {
+			l.msg = msg.problem
+		}
 	case backMsg:
 		if l.flowShown() {
 			l.filesOfFlow()
@@ -263,6 +266,8 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
+	default:
+		return settingKey(k, false)
 	}
 	return nil
 }

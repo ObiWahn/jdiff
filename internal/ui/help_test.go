@@ -233,3 +233,12 @@ func TestHelpArrowsSweep(t *testing.T) {
 		})
 	}
 }
+
+// The help names the key of every setting.
+func TestHelpListsSettings(t *testing.T) {
+	for _, o := range settingOptions {
+		if !slices.ContainsFunc(bindings, func(b binding) bool { return b.key == o.key }) {
+			t.Errorf("the help has no line for %s: %s", o.key, o.what)
+		}
+	}
+}

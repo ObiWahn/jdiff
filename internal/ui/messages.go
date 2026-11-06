@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -85,12 +86,29 @@ type askSettingsMsg struct{}
 
 func askSettings() tea.Msg { return askSettingsMsg{} }
 
+// toggleSettingMsg asks SettingsPopup to toggle the option of key, with the
+// popup closed.
+type toggleSettingMsg struct{ key string }
+
+// settingKey returns the command toggling the option of key k, nil when no
+// option has it or, outside the log's flow view (logFlow), one that only
+// matters there. The pages hand these keys on as settingsKey, for the same
+// reason.
+func settingKey(k string, logFlow bool) tea.Cmd {
+	i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == k })
+	if i < 0 || settingOptions[i].logFlow && !logFlow {
+		return nil
+	}
+	return func() tea.Msg { return toggleSettingMsg{k} }
+}
+
 // settingChangedMsg tells the page below SettingsPopup that a toggle changed,
 // so that it lays out what depends on it. The diff view does on any message.
-type settingChangedMsg struct{ key string }
+// problem says why it is not saved, for the page to show when the popup is
+// closed.
+type settingChangedMsg struct{ key, problem string }
 
-// untrackedKey toggles the untracked files of a git diff, in the settings
-// popup.
+// untrackedKey toggles the untracked files of a git diff.
 const untrackedKey = "u"
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of

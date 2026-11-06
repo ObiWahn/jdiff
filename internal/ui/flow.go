@@ -126,6 +126,9 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.key == "C" && f.inLog() && f.cfg.Settings.StayInCommit {
 			f.msg = "staying in commit " + f.parts[f.rows[f.cursor].part].commit.Short
 		}
+		if msg.problem != "" {
+			f.msg = msg.problem
+		}
 	}
 	f.loadVisible()
 	return f, cmd
@@ -212,6 +215,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.prefix, f.msg = k, "jump to mark: press its letter"
 	case settingsKey, settingsFKey:
 		return askSettings
+	default:
+		return settingKey(k, f.inLog())
 	}
 	return nil
 }

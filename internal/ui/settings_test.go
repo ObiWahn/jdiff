@@ -303,3 +303,182 @@ func TestHelpListsSharedKeysOnce(t *testing.T) {
 		seen[b.key] = true
 	}
 }
+
+// The letters of the settings work on the pages, without the popup.
+func TestSettingKeysOnAllPages(t *testing.T) {
+	for _, page := range settingsPages() {
+		for _, o := range settingOptions {
+			if o.ask != nil || o.logFlow {
+				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere
+			}
+			m, cfg := page.make()
+			s := WithSettings(cfg, m)
+			s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			pressRoot(s, page.keys...)
+			before := *o.setting(cfg)
+			pressRoot(s, o.key)
+			if *o.setting(cfg) == before || s.open {
+				t.Errorf("%s: %s: %v, popup %v; want it toggled from %v, no popup", page.name, o.key, *o.setting(cfg), s.open, before)
+			}
+			pressRoot(s, o.key)
+			if *o.setting(cfg) != before {
+				t.Errorf("%s: %s twice: %v, want %v", page.name, o.key, *o.setting(cfg), before)
+			}
+		}
+	}
+}
+
+func TestLogFlowKeysOnlyThere(t *testing.T) {
+	for _, page := range settingsPages() {
+		for _, o := range settingOptions {
+			if !o.logFlow {
+				continue
+			}
+			m, cfg := page.make()
+			s := WithSettings(cfg, m)
+			s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			pressRoot(s, page.keys...)
+			before := *o.setting(cfg)
+			pressRoot(s, o.key)
+			if want := page.name == "log flow"; (*o.setting(cfg) != before) != want {
+				t.Errorf("%s: %s toggles: %v, want %v", page.name, o.key, *o.setting(cfg) != before, want)
+			}
+		}
+	}
+}
+
+func TestLogFlowStayInCommitKeyTells(t *testing.T) {
+	l, _ := newTestLog()
+	s := WithSettings(l.cfg, l)
+	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(s, "f", "C")
+	if !l.cfg.Settings.StayInCommit || l.flow.msg != "staying in commit c3" {
+		t.Errorf("C: %v, msg %q", l.cfg.Settings.StayInCommit, l.flow.msg)
+	}
+}
+
+func TestUntrackedKeyOnPages(t *testing.T) {
+	a := newUntrackedApp()
+	s := WithSettings(a.cfg, a)
+	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(s, "u")
+	if !a.cfg.Settings.Untracked || len(a.files) != 3 || a.files[2].Path != "x0" {
+		t.Errorf("u in a git diff: %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	}
+	pressRoot(s, "enter", "u")
+	if a.cfg.Settings.Untracked || len(a.files) != 2 {
+		t.Errorf("u in its diff view: %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	}
+
+	m := newMarkModel()
+	s = WithSettings(m.cfg, m)
+	pressRoot(s, "u")
+	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
+		t.Errorf("u on two files: %v, msg %q", m.cfg.Settings.Untracked, m.msg)
+	}
+}
+
+// After m and ' the letters are mark letters, in a line of text they are text.
+func TestSettingKeysGiveWay(t *testing.T) {
+	m := newMarkModel()
+	cfg := m.cfg
+	before := cfg.Settings.SideBySide
+	s := WithSearch(cfg, WithSettings(cfg, m))
+	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(s, "ctrl+space", "m", "s")
+	if _, ok := cfg.Mark("s"); !ok || cfg.Settings.SideBySide != before {
+		t.Errorf("m s: mark %v, side by side %v", ok, cfg.Settings.SideBySide)
+	}
+	pressRoot(s, "'", "s")
+	if m.msg != "mark s" || cfg.Settings.SideBySide != before {
+		t.Errorf("' s: msg %q, side by side %v", m.msg, cfg.Settings.SideBySide)
+	}
+	pressRoot(s, "/", "s")
+	if s.input == nil || s.input.text != "s" || cfg.Settings.SideBySide != before {
+		t.Errorf("/ s: input %+v, side by side %v", s.input, cfg.Settings.SideBySide)
+	}
+}
+
+func TestSettingKeySaves(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := WithSettings(cfg, New(cfg, "old", "new", []string{"x0"}, []string{"x1"}))
+	pressRoot(s, "w")
+	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "show_whitespaces = true") {
+		t.Errorf("state.toml:\n%s", data)
+	}
+}
+
+// A problem saving shows on the page, where the key was pressed.
+func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
+	newCfg := func(t *testing.T) *config.Config {
+		dir := t.TempDir()
+		cfg, err := config.Load(dir, nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A directory in the place of state.toml.
+		if err := os.MkdirAll(filepath.Join(dir, "state.toml", "x0"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	files := []source.File{modified("f00", []string{"x0"}, []string{"x1"}), modified("f01", []string{"x2"}, []string{"x3"})}
+	press := func(m tea.Model, cfg *config.Config, keys ...string) {
+		s := WithSettings(cfg, m)
+		s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+		pressRoot(s, keys...)
+	}
+	t.Run("diff view", func(t *testing.T) {
+		cfg := newCfg(t)
+		m := New(cfg, "old", "new", files[0].Old, files[0].New)
+		press(m, cfg, "w")
+		if !strings.HasPrefix(m.msg, "state: ") {
+			t.Errorf("msg %q", m.msg)
+		}
+	})
+	t.Run("file list", func(t *testing.T) {
+		cfg := newCfg(t)
+		a := NewApp(cfg, files)
+		press(a, cfg, "w")
+		if !strings.HasPrefix(a.msg, "state: ") {
+			t.Errorf("msg %q", a.msg)
+		}
+	})
+	t.Run("flow", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.Settings.Flow = true
+		a := NewApp(cfg, files)
+		press(a, cfg, "enter", "w")
+		if !a.flowShown() || !strings.HasPrefix(a.flow.msg, "state: ") {
+			t.Errorf("flow %v, msg %q", a.flowShown(), a.flow.msg)
+		}
+	})
+	t.Run("commit list", func(t *testing.T) {
+		l, _ := newTestLog()
+		cfg := newCfg(t)
+		l.cfg = cfg
+		press(l, cfg, "w")
+		if !strings.HasPrefix(l.msg, "state: ") {
+			t.Errorf("msg %q", l.msg)
+		}
+	})
+	// With the popup open it shows there, and not on the page below.
+	t.Run("popup", func(t *testing.T) {
+		cfg := newCfg(t)
+		m := New(cfg, "old", "new", files[0].Old, files[0].New)
+		s := WithSettings(cfg, m)
+		s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+		pressRoot(s, "S", "w")
+		if !strings.HasPrefix(s.msg, "state: ") || m.msg != "" {
+			t.Errorf("popup msg %q, page msg %q", s.msg, m.msg)
+		}
+	})
+}
