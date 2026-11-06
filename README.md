@@ -52,9 +52,25 @@ brew install --cask obiwahn/jdiff/jdiff
 To update it, run `brew update && brew upgrade --cask obiwahn/jdiff/jdiff`.
 The cask installs a prebuilt binary; Go is not needed.
 
-Or download a binary from the [upstream releases](https://github.com/ObiWahn/jdiff/releases), for Linux, macOS or Windows.
-Extract the archive and put `jdiff` (or `jdiff.exe`) on your `PATH`.
-Older releases contain bare binaries; on Linux and macOS, make those executable with `chmod +x`.
+On Linux, download the package for your distribution from the [upstream releases](https://github.com/ObiWahn/jdiff/releases) and install it; it pulls in git:
+
+```sh
+sudo apt install ./jdiff_<version>_amd64.deb               # Debian, Ubuntu
+sudo dnf install ./jdiff-<version>-1.x86_64.rpm             # Fedora, RHEL
+sudo apk add --allow-untrusted ./jdiff_<version>_x86_64.apk # Alpine
+sudo pacman -U ./jdiff-<version>-1-x86_64.pkg.tar.zst       # Arch
+```
+
+On Windows, install it with Scoop:
+
+```sh
+scoop bucket add jdiff https://github.com/ObiWahn/jdiff
+scoop install jdiff
+```
+
+Or download an archive or a bare binary from the [upstream releases](https://github.com/ObiWahn/jdiff/releases), for Linux, macOS or Windows.
+Extract the archive, or rename the binary, and put `jdiff` (or `jdiff.exe`) on your `PATH`.
+On Linux and macOS, make a bare binary executable with `chmod +x`.
 
 To build from source, jdiff needs Go 1.24 or newer:
 
@@ -258,8 +274,8 @@ make fmt
 
 CI (`.github/workflows/ci.yml`) runs `fmt-check`, `vet`, `test`, `build` and `vuln` on Linux with the newest stable Go, and the tests on macOS and Windows: on pushes to any branch and every Monday, for new vulnerabilities.
 When they pass, [GoReleaser](https://goreleaser.com/) builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64).
-Branches and scheduled runs (including on forks) build snapshots and attach the archives, SHA-256 sums and generated cask to the run without publishing.
-A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives and `sha256sums.txt` as a GitHub release, then updates `Casks/jdiff.rb` on upstream's `master` branch.
+Branches and scheduled runs (including on forks) build snapshots and attach the archives, binaries, packages, SHA-256 sums and generated cask to the run without publishing.
+A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives, binaries, packages and `sha256sums.txt` as a GitHub release, then updates `Casks/jdiff.rb` on upstream's `master` branch.
 Prereleases do not update the cask.
 
 The upstream repository itself is the Homebrew tap: the explicit URL in `brew tap` avoids needing a separate `homebrew-jdiff` repository.

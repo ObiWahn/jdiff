@@ -12,30 +12,26 @@ builds:
     flags: [-trimpath]
     ldflags: [-s -w]
 
-archives:
-  - formats: [tar.gz]
-    name_template: "{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: [zip]
-
 checksum:
   name_template: sha256sums.txt
 
-changelog:
-  use: github-native
-
-release:
-  github:
-    owner: ObiWahn
-    name: jdiff
+archives:
+  - id: archive
+    formats: [tar.gz]
+    name_template: &name_template "{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+  - id: binary
+    formats: [binary]
+    name_template: *name_template
 
 homebrew_casks:
-  - name: jdiff
-    homepage: https://github.com/ObiWahn/jdiff
-    description: Interactive terminal diff viewer with manual line alignment
+  - ids: [archive]
+    homepage: &homepage https://github.com/ObiWahn/jdiff
+    description: &description Interactive terminal diff viewer with manual line alignment
     skip_upload: auto
-    repository:
+    repository: &repository
       owner: ObiWahn
       name: jdiff
       branch: master
@@ -46,3 +42,47 @@ homebrew_casks:
           on_macos do
             run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/jdiff"]
           end
+
+nfpms:
+  - file_name_template: "{{ .ConventionalFileName }}"
+    homepage: *homepage
+    description: *description
+    maintainer: "Jan Christoph Uhde <jan@uhde.io>"
+    license: MIT
+    formats: [deb, rpm, apk, archlinux]
+    # gitsrc and the theme's git config call git.
+    dependencies: [git]
+    contents:
+      - src: LICENSE
+        dst: /usr/share/licenses/jdiff/LICENSE
+
+scoops:
+  - ids: [archive]
+    homepage: *homepage
+    description: *description
+    license: MIT
+    skip_upload: auto
+    directory: bucket
+    repository: *repository
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: ObiWahn
+    name: jdiff
+  # GitHub sorts the assets by name; this shows the downloads in our order.
+  header: |
+    ## Downloads
+
+    **Checksums:** [sha256sums.txt](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/sha256sums.txt)
+
+    **Archives:**
+    - Linux: [amd64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-linux-amd64.tar.gz), [arm64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-linux-arm64.tar.gz)
+    - macOS: [arm64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-darwin-arm64.tar.gz), [amd64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-darwin-amd64.tar.gz)
+    - Windows: [amd64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-windows-amd64.zip)
+
+    **Homebrew:** `brew install --cask obiwahn/jdiff/jdiff`
+
+    **Others:** the Linux packages and bare binaries are under Assets below.
