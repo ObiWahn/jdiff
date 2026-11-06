@@ -63,7 +63,7 @@ make build        # builds bin/jdiff
 go install .      # or install it into $GOBIN
 ```
 
-`jdiff --version` prints the tag or commit it was built from, `jdiff --readme` this README.
+`jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and the dependencies linked into it, `jdiff --readme` this README.
 
 The other make targets: `make test`, `make test-race`, `make tag`, `make vet`, `make vuln` (govulncheck), `make fmt`, `make fmt-check` and `make clean`.
 

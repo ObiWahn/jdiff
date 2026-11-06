@@ -21,11 +21,15 @@ import (
 	"jdiff/internal/ui"
 )
 
+//go:embed LICENSE
+var license string
+
 //go:embed README.md
 var readme string
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	showLicense := flag.Bool("license", false, "print the license and the dependencies and exit")
 	showReadme := flag.Bool("readme", false, "print the README and exit")
 	features := flag.String("features", "",
 		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
@@ -33,7 +37,7 @@ func main() {
 			"unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
 			"to them.")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--readme] [--features NAMES] OLD NEW\n"+
+		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
 			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
 			"       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
 		flag.PrintDefaults()
@@ -41,6 +45,10 @@ func main() {
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(resolveVersion())
+		return
+	}
+	if *showLicense {
+		printLicense()
 		return
 	}
 	if *showReadme {
@@ -170,6 +178,19 @@ func gitDiff(cfg *config.Config) ui.DiffFunc {
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "jdiff:", err)
 	os.Exit(1)
+}
+
+// printLicense prints jdiff's license and the modules linked into this binary.
+func printLicense() {
+	fmt.Print(license)
+	bi, ok := debug.ReadBuildInfo()
+	if !ok || len(bi.Deps) == 0 {
+		return
+	}
+	fmt.Println("\nDependencies:")
+	for _, d := range bi.Deps {
+		fmt.Println(" ", d.Path, d.Version)
+	}
 }
 
 func resolveVersion() string {
