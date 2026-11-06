@@ -39,7 +39,7 @@ func repoPath(repo, file string) string {
 		abs = real
 	}
 	if repo != "" {
-		if rel, err := filepath.Rel(repo, abs); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+		if rel, err := filepath.Rel(repo, abs); err == nil && filepath.IsLocal(rel) {
 			return filepath.ToSlash(rel)
 		}
 	}
