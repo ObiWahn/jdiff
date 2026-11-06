@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -112,8 +114,8 @@ func TestJumpWithinFile(t *testing.T) {
 		moveTo(t, m, left, 1) // "return x * 2", moved down
 		row := m.pos() - m.top
 		press(m, "g")
-		if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from new:2" {
-			t.Errorf("%s: o on a moved-away line: right line %d, active %v, msg %q; want 41, right, moved from new:2",
+		if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from old:2" {
+			t.Errorf("%s: o on a moved-away line: right line %d, active %v, msg %q; want 41, right, moved from old:2",
 				layout, m.lineAt(right, m.cursor), m.active, m.msg)
 		}
 		if m.pos()-m.top != row {
@@ -135,8 +137,8 @@ func TestJumpFromEitherPane(t *testing.T) {
 	moveTo(t, m, left, 1) // "return x * 2", moved down; nothing on the right
 	press(m, "tab")       // the right pane, empty in this row
 	press(m, "g")
-	if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from new:2" {
-		t.Errorf("o from the empty pane: right line %d, active %v, msg %q; want 41, right, moved from new:2",
+	if m.lineAt(right, m.cursor) != 41 || m.active != right || m.msg != "moved from old:2" {
+		t.Errorf("o from the empty pane: right line %d, active %v, msg %q; want 41, right, moved from old:2",
 			m.lineAt(right, m.cursor), m.active, m.msg)
 	}
 	press(m, "tab", "g") // the left pane, empty in the added line's row
@@ -186,6 +188,30 @@ func TestJumpToAnotherFile(t *testing.T) {
 	pressApp(a, "g")
 	if m := a.open.view; a.open.Path != "a.go" || m.lineAt(left, m.cursor) != 2 || m.msg != "moved to b.go:4" {
 		t.Errorf("o back: file %s, left line %d, msg %q", a.open.Path, m.lineAt(left, m.cursor), m.msg)
+	}
+}
+
+// The message names the file of the line it counts: a renamed file has two.
+func TestJumpNamesTheSideOfARename(t *testing.T) {
+	var stay []string
+	for i := range 20 {
+		stay = append(stay, fmt.Sprintf("stay x%02d", i))
+	}
+	f := modified("new.go", append(slices.Clone(movedBlock), stay...), append(slices.Clone(stay), movedBlock...))
+	f.OldPath = "old.go"
+	a := NewApp(config.Default(), []source.File{f})
+	a.cfg.Settings.CollapseUnchanged = false
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	pressApp(a, "enter")
+	m := a.open.view
+	moveTo(t, m, left, 1)
+	pressApp(a, "g")
+	if m.lineAt(right, m.cursor) != 21 || m.msg != "moved from old.go:2" {
+		t.Errorf("g: right line %d, msg %q; want 21, moved from old.go:2", m.lineAt(right, m.cursor), m.msg)
+	}
+	pressApp(a, "g")
+	if m.lineAt(left, m.cursor) != 1 || m.msg != "moved to new.go:22" {
+		t.Errorf("g back: left line %d, msg %q; want 1, moved to new.go:22", m.lineAt(left, m.cursor), m.msg)
 	}
 }
 

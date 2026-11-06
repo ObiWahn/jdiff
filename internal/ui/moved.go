@@ -11,16 +11,16 @@ import (
 // comparison of two files. Never files of different commits.
 type moveGroup struct {
 	diffs  []*fileDiff
-	names  []string // the files' names, for messages
-	aligns []int    // the alignments the moves were found for
+	names  [][2]string // the names of the sides of the files, for messages
+	aligns []int       // the alignments the moves were found for
 	moves  diff.Moves
 }
 
-// add adds d, called name, to the group.
-func (g *moveGroup) add(d *fileDiff, name string) {
+// add adds d, whose sides are called names, to the group.
+func (g *moveGroup) add(d *fileDiff, names [2]string) {
 	d.group, d.groupIndex = g, len(g.diffs)
 	g.diffs = append(g.diffs, d)
-	g.names = append(g.names, name)
+	g.names = append(g.names, names)
 	g.aligns = nil
 }
 
@@ -91,7 +91,7 @@ func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool
 	if s == right {
 		how = "moved to"
 	}
-	return moveEnd{r.File, s.other(), r.Line}, fmt.Sprintf("%s %s:%d", how, d.group.names[d.groupIndex], line+1), true
+	return moveEnd{r.File, s.other(), r.Line}, fmt.Sprintf("%s %s:%d", how, d.group.names[d.groupIndex][s], line+1), true
 }
 
 // spotOf returns the cursor on the start of line of side s of d in the

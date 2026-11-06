@@ -47,7 +47,7 @@ type Model struct {
 func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
 	d := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
 	d.markPath = newName
-	(&moveGroup{}).add(d, newName)
+	(&moveGroup{}).add(d, d.names)
 	return newModel(d)
 }
 

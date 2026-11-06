@@ -172,7 +172,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	for _, f := range files {
 		e := &entry{File: f}
 		if !e.Binary {
-			group.add(a.diffOf(e), e.Path)
+			group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
 		}
 		e.updateStats()
 		a.files = append(a.files, e)
@@ -353,7 +353,7 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 				dropped += n
 			}
 			if !e.Binary {
-				group.add(a.diffOf(e), e.Path)
+				group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
 			}
 			e.updateStats()
 			a.files = append(a.files, e)
