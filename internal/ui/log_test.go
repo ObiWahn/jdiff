@@ -217,6 +217,69 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 	}
 }
 
+// newNumberedLog returns a log of commits c00 ... with one changed file each,
+// counting the loads.
+func newNumberedLog(n int) (*Log, map[string]int) {
+	loads := map[string]int{}
+	load := func(c gitsrc.Commit) ([]source.File, error) {
+		loads[c.Hash]++
+		return []source.File{modified(c.Hash+".go", []string{"1"}, []string{"2"})}, nil
+	}
+	var commits []gitsrc.Commit
+	for i := range n {
+		h := fmt.Sprintf("c%02d", i)
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+	}
+	l := NewLog(config.Default(), "main", commits, false, load, nil)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	return l, loads
+}
+
+// home and end load the commits around where the cursor lands, not those on
+// the way; these load as they come near, and the cursor keeps its commit.
+func TestLogFlowEndsLoadOnlyAround(t *testing.T) {
+	l, loads := newNumberedLog(30)
+	pressLog(l, "f", "end")
+	if flowCommitAt(l) != 29 || l.flow.cursor != len(l.flow.rows)-1 {
+		t.Fatalf("end: at commit %d row %d of %d, want the last row of c29", flowCommitAt(l), l.flow.cursor, len(l.flow.rows))
+	}
+	if loads["c29"] != 1 || loads["c15"] != 0 {
+		t.Errorf("end: loads %v, want c29 loaded, c15 not", loads)
+	}
+	for at := 29; l.flow.cursor > 0; {
+		pressLog(l, "k")
+		if got := flowCommitAt(l); got != at && got != at-1 {
+			t.Fatalf("k: from c%02d to c%02d", at, got)
+		} else {
+			at = got
+		}
+	}
+	if len(loads) != 30 {
+		t.Errorf("k up to the top: %d commits loaded, want all 30", len(loads))
+	}
+	for h, n := range loads {
+		if n != 1 {
+			t.Errorf("%s loaded %d times", h, n)
+		}
+	}
+
+	l, loads = newNumberedLog(30)
+	pressLog(l, "f", "end", "home")
+	if flowCommitAt(l) != 0 || l.flow.cursor != 0 || loads["c15"] != 0 {
+		t.Errorf("end home: at commit %d row %d, loads %v; want the first row, c15 not loaded", flowCommitAt(l), l.flow.cursor, loads)
+	}
+}
+
+// Staying in the commit, end has no use for the commits further on.
+func TestLogFlowEndStayingInCommitLoadsNoMore(t *testing.T) {
+	l, loads := newNumberedLog(30)
+	l.cfg.Settings.StayInCommit = true
+	pressLog(l, "f", "end")
+	if flowCommitAt(l) != 0 || loads["c29"] != 0 || loads["c15"] != 0 {
+		t.Errorf("end: at commit %d, loads %v; want c00, neither c15 nor c29 loaded", flowCommitAt(l), loads)
+	}
+}
+
 func TestLogReversedNextPrevCommit(t *testing.T) {
 	l, _ := newTestLogOrder(true) // c0 c1 c2 c3
 	pressLog(l, "j", "enter")     // c1, c.go

@@ -558,11 +558,36 @@ func (f *Flow) loadVisible() {
 
 // moveCursor moves the cursor by delta rows. Commits on the way and a
 // screen beyond are loaded first, so it lands where it would with all
-// commits loaded.
+// commits loaded; for far only those around where it lands, the others load
+// as they come near.
 func (f *Flow) moveCursor(delta int) {
-	f.loadAhead(delta)
+	if max(delta, -delta) >= far {
+		f.loadAroundEnd(delta)
+	} else {
+		f.loadAhead(delta)
+	}
 	f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
 	f.scrollToCursor()
+}
+
+// loadAroundEnd loads the commits within a screen of the first row the cursor
+// may go to, for delta below 0, else of the last. Only home and end need it:
+// should those keys go, as they may, this and the far branch of moveCursor go
+// with their cases in motion.
+func (f *Flow) loadAroundEnd(delta int) {
+	h := f.bodyHeight()
+	for {
+		lo, hi := f.bounds()
+		end := hi
+		if delta < 0 {
+			end = lo
+		}
+		p := f.unloadedIn(end-h, end+h)
+		if p < 0 {
+			return
+		}
+		f.loadPart(p)
+	}
 }
 
 // bounds returns the first and last row the cursor may go to: those of its
