@@ -169,12 +169,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	// The files are searched for moved code together.
 	group := &moveGroup{}
 	for _, f := range files {
-		e := &entry{File: f}
-		if !e.Binary {
-			group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
-		}
-		e.updateStats()
-		a.files = append(a.files, e)
+		a.addEntry(group, &entry{File: f})
 	}
 	a.list = list{n: len(a.files), preview: &cfg.Settings.Preview}
 	if len(files) == 0 {
@@ -187,6 +182,16 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 		a.openFile()
 	}
 	return a
+}
+
+// addEntry adds e to the files and its diff, unless binary, to group, the
+// files searched for moved code together.
+func (a *App) addEntry(group *moveGroup, e *entry) {
+	if !e.Binary {
+		group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
+	}
+	e.updateStats()
+	a.files = append(a.files, e)
 }
 
 // stop stops watching the files: the view is replaced.
@@ -351,11 +356,7 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 				}
 				dropped += n
 			}
-			if !e.Binary {
-				group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
-			}
-			e.updateStats()
-			a.files = append(a.files, e)
+			a.addEntry(group, e)
 		}
 		if a.flow != nil {
 			a.flow.followFiles(0, old, a.files)
