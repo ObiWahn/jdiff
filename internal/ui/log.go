@@ -253,14 +253,6 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 	case "f":
 		return toggleFlow
-	case "r", "f5", "ctrl+r":
-		return refreshAll
-	case autoReloadKey:
-		return askAutoReload
-	case diffKey:
-		return askDiff
-	case settingsKey, settingsFKey:
-		return askSettings
 	case "n", "p", "N", "P":
 		// The next or previous commit in history, as N and P go from its files.
 		dir := historyDir(k)
@@ -272,7 +264,7 @@ func (l *Log) key(k string) tea.Cmd {
 	case "'":
 		l.prefix, l.msg = k, "jump to mark: press its letter"
 	default:
-		return settingKey(k, false)
+		return pageKey(k, false)
 	}
 	return nil
 }

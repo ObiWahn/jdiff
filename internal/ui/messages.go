@@ -117,6 +117,23 @@ func settingKey(k string, logFlow bool) tea.Cmd {
 	return func() tea.Msg { return toggleSettingMsg{k} }
 }
 
+// pageKey returns the command of key k that all pages hand on: loading again,
+// auto reload, the popups of git diff and the settings, or the option of k, see
+// settingKey; nil when k is none of them.
+func pageKey(k string, logFlow bool) tea.Cmd {
+	switch k {
+	case "r", "f5", "ctrl+r":
+		return refreshAll
+	case autoReloadKey:
+		return askAutoReload
+	case diffKey:
+		return askDiff
+	case settingsKey, settingsFKey:
+		return askSettings
+	}
+	return settingKey(k, logFlow)
+}
+
 // settingChangedMsg tells the page below SettingsPopup that a toggle changed,
 // so that it lays out what depends on it. The diff view does on any message.
 // problem says why it is not saved, for the page to show when the popup is

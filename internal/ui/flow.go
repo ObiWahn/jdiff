@@ -197,12 +197,6 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "enter", "esc", "space", "ctrl+space":
 		f.delegate(k)
-	case "r", "f5", "ctrl+r":
-		return refreshAll
-	case autoReloadKey:
-		return askAutoReload
-	case diffKey:
-		return askDiff
 	case searchKey:
 		return askSearch
 	case nextKey:
@@ -215,10 +209,8 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.prefix, f.msg = k, "set mark: press a letter"
 	case "'":
 		f.prefix, f.msg = k, "jump to mark: press its letter"
-	case settingsKey, settingsFKey:
-		return askSettings
 	default:
-		return settingKey(k, f.inLog())
+		return pageKey(k, f.inLog())
 	}
 	return nil
 }

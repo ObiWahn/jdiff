@@ -205,12 +205,6 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.commitNav {
 			return switchCommit(k)
 		}
-	case "r", "f5", "ctrl+r":
-		return refreshAll
-	case autoReloadKey:
-		return askAutoReload
-	case diffKey:
-		return askDiff
 	case searchKey:
 		return askSearch
 	case nextKey:
@@ -221,10 +215,8 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.canBack {
 			return toggleFlow
 		}
-	case settingsKey, settingsFKey:
-		return askSettings
 	default:
-		return settingKey(k, false)
+		return pageKey(k, false)
 	case "enter", "esc", "space", "ctrl+space":
 		m.act(k)
 	case "g":

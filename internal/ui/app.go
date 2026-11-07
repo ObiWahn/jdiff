@@ -539,20 +539,12 @@ func (a *App) key(k string) tea.Cmd {
 		if a.inLog() {
 			return switchCommit(k)
 		}
-	case "r", "f5", "ctrl+r":
-		return refreshAll
-	case autoReloadKey:
-		return askAutoReload
-	case diffKey:
-		return askDiff
 	case "f":
 		return toggleFlow
 	case "'":
 		a.prefix, a.msg = k, "jump to mark: press its letter"
-	case settingsKey, settingsFKey:
-		return askSettings
 	default:
-		return settingKey(k, false)
+		return pageKey(k, false)
 	}
 	return nil
 }
