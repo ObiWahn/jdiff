@@ -77,6 +77,7 @@ func main() {
 		repo = "" // not in a repository: marks with absolute paths
 	}
 	cfg.LoadMarks(repo)
+	ui.LoadKeys(cfg)
 
 	var m tea.Model
 	switch mode {

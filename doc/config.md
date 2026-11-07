@@ -9,6 +9,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 | `themes/<name>.toml` | a theme |
 | `state.toml` | the toggles `s` `f` `u` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C`, the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
+| `keybindings.toml` | [your keys](#keybindingstoml), where they differ from the built-in ones |
 
 Unknown keys and invalid values are reported in the status bar.
 
@@ -44,6 +45,25 @@ search_regex = false            # / searches for a regular expression (shift+tab
 search_all = false              # / searches all lines, not only changed ones (tab)
 auto_reload_timeout = 5         # minutes without keys or changes until auto reload (R) ends; 0 never
 ```
+
+## keybindings.toml
+
+Changes keys; without it, jdiff uses its built-in keys. List only what you change, by page and action:
+
+```toml
+commit_list = [
+    { action = "move", keys = ["x", "y"] },
+]
+everywhere = [
+    { action = "settings", keys = ["O"] },
+]
+```
+
+- The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list` and `file_list`; the actions and their keys are those of the [built-in file](../internal/ui/keybindings.toml).
+- The rows of an action replace all its rows on that page: above, `x` `y` take the place of both `j` `k` and `down` `up` in the commit list. To keep a key, list its row too.
+- An action that goes two ways takes two keys, in the order of the built-in row: for `move` down, then up.
+- The status bar, the help and the settings popup show your keys with their usual words. Messages, and the keys inside popups and input fields, stay as built in.
+- A file with a problem, such as an unknown page, action or field, or a key with two actions on one page, changes no key: the status bar says what is wrong.
 
 ## Themes
 

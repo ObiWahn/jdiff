@@ -1,6 +1,6 @@
 # Key bindings
 
-`?` shows all key bindings in a popup.
+`?` shows all key bindings in a popup. To change them, see [keybindings.toml](config.md#keybindingstoml).
 
 ## By page
 

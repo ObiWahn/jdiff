@@ -3,7 +3,12 @@ package ui
 import (
 	"cmp"
 	_ "embed"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -54,7 +59,7 @@ func settingWords(options []settingOption) []settingOption {
 		if len(r.Keys) > 0 {
 			options[i].key = r.Keys[0]
 		}
-		options[i].what = r.Setting
+		options[i].what = keyFile.keyText(r.Setting)
 	}
 	return options
 }
@@ -106,14 +111,167 @@ var keyFile = func() keyPages {
 // row returns the row that gives the keys and words of action; see
 // keybindings.toml for the order. Without one, it has no keys.
 func (p keyPages) row(action string) keyRow {
-	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
-		for _, r := range rows {
-			if r.Action == action {
-				return r
-			}
-		}
+	if rows := p.rowsOf(action); len(rows) > 0 {
+		return rows[0]
 	}
 	return keyRow{}
+}
+
+// rowsOf returns the rows of action in the first page that has it, in the
+// order of row.
+func (p keyPages) rowsOf(action string) []keyRow {
+	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
+		var of []keyRow
+		for _, r := range rows {
+			if r.Action == action {
+				of = append(of, r)
+			}
+		}
+		if len(of) > 0 {
+			return of
+		}
+	}
+	return nil
+}
+
+// placeholder matches {action} and {action:n} in the words of keybindings.toml.
+var placeholder = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
+
+// keyText returns s with each placeholder replaced by the keys of its row, ""
+// for a row that does not exist.
+func (p keyPages) keyText(s string) string {
+	return placeholder.ReplaceAllStringFunc(s, func(m string) string {
+		sub := placeholder.FindStringSubmatch(m)
+		n, _ := strconv.Atoi(sub[2])
+		if rows := p.rowsOf(sub[1]); n < len(rows) {
+			return strings.Join(rows[n].Keys, " ")
+		}
+		return ""
+	})
+}
+
+// twoWay lists the actions whose rows take two keys, one for each way.
+var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match"}
+
+// userRow is a row of the user's keybindings.toml, which changes only keys.
+type userRow struct {
+	Action string
+	Keys   []string
+}
+
+// userKeys returns p with the keys of text, the user's keybindings.toml, and
+// what is wrong with it. The rows of an action on a page replace all its rows
+// there, keeping their words; a file with a problem changes nothing, so that
+// a mistake cannot take away the keys to quit or get help.
+func (p keyPages) userKeys(text string) (keyPages, []string) {
+	var u struct {
+		CommitList []userRow `toml:"commit_list"`
+		FileList   []userRow `toml:"file_list"`
+		DiffView   []userRow `toml:"diff_view"`
+		FlowView   []userRow `toml:"flow_view"`
+		Everywhere []userRow `toml:"everywhere"`
+	}
+	md, err := toml.Decode(text, &u)
+	if err != nil {
+		return p, []string{err.Error()}
+	}
+	var problems []string
+	for _, k := range md.Undecoded() {
+		problems = append(problems, "unknown "+k.String())
+	}
+	merged := p
+	for _, t := range []struct {
+		name string
+		rows *[]keyRow
+		user []userRow
+	}{
+		{"everywhere", &merged.Everywhere, u.Everywhere}, {"diff_view", &merged.DiffView, u.DiffView},
+		{"flow_view", &merged.FlowView, u.FlowView}, {"commit_list", &merged.CommitList, u.CommitList},
+		{"file_list", &merged.FileList, u.FileList},
+	} {
+		for _, r := range t.user {
+			switch {
+			case !slices.ContainsFunc(*t.rows, func(b keyRow) bool { return b.Action == r.Action }):
+				problems = append(problems, "no action "+r.Action+" in "+t.name)
+			case slices.Contains(twoWay, r.Action) && len(r.Keys) != 2:
+				problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")
+			}
+		}
+		*t.rows = replaceKeys(*t.rows, t.user)
+	}
+	problems = append(problems, merged.conflicts()...)
+	if len(problems) > 0 {
+		return p, problems
+	}
+	return merged, nil
+}
+
+// replaceKeys returns rows with the rows of each action of user in place of
+// its rows: the first where the first was, with the words of the row it
+// replaces; rows of user beyond them have none.
+func replaceKeys(rows []keyRow, user []userRow) []keyRow {
+	var out []keyRow
+	done := map[string]bool{}
+	for _, r := range rows {
+		if !slices.ContainsFunc(user, func(u userRow) bool { return u.Action == r.Action }) {
+			out = append(out, r)
+			continue
+		}
+		if done[r.Action] {
+			continue
+		}
+		done[r.Action] = true
+		var old []keyRow
+		for _, o := range rows {
+			if o.Action == r.Action {
+				old = append(old, o)
+			}
+		}
+		i := 0
+		for _, u := range user {
+			if u.Action != r.Action {
+				continue
+			}
+			row := keyRow{Action: u.Action}
+			if i < len(old) {
+				row = old[i]
+			}
+			row.Keys = u.Keys
+			out = append(out, row)
+			i++
+		}
+	}
+	return out
+}
+
+// KeysFile is the user's keybindings.toml in the configuration directory.
+const KeysFile = "keybindings.toml"
+
+// LoadKeys reads the user's keybindings.toml from the configuration directory
+// of cfg, if there is one, over the built-in keys; a problem with it is a
+// warning of cfg, and the built-in keys stay. Call it before the first page is
+// made, which shows the warnings, and before OrderSettings.
+func LoadKeys(cfg *config.Config) {
+	if cfg.Dir() == "" {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(cfg.Dir(), KeysFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	p, problems := keyFile, []string(nil)
+	if err != nil {
+		problems = []string{err.Error()}
+	} else {
+		p, problems = keyFile.userKeys(string(data))
+	}
+	if len(problems) > 0 {
+		cfg.AddWarning(KeysFile + ": " + strings.Join(problems, "; ") + "; the built-in keys are used")
+		return
+	}
+	keyFile = p
+	settingOptions = settingWords(settingOptions)
+	bindings = keyFile.bindings()
 }
 
 // keyPage is a page whose keys are looked up in keybindings.toml.
@@ -242,7 +400,7 @@ func OrderSettings() {
 // keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
 // all pages with a key that does not exist or stands twice, a setting missing or
 // without words, a line of the help with an action that has no help, a key with
-// two actions on one page.
+// two actions on one page, a placeholder without its row.
 func keyOrderProblems(text string) []string {
 	p, err := readKeys(text)
 	if err != nil {
@@ -271,6 +429,35 @@ func keyOrderProblems(text string) []string {
 			problems = append(problems, "setting "+o.action+" has no words")
 		}
 	}
+	problems = append(problems, p.conflicts()...)
+	for _, r := range p.Help {
+		if r.Action != "" && p.row(r.Action).Help == "" {
+			problems = append(problems, "the help's action "+r.Action+" has no help")
+		}
+	}
+	var words []string
+	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
+		for _, r := range rows {
+			words = append(words, r.Help, r.Setting)
+		}
+	}
+	for _, r := range p.Help {
+		words = append(words, r.Note)
+	}
+	for _, w := range words {
+		for _, m := range placeholder.FindAllStringSubmatch(w, -1) {
+			n, _ := strconv.Atoi(m[2])
+			if n >= len(p.rowsOf(m[1])) {
+				problems = append(problems, "placeholder "+m[0]+" has no row")
+			}
+		}
+	}
+	return problems
+}
+
+// conflicts returns the keys with two actions on one page.
+func (p keyPages) conflicts() []string {
+	var problems []string
 	for _, t := range []struct {
 		name string
 		rows []keyRow
@@ -283,11 +470,6 @@ func keyOrderProblems(text string) []string {
 				}
 				actions[keyName(name)] = r.Action
 			}
-		}
-	}
-	for _, r := range p.Help {
-		if r.Action != "" && p.row(r.Action).Help == "" {
-			problems = append(problems, "the help's action "+r.Action+" has no help")
 		}
 	}
 	return problems

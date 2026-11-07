@@ -25,10 +25,10 @@ func (p keyPages) bindings() []binding {
 		case h.Heading != "":
 			bs = append(bs, binding{"", h.Heading})
 		case h.Note != "":
-			bs = append(bs, binding{"", "  " + h.Note})
+			bs = append(bs, binding{"", "  " + p.keyText(h.Note)})
 		default:
 			r := p.row(h.Action)
-			bs = append(bs, binding{strings.Join(r.Keys, " "), r.Help})
+			bs = append(bs, binding{strings.Join(r.Keys, " "), p.keyText(r.Help)})
 		}
 	}
 	return bs

@@ -752,6 +752,107 @@ func TestKeyLookup(t *testing.T) {
 	}
 }
 
+// Placeholders stand for the keys of a row of their action, "" for none.
+func TestKeyText(t *testing.T) {
+	for in, want := range map[string]string{
+		"{settings} close":   "o F8 close",
+		"also {page:1}":      "also ctrl+b ctrl+f",
+		"{page}":             "pgup pgdn",
+		"{page:5}|{nothing}": "|",
+		"no {braces":         "no {braces",
+	} {
+		if got := keyFile.keyText(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+	if !slices.Contains(bindings, binding{"?", "this help (? esc q close, j k scroll)"}) {
+		t.Errorf("the help's line of ? is not expanded: %q", bindings)
+	}
+}
+
+// The user's file replaces the rows of an action on a page, keeping their
+// words, and leaves the built-in keys as they are.
+func TestUserKeys(t *testing.T) {
+	p, problems := keyFile.userKeys(`commit_list = [{ action = "move", keys = ["x", "y"] }]
+everywhere = [{ action = "settings", keys = ["O"] }]
+`)
+	if len(problems) != 0 {
+		t.Fatalf("problems: %q", problems)
+	}
+	for _, c := range []struct {
+		pg   keyPage
+		k    string
+		want keyHit
+	}{
+		{commitList, "x", keyHit{"move", 0}},
+		{commitList, "y", keyHit{"move", 1}},
+		{commitList, "j", keyHit{}},
+		{commitList, "down", keyHit{}}, // its second row is replaced too
+		{diffView, "j", keyHit{"move", 0}},
+		{diffView, "O", keyHit{"settings", 0}},
+		{diffView, "o", keyHit{}},
+	} {
+		if got := p.key(c.pg, c.k); got != c.want {
+			t.Errorf("page %d, %s: %+v, want %+v", c.pg, c.k, got, c.want)
+		}
+	}
+	if r := p.row("settings"); !slices.Equal(r.Label, []string{"settings"}) || r.Help == "" {
+		t.Errorf("settings lost its words: %+v", r)
+	}
+	if got := p.keyText("{settings} close"); got != "O close" {
+		t.Errorf("placeholder: %q", got)
+	}
+	// The settings keep their order: the row stays where it was.
+	want := slices.Clone(keyFile.order())
+	want[slices.Index(want, "o")] = "O"
+	if !slices.Equal(p.order(), want) {
+		t.Errorf("order: %q, want %q", p.order(), want)
+	}
+	if keyFile.key(commitList, "j").action != "move" || keyFile.row("settings").Keys[0] != "o" {
+		t.Errorf("the built-in keys changed")
+	}
+}
+
+// A file with a problem changes no key.
+func TestUserKeysProblems(t *testing.T) {
+	for _, c := range []struct{ text, want string }{
+		{"everywhere = [", "toml:"},
+		{"x = 1", "unknown x"},
+		{`help = [{ note = "x" }]`, "unknown help"},
+		{`everywhere = [{ action = "quit", keys = ["Q"], label = ["x"] }]`, "unknown everywhere.label"},
+		{`commit_list = [{ action = "anchor", keys = ["x"] }]`, "no action anchor in commit_list"},
+		{`commit_list = [{ action = "move", keys = ["x"] }]`, "move in commit_list takes two keys"},
+		{`diff_view = [{ action = "pane", keys = ["j"] }]`, "key j has two actions in diff_view"},
+	} {
+		p, problems := keyFile.userKeys(c.text)
+		if len(problems) == 0 || !strings.Contains(strings.Join(problems, "; "), c.want) {
+			t.Errorf("%s: problems %q, want %q", c.text, problems, c.want)
+		}
+		if p.key(diffView, "j").action != "move" || p.key(diffView, "tab").action != "pane" {
+			t.Errorf("%s: the keys changed", c.text)
+		}
+	}
+}
+
+// A problem with the user's file is a warning, and the built-in keys stay.
+func TestLoadKeysWarns(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, KeysFile), []byte(`everywhere = [{ action = "x0", keys = ["x"] }]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	LoadKeys(cfg)
+	if w := cfg.Warning(); !strings.Contains(w, "keybindings.toml: no action x0 in everywhere; the built-in keys are used") {
+		t.Errorf("warning %q", w)
+	}
+	if keyFile.row("settings").Keys[0] != "o" {
+		t.Errorf("the built-in keys changed")
+	}
+}
+
 // The status bars, with the words of keybindings.toml.
 func TestStatusKeysWords(t *testing.T) {
 	cfg := config.Default()

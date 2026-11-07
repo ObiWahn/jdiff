@@ -38,7 +38,9 @@
   stand at the right end.
 - `internal/ui/keybindings.toml` binds the keys of all pages to actions, with their labels in the
   status bar and their lines of the help; change keys and words there, not in the code, which
-  switches on actions (`keyFile.key`). The keys inside popups and input fields stay in the code. The
+  switches on actions (`keyFile.key`). A key named in the words is a placeholder, `{action}` or
+  `{action:1}`, so that it follows the user's `keybindings.toml`, which changes only keys (`LoadKeys`).
+  The keys inside popups and input fields, and those that messages name, stay in the code. The
   rows of `everywhere` decide the order of the settings: the popup and the help's block of settings
   follow them at startup (`ui.OrderSettings`). A setting with a key of its own is a row of
   `everywhere`, unless it works only in one view (`logFlow`); `TestKeybindingsFile` checks that.

@@ -253,6 +253,14 @@ func writeTOML(path, header string, v any) error {
 	return os.Rename(tmp, path)
 }
 
+// Dir returns the configuration directory the files were read from, "" for
+// none.
+func (c *Config) Dir() string { return c.dir }
+
+// AddWarning adds a problem with a file that another package reads from the
+// configuration directory, for Warning.
+func (c *Config) AddWarning(w string) { c.warnings = append(c.warnings, w) }
+
 // Warning returns the problems with the theme and the files, or "".
 func (c *Config) Warning() string {
 	var parts []string

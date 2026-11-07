@@ -14,6 +14,9 @@
 # forward or down, the first of page, half_page, ends and scroll back, up or left. Key names are
 # Bubble Tea's, also pgdn for pgdown and F5 for f5; <letter> stands for the letter typed next.
 #
+# In help, setting and note, {action} stands for the keys of the first row of action, {action:1} for
+# those of its second row: the words follow the keys of the user's keybindings.toml.
+#
 # The rows of everywhere decide the order of the settings, by their first key (OrderSettings).
 # doc/keybindings.md lists the same keys in the same order; TestKeybindingsDoc checks that.
 
@@ -34,7 +37,7 @@ everywhere = [
     { action = "reload", keys = ["r", "F5", "ctrl+r"], help = "load again: git diff, git log, the directories or the files" },
     { action = "auto_reload", keys = ["R"], help = "auto reload: load again when the repository changes; off at each start" },
     { action = "auto_reload_timeout", setting = "minutes without keys or changes until auto reload ends; 0 never" },
-    { action = "help", keys = ["?"], label = ["help"], help = "this help (? esc q close, j k scroll)" },
+    { action = "help", keys = ["?"], label = ["help"], help = "this help ({help} esc q close, j k scroll)" },
     { action = "quit", keys = ["q", "ctrl+c"], label = ["quit"], help = "quit" },
 ]
 
@@ -45,7 +48,7 @@ diff_view = [
     { action = "fold_all", keys = ["ctrl+space"], help = "fold or unfold all of the file" },
     { action = "move", keys = ["j", "k"], help = "move" },
     { action = "move", keys = ["down", "up"], help = "move" },
-    { action = "page", keys = ["pgup", "pgdn"], help = "page up, down (also ctrl+b ctrl+f); the file list scrolls its preview" },
+    { action = "page", keys = ["pgup", "pgdn"], help = "page up, down (also {page:1}); the file list scrolls its preview" },
     { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
     { action = "half_page", keys = ["ctrl+u", "ctrl+d"], help = "half page up, down" },
     { action = "ends", keys = ["home", "end"], help = "first, last; top, bottom" },
@@ -70,7 +73,7 @@ flow_view = [
     { action = "history", keys = ["N", "P"], help = "next, previous commit bar in history" },
     { action = "flow", keys = ["f"], help = "single file view" },
     { action = "full_messages", keys = ["c"], help = "full or short commit messages", setting = "full commit messages, in the log's flow view" },
-    { action = "stay_in_commit", keys = ["C"], help = "stay in the current commit (N P still switch)", setting = "stay in the current commit, there (N P still switch)" },
+    { action = "stay_in_commit", keys = ["C"], help = "stay in the current commit ({history} still switch)", setting = "stay in the current commit, there ({history} still switch)" },
 ]
 
 commit_list = [
@@ -126,9 +129,9 @@ help = [
     { action = "bold" },
     { action = "preview" },
     { action = "settings" },
-    { note = "j k move, enter or the letter toggles, o F8 esc q close" },
+    { note = "j k move, enter or the letter toggles, {settings} esc q close" },
     { note = "there also the minutes until auto reload ends: enter on it, type them; 0 never" },
-    { note = "s f u w W ctrl+w t e b v c C, the minutes, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml" },
+    { note = "{layout} {flow} {untracked} {wrap} {whitespace} {mark_whitespace} {trailing} {line_ends} {bold} {preview} {full_messages} {stay_in_commit}, the minutes, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml" },
     { action = "help" },
     { action = "to_files" },
     { action = "quit" },
