@@ -70,7 +70,7 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 	cobra.EnableCommandSorting = false // log, diff, completion
 	root := &cobra.Command{
 		Use:   "jdiff [flags] OLD NEW",
-		Short: "An interactive diff viewer for the terminal, with manual line alignment",
+		Short: "An interactive diff viewer for the terminal, with manual line alignment, that follows your edits",
 		Example: "  jdiff old.txt new.txt     compare two files, or two directories\n" +
 			"  jdiff log -20             browse the last 20 commits\n" +
 			"  jdiff -u diff HEAD        what git diff HEAD shows, and the untracked files\n" +

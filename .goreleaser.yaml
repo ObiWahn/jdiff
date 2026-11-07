@@ -37,7 +37,7 @@ archives:
 homebrew_casks:
   - ids: [archive]
     homepage: &homepage https://github.com/ObiWahn/jdiff
-    description: &description Interactive terminal diff viewer with manual line alignment
+    description: &description Interactive terminal diff viewer with manual line alignment that follows your edits
     skip_upload: auto
     completions:
       bash: completions/jdiff.bash
