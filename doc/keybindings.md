@@ -84,7 +84,7 @@ The keys of the diff view, and:
 
 | Key | Action |
 |---|---|
-| `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
+| `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `\`, `esc` or `q` close |
 | `d` | [show another `git diff`](#another-git-diff) |
 | `s` | side by side or normal layout, also of the preview |
 | `f` | flow view of all files or commits; in it, the single file view |
