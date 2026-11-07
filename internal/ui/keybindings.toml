@@ -1,0 +1,74 @@
+# The keys of all pages, for consulting, and the order of the settings: the popup and the help's
+# block of settings follow the rows of everywhere, by their first key (OrderSettings).
+# It binds no key: the code handles them, and the bindings in help.go are the help's text.
+# doc/keybindings.md lists the same keys in the same order; TestKeybindingsDoc checks that.
+
+commit_list = [
+    { keys = ["j", "k"], what = "move" },
+    { keys = ["N", "P", "n", "p"], what = "next, previous commit in history" },
+    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f"], what = "page up, down" },
+    { keys = ["home", "end"], what = "first, last commit" },
+    { keys = ["enter"], what = "show the files of the commit" },
+    { keys = ["f"], what = "flow view of all commits" },
+]
+
+file_list = [
+    { keys = ["j", "k", "n", "p"], what = "move" },
+    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f"], what = "scroll the diff preview; page while it is hidden" },
+    { keys = ["home", "end"], what = "first, last file" },
+    { keys = ["enter"], what = "show the diff of the file" },
+    { keys = ["'<letter>"], what = "open the file of a jump mark" },
+    { keys = ["N", "P"], what = "next, previous commit in history (in the log)" },
+    { keys = ["f"], what = "flow view of all files" },
+    { keys = ["backspace"], what = "back to the commits (in the log)" },
+]
+
+diff_view = [
+    { keys = ["enter"], what = "mark a line, then its partner: anchor; on an anchored line: remove the anchor" },
+    { keys = ["esc"], what = "cancel the mark" },
+    { keys = ["space", "ctrl+space"], what = "fold or unfold the nearest, all unchanged code" },
+    { keys = ["j", "k"], what = "move" },
+    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f", "ctrl+u", "ctrl+d"], what = "page, half page" },
+    { keys = ["home", "end"], what = "top, bottom" },
+    { keys = ["h", "l"], what = "scroll left, right, unless lines are wrapped" },
+    { keys = ["]", "["], what = "next, previous change" },
+    { keys = ["n", "p"], what = "next, previous file" },
+    { keys = ["N", "P"], what = "next, previous commit in history (in the log)" },
+    { keys = ["tab"], what = "switch pane" },
+    { keys = ["/"], what = "search" },
+    { keys = [".", ","], what = "next, previous match" },
+    { keys = ["g"], what = "go to the other end of moved code" },
+    { keys = ["m<letter>"], what = "set a jump mark on the line of the new file" },
+    { keys = ["'<letter>"], what = "jump to a mark, when its file is in this diff" },
+    { keys = ["f"], what = "flow view" },
+    { keys = ["backspace"], what = "back to the file list; a commit of one file goes back to the commits" },
+]
+
+# The keys of the diff view, and:
+flow_view = [
+    { keys = ["n", "p"], what = "next, previous file bar" },
+    { keys = ["N", "P"], what = "next, previous commit bar in history" },
+    { keys = ["f"], what = "single file view" },
+    { keys = ["c"], what = "full or short commit messages, in the log" },
+    { keys = ["C"], what = "stay in the current commit, in the log" },
+]
+
+everywhere = [
+    { keys = ["\\"], what = "jump marks" },
+    { keys = ["d"], what = "show another git diff" },
+    { keys = ["s"], what = "side by side or normal layout" },
+    { keys = ["f"], what = "flow view; in it, the single file view" },
+    { keys = ["u"], what = "in jdiff diff, also show untracked files" },
+    { keys = ["w"], what = "wrap long lines or cut them" },
+    { keys = ["W"], what = "show all whitespace and line ends or only changed" },
+    { keys = ["ctrl+w"], what = "mark changed whitespace or not" },
+    { keys = ["t"], what = "show trailing whitespace or not" },
+    { keys = ["e"], what = "show all \\r\\n line ends or only changed" },
+    { keys = ["b"], what = "bold or plain changed words" },
+    { keys = ["v"], what = "show or hide the message box or diff preview" },
+    { keys = ["o", "F8"], what = "settings popup" },
+    { keys = ["r", "F5", "ctrl+r"], what = "load again" },
+    { keys = ["R"], what = "auto reload" },
+    { keys = ["?"], what = "help" },
+    { keys = ["q", "ctrl+c"], what = "quit" },
+]

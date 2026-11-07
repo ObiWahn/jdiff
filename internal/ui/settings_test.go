@@ -2,8 +2,10 @@ package ui
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -610,15 +612,32 @@ func TestSettingsFlow(t *testing.T) {
 	}
 }
 
-// A doc/keybindings.md with its rows in another order, under the heading that
-// counts; the same keys under another heading do not count.
-const orderedKeys = "# x\n### File list\n| `w` | no |\n### Everywhere\n| Key | Action |\n|---|---|\n" +
-	"| `\\` | jump marks |\n| `b` | bold |\n| `f` | flow |\n| `s` | layout |\n| `o` `F8` | popup |\n\n## Next\n| `t` | no |\n"
+// A keybindings.toml with its rows in another order; the same keys on other
+// pages do not count.
+const orderedKeys = `file_list = [{ keys = ["w"] }]
+everywhere = [
+    { keys = ["\\"] },
+    { keys = ["b"] },
+    { keys = ["f"] },
+    { keys = ["s"] },
+    { keys = ["o", "F8"] },
+]
+diff_view = [{ keys = ["t"] }]
+`
 
-func TestKeyRows(t *testing.T) {
+func keyOrderOf(t *testing.T, text string) []string {
+	t.Helper()
+	p, err := readKeys(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.order()
+}
+
+func TestKeyOrder(t *testing.T) {
 	want := []string{`\`, "b", "f", "s", "o"}
-	if got := keyRows(orderedKeys); !slices.Equal(got, want) {
-		t.Errorf("keyRows: %q, want %q", got, want)
+	if got := keyOrderOf(t, orderedKeys); !slices.Equal(got, want) {
+		t.Errorf("order: %q, want %q", got, want)
 	}
 }
 
@@ -626,7 +645,7 @@ func TestKeyRows(t *testing.T) {
 // stays where it is.
 func TestOrderSettings(t *testing.T) {
 	type o = settingOption
-	options, bs := orderSettings(keyRows(orderedKeys),
+	options, bs := orderSettings(keyOrderOf(t, orderedKeys),
 		[]o{{key: "s"}, {key: "f"}, {key: "t"}, {key: "b"}, {key: "c", logFlow: true}, {what: "x0"}},
 		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"o F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
 	var keys []string
@@ -651,24 +670,80 @@ func TestOrderSettings(t *testing.T) {
 }
 
 func TestKeyOrderProblems(t *testing.T) {
-	table := "### Everywhere\n"
+	var rows string
 	for _, o := range settingOptions {
 		if o.key != "" && !o.logFlow {
-			table += "| `" + o.key + "` | x |\n"
+			rows += fmt.Sprintf("{ keys = [%q] },\n", o.key)
 		}
 	}
-	if got := KeyOrderProblems(table); len(got) != 0 {
+	table := func(rows string) string { return "everywhere = [\n" + rows + "]\n" }
+	if got := keyOrderProblems(table(rows)); len(got) != 0 {
 		t.Errorf("all there: %q", got)
 	}
-	for _, c := range []struct{ doc, want string }{
-		{"# x\n", "no table"},
-		{table + "| `s` | again |\n", "key s stands twice"},
-		{table + "| `x0` | typo |\n", "key x0 is not in the help"},
-		{strings.Replace(table, "| `t` | x |\n", "", 1), "setting t is not in the table"},
+	for _, c := range []struct{ text, want string }{
+		{"everywhere = [", "toml:"},
+		{"x = 1\n", "no rows"},
+		{table(rows + `{ keys = ["s"] },` + "\n"), "key s stands twice"},
+		{table(rows + `{ keys = ["x0"] },` + "\n"), "key x0 is not in the help"},
+		{table(strings.Replace(rows, `{ keys = ["t"] },`+"\n", "", 1)), "setting t is not in the table"},
 	} {
-		got := KeyOrderProblems(c.doc)
+		got := keyOrderProblems(c.text)
 		if len(got) != 1 || !strings.Contains(got[0], c.want) {
 			t.Errorf("%q: problems %q, want %q", c.want, got, c.want)
 		}
+	}
+}
+
+// keybindings.toml decides the order of the settings: it must fit them.
+func TestKeybindingsFile(t *testing.T) {
+	if problems := keyOrderProblems(keybindingsFile); len(problems) != 0 {
+		t.Errorf("keybindings.toml: %q", problems)
+	}
+}
+
+// doc/keybindings.md lists the keys of keybindings.toml, page by page, in the
+// same order.
+func TestKeybindingsDoc(t *testing.T) {
+	doc, err := os.ReadFile(filepath.Join("..", "..", "doc", "keybindings.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backticked := regexp.MustCompile("`([^`]+)`")
+	inDoc := map[string][]string{}
+	page := ""
+	for _, line := range strings.Split(string(doc), "\n") {
+		if strings.HasPrefix(line, "#") {
+			page = strings.TrimSpace(strings.TrimLeft(line, "# "))
+		} else if strings.HasPrefix(line, "| ") {
+			for _, m := range backticked.FindAllStringSubmatch(strings.Split(line, "|")[1], -1) {
+				inDoc[page] = append(inDoc[page], m[1])
+			}
+		}
+	}
+	p, err := readKeys(keybindingsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := []struct {
+		heading string
+		rows    []keyRow
+	}{
+		{"Commit list (`jdiff log`)", p.CommitList},
+		{"File list", p.FileList},
+		{"Diff view", p.DiffView},
+		{"Flow view", p.FlowView},
+		{"Everywhere", p.Everywhere},
+	}
+	for _, c := range pages {
+		var want []string
+		for _, r := range c.rows {
+			want = append(want, r.Keys...)
+		}
+		if !slices.Equal(inDoc[c.heading], want) {
+			t.Errorf("%s: doc %q, keybindings.toml %q", c.heading, inDoc[c.heading], want)
+		}
+	}
+	if len(inDoc) != len(pages) {
+		t.Errorf("the doc has keys on %d pages, keybindings.toml %d: %q", len(inDoc), len(pages), slices.Sorted(maps.Keys(inDoc)))
 	}
 }

@@ -2,13 +2,14 @@ package ui
 
 import (
 	"cmp"
+	_ "embed"
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/BurntSushi/toml"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
@@ -44,27 +45,42 @@ var settingOptions = []settingOption{
 	{what: "minutes without keys or changes until auto reload ends; 0 never", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
 }
 
-// keyRow matches a row of a table of keys in doc/keybindings.md, with its first
-// key.
-var keyRow = regexp.MustCompile("^\\| `([^`]+)`")
+// keybindingsFile lists the keys of all pages and decides the order of the
+// settings. It binds no key.
+//
+//go:embed keybindings.toml
+var keybindingsFile string
 
-// keyRows returns the first key of each row of the table of keys of all pages
-// in doc/keybindings.md, which decides the order of the settings.
-func keyRows(doc string) []string {
+// keyRow is a row of keybindings.toml.
+type keyRow struct{ Keys []string }
+
+// keyPages holds the rows of each page of keybindings.toml.
+type keyPages struct {
+	CommitList []keyRow `toml:"commit_list"`
+	FileList   []keyRow `toml:"file_list"`
+	DiffView   []keyRow `toml:"diff_view"`
+	FlowView   []keyRow `toml:"flow_view"`
+	Everywhere []keyRow `toml:"everywhere"`
+}
+
+func readKeys(text string) (keyPages, error) {
+	var p keyPages
+	_, err := toml.Decode(text, &p)
+	return p, err
+}
+
+// order returns the first key of each row of everywhere, which decides the
+// order of the settings.
+func (p keyPages) order() []string {
 	var keys []string
-	inTable := false
-	for _, line := range strings.Split(doc, "\n") {
-		if strings.HasPrefix(line, "#") {
-			inTable = line == "### Everywhere"
-		} else if m := keyRow.FindStringSubmatch(line); inTable && m != nil {
-			keys = append(keys, m[1])
-		}
+	for _, r := range p.Everywhere {
+		keys = append(keys, r.Keys[0])
 	}
 	return keys
 }
 
 // orderSettings returns options and bindings with the settings in the order of
-// keys. Options not in keys, as c and C, which doc/keybindings.md lists with the
+// keys. Options not in keys, as c and C, which keybindings.toml lists with the
 // flow view, stay behind, as they are; the other bindings stay where they are.
 func orderSettings(keys []string, options []settingOption, bs []binding) ([]settingOption, []binding) {
 	rank := func(k string) int {
@@ -95,18 +111,23 @@ func orderSettings(keys []string, options []settingOption, bs []binding) ([]sett
 }
 
 // OrderSettings puts the settings of the popup and the help in the order of
-// doc, the text of doc/keybindings.md. Call it before the first view is drawn.
-func OrderSettings(doc string) {
-	settingOptions, bindings = orderSettings(keyRows(doc), settingOptions, bindings)
+// keybindings.toml. Call it before the first view is drawn.
+func OrderSettings() {
+	p, _ := readKeys(keybindingsFile) // embedded; TestKeybindingsFile reads it
+	settingOptions, bindings = orderSettings(p.order(), settingOptions, bindings)
 }
 
-// KeyOrderProblems returns what is wrong with doc's table of keys of all pages:
-// a key that does not exist or stands twice, a setting missing.
-func KeyOrderProblems(doc string) []string {
+// keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
+// all pages with a key that does not exist or stands twice, a setting missing.
+func keyOrderProblems(text string) []string {
+	p, err := readKeys(text)
+	if err != nil {
+		return []string{err.Error()}
+	}
 	var problems []string
-	keys := keyRows(doc)
+	keys := p.order()
 	if len(keys) == 0 {
-		return []string{"no table of keys under ### Everywhere"}
+		return []string{"no rows in everywhere"}
 	}
 	for i, k := range keys {
 		if slices.Contains(keys[:i], k) {

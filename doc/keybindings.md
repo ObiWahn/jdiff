@@ -1,7 +1,6 @@
 # Key bindings
 
 `?` shows all key bindings in a popup.
-The table under [Everywhere](#everywhere) decides the order of the settings in that popup and in the settings popup (`o`).
 
 ## By page
 
@@ -24,7 +23,7 @@ The table under [Everywhere](#everywhere) decides the order of the settings in t
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
 | `home` `end` | first, last file |
 | `enter` | show the diff of the file |
-| `'`*letter* | open the file of a jump mark |
+| `'<letter>` | open the file of a jump mark |
 | `N` `P` | next, previous commit in history (in the log) |
 | `f` | flow view of all files |
 | `backspace` | back to the commits (in the log) |
@@ -47,8 +46,8 @@ The table under [Everywhere](#everywhere) decides the order of the settings in t
 | `/` | [search](#search) |
 | `.` `,` | next, previous match |
 | `g` | go to the other end of moved code |
-| `m`*letter* | set a jump mark on the line of the new file |
-| `'`*letter* | jump to a mark, when its file is in this diff |
+| `m<letter>` | set a jump mark on the line of the new file |
+| `'<letter>` | jump to a mark, when its file is in this diff |
 | `f` | flow view |
 | `backspace` | back to the file list, also from the flow view; a commit of one file goes back to the commits |
 

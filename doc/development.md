@@ -75,3 +75,5 @@ The packages under `internal/`:
 | `settings` | the settings |
 | `config` | the configuration files, themes, state and marks |
 | `ui` | the Bubble Tea views: commit list, file list, diff view, flow view, popups |
+
+`internal/ui/keybindings.toml` lists the keys of all pages and decides the order of the settings; it binds none.

@@ -301,10 +301,3 @@ func TestReadmeBadge(t *testing.T) {
 		t.Errorf("--readme starts with %.40q", got)
 	}
 }
-
-// doc/keybindings.md decides the order of the settings: its table must fit them.
-func TestKeybindingsOrder(t *testing.T) {
-	if problems := ui.KeyOrderProblems(keybindings); len(problems) != 0 {
-		t.Errorf("doc/keybindings.md: %q", problems)
-	}
-}

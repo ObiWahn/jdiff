@@ -36,11 +36,12 @@
   each page shows only those that work there, the other keys are in the help (?). The labels of
   f and s name what the key switches to, so pressing it changes only its own label. The anchors
   stand at the right end.
-- The table of keys under `### Everywhere` in `doc/keybindings.md` decides the order of the
-  settings: the popup and the help's block of settings follow it at startup (`ui.OrderSettings`).
-  Change the order there, not in `settingOptions` or `bindings`. A setting with a key of its own is
-  a row of that table, unless it works only in one view (`logFlow`); `TestKeybindingsOrder` checks
-  that. The status bars keep their own order, above.
+- `internal/ui/keybindings.toml` lists the keys of all pages; it binds none. The rows of
+  `everywhere` decide the order of the settings: the popup and the help's block of settings follow
+  them at startup (`ui.OrderSettings`). Change the order there, not in `settingOptions` or
+  `bindings`. A setting with a key of its own is a row of `everywhere`, unless it works only in one
+  view (`logFlow`); `TestKeybindingsFile` checks that. `doc/keybindings.md` lists the same keys in
+  the same order, `TestKeybindingsDoc` checks that. The status bars keep their own order, above.
 - The direction in history (N n next, P p previous, also with `--reverse`) is decided in one
   place only: `historyDir` and `historyOrder.step` in `internal/ui/messages.go`.
 - Toggles are fields of `settings.Toggles`, kept in `state.toml`; list a new one in the help's
