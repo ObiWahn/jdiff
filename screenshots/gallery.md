@@ -12,7 +12,7 @@ Where the alignment guesses wrong, mark a line on one side and pick its partner 
 
 ![Picking an anchor](anchor-pick.png)
 
-Anchored, the code around the two lines lines up again.
+With the anchor set, the code around the two lines aligns again.
 
 ![Anchored](anchored.png)
 
