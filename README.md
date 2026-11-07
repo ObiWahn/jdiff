@@ -1,12 +1,13 @@
 # jdiff
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ObiWahn/jdiff/badges/coverage.json)](https://obiwahn.github.io/jdiff/coverage.html)
 
-An interactive diff viewer for the terminal, side by side or as one column, with manual line alignment.
+An interactive diff viewer for the terminal, with manual line alignment, that you keep open while you work: it lays the diff out again whenever the terminal is resized, and shows your saved edits without leaving it.
 
 jdiff matches lines on their content, ignoring indentation, so re-indented code still lines up with its original.
 Where the automatic alignment guesses wrong, you pick two lines and anchor them: everything around the anchor aligns again.
 It reads [delta](https://github.com/dandavison/delta)'s git config, so an existing delta theme applies right away.
 
+[![jdiff updating live](https://raw.githubusercontent.com/ObiWahn/jdiff/assets/screenshots/live-update.png)](https://github.com/ObiWahn/jdiff/blob/assets/screenshots/gallery.md)
 ## Features
 
 - **Compare** two files, two directories, what `git diff` shows, or the commits of `git log`.
@@ -18,7 +19,7 @@ It reads [delta](https://github.com/dandavison/delta)'s git config, so an existi
 - **Search and jump marks:** marks are kept per repository and survive restarts.
 - **Whitespace:** only the added or removed part of an indentation is marked.
 
-Unlike [delta](https://github.com/dandavison/delta), which formats git's output once for a pager, jdiff is a program you work in. delta highlights syntax; jdiff does not. See [all features](doc/features.md).
+Unlike [delta](https://github.com/dandavison/delta), which formats git's output once for a pager, jdiff is a program you work in. delta highlights syntax; jdiff does not. See [all features](doc/features.md) and [screenshots](https://github.com/ObiWahn/jdiff/blob/assets/screenshots/gallery.md).
 
 ## Install
 
