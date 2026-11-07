@@ -31,6 +31,9 @@
 
 ## Keys and status bars
 
+- Every key binding of a page is a row of `internal/ui/keybindings.toml`, also a new one: the code
+  switches on its action (`keyFile.key`), never on a key. Only the keys inside popups and input
+  fields, and those that messages name, stay in the code.
 - The status bars are short and come from `statusKeys`, in one order on all pages:
   enter · backspace · N/P · f · s · d · o · ? · q;
   each page shows only those that work there, the other keys are in the help (?). The labels of
