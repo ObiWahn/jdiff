@@ -808,7 +808,7 @@ func (f *Flow) scrollToCursor() {
 
 // help returns the keys of the status bar.
 func (f *Flow) help() string {
-	return statusKeys(f.cfg, barKeys{enter: "mark/anchor", back: "files", commits: f.inLog(), flow: true})
+	return statusKeys(f.cfg, barKeys{enter: "anchor", back: "to_files", commits: f.inLog(), flow: true})
 }
 
 func (f *Flow) View() tea.View { return tea.NewView(f.frame()) }

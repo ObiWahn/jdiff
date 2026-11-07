@@ -65,35 +65,52 @@ func pageStatus(cfg *config.Config, msg, hints string) string {
 
 // barKeys says what differs between the status bars of the pages.
 type barKeys struct {
-	enter   string // what enter does
-	back    string // what backspace does, "" when it does nothing
+	enter   string // the action of enter
+	back    string // the action of backspace, "" when it does nothing
 	commits bool   // N and P switch commits
 	flow    bool   // f switches between the flow and the single file view
+}
+
+// barState returns the index of an action's label while it is on or off.
+func barState(on bool) int {
+	if on {
+		return 0
+	}
+	return 1
 }
 
 // statusKeys returns the keys of the status bar of a page, the same on all of
 // them, in one order, so that a key that switches what is shown changes only
 // its own label: f and s name what they switch to. All other keys are in the
-// help.
+// help. keybindings.toml gives the keys and the words.
 func statusKeys(cfg *config.Config, k barKeys) string {
-	keys := []string{"enter " + k.enter}
+	var keys []string
+	add := func(row keyRow, keyNames string, state int) {
+		if l := row.label(state); l != "" {
+			keys = append(keys, keyNames+" "+l)
+		}
+	}
+	first := func(action string, state int) {
+		if r := keyFile.row(action); len(r.Keys) > 0 {
+			add(r, r.Keys[0], state)
+		}
+	}
+	first(k.enter, 0)
 	if k.back != "" {
-		keys = append(keys, "backspace "+k.back)
+		first(k.back, 0)
 	}
 	if k.commits {
-		keys = append(keys, "N/P commit")
+		r := keyFile.row("history")
+		add(r, strings.Join(r.Keys, "/"), 0)
 	}
-	if k.flow && cfg.Settings.Flow {
-		keys = append(keys, "f file")
-	} else if k.flow {
-		keys = append(keys, "f flow")
+	if k.flow {
+		first("flow", barState(cfg.Settings.Flow))
 	}
-	if cfg.Settings.SideBySide {
-		keys = append(keys, "s unified")
-	} else {
-		keys = append(keys, "s split")
+	first("layout", barState(cfg.Settings.SideBySide))
+	for _, action := range []string{"git_diff", "settings", "help", "quit"} {
+		first(action, 0)
 	}
-	return strings.Join(append(keys, "d git diff", "o settings", "? help", "q quit"), " · ")
+	return strings.Join(keys, " · ")
 }
 
 // minBoxHeight fits the borders and one line.

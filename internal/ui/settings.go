@@ -52,21 +52,61 @@ var settingOptions = []settingOption{
 var keybindingsFile string
 
 // keyRow is a row of keybindings.toml.
-type keyRow struct{ Keys []string }
+type keyRow struct {
+	Action string
+	Keys   []string
+	Label  []string
+	Help   string
+}
 
-// keyPages holds the rows of each page of keybindings.toml.
+// helpRow is a line of the help popup in keybindings.toml.
+type helpRow struct{ Heading, Note, Action string }
+
+// keyPages holds keybindings.toml: the rows of each page and the help's lines.
 type keyPages struct {
-	CommitList []keyRow `toml:"commit_list"`
-	FileList   []keyRow `toml:"file_list"`
-	DiffView   []keyRow `toml:"diff_view"`
-	FlowView   []keyRow `toml:"flow_view"`
-	Everywhere []keyRow `toml:"everywhere"`
+	CommitList []keyRow  `toml:"commit_list"`
+	FileList   []keyRow  `toml:"file_list"`
+	DiffView   []keyRow  `toml:"diff_view"`
+	FlowView   []keyRow  `toml:"flow_view"`
+	Everywhere []keyRow  `toml:"everywhere"`
+	Help       []helpRow `toml:"help"`
 }
 
 func readKeys(text string) (keyPages, error) {
 	var p keyPages
 	_, err := toml.Decode(text, &p)
 	return p, err
+}
+
+// keyFile is keybindingsFile, read. It is part of the program, so that failing
+// to read it is a bug, which TestKeybindingsFile finds.
+var keyFile = func() keyPages {
+	p, err := readKeys(keybindingsFile)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}()
+
+// row returns the row that gives the keys and words of action; see
+// keybindings.toml for the order. Without one, it has no keys.
+func (p keyPages) row(action string) keyRow {
+	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
+		for _, r := range rows {
+			if r.Action == action {
+				return r
+			}
+		}
+	}
+	return keyRow{}
+}
+
+// label returns the word of the status bar in state, "" when there is none.
+func (r keyRow) label(state int) string {
+	if state < len(r.Label) {
+		return r.Label[state]
+	}
+	return ""
 }
 
 // order returns the first key of each row of everywhere, which decides the
@@ -113,12 +153,12 @@ func orderSettings(keys []string, options []settingOption, bs []binding) ([]sett
 // OrderSettings puts the settings of the popup and the help in the order of
 // keybindings.toml. Call it before the first view is drawn.
 func OrderSettings() {
-	p, _ := readKeys(keybindingsFile) // embedded; TestKeybindingsFile reads it
-	settingOptions, bindings = orderSettings(p.order(), settingOptions, bindings)
+	settingOptions, bindings = orderSettings(keyFile.order(), settingOptions, bindings)
 }
 
 // keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
-// all pages with a key that does not exist or stands twice, a setting missing.
+// all pages with a key that does not exist or stands twice, a setting missing, a
+// line of the help with an action that has no help.
 func keyOrderProblems(text string) []string {
 	p, err := readKeys(text)
 	if err != nil {
@@ -140,6 +180,11 @@ func keyOrderProblems(text string) []string {
 	for _, o := range settingOptions {
 		if o.key != "" && !o.logFlow && !slices.Contains(keys, o.key) {
 			problems = append(problems, "setting "+o.key+" is not in the table")
+		}
+	}
+	for _, r := range p.Help {
+		if r.Action != "" && p.row(r.Action).Help == "" {
+			problems = append(problems, "the help's action "+r.Action+" has no help")
 		}
 	}
 	return problems

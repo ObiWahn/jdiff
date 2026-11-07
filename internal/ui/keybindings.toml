@@ -1,74 +1,145 @@
-# The keys of all pages, for consulting, and the order of the settings: the popup and the help's
-# block of settings follow the rows of everywhere, by their first key (OrderSettings).
-# It binds no key: the code handles them, and the bindings in help.go are the help's text.
+# The keys of all pages, the words shown for them and the order of the settings.
+#
+# A row: action names what the keys do, and several rows may share one, keys are the keys, help
+# describes them. label is the word in the status bar, by the state of the action: [on, off], or one
+# word for an action without states. No word there means that the status bar leaves the key out; the
+# status bar's order is in statusKeys.
+#
+# An action is looked up in everywhere, diff_view, flow_view, commit_list and file_list, in this
+# order; the first row found gives the keys and the words.
+#
+# The rows of everywhere decide the order of the settings, by their first key (OrderSettings).
+# It binds no key yet: the code handles them.
 # doc/keybindings.md lists the same keys in the same order; TestKeybindingsDoc checks that.
 
-commit_list = [
-    { keys = ["j", "k"], what = "move" },
-    { keys = ["N", "P", "n", "p"], what = "next, previous commit in history" },
-    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f"], what = "page up, down" },
-    { keys = ["home", "end"], what = "first, last commit" },
-    { keys = ["enter"], what = "show the files of the commit" },
-    { keys = ["f"], what = "flow view of all commits" },
-]
-
-file_list = [
-    { keys = ["j", "k", "n", "p"], what = "move" },
-    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f"], what = "scroll the diff preview; page while it is hidden" },
-    { keys = ["home", "end"], what = "first, last file" },
-    { keys = ["enter"], what = "show the diff of the file" },
-    { keys = ["'<letter>"], what = "open the file of a jump mark" },
-    { keys = ["N", "P"], what = "next, previous commit in history (in the log)" },
-    { keys = ["f"], what = "flow view of all files" },
-    { keys = ["backspace"], what = "back to the commits (in the log)" },
+everywhere = [
+    { action = "marks", keys = ["\\"], help = "jump marks: enter jumps, d or del deletes" },
+    { action = "git_diff", keys = ["d"], label = ["git diff"], help = "popup: show git diff ARGS instead; ↑ the current ARGS, enter show" },
+    { action = "layout", keys = ["s"], label = ["unified", "split"], help = "side by side or normal layout, also of the preview" },
+    { action = "flow", keys = ["f"], label = ["file", "flow"], help = "flow view of all files or commits; in it, the single file view" },
+    { action = "untracked", keys = ["u"], help = "also show untracked files, in a git diff" },
+    { action = "wrap", keys = ["w"], help = "wrap long lines or cut them" },
+    { action = "whitespace", keys = ["W"], help = "show all whitespace and line ends or only changed" },
+    { action = "mark_whitespace", keys = ["ctrl+w"], help = "mark changed whitespace or not" },
+    { action = "trailing", keys = ["t"], help = "show trailing whitespace or not" },
+    { action = "line_ends", keys = ["e"], help = "show all \\r\\n line ends (␍) or only changed" },
+    { action = "bold", keys = ["b"], help = "bold or plain changed words" },
+    { action = "preview", keys = ["v"], help = "show or hide the message box or diff preview" },
+    { action = "settings", keys = ["o", "F8"], label = ["settings"], help = "a popup with these settings, to find them" },
+    { action = "reload", keys = ["r", "F5", "ctrl+r"], help = "load again: git diff, git log, the directories or the files" },
+    { action = "auto_reload", keys = ["R"], help = "auto reload: load again when the repository changes; off at each start" },
+    { action = "help", keys = ["?"], label = ["help"], help = "this help (? esc q close, j k scroll)" },
+    { action = "quit", keys = ["q", "ctrl+c"], label = ["quit"], help = "quit" },
 ]
 
 diff_view = [
-    { keys = ["enter"], what = "mark a line, then its partner: anchor; on an anchored line: remove the anchor" },
-    { keys = ["esc"], what = "cancel the mark" },
-    { keys = ["space", "ctrl+space"], what = "fold or unfold the nearest, all unchanged code" },
-    { keys = ["j", "k"], what = "move" },
-    { keys = ["pgup", "pgdn", "ctrl+b", "ctrl+f", "ctrl+u", "ctrl+d"], what = "page, half page" },
-    { keys = ["home", "end"], what = "top, bottom" },
-    { keys = ["h", "l"], what = "scroll left, right, unless lines are wrapped" },
-    { keys = ["]", "["], what = "next, previous change" },
-    { keys = ["n", "p"], what = "next, previous file" },
-    { keys = ["N", "P"], what = "next, previous commit in history (in the log)" },
-    { keys = ["tab"], what = "switch pane" },
-    { keys = ["/"], what = "search" },
-    { keys = [".", ","], what = "next, previous match" },
-    { keys = ["g"], what = "go to the other end of moved code" },
-    { keys = ["m<letter>"], what = "set a jump mark on the line of the new file" },
-    { keys = ["'<letter>"], what = "jump to a mark, when its file is in this diff" },
-    { keys = ["f"], what = "flow view" },
-    { keys = ["backspace"], what = "back to the file list; a commit of one file goes back to the commits" },
+    { action = "anchor", keys = ["enter"], label = ["mark/anchor"], help = "mark a line, then its partner: anchor" },
+    { action = "cancel_mark", keys = ["esc"], help = "cancel the mark" },
+    { action = "fold", keys = ["space"], help = "fold or unfold unchanged code" },
+    { action = "fold_all", keys = ["ctrl+space"], help = "fold or unfold all of the file" },
+    { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "page", keys = ["pgup", "pgdn"], help = "page up, down (also ctrl+b ctrl+f); the file list scrolls its preview" },
+    { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
+    { action = "half_page", keys = ["ctrl+u", "ctrl+d"], help = "half page up, down" },
+    { action = "ends", keys = ["home", "end"], help = "first, last; top, bottom" },
+    { action = "scroll", keys = ["h", "l"], help = "scroll left, right, unless lines are wrapped" },
+    { action = "change", keys = ["]", "["], help = "next, previous change" },
+    { action = "next_file", keys = ["n", "p"], help = "next, previous file; in the commit list commit" },
+    { action = "history", keys = ["N", "P"], label = ["commit"], help = "next, previous commit in history (in the log)" },
+    { action = "pane", keys = ["tab"], help = "switch pane" },
+    { action = "search", keys = ["/"], help = "search: enter find, tab changed or all lines, shift+tab text or regex" },
+    { action = "match", keys = [".", ","], help = "next, previous match; in the flow view in all files of the commit" },
+    { action = "moved", keys = ["g"], help = "go to the other end of moved code (magenta: moved away, cyan: moved here)" },
+    { action = "set_mark", keys = ["m<letter>"], help = "set a jump mark on the line of the new file" },
+    { action = "jump", keys = ["'<letter>"], help = "jump to a mark, when its file is in this diff" },
+    { action = "flow", keys = ["f"], help = "flow view" },
+    { action = "to_files", keys = ["backspace"], label = ["files"], help = "back to the file list; from it to the commits (in the log)" },
 ]
 
 # The keys of the diff view, and:
 flow_view = [
-    { keys = ["n", "p"], what = "next, previous file bar" },
-    { keys = ["N", "P"], what = "next, previous commit bar in history" },
-    { keys = ["f"], what = "single file view" },
-    { keys = ["c"], what = "full or short commit messages, in the log" },
-    { keys = ["C"], what = "stay in the current commit, in the log" },
+    { action = "next_file", keys = ["n", "p"], help = "next, previous file bar" },
+    { action = "history", keys = ["N", "P"], help = "next, previous commit bar in history" },
+    { action = "flow", keys = ["f"], help = "single file view" },
+    { action = "full_messages", keys = ["c"], help = "full or short commit messages" },
+    { action = "stay_in_commit", keys = ["C"], help = "stay in the current commit (N P still switch)" },
 ]
 
-everywhere = [
-    { keys = ["\\"], what = "jump marks" },
-    { keys = ["d"], what = "show another git diff" },
-    { keys = ["s"], what = "side by side or normal layout" },
-    { keys = ["f"], what = "flow view; in it, the single file view" },
-    { keys = ["u"], what = "in jdiff diff, also show untracked files" },
-    { keys = ["w"], what = "wrap long lines or cut them" },
-    { keys = ["W"], what = "show all whitespace and line ends or only changed" },
-    { keys = ["ctrl+w"], what = "mark changed whitespace or not" },
-    { keys = ["t"], what = "show trailing whitespace or not" },
-    { keys = ["e"], what = "show all \\r\\n line ends or only changed" },
-    { keys = ["b"], what = "bold or plain changed words" },
-    { keys = ["v"], what = "show or hide the message box or diff preview" },
-    { keys = ["o", "F8"], what = "settings popup" },
-    { keys = ["r", "F5", "ctrl+r"], what = "load again" },
-    { keys = ["R"], what = "auto reload" },
-    { keys = ["?"], what = "help" },
-    { keys = ["q", "ctrl+c"], what = "quit" },
+commit_list = [
+    { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "history", keys = ["N", "P"], help = "next, previous commit in history" },
+    { action = "history", keys = ["n", "p"], help = "next, previous commit in history" },
+    { action = "page", keys = ["pgup", "pgdn"], help = "page up, down" },
+    { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
+    { action = "ends", keys = ["home", "end"], help = "first, last commit" },
+    { action = "open", keys = ["enter"], label = ["open"], help = "show the files of the commit, the diff of the file" },
+    { action = "flow", keys = ["f"], help = "flow view of all commits" },
+]
+
+file_list = [
+    { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "move", keys = ["n", "p"], help = "move" },
+    { action = "page", keys = ["pgup", "pgdn"], help = "scroll the diff preview; page while it is hidden" },
+    { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "scroll the diff preview; page while it is hidden" },
+    { action = "ends", keys = ["home", "end"], help = "first, last file" },
+    { action = "open", keys = ["enter"], help = "show the diff of the file" },
+    { action = "jump", keys = ["'<letter>"], help = "open the file of a jump mark" },
+    { action = "history", keys = ["N", "P"], help = "next, previous commit in history (in the log)" },
+    { action = "flow", keys = ["f"], help = "flow view of all files" },
+    { action = "to_commits", keys = ["backspace"], label = ["commits"], help = "back to the commits (in the log)" },
+]
+
+# The lines of the help popup: an action gives its keys and its help; a heading stands alone, a note
+# goes on from the line above. The settings among them follow the order of everywhere.
+help = [
+    { heading = "Everywhere" },
+    { action = "move" },
+    { action = "ends" },
+    { action = "page" },
+    { action = "next_file" },
+    { action = "history" },
+    { action = "jump" },
+    { action = "marks" },
+    { action = "reload" },
+    { action = "auto_reload" },
+    { action = "git_diff" },
+    { note = "esc or backspace on nothing typed cancel" },
+    { action = "layout" },
+    { action = "flow" },
+    { action = "untracked" },
+    { action = "wrap" },
+    { action = "whitespace" },
+    { action = "mark_whitespace" },
+    { action = "trailing" },
+    { action = "line_ends" },
+    { action = "bold" },
+    { action = "preview" },
+    { action = "settings" },
+    { note = "j k move, enter or the letter toggles, o F8 esc q close" },
+    { note = "there also the minutes until auto reload ends: enter on it, type them; 0 never" },
+    { note = "s f u w W ctrl+w t e b v c C, the minutes, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml" },
+    { action = "help" },
+    { action = "to_files" },
+    { action = "quit" },
+    { heading = "Commit list and file list" },
+    { action = "open" },
+    { heading = "Diff and flow view" },
+    { action = "anchor" },
+    { note = "enter on an anchored line removes the anchor" },
+    { note = "normal layout: unchanged lines take the side opposite the mark" },
+    { action = "cancel_mark" },
+    { action = "fold" },
+    { action = "fold_all" },
+    { action = "half_page" },
+    { action = "scroll" },
+    { action = "change" },
+    { action = "pane" },
+    { action = "moved" },
+    { action = "set_mark" },
+    { action = "search" },
+    { note = "↑ ↓ earlier searches, esc or backspace on nothing typed cancel" },
+    { action = "match" },
+    { heading = "Flow view of the log" },
+    { action = "full_messages" },
+    { action = "stay_in_commit" },
 ]

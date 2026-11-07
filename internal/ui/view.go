@@ -97,9 +97,9 @@ func (d *fileDiff) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Styl
 // help returns the keys of the status bar: backspace and f when shown from a
 // file list, N/P in the log.
 func (m *Model) help() string {
-	k := barKeys{enter: "mark/anchor", commits: m.commitNav, flow: m.canBack}
+	k := barKeys{enter: "anchor", commits: m.commitNav, flow: m.canBack}
 	if m.canBack {
-		k.back = "files"
+		k.back = "to_files"
 	}
 	return statusKeys(m.cfg, k)
 }

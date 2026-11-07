@@ -792,7 +792,7 @@ func (a *App) frame() string {
 	}
 	k := barKeys{enter: "open", commits: a.inLog(), flow: true}
 	if a.inLog() {
-		k.back = "commits"
+		k.back = "to_commits"
 	}
 	hints := statusKeys(a.cfg, k)
 	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, pageStatus(a.cfg, a.msg, hints))

@@ -686,6 +686,7 @@ func TestKeyOrderProblems(t *testing.T) {
 		{table(rows + `{ keys = ["s"] },` + "\n"), "key s stands twice"},
 		{table(rows + `{ keys = ["x0"] },` + "\n"), "key x0 is not in the help"},
 		{table(strings.Replace(rows, `{ keys = ["t"] },`+"\n", "", 1)), "setting t is not in the table"},
+		{table(rows) + `help = [{ action = "x0" }]`, "action x0 has no help"},
 	} {
 		got := keyOrderProblems(c.text)
 		if len(got) != 1 || !strings.Contains(got[0], c.want) {
@@ -698,6 +699,44 @@ func TestKeyOrderProblems(t *testing.T) {
 func TestKeybindingsFile(t *testing.T) {
 	if problems := keyOrderProblems(keybindingsFile); len(problems) != 0 {
 		t.Errorf("keybindings.toml: %q", problems)
+	}
+}
+
+// A label past the end or empty is none, and so is an action without a row: the
+// status bar leaves the key out.
+func TestKeyLabel(t *testing.T) {
+	r := keyRow{Label: []string{"on", ""}}
+	for state, want := range []string{"on", "", ""} {
+		if got := r.label(state); got != want {
+			t.Errorf("state %d: label %q, want %q", state, got, want)
+		}
+	}
+	if got := keyFile.row("x0").label(0); got != "" {
+		t.Errorf("no row: label %q", got)
+	}
+}
+
+// The status bars, with the words of keybindings.toml.
+func TestStatusKeysWords(t *testing.T) {
+	cfg := config.Default()
+	cfg.Settings.Flow, cfg.Settings.SideBySide = false, true
+	rest := " · d git diff · o settings · ? help · q quit"
+	for _, c := range []struct {
+		k    barKeys
+		want string
+	}{
+		{barKeys{enter: "open", flow: true}, "enter open · f flow · s unified" + rest},
+		{barKeys{enter: "open", back: "to_commits", commits: true, flow: true}, "enter open · backspace commits · N/P commit · f flow · s unified" + rest},
+		{barKeys{enter: "anchor"}, "enter mark/anchor · s unified" + rest},
+		{barKeys{enter: "anchor", back: "to_files", flow: true}, "enter mark/anchor · backspace files · f flow · s unified" + rest},
+	} {
+		if got := statusKeys(cfg, c.k); got != c.want {
+			t.Errorf("%+v:\n got %q\nwant %q", c.k, got, c.want)
+		}
+	}
+	cfg.Settings.Flow, cfg.Settings.SideBySide = true, false
+	if got, want := statusKeys(cfg, barKeys{enter: "open", flow: true}), "enter open · f file · s split"+rest; got != want {
+		t.Errorf("switched:\n got %q\nwant %q", got, want)
 	}
 }
 

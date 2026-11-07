@@ -14,58 +14,24 @@ import (
 // binding is a key and what it does; a binding without key is a heading.
 type binding struct{ key, what string }
 
-// bindings lists the keys of all pages.
-var bindings = []binding{
-	{"", "Everywhere"},
-	{"j k", "move"},
-	{"home end", "first, last; top, bottom"},
-	{"pgup pgdn", "page up, down (also ctrl+b ctrl+f); the file list scrolls its preview"},
-	{"n p", "next, previous file; in the commit list commit"},
-	{"N P", "next, previous commit in history (in the log)"},
-	{"'<letter>", "jump to a mark, when its file is in this diff"},
-	{"\\", "jump marks: enter jumps, d or del deletes"},
-	{"r F5 ctrl+r", "load again: git diff, git log, the directories or the files"},
-	{"R", "auto reload: load again when the repository changes; off at each start"},
-	{"d", "popup: show git diff ARGS instead; ↑ the current ARGS, enter show"},
-	{"", "  esc or backspace on nothing typed cancel"},
-	{"s", "side by side or normal layout, also of the preview"},
-	{"f", "flow view of all files or commits; in it, the single file view"},
-	{"u", "also show untracked files, in a git diff"},
-	{"w", "wrap long lines or cut them"},
-	{"W", "show all whitespace and line ends or only changed"},
-	{"ctrl+w", "mark changed whitespace or not"},
-	{"t", "show trailing whitespace or not"},
-	{"e", "show all \\r\\n line ends (␍) or only changed"},
-	{"b", "bold or plain changed words"},
-	{"v", "show or hide the message box or diff preview"},
-	{"o F8", "a popup with these settings, to find them"},
-	{"", "  j k move, enter or the letter toggles, o F8 esc q close"},
-	{"", "  there also the minutes until auto reload ends: enter on it, type them; 0 never"},
-	{"", "  s f u w W ctrl+w t e b v c C, the minutes, and tab shift+tab of /, are saved in ~/.config/jdiff/state.toml"},
-	{"?", "this help (? esc q close, j k scroll)"},
-	{"backspace", "back to the file list; from it to the commits (in the log)"},
-	{"q ctrl+c", "quit"},
-	{"", "Commit list and file list"},
-	{"enter", "show the files of the commit, the diff of the file"},
-	{"", "Diff and flow view"},
-	{"enter", "mark a line, then its partner: anchor"},
-	{"", "  enter on an anchored line removes the anchor"},
-	{"", "  normal layout: unchanged lines take the side opposite the mark"},
-	{"esc", "cancel the mark"},
-	{"space", "fold or unfold unchanged code"},
-	{"ctrl+space", "fold or unfold all of the file"},
-	{"ctrl+u ctrl+d", "half page up, down"},
-	{"h l", "scroll left, right, unless lines are wrapped"},
-	{"] [", "next, previous change"},
-	{"tab", "switch pane"},
-	{"g", "go to the other end of moved code (magenta: moved away, cyan: moved here)"},
-	{"m<letter>", "set a jump mark on the line of the new file"},
-	{"/", "search: enter find, tab changed or all lines, shift+tab text or regex"},
-	{"", "  ↑ ↓ earlier searches, esc or backspace on nothing typed cancel"},
-	{". ,", "next, previous match; in the flow view in all files of the commit"},
-	{"", "Flow view of the log"},
-	{"c", "full or short commit messages"},
-	{"C", "stay in the current commit (N P still switch)"},
+// bindings lists the lines of the help popup, from keybindings.toml.
+var bindings = keyFile.bindings()
+
+// bindings returns the lines of the help popup.
+func (p keyPages) bindings() []binding {
+	var bs []binding
+	for _, h := range p.Help {
+		switch {
+		case h.Heading != "":
+			bs = append(bs, binding{"", h.Heading})
+		case h.Note != "":
+			bs = append(bs, binding{"", "  " + h.Note})
+		default:
+			r := p.row(h.Action)
+			bs = append(bs, binding{strings.Join(r.Keys, " "), r.Help})
+		}
+	}
+	return bs
 }
 
 // Help wraps the top-level model and shows the key bindings of all pages in
