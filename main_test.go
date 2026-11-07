@@ -29,6 +29,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// noRaceSleep keeps the race detector from waiting a second at the end of
+// each program the tests run, which it does to report late races.
+const noRaceSleep = "GORACE=atexit_sleep_ms=0"
+
 // runMain runs main with args in dir, without the user's configuration, and
 // returns its output and exit code.
 func runMain(t *testing.T, dir string, args ...string) (stdout, stderr string, code int) {
@@ -40,7 +44,7 @@ func runMain(t *testing.T, dir string, args ...string) (stdout, stderr string, c
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), runMainEnv+"=1", "XDG_CONFIG_HOME="+t.TempDir(), "DELTA_FEATURES=",
-		"GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
+		"GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", noRaceSleep)
 	var out, errOut strings.Builder
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	var exit *exec.ExitError
@@ -93,11 +97,65 @@ func TestDocPages(t *testing.T) {
 	}
 }
 
+// What the command line passes on: jdiff's flags before log and diff, and
+// all arguments after them to git, also those named like jdiff's.
+func TestCommandLine(t *testing.T) {
+	type started struct {
+		o    options
+		mode string
+		args []string
+	}
+	for _, c := range []struct {
+		args []string
+		want started
+	}{
+		{[]string{"x0", "x1"}, started{options{}, "", []string{"x0", "x1"}}},
+		{[]string{"--readme"}, started{options{readme: true}, "readme", []string{}}},
+		{[]string{"-u", "diff", "--cached", "-u"}, started{options{untracked: true}, "diff", []string{"--cached", "-u"}}},
+		{[]string{"--untracked", "diff"}, started{options{untracked: true}, "diff", []string{}}},
+		{[]string{"--features", "x0 x1", "log", "-20", "--readme"}, started{options{features: "x0 x1"}, "log", []string{"-20", "--readme"}}},
+		{[]string{"diff", "--help"}, started{options{}, "diff", []string{"--help"}}},
+	} {
+		var got *started
+		root := newRoot(func(o options, mode string, args []string) { got = &started{o, mode, args} })
+		root.SetArgs(c.args)
+		if err := root.Execute(); err != nil || got == nil || got.o != c.want.o || got.mode != c.want.mode ||
+			!slices.Equal(got.args, c.want.args) && len(got.args)+len(c.want.args) > 0 {
+			t.Errorf("%q: %+v, %v; want %+v", c.args, got, err, c.want)
+		}
+	}
+}
+
+// --help lists the flags as they are typed, with two dashes, and long names
+// with one dash are no flags.
+func TestMainHelp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	stdout, _, code := runMain(t, dir, "--help")
+	for _, want := range []string{"--version", "--readme", "-u, --untracked", "--features NAMES", "\n  jdiff [flags] OLD NEW\n" +
+		"  jdiff [flags] log [GIT LOG ARGS]\n  jdiff [flags] diff [GIT DIFF ARGS]\n"} {
+		if code != 0 || !strings.Contains(stdout, want) {
+			t.Errorf("--help: exit %d, lacks %q:\n%s", code, want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "[command]") {
+		t.Errorf("--help names [command]:\n%s", stdout)
+	}
+	for _, args := range [][]string{{"-version"}, {"-readme"}, {"-license"}} {
+		if _, stderr, code := runMain(t, dir, args...); code != 2 || !strings.Contains(stderr, "unknown shorthand flag") {
+			t.Errorf("%v: exit %d, stderr %.60q", args, code, stderr)
+		}
+	}
+	if _, stderr, _ := runMain(t, dir, "--readme", "x0"); !strings.HasPrefix(stderr, `jdiff: --readme takes no arguments, not "x0"`) {
+		t.Errorf("--readme x0: %.60q", stderr)
+	}
+}
+
 func TestMainUsage(t *testing.T) {
 	dir := t.TempDir()
 	for _, args := range [][]string{{}, {"x0"}, {"x0", "x1", "x2"}, {"--no-such-flag"}, {"--readme", "x0"}} {
 		stdout, stderr, code := runMain(t, dir, args...)
-		if code != 2 || stdout != "" || !strings.Contains(stderr, "usage: ") {
+		if code != 2 || stdout != "" || !strings.Contains(stderr, "Usage:") {
 			t.Errorf("%v: exit %d, stdout %q, stderr %.60q", args, code, stdout, stderr)
 		}
 	}
@@ -341,10 +399,18 @@ func licenseOf(dir string) (string, error) {
 // the same text, as GOROOT may lack it: Debian leaves it out.
 func thirdPartyLicenses(t *testing.T) string {
 	t.Helper()
-	out, err := exec.Command("go", "list", "-deps", "-f",
-		"{{with .Module}}{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}{{end}}", ".").Output()
-	if err != nil {
-		t.Fatalf("go list: %v", err)
+	// The releases are built for these systems, which link modules of their
+	// own: cobra uses mousetrap only on Windows.
+	var out []byte
+	for _, goos := range []string{"linux", "darwin", "windows"} {
+		cmd := exec.Command("go", "list", "-deps", "-f",
+			"{{with .Module}}{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}{{end}}", ".")
+		cmd.Env = append(os.Environ(), "GOOS="+goos, "CGO_ENABLED=0")
+		o, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("go list for %s: %v", goos, err)
+		}
+		out = append(out, o...)
 	}
 	// A module per line, path, version and directory, which may have spaces;
 	// the packages of the standard library give empty lines.
@@ -394,6 +460,9 @@ func TestThirdPartyLicenses(t *testing.T) {
 	}
 	if strings.Contains(want, "x/exp") {
 		t.Error("the license of golang.org/x/exp, which only the tests use")
+	}
+	if !strings.Contains(want, "==== github.com/inconshreveable/mousetrap v") {
+		t.Error("no license of mousetrap, which only the Windows build links")
 	}
 	// git may check it out with CRLF on Windows.
 	if strings.ReplaceAll(thirdParty, "\r\n", "\n") != want {

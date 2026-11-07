@@ -4,7 +4,6 @@ package main
 
 import (
 	"embed"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/term"
+	"github.com/spf13/cobra"
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
@@ -43,45 +43,108 @@ var docPages = []string{"README.md", "doc/usage.md", "doc/features.md", "doc/ins
 	"doc/keybindings.md", "doc/development.md"}
 
 func main() {
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	showLicense := flag.Bool("license", false, "print the license and those of the libraries and exit")
-	showReadme := flag.Bool("readme", false, "show the README and the documentation it links to; print the README\n"+
-		"as markdown when the output is no terminal")
-	var untracked bool
-	flag.BoolVar(&untracked, "untracked", false, "also show the untracked files in a git diff; u in the view switches\n"+
-		"them. Neither is saved")
-	flag.BoolVar(&untracked, "u", false, "short for --untracked")
-	features := flag.String("features", "",
-		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
-			"your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
-			"unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
-			"to them.")
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
-			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
-			"       %[1]s [--features NAMES] [-u|--untracked] diff [GIT DIFF ARGS]\n", os.Args[0])
-		flag.PrintDefaults()
-	}
-	flag.Parse()
-	if *showVersion {
-		fmt.Println(resolveVersion())
+	cmd, err := newRoot(start).ExecuteC()
+	if err == nil {
 		return
 	}
-	if *showLicense {
-		printLicense()
-		return
+	// The errors of running a view end in fatal; those left are of the
+	// command line, of the command cmd.
+	fmt.Fprintf(os.Stderr, "jdiff: %v\n\n%s", err, cmd.UsageString())
+	os.Exit(2)
+}
+
+// options are the flags of the command line.
+type options struct {
+	version, license, readme, untracked bool
+	features                            string
+}
+
+// newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
+// whose arguments go to git as they are. jdiff's flags come before log and
+// diff. It calls start with what to show, see start.
+func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
+	var o options
+	cobra.EnableCommandSorting = false // log, diff
+	root := &cobra.Command{
+		Use:   "jdiff [flags] OLD NEW",
+		Short: "An interactive diff viewer for the terminal, with manual line alignment",
+		Example: "  jdiff old.txt new.txt     compare two files, or two directories\n" +
+			"  jdiff log -20             browse the last 20 commits\n" +
+			"  jdiff -u diff HEAD        what git diff HEAD shows, and the untracked files",
+		Args: func(cmd *cobra.Command, args []string) error {
+			for _, f := range []struct {
+				on   bool
+				name string
+			}{{o.version, "version"}, {o.license, "license"}, {o.readme, "readme"}} {
+				if f.on && len(args) > 0 {
+					return fmt.Errorf("--%s takes no arguments, not %q", f.name, args[0])
+				}
+				if f.on {
+					return nil
+				}
+			}
+			return cobra.ExactArgs(2)(cmd, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mode := ""
+			switch {
+			case o.version:
+				fmt.Println(resolveVersion())
+				return nil
+			case o.license:
+				printLicense()
+				return nil
+			case o.readme:
+				mode = "readme"
+			}
+			start(o, mode, args)
+			return nil
+		},
+		SilenceErrors:    true,
+		SilenceUsage:     true,
+		TraverseChildren: true, // the flags before log and diff
 	}
-	mode := ""
-	switch {
-	case *showReadme:
-		mode = "readme"
-	case flag.NArg() > 0 && (flag.Arg(0) == "log" || flag.Arg(0) == "diff"):
-		mode = flag.Arg(0)
+	f := root.Flags()
+	f.BoolVar(&o.version, "version", false, "print the version")
+	f.BoolVar(&o.license, "license", false, "print the license and those of the libraries")
+	f.BoolVar(&o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
+		"when the output is no terminal")
+	f.BoolVarP(&o.untracked, "untracked", "u", false, "also show the untracked files in a git diff; u in the view switches them.\n"+
+		"Neither is saved")
+	f.StringVar(&o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
+		"sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
+		"which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
+		"leading + it adds to them.")
+	for _, c := range []struct{ name, use, short string }{
+		{"log", "log [GIT LOG ARGS]", "browse the commits that git log lists"},
+		{"diff", "diff [GIT DIFF ARGS]", "show the files that git diff shows"},
+	} {
+		root.AddCommand(&cobra.Command{
+			Use:                c.use,
+			Short:              c.short,
+			DisableFlagParsing: true, // all of them are git's
+			RunE: func(cmd *cobra.Command, args []string) error {
+				start(o, c.name, args)
+				return nil
+			},
+		})
 	}
-	if mode == "" && flag.NArg() != 2 || mode == "readme" && flag.NArg() > 0 {
-		flag.Usage()
-		os.Exit(2)
-	}
+	// A usage line for each command, jdiff's flags before log and diff, and
+	// no "jdiff [command] --help": the help of log and diff is git's.
+	usage := strings.Replace(root.UsageTemplate(), "\n  {{.CommandPath}} [command]{{end}}",
+		"{{range .Commands}}{{if .IsAvailableCommand}}\n  {{$.CommandPath}} {{if .DisableFlagParsing}}[flags] {{end}}{{.Use}}"+
+			"{{end}}{{end}}{{end}}", 1)
+	usage = strings.Replace(usage, "{{if .HasAvailableSubCommands}}\n\nUse \"{{.CommandPath}} [command] --help\" "+
+		"for more information about a command.{{end}}", "", 1)
+	root.SetUsageTemplate(usage)
+	root.SetHelpCommand(&cobra.Command{Hidden: true}) // --help does it
+	root.CompletionOptions.DisableDefaultCmd = true
+	return root
+}
+
+// start shows what mode asks for: the README, git log or git diff with the
+// git arguments args, or else the two files or directories of args.
+func start(o options, mode string, args []string) {
 	if mode == "readme" && !term.IsTerminal(os.Stdout.Fd()) {
 		src, err := docs.ReadFile(docPages[0])
 		if err != nil {
@@ -95,7 +158,7 @@ func main() {
 	if err != nil {
 		dir = "" // no home: defaults only
 	}
-	cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), *features)
+	cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), o.features)
 	if err != nil {
 		fatal(err)
 	}
@@ -103,7 +166,7 @@ func main() {
 	if err != nil {
 		repo = "" // not in a repository: marks with absolute paths
 	}
-	if untracked {
+	if o.untracked {
 		cfg.Settings.Untracked = true
 	}
 	cfg.LoadMarks(repo)
@@ -116,11 +179,11 @@ func main() {
 	var m tea.Model
 	switch mode {
 	case "log":
-		m, err = loadLog(cfg, flag.Args()[1:])
+		m, err = loadLog(cfg, args)
 	case "diff":
-		m, err = loadDiff(cfg, flag.Args()[1:])
+		m, err = loadDiff(cfg, args)
 	default:
-		m, err = load(cfg, flag.Arg(0), flag.Arg(1))
+		m, err = load(cfg, args[0], args[1])
 	}
 	if err != nil {
 		fatal(err)

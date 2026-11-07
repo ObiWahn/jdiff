@@ -10,6 +10,8 @@ jdiff --features NAMES ...    # delta features instead of delta.features, for th
 
 `jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and those of the libraries linked into it, `jdiff --readme` shows the README rendered, and the pages of the documentation its links lead to: `enter` follows the link on the cursor's line, `backspace` goes back. When the output is no terminal, it prints the README as markdown, without its badge.
 
+jdiff's flags come before `log` and `diff`: all arguments after them go to git as they are, so `jdiff -u diff` shows the untracked files and `jdiff diff -u` passes `-u` to `git diff`. `jdiff --help` lists the flags.
+
 ## Git aliases
 
 In `~/.gitconfig`: `git jd` takes the arguments of `git diff` (`git jd --cached`, `git jd main..topic`), `git jl` those of `git log`:
