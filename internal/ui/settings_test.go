@@ -610,14 +610,14 @@ func TestSettingsFlow(t *testing.T) {
 	}
 }
 
-// A README with its rows in another order, under the heading that counts; the
-// same keys under another heading do not count.
-const orderedReadme = "# x\n### File list\n| `w` | no |\n### Everywhere\n| Key | Action |\n|---|---|\n" +
+// A doc/keybindings.md with its rows in another order, under the heading that
+// counts; the same keys under another heading do not count.
+const orderedKeys = "# x\n### File list\n| `w` | no |\n### Everywhere\n| Key | Action |\n|---|---|\n" +
 	"| `\\` | jump marks |\n| `b` | bold |\n| `f` | flow |\n| `s` | layout |\n| `o` `F8` | popup |\n\n## Next\n| `t` | no |\n"
 
 func TestKeyRows(t *testing.T) {
 	want := []string{`\`, "b", "f", "s", "o"}
-	if got := keyRows(orderedReadme); !slices.Equal(got, want) {
+	if got := keyRows(orderedKeys); !slices.Equal(got, want) {
 		t.Errorf("keyRows: %q, want %q", got, want)
 	}
 }
@@ -626,7 +626,7 @@ func TestKeyRows(t *testing.T) {
 // stays where it is.
 func TestOrderSettings(t *testing.T) {
 	type o = settingOption
-	options, bs := orderSettings(keyRows(orderedReadme),
+	options, bs := orderSettings(keyRows(orderedKeys),
 		[]o{{key: "s"}, {key: "f"}, {key: "t"}, {key: "b"}, {key: "c", logFlow: true}, {what: "x0"}},
 		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"o F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
 	var keys []string
@@ -660,13 +660,13 @@ func TestKeyOrderProblems(t *testing.T) {
 	if got := KeyOrderProblems(table); len(got) != 0 {
 		t.Errorf("all there: %q", got)
 	}
-	for _, c := range []struct{ readme, want string }{
+	for _, c := range []struct{ doc, want string }{
 		{"# x\n", "no table"},
 		{table + "| `s` | again |\n", "key s stands twice"},
 		{table + "| `x0` | typo |\n", "key x0 is not in the help"},
 		{strings.Replace(table, "| `t` | x |\n", "", 1), "setting t is not in the table"},
 	} {
-		got := KeyOrderProblems(c.readme)
+		got := KeyOrderProblems(c.doc)
 		if len(got) != 1 || !strings.Contains(got[0], c.want) {
 			t.Errorf("%q: problems %q, want %q", c.want, got, c.want)
 		}

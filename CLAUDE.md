@@ -25,7 +25,7 @@
   2. a field in `theme.Theme` (`theme.go`), resolved in `Resolve`: with `style` and its default,
      or with `styleOrStyle` falling back to an existing style;
   3. a test in `theme_test.go`: the default, and the option set;
-  4. the option in the README's list of theme options.
+  4. the option in the list of theme options in `doc/config.md`.
 - After a change of colors, check that `internal/ui` sets none itself: no `lipgloss.Color`,
   `Foreground`, `Background` or escape sequences outside `internal/theme`.
 
@@ -36,15 +36,15 @@
   each page shows only those that work there, the other keys are in the help (?). The labels of
   f and s name what the key switches to, so pressing it changes only its own label. The anchors
   stand at the right end.
-- The README's table of keys under `### Everywhere` decides the order of the settings: the popup
-  and the help's block of settings follow it at startup (`ui.OrderSettings`). Change the order
-  there, not in `settingOptions` or `bindings`. A setting with a key of its own is a row of that
-  table, unless it works only in one view (`logFlow`); `TestReadmeKeyOrder` checks that. The status
-  bars keep their own order, above.
+- The table of keys under `### Everywhere` in `doc/keybindings.md` decides the order of the
+  settings: the popup and the help's block of settings follow it at startup (`ui.OrderSettings`).
+  Change the order there, not in `settingOptions` or `bindings`. A setting with a key of its own is
+  a row of that table, unless it works only in one view (`logFlow`); `TestKeybindingsOrder` checks
+  that. The status bars keep their own order, above.
 - The direction in history (N n next, P p previous, also with `--reverse`) is decided in one
   place only: `historyDir` and `historyOrder.step` in `internal/ui/messages.go`.
 - Toggles are fields of `settings.Toggles`, kept in `state.toml`; list a new one in the help's
-  line of saved toggles and in the README's example of `state.toml`.
+  line of saved toggles and in the example of `main.toml` in `doc/config.md`.
 
 ## Tests
 

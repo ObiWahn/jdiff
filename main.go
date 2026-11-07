@@ -27,6 +27,9 @@ var license string
 //go:embed README.md
 var readme string
 
+//go:embed doc/keybindings.md
+var keybindings string
+
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	showLicense := flag.Bool("license", false, "print the license and the dependencies and exit")
@@ -90,7 +93,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	ui.OrderSettings(readme)
+	ui.OrderSettings(keybindings)
 	// d replaces whatever is shown by the files of git diff, which runs in
 	// the current directory; the search bar and the popups are put around
 	// the new view too.

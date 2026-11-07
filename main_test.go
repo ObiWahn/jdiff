@@ -302,9 +302,9 @@ func TestReadmeBadge(t *testing.T) {
 	}
 }
 
-// The README decides the order of the settings: its table must fit them.
-func TestReadmeKeyOrder(t *testing.T) {
-	if problems := ui.KeyOrderProblems(readme); len(problems) != 0 {
-		t.Errorf("README: %q", problems)
+// doc/keybindings.md decides the order of the settings: its table must fit them.
+func TestKeybindingsOrder(t *testing.T) {
+	if problems := ui.KeyOrderProblems(keybindings); len(problems) != 0 {
+		t.Errorf("doc/keybindings.md: %q", problems)
 	}
 }

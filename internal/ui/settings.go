@@ -44,15 +44,16 @@ var settingOptions = []settingOption{
 	{what: "minutes without keys or changes until auto reload ends; 0 never", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
 }
 
-// keyRow matches a row of a table of keys in the README, with its first key.
+// keyRow matches a row of a table of keys in doc/keybindings.md, with its first
+// key.
 var keyRow = regexp.MustCompile("^\\| `([^`]+)`")
 
-// keyRows returns the first key of each row of the README's table of keys of
-// all pages, which decides the order of the settings.
-func keyRows(readme string) []string {
+// keyRows returns the first key of each row of the table of keys of all pages
+// in doc/keybindings.md, which decides the order of the settings.
+func keyRows(doc string) []string {
 	var keys []string
 	inTable := false
-	for _, line := range strings.Split(readme, "\n") {
+	for _, line := range strings.Split(doc, "\n") {
 		if strings.HasPrefix(line, "#") {
 			inTable = line == "### Everywhere"
 		} else if m := keyRow.FindStringSubmatch(line); inTable && m != nil {
@@ -63,8 +64,8 @@ func keyRows(readme string) []string {
 }
 
 // orderSettings returns options and bindings with the settings in the order of
-// keys. Options not in keys, as c and C, which the README lists with the flow
-// view, stay behind, as they are; the other bindings stay where they are.
+// keys. Options not in keys, as c and C, which doc/keybindings.md lists with the
+// flow view, stay behind, as they are; the other bindings stay where they are.
 func orderSettings(keys []string, options []settingOption, bs []binding) ([]settingOption, []binding) {
 	rank := func(k string) int {
 		if i := slices.Index(keys, k); i >= 0 {
@@ -94,16 +95,16 @@ func orderSettings(keys []string, options []settingOption, bs []binding) ([]sett
 }
 
 // OrderSettings puts the settings of the popup and the help in the order of
-// readme. Call it before the first view is drawn.
-func OrderSettings(readme string) {
-	settingOptions, bindings = orderSettings(keyRows(readme), settingOptions, bindings)
+// doc, the text of doc/keybindings.md. Call it before the first view is drawn.
+func OrderSettings(doc string) {
+	settingOptions, bindings = orderSettings(keyRows(doc), settingOptions, bindings)
 }
 
-// KeyOrderProblems returns what is wrong with readme's table of keys of all
-// pages: a key that does not exist or stands twice, a setting missing.
-func KeyOrderProblems(readme string) []string {
+// KeyOrderProblems returns what is wrong with doc's table of keys of all pages:
+// a key that does not exist or stands twice, a setting missing.
+func KeyOrderProblems(doc string) []string {
 	var problems []string
-	keys := keyRows(readme)
+	keys := keyRows(doc)
 	if len(keys) == 0 {
 		return []string{"no table of keys under ### Everywhere"}
 	}

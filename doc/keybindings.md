@@ -1,0 +1,142 @@
+# Key bindings
+
+`?` shows all key bindings in a popup.
+The table under [Everywhere](#everywhere) decides the order of the settings in that popup and in the settings popup (`o`).
+
+## By page
+
+### Commit list (`jdiff log`)
+
+| Key | Action |
+|---|---|
+| `j` `k` | move |
+| `N` `P`, `n` `p` | next, previous commit in history, also with `--reverse` |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
+| `home` `end` | first, last commit |
+| `enter` | show the files of the commit |
+| `f` | flow view of all commits |
+
+### File list
+
+| Key | Action |
+|---|---|
+| `j` `k`, `n` `p` | move |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
+| `home` `end` | first, last file |
+| `enter` | show the diff of the file |
+| `'`*letter* | open the file of a jump mark |
+| `N` `P` | next, previous commit in history (in the log) |
+| `f` | flow view of all files |
+| `backspace` | back to the commits (in the log) |
+
+### Diff view
+
+| Key | Action |
+|---|---|
+| `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
+| `esc` | cancel the mark |
+| `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
+| `j` `k` | move |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
+| `home` `end` | top, bottom |
+| `h` `l` | scroll left, right, unless lines are wrapped |
+| `]` `[` | next, previous change |
+| `n` `p` | next, previous file |
+| `N` `P` | next, previous commit in history (in the log) |
+| `tab` | switch pane |
+| `/` | [search](#search) |
+| `.` `,` | next, previous match |
+| `g` | go to the other end of moved code |
+| `m`*letter* | set a jump mark on the line of the new file |
+| `'`*letter* | jump to a mark, when its file is in this diff |
+| `f` | flow view |
+| `backspace` | back to the file list, also from the flow view; a commit of one file goes back to the commits |
+
+### Flow view
+
+The keys of the diff view, and:
+
+| Key | Action |
+|---|---|
+| `n` `p` | next, previous file bar |
+| `N` `P` | next, previous commit bar in history |
+| `f` | single file view |
+| `c` | full or short commit messages, in the log |
+| `C` | stay in the current commit, in the log (`N` `P` still switch) |
+
+### Everywhere
+
+| Key | Action |
+|---|---|
+| `\` | jump marks: `j` `k` move, `enter` jumps, `d` or `del` deletes, `esc` closes |
+| `d` | [show another `git diff`](#another-git-diff) |
+| `s` | side by side or normal layout, also of the preview |
+| `f` | flow view of all files or commits; in it, the single file view |
+| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); kept in `state.toml` |
+| `w` | wrap long lines or cut them |
+| `W` | show all whitespace and line ends or only changed |
+| `ctrl+w` | mark changed whitespace or not |
+| `t` | show trailing whitespace or not |
+| `e` | show all `\r\n` line ends (`␍`) or only changed |
+| `b` | bold or plain changed words |
+| `v` | show or hide the message box or diff preview |
+| `o` `F8` | [settings popup](#settings-popup) |
+| `r` `F5` `ctrl+r` | load again: run `git diff` or `git log` again, list the directories again or read the two files |
+| `R` | [auto reload](#auto-reload) |
+| `?` | help |
+| `q` `ctrl+c` | quit |
+
+## Details
+
+### Search
+
+`/` opens a bar at the bottom; type the text.
+
+- `tab` switches between changed lines (added, removed and moved; the default) and all lines.
+- `shift+tab` switches between plain text and a regular expression (Go syntax). Both choices are kept in `state.toml`.
+- `↑` `↓` go through the earlier searches of this session.
+- `enter` finds; `esc`, or `backspace` on nothing typed, cancels.
+
+Case is ignored unless the text holds a capital letter.
+Matches are highlighted; a match in folded code unfolds it, one beyond the pane's edge scrolls it into view.
+
+`.` and `,` go to the next and previous match; past the last or first one the cursor stays.
+They cover all files in the flow view, and in the log the files of the current commit: `N` `P` go to the other commits.
+
+### Another git diff
+
+`d` opens a popup that shows the files of `git diff ARGS` instead of what is shown, also instead of the log.
+Type ARGS, e.g. `--cached` or `HEAD~3 HEAD`.
+
+- `↑` brings the current ARGS to edit, while a `git diff` is shown.
+- `enter` shows; `esc`, or `enter` or `backspace` on nothing typed, cancels.
+- The popup grows with ARGS, up to the screen's width.
+- When git fails, the popup stays and says why.
+
+git runs in the directory jdiff was started in, also when it compares two directories or files.
+
+### Untracked files
+
+`u` also shows the untracked files that are not ignored, as added, and lists the files anew.
+It is kept in `state.toml`, so later runs show them too.
+
+- They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits.
+- Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`.
+- Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out.
+
+### Settings popup
+
+`o` or `F8` opens a popup with all the settings above, also `c` and `C` of the flow view, to find them.
+Only there can you set the minutes until auto reload ends, typed in a line after `enter` on them.
+
+- `j` `k` move; `enter`, `space` or the letter toggles, kept in `state.toml`.
+- The popup stays open; `o`, `F8`, `esc` or `q` close it.
+
+### Auto reload
+
+`R` loads again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff.
+The status bar says `auto reload` while it is on.
+
+- It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch. So new files and edits of files not yet in the diff take up to that long.
+- After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands.
+- It is not saved: off at each start.
