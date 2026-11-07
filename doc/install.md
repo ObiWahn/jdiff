@@ -17,7 +17,7 @@ The cask installs a prebuilt binary; Go is not needed.
 Download the package for your distribution from the [upstream releases](https://github.com/ObiWahn/jdiff/releases) and install it; it pulls in git:
 
 ```sh
-sudo apt install ./jdiff_<version>_amd64.deb               # Debian, Ubuntu
+sudo apt install ./jdiff_<version>_amd64.deb                # Debian, Ubuntu
 sudo dnf install ./jdiff-<version>-1.x86_64.rpm             # Fedora, RHEL
 sudo apk add --allow-untrusted ./jdiff_<version>_x86_64.apk # Alpine
 sudo pacman -U ./jdiff-<version>-1-x86_64.pkg.tar.zst       # Arch
