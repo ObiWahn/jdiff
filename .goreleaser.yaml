@@ -1,6 +1,11 @@
 version: 2
 project_name: jdiff
 
+before:
+  hooks:
+    # The completion scripts that the archives and packages carry.
+    - sh -c 'mkdir -p completions && for s in bash zsh fish; do go run . completion "$s" > "completions/jdiff.$s"; done'
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -22,6 +27,9 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    # In place of the default files: the licenses, the README and the
+    # completion scripts.
+    files: [LICENSE*, README*, completions/*]
   - id: binary
     formats: [binary]
     name_template: *name_template
@@ -31,6 +39,10 @@ homebrew_casks:
     homepage: &homepage https://github.com/ObiWahn/jdiff
     description: &description Interactive terminal diff viewer with manual line alignment
     skip_upload: auto
+    completions:
+      bash: completions/jdiff.bash
+      zsh: completions/jdiff.zsh
+      fish: completions/jdiff.fish
     repository: &repository
       owner: ObiWahn
       name: jdiff
@@ -57,6 +69,23 @@ nfpms:
         dst: /usr/share/licenses/jdiff/LICENSE
       - src: LICENSE-THIRD-PARTY
         dst: /usr/share/licenses/jdiff/LICENSE-THIRD-PARTY
+      - src: completions/jdiff.bash
+        dst: /usr/share/bash-completion/completions/jdiff
+      - src: completions/jdiff.fish
+        dst: /usr/share/fish/vendor_completions.d/jdiff.fish
+      # zsh looks in vendor-completions on Debian, in site-functions elsewhere.
+      - src: completions/jdiff.zsh
+        dst: /usr/share/zsh/vendor-completions/_jdiff
+        packager: deb
+      - src: completions/jdiff.zsh
+        dst: /usr/share/zsh/site-functions/_jdiff
+        packager: rpm
+      - src: completions/jdiff.zsh
+        dst: /usr/share/zsh/site-functions/_jdiff
+        packager: apk
+      - src: completions/jdiff.zsh
+        dst: /usr/share/zsh/site-functions/_jdiff
+        packager: archlinux
 
 scoops:
   - ids: [archive]

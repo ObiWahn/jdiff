@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,7 +134,7 @@ func TestMainHelp(t *testing.T) {
 	dir := t.TempDir()
 	stdout, _, code := runMain(t, dir, "--help")
 	for _, want := range []string{"--version", "--readme", "-u, --untracked", "--features NAMES", "\n  jdiff [flags] OLD NEW\n" +
-		"  jdiff [flags] log [GIT LOG ARGS]\n  jdiff [flags] diff [GIT DIFF ARGS]\n"} {
+		"  jdiff [flags] log [GIT LOG ARGS]\n  jdiff [flags] diff [GIT DIFF ARGS]\n  jdiff completion bash|zsh|fish\n"} {
 		if code != 0 || !strings.Contains(stdout, want) {
 			t.Errorf("--help: exit %d, lacks %q:\n%s", code, want, stdout)
 		}
@@ -148,6 +149,112 @@ func TestMainHelp(t *testing.T) {
 	}
 	if _, stderr, _ := runMain(t, dir, "--readme", "x0"); !strings.HasPrefix(stderr, `jdiff: --readme takes no arguments, not "x0"`) {
 		t.Errorf("--readme x0: %.60q", stderr)
+	}
+}
+
+// The completion scripts: cobra's, and after log and diff git's.
+func TestCompletionScripts(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for shell, want := range map[string][]string{
+		"bash": {"__start_jdiff()", "__git_func_wrap \"_git_${COMP_WORDS[0]}\"", "complete -o default -F __jdiff_complete jdiff"},
+		// zsh: jdiff bound to _jdiff, which calls cobra's renamed one.
+		"zsh":  {"#compdef jdiff\ncompdef _jdiff jdiff\n", "\n_jdiff_cobra()\n", "\n_jdiff()\n", "\n                _git\n"},
+		"fish": {"function __jdiff_perform_completion", "functions -c __jdiff_prepare_completions", "complete -C"},
+	} {
+		stdout, _, code := runMain(t, dir, "completion", shell)
+		for _, w := range want {
+			if code != 0 || !strings.Contains(stdout, w) {
+				t.Errorf("completion %s: exit %d, lacks %q", shell, code, w)
+			}
+		}
+	}
+	if _, stderr, code := runMain(t, dir, "completion", "x0"); code != 2 || !strings.Contains(stderr, "Usage:\n  jdiff completion bash|zsh|fish") ||
+		strings.Contains(stderr, "OLD NEW") {
+		t.Errorf("completion x0: exit %d, stderr %q", code, stderr)
+	}
+}
+
+// What cobra completes, which the scripts ask jdiff for: the commands and
+// the flags, before log and diff.
+func TestComplete(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for _, c := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"__complete", ""}, []string{"log\t", "diff\t", "completion\t"}},
+		{[]string{"__complete", "--"}, []string{"--readme\t", "--untracked\t", "--features\t", "--version\t"}},
+		{[]string{"__complete", "completion", ""}, []string{"bash\n", "zsh\n", "fish\n"}},
+	} {
+		stdout, _, code := runMain(t, dir, c.args...)
+		for _, w := range c.want {
+			if code != 0 || !strings.Contains(stdout, w) {
+				t.Errorf("%q: exit %d, lacks %q:\n%s", c.args, code, w, stdout)
+			}
+		}
+	}
+}
+
+// The bash script completes jdiff's flags and commands as cobra does, and
+// after log and diff as git does, also after jdiff's flags. It needs bash,
+// bash-completion and git's completion.
+func TestBashCompletion(t *testing.T) {
+	const bashCompletion = "/usr/share/bash-completion/bash_completion"
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash")
+	}
+	for _, f := range []string{bashCompletion, "/usr/share/bash-completion/completions/git"} {
+		if _, err := os.Stat(f); err != nil {
+			t.Skipf("no %s", f)
+		}
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// jdiff, which the script calls for cobra's completions: this test binary.
+	bin := t.TempDir()
+	write(t, filepath.Join(bin, "jdiff"), "#!/bin/sh\n"+runMainEnv+"=1 exec '"+exe+"' \"$@\"\n")
+	if err := os.Chmod(filepath.Join(bin, "jdiff"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newRepo(t) // branches to complete
+	git(t, "branch", "x0-branch")
+	// One bash for all lines, as each jdiff it starts is slow with -race: for
+	// each line its completions, then an empty line.
+	script := `source ` + bashCompletion + `
+source <(jdiff completion bash)
+for line; do
+    COMP_LINE=$line COMP_POINT=${#line}
+    read -ra COMP_WORDS <<<"$line"
+    COMP_CWORD=$((${#COMP_WORDS[@]} - 1))
+    COMPREPLY=()
+    __jdiff_complete 2>/dev/null
+    printf '%s\n' "${COMPREPLY[@]}" ""
+done`
+	cases := map[string]string{
+		"jdiff diff --ca":               "--cached ",
+		"jdiff -u diff --ca":            "--cached ",
+		"jdiff --features x0 diff --ca": "--cached ",
+		"jdiff log --onel":              "--oneline ",
+		"jdiff diff x0-b":               "x0-branch ",
+		"jdiff --rea":                   "--readme",
+		"jdiff comp":                    "completion",
+	}
+	lines := slices.Sorted(maps.Keys(cases))
+	cmd := exec.Command("bash", append([]string{"--norc", "--noprofile", "-c", script, "bash"}, lines...)...)
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), noRaceSleep)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	got := strings.Split(strings.TrimSuffix(string(out), "\n\n"), "\n\n")
+	for i, line := range lines {
+		if i >= len(got) || !slices.Contains(strings.Split(got[i], "\n"), cases[line]) {
+			t.Errorf("%q: completions %q; want %q", line, got, cases[line])
+		}
 	}
 }
 

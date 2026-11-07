@@ -46,3 +46,15 @@ jdiff needs Go 1.24 or newer:
 make build        # builds bin/jdiff
 go install .      # or install it into $GOBIN
 ```
+
+## Shell completion
+
+`jdiff` completes its flags and commands in bash, zsh and fish; after `log` and `diff` it completes as `git log` and `git diff` do, when git's completion is installed.
+The Homebrew cask and the Linux packages install the completion scripts, and the archives carry them in `completions/`.
+Otherwise, or after `go install`, load the script that `jdiff completion` prints:
+
+```sh
+source <(jdiff completion bash)    # bash, in ~/.bashrc
+source <(jdiff completion zsh)     # zsh, in ~/.zshrc after compinit
+jdiff completion fish | source     # fish, in ~/.config/fish/config.fish
+```

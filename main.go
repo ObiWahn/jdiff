@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -64,7 +66,7 @@ type options struct {
 // diff. It calls start with what to show, see start.
 func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 	var o options
-	cobra.EnableCommandSorting = false // log, diff
+	cobra.EnableCommandSorting = false // log, diff, completion
 	root := &cobra.Command{
 		Use:   "jdiff [flags] OLD NEW",
 		Short: "An interactive diff viewer for the terminal, with manual line alignment",
@@ -129,6 +131,21 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 			},
 		})
 	}
+	root.AddCommand(&cobra.Command{
+		Use:   "completion bash|zsh|fish",
+		Short: "print the script that completes jdiff's arguments in the shell",
+		Long: "Prints the script that completes jdiff's flags and arguments in the shell; after log and diff\n" +
+			"it completes as git does, when git's completion is installed. To use it, e.g.:\n\n" +
+			"  bash: source <(jdiff completion bash)       in ~/.bashrc\n" +
+			"  zsh:  source <(jdiff completion zsh)        in ~/.zshrc, after compinit\n" +
+			"  fish: jdiff completion fish | source        in ~/.config/fish/config.fish\n\n" +
+			"The packages install it, so that this is not needed.",
+		ValidArgs: []string{"bash", "zsh", "fish"},
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return printCompletion(cmd.OutOrStdout(), cmd.Root(), args[0])
+		},
+	})
 	// A usage line for each command, jdiff's flags before log and diff, and
 	// no "jdiff [command] --help": the help of log and diff is git's.
 	usage := strings.Replace(root.UsageTemplate(), "\n  {{.CommandPath}} [command]{{end}}",
@@ -138,8 +155,45 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 		"for more information about a command.{{end}}", "", 1)
 	root.SetUsageTemplate(usage)
 	root.SetHelpCommand(&cobra.Command{Hidden: true}) // --help does it
-	root.CompletionOptions.DisableDefaultCmd = true
+	root.CompletionOptions.DisableDefaultCmd = true   // the one above
 	return root
+}
+
+// shellParts holds what printCompletion adds to cobra's scripts, git.bash,
+// git.zsh and git.fish: after log and diff, git's completion takes over.
+//
+//go:embed shell
+var shellParts embed.FS
+
+// printCompletion writes the completion script of root for shell to w:
+// cobra's, then its part of shellParts. zsh calls a completion function by
+// the name of its file, _jdiff, so cobra's _jdiff is renamed for the one of
+// shellParts to call; jdiff stays bound to _jdiff.
+func printCompletion(w io.Writer, root *cobra.Command, shell string) error {
+	var b bytes.Buffer
+	var err error
+	switch shell {
+	case "bash":
+		err = root.GenBashCompletionV2(&b, true)
+	case "zsh":
+		err = root.GenZshCompletion(&b)
+	case "fish":
+		err = root.GenFishCompletion(&b, true)
+	}
+	if err != nil {
+		return err
+	}
+	script := b.String()
+	if shell == "zsh" {
+		script = strings.ReplaceAll(script, "_jdiff", "_jdiff_cobra")
+		script = strings.Replace(script, "compdef _jdiff_cobra jdiff", "compdef _jdiff jdiff", 1)
+	}
+	part, err := shellParts.ReadFile("shell/git." + shell)
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(w, script+"\n"+string(part))
+	return err
 }
 
 // start shows what mode asks for: the README, git log or git diff with the
