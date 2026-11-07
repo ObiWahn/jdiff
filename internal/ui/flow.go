@@ -806,14 +806,9 @@ func (f *Flow) scrollToCursor() {
 	f.top = scrollWindow(f.cursor, f.top, f.bodyHeight(), len(f.rows))
 }
 
-// help returns the keys of the status bar, in the order of all pages.
+// help returns the keys of the status bar.
 func (f *Flow) help() string {
-	keys := []string{"enter mark/anchor", "backspace files", "space fold", "]/[ change", "/ search", "n/p file"}
-	if f.inLog() {
-		keys = append(keys, "N/P commit")
-	}
-	keys = append(keys, "f single file", "d git diff", "o settings", "? help", "q quit")
-	return strings.Join(keys, " · ")
+	return statusKeys(f.cfg, barKeys{enter: "mark/anchor", back: "files", commits: f.inLog(), flow: true})
 }
 
 func (f *Flow) View() tea.View { return tea.NewView(f.frame()) }

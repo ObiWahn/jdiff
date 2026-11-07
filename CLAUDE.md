@@ -31,9 +31,11 @@
 
 ## Keys and status bars
 
-- The status bars list their keys in one order on all pages:
-  enter · backspace · space · ]/[ · / · n/p · N/P · f · d · o · ? · q;
-  each page shows only the keys that work there. The anchors stand at the right end.
+- The status bars are short and come from `statusKeys`, in one order on all pages:
+  enter · backspace · N/P · f · s · d · o · ? · q;
+  each page shows only those that work there, the other keys are in the help (?). The labels of
+  f and s name what the key switches to, so pressing it changes only its own label. The anchors
+  stand at the right end.
 - The README's table of keys under `### Everywhere` decides the order of the settings: the popup
   and the help's block of settings follow it at startup (`ui.OrderSettings`). Change the order
   there, not in `settingOptions` or `bindings`. A setting with a key of its own is a row of that

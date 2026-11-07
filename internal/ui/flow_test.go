@@ -585,9 +585,15 @@ func TestFlowOffInList(t *testing.T) {
 	if a.open != nil || !a.cfg.Settings.Flow {
 		t.Fatalf("backspace: open %v, flow %v; want the list with flow on", a.open, a.cfg.Settings.Flow)
 	}
+	if v := ansi.Strip(a.frame()); !strings.Contains(v, " · f file · ") {
+		t.Errorf("flow on, the bar should offer the single file view:\n%s", v)
+	}
 	pressApp(a, "f")
-	if a.cfg.Settings.Flow || a.msg != "flow off" || a.open != nil {
+	if a.cfg.Settings.Flow || a.msg != "" || a.open != nil {
 		t.Errorf("f: flow %v, msg %q, open %v; want the list with flow off", a.cfg.Settings.Flow, a.msg, a.open)
+	}
+	if v := ansi.Strip(a.frame()); !strings.Contains(v, " · f flow · ") {
+		t.Errorf("flow off, the bar should offer the flow view:\n%s", v)
 	}
 }
 

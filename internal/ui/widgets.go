@@ -63,6 +63,39 @@ func pageStatus(cfg *config.Config, msg, hints string) string {
 	return statusText(cfg.Theme, msg, hints)
 }
 
+// barKeys says what differs between the status bars of the pages.
+type barKeys struct {
+	enter   string // what enter does
+	back    string // what backspace does, "" when it does nothing
+	commits bool   // N and P switch commits
+	flow    bool   // f switches between the flow and the single file view
+}
+
+// statusKeys returns the keys of the status bar of a page, the same on all of
+// them, in one order, so that a key that switches what is shown changes only
+// its own label: f and s name what they switch to. All other keys are in the
+// help.
+func statusKeys(cfg *config.Config, k barKeys) string {
+	keys := []string{"enter " + k.enter}
+	if k.back != "" {
+		keys = append(keys, "backspace "+k.back)
+	}
+	if k.commits {
+		keys = append(keys, "N/P commit")
+	}
+	if k.flow && cfg.Settings.Flow {
+		keys = append(keys, "f file")
+	} else if k.flow {
+		keys = append(keys, "f flow")
+	}
+	if cfg.Settings.SideBySide {
+		keys = append(keys, "s unified")
+	} else {
+		keys = append(keys, "s split")
+	}
+	return strings.Join(append(keys, "d git diff", "o settings", "? help", "q quit"), " · ")
+}
+
 // minBoxHeight fits the borders and one line.
 const minBoxHeight = 3
 

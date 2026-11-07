@@ -299,7 +299,6 @@ func (l *Log) toggleFlow() {
 	}
 	st.Flow = false
 	if l.open == nil {
-		l.msg = "flow off"
 		return
 	}
 	if l.files { // the file list stays
@@ -534,7 +533,7 @@ func (l *Log) frame() string {
 			st(lipgloss.NewStyle()).Render(subject) + "  " + st(t.Decoration).Render(author) + "  " +
 			st(t.Decoration).Render(c.Date)
 	}
-	hints := "enter open · f flow · d git diff · o settings · ? help · q quit"
+	hints := statusKeys(l.cfg, barKeys{enter: "open", flow: true})
 	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, pageStatus(l.cfg, l.msg, hints))
 }
 

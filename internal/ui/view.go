@@ -94,25 +94,14 @@ func (d *fileDiff) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Styl
 	return t.Plus, t.PlusNonEmph, t.PlusEmph, t.PlusIndent
 }
 
-// help returns the keys of the status bar, in the order of all pages:
-// backspace, n/p and f when shown from a file list, N/P in the log.
+// help returns the keys of the status bar: backspace and f when shown from a
+// file list, N/P in the log.
 func (m *Model) help() string {
-	keys := []string{"enter mark/anchor"}
+	k := barKeys{enter: "mark/anchor", commits: m.commitNav, flow: m.canBack}
 	if m.canBack {
-		keys = append(keys, "backspace files")
+		k.back = "files"
 	}
-	keys = append(keys, "space fold", "]/[ change", "/ search")
-	if m.canBack {
-		keys = append(keys, "n/p file")
-	}
-	if m.commitNav {
-		keys = append(keys, "N/P commit")
-	}
-	if m.canBack {
-		keys = append(keys, "f flow")
-	}
-	keys = append(keys, "d git diff", "o settings")
-	return strings.Join(append(keys, "? help", "q quit"), " · ")
+	return statusKeys(m.cfg, k)
 }
 
 func (m *Model) View() tea.View { return tea.NewView(m.frame()) }

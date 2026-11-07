@@ -889,10 +889,10 @@ func TestStatusBarKeys(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{nil, "enter open · f flow · d git diff · o settings · ? help · q quit"},
-		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · d git diff · o settings · ? help · q quit"},
-		{[]string{"enter"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f flow · d git diff · o settings · ? help · q quit"},
-		{[]string{"f"}, "enter mark/anchor · backspace files · space fold · ]/[ change · / search · n/p file · N/P commit · f single file · d git diff · o settings · ? help · q quit"},
+		{nil, "enter open · f flow · s unified · d git diff · o settings · ? help · q quit"},
+		{[]string{"enter"}, "enter open · backspace commits · N/P commit · f flow · s unified · d git diff · o settings · ? help · q quit"},
+		{[]string{"enter"}, "enter mark/anchor · backspace files · N/P commit · f flow · s unified · d git diff · o settings · ? help · q quit"},
+		{[]string{"f"}, "enter mark/anchor · backspace files · N/P commit · f file · s unified · d git diff · o settings · ? help · q quit"},
 	} {
 		pressLog(l, tt.keys...)
 		if got := status(); !strings.HasPrefix(got, tt.want) {
@@ -904,9 +904,14 @@ func TestStatusBarKeys(t *testing.T) {
 	if got := status(); !strings.HasSuffix(got, "row 1/1 · anchors 0") {
 		t.Errorf("diff view status %q, want the anchors last", got)
 	}
-	// Two files, without a list: neither n/p, N/P, f nor backspace.
+	// The label of s names the layout it switches to.
+	l.cfg.Settings.SideBySide = false
+	if got := status(); !strings.Contains(got, " · f flow · s split · d git diff") {
+		t.Errorf("normal layout: %q", got)
+	}
+	// Two files, without a list: neither N/P, f nor backspace.
 	m := newTestModel([]string{"a"}, []string{"b"})
-	if got := m.help(); got != "enter mark/anchor · space fold · ]/[ change · / search · d git diff · o settings · ? help · q quit" {
+	if got := m.help(); got != "enter mark/anchor · s unified · d git diff · o settings · ? help · q quit" {
 		t.Errorf("two files: %q", got)
 	}
 }
@@ -984,7 +989,7 @@ func TestCommitListHistoryKeys(t *testing.T) {
 func TestStatusBarOneColor(t *testing.T) {
 	l, _ := newTestLog()
 	hint := l.cfg.Theme.Hint
-	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · d git diff · o settings · ? help · q quit")) {
+	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · s unified · d git diff · o settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
 	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {
@@ -998,9 +1003,15 @@ func TestLogFlowOffInCommits(t *testing.T) {
 	if l.open != nil || !l.cfg.Settings.Flow {
 		t.Fatalf("backspace twice: open %v, flow %v; want the commits with flow on", l.open, l.cfg.Settings.Flow)
 	}
+	if v := ansi.Strip(l.frame()); !strings.Contains(v, " · f file · ") {
+		t.Errorf("flow on, the bar should offer the single file view:\n%s", v)
+	}
 	pressLog(l, "f")
-	if l.cfg.Settings.Flow || l.msg != "flow off" || l.open != nil {
+	if l.cfg.Settings.Flow || l.msg != "" || l.open != nil {
 		t.Errorf("f: flow %v, msg %q, open %v; want the commits with flow off", l.cfg.Settings.Flow, l.msg, l.open)
+	}
+	if v := ansi.Strip(l.frame()); !strings.Contains(v, " · f flow · ") {
+		t.Errorf("flow off, the bar should offer the flow view:\n%s", v)
 	}
 }
 

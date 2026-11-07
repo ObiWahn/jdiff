@@ -613,7 +613,6 @@ func (a *App) toggleFlow() {
 	}
 	st.Flow = false
 	if a.open == nil {
-		a.msg = "flow off"
 		return
 	}
 	_, file, line := a.flow.position()
@@ -791,9 +790,10 @@ func (a *App) frame() string {
 		lbl := st(lipgloss.NewStyle()).Render(" " + pad(e.label(t), lblW, lipgloss.NewStyle()) + " ")
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	hints := "enter open · f flow · d git diff · o settings · ? help · q quit"
+	k := barKeys{enter: "open", commits: a.inLog(), flow: true}
 	if a.inLog() {
-		hints = "enter open · backspace commits · N/P commit · f flow · d git diff · o settings · ? help · q quit"
+		k.back = "commits"
 	}
+	hints := statusKeys(a.cfg, k)
 	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, pageStatus(a.cfg, a.msg, hints))
 }
