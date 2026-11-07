@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,7 +57,7 @@ func TestMainPrints(t *testing.T) {
 		check func(string) bool
 	}{
 		{"--version", func(s string) bool { return s == "dev\n" }}, // go test embeds no version
-		{"--license", func(s string) bool { return strings.HasPrefix(s, license) }},
+		{"--license", func(s string) bool { return strings.HasPrefix(s, license) && strings.HasSuffix(s, thirdParty) }},
 		{"--readme", func(s string) bool { return s == withoutBadges(readme) }},
 	} {
 		stdout, _, code := runMain(t, dir, c.arg)
@@ -283,6 +285,93 @@ func TestWithoutBadges(t *testing.T) {
 		if got := withoutBadges(c.in); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+var update = flag.Bool("update", false, "write "+thirdPartyFile+" instead of checking it (make licenses)")
+
+const thirdPartyFile = "LICENSE-THIRD-PARTY"
+
+// licenseOf returns the text of the license file in dir: LICENSE, LICENCE
+// or COPYING, with any extension.
+func licenseOf(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		name := strings.ToUpper(e.Name())
+		if !e.IsDir() && (strings.HasPrefix(name, "LICENSE") || strings.HasPrefix(name, "LICENCE") || strings.HasPrefix(name, "COPYING")) {
+			b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			return strings.TrimRight(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n") + "\n", err
+		}
+	}
+	return "", errors.New(dir + ": no license file")
+}
+
+// thirdPartyLicenses returns the licenses of what is linked into jdiff: the
+// modules of the packages main imports, not those only the tests use, and
+// first the Go standard library. Its license is that of golang.org/x/sys,
+// the same text, as GOROOT may lack it: Debian leaves it out.
+func thirdPartyLicenses(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command("go", "list", "-deps", "-f",
+		"{{with .Module}}{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}{{end}}", ".").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	// A module per line, path, version and directory, which may have spaces;
+	// the packages of the standard library give empty lines.
+	var mods [][]string
+	for _, line := range slices.Compact(slices.Sorted(slices.Values(strings.Split(string(out), "\n")))) {
+		if line != "" {
+			mods = append(mods, strings.Split(line, "\t"))
+		}
+	}
+	var b strings.Builder
+	block := func(heading, dir string) {
+		text, err := licenseOf(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString("==== " + heading + " ====\n\n" + text)
+	}
+	sys := slices.IndexFunc(mods, func(m []string) bool { return m[0] == "golang.org/x/sys" })
+	if sys < 0 {
+		t.Fatal("golang.org/x/sys is not linked, whose license stands for Go's")
+	}
+	block("Go standard library and runtime", mods[sys][2])
+	for _, m := range mods {
+		block(m[0]+" "+m[1], m[2])
+	}
+	return b.String()
+}
+
+// LICENSE-THIRD-PARTY, which --license prints and the packages ship, holds
+// the licenses of all linked modules, as they require for a binary. After a
+// change of dependencies, make licenses writes it again.
+func TestThirdPartyLicenses(t *testing.T) {
+	want := thirdPartyLicenses(t)
+	if *update {
+		if err := os.WriteFile(thirdPartyFile, []byte(want), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	for _, s := range []string{"==== Go standard library and runtime ====\n\nCopyright", "==== github.com/BurntSushi/toml v"} {
+		if !strings.Contains(want, s) {
+			t.Errorf("no %q", s)
+		}
+	}
+	if strings.Contains(want, "x/exp") {
+		t.Error("the license of golang.org/x/exp, which only the tests use")
+	}
+	// git may check it out with CRLF on Windows.
+	if strings.ReplaceAll(thirdParty, "\r\n", "\n") != want {
+		t.Errorf("%s is not up to date with the dependencies: run make licenses", thirdPartyFile)
 	}
 }
 

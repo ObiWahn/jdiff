@@ -10,7 +10,7 @@ RACE_TIMEOUT ?= 40s
 # go install golang.org/x/vuln/cmd/govulncheck@latest
 GOVULNCHECK  ?= $(shell go env GOPATH)/bin/govulncheck
 
-.PHONY: all build test test-race cover tag vet vuln fmt fmt-check clean
+.PHONY: all build test test-race cover licenses tag vet vuln fmt fmt-check clean
 
 all: build
 
@@ -39,6 +39,11 @@ cover: | $(BUILD_DIR)/
 	go tool cover -func=$(BUILD_DIR)/coverage.out >> $(BUILD_DIR)/coverage.txt
 	tail -n 1 $(BUILD_DIR)/coverage.txt | tee -a $(BUILD_DIR)/cover.log
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+
+# Writes LICENSE-THIRD-PARTY, the licenses of the linked modules, after a
+# change of dependencies; make test fails until then.
+licenses: | $(BUILD_DIR)/
+	timeout $(TEST_TIMEOUT) go test -count=1 -run '^TestThirdPartyLicenses$$' . -update 2>&1 | tee $(BUILD_DIR)/licenses.log
 
 # Tags HEAD of master with the next version, the last tag vX.Y.Z with Z one
 # higher, when the tree is clean, HEAD has no tag yet and test-race passes.

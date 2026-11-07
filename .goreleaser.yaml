@@ -55,6 +55,8 @@ nfpms:
     contents:
       - src: LICENSE
         dst: /usr/share/licenses/jdiff/LICENSE
+      - src: LICENSE-THIRD-PARTY
+        dst: /usr/share/licenses/jdiff/LICENSE-THIRD-PARTY
 
 scoops:
   - ids: [archive]

@@ -8,7 +8,7 @@ jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdif
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
-`jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and the dependencies linked into it, `jdiff --readme` the README without its badge.
+`jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and those of the libraries linked into it, `jdiff --readme` the README without its badge.
 
 ## Git aliases
 

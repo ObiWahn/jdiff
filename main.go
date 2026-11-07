@@ -24,12 +24,18 @@ import (
 //go:embed LICENSE
 var license string
 
+// thirdParty holds the licenses of the modules linked into jdiff, which
+// they require a binary to carry; make licenses writes it.
+//
+//go:embed LICENSE-THIRD-PARTY
+var thirdParty string
+
 //go:embed README.md
 var readme string
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
-	showLicense := flag.Bool("license", false, "print the license and the dependencies and exit")
+	showLicense := flag.Bool("license", false, "print the license and those of the libraries and exit")
 	showReadme := flag.Bool("readme", false, "print the README and exit")
 	features := flag.String("features", "",
 		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
@@ -194,17 +200,9 @@ func withoutBadges(readme string) string {
 	return b.String()
 }
 
-// printLicense prints jdiff's license and the modules linked into this binary.
+// printLicense prints jdiff's license and those of the modules linked into it.
 func printLicense() {
-	fmt.Print(license)
-	bi, ok := debug.ReadBuildInfo()
-	if !ok || len(bi.Deps) == 0 {
-		return
-	}
-	fmt.Println("\nDependencies:")
-	for _, d := range bi.Deps {
-		fmt.Println(" ", d.Path, d.Version)
-	}
+	fmt.Print(license, "\njdiff is built with these libraries, under their licenses:\n\n", thirdParty)
 }
 
 func resolveVersion() string {
