@@ -206,8 +206,45 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 
 	// Blobs are requested by object id, not by "rev:path": git cat-file
 	// reads one request per line, and paths may hold newlines.
+	entries, err := parseRaw(out)
+	if err != nil {
+		return nil, err
+	}
 	var files []source.File
 	var specs []string // blob requests for git cat-file, two per file
+	for _, e := range entries {
+		specs = append(specs, e.oldID, e.newID)
+		files = append(files, e.file)
+	}
+
+	blobs, err := r.catFiles(specs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range files {
+		f := &files[i]
+		if f.InOld {
+			f.Old, f.Binary = lines(blobs[2*i], f.Binary)
+		}
+		if f.InNew {
+			f.New, f.Binary = lines(blobs[2*i+1], f.Binary)
+		}
+	}
+	return files, nil
+}
+
+// rawEntry is a file in the output of git diff --raw -z, without its content,
+// and the ids of its sides.
+type rawEntry struct {
+	file         source.File
+	oldID, newID string
+}
+
+// parseRaw parses the output of git diff --raw -z. Unmerged files are left
+// out. Files and diff share only this: they run git with other options, and
+// diff needs a working tree, which git log does not.
+func parseRaw(out []byte) ([]rawEntry, error) {
+	var entries []rawEntry
 	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
 	for i := 0; i+1 < len(tokens); {
 		// ":oldmode newmode oldid newid status", then the path or paths.
@@ -228,25 +265,12 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 			}
 			f.OldPath, f.Path = f.Path, tokens[i]
 			i++
+		case 'U':
+			continue
 		}
-		specs = append(specs, meta[2], meta[3])
-		files = append(files, f)
+		entries = append(entries, rawEntry{f, meta[2], meta[3]})
 	}
-
-	blobs, err := r.catFiles(specs)
-	if err != nil {
-		return nil, err
-	}
-	for i := range files {
-		f := &files[i]
-		if f.InOld {
-			f.Old, f.Binary = lines(blobs[2*i], f.Binary)
-		}
-		if f.InNew {
-			f.New, f.Binary = lines(blobs[2*i+1], f.Binary)
-		}
-	}
-	return files, nil
+	return entries, nil
 }
 
 // Diff returns the files git diff compares with args, the arguments of git
@@ -358,6 +382,11 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 		return nil, err
 	}
 
+	entries, err := parseRaw(out)
+	if err != nil {
+		return nil, err
+	}
+
 	// A side of a file, in the order of the files and old before new: a
 	// blob, or the working copy for the zero id.
 	type sideOf struct {
@@ -367,35 +396,14 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 	var files []source.File
 	var sides []sideOf
 	var specs []string
-	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	for i := 0; i+1 < len(tokens); {
-		// ":oldmode newmode oldid newid status", then the path or paths.
-		meta := strings.Fields(strings.TrimPrefix(tokens[i], ":"))
-		if len(meta) != 5 {
-			return nil, fmt.Errorf("git diff: unexpected entry %q", tokens[i])
-		}
-		f := source.File{Path: tokens[i+1], InOld: true, InNew: true}
-		i += 2
-		switch meta[4][0] {
-		case 'A':
-			f.InOld = false
-		case 'D':
-			f.InNew = false
-		case 'R', 'C':
-			if i >= len(tokens) {
-				return nil, fmt.Errorf("git diff: truncated rename of %s", f.Path)
-			}
-			f.OldPath, f.Path = f.Path, tokens[i]
-			i++
-		case 'U':
-			continue
-		}
+	for _, e := range entries {
+		f := e.file
 		files = append(files, f)
 		for _, sd := range []struct {
 			in   bool
 			id   string
 			path string
-		}{{f.InOld, meta[2], f.PathInOld()}, {f.InNew, meta[3], f.Path}} {
+		}{{f.InOld, e.oldID, f.PathInOld()}, {f.InNew, e.newID, f.Path}} {
 			if !sd.in {
 				continue
 			}
