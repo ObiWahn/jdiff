@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (94.8%)</option>
+				<option value="file0">jdiff/internal/config/config.go (94.9%)</option>
 				
 				<option value="file1">jdiff/internal/config/marks.go (96.6%)</option>
 				
@@ -67,7 +67,7 @@
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.1%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.2%)</option>
 				
 				<option value="file7">jdiff/internal/notify/notify.go (100.0%)</option>
 				
@@ -85,35 +85,39 @@
 				
 				<option value="file14">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file15">jdiff/internal/ui/app.go (95.3%)</option>
+				<option value="file15">jdiff/internal/ui/app.go (95.6%)</option>
 				
-				<option value="file16">jdiff/internal/ui/filediff.go (95.5%)</option>
+				<option value="file16">jdiff/internal/ui/doc.go (95.6%)</option>
 				
-				<option value="file17">jdiff/internal/ui/flow.go (95.0%)</option>
+				<option value="file17">jdiff/internal/ui/filediff.go (95.5%)</option>
 				
-				<option value="file18">jdiff/internal/ui/help.go (95.7%)</option>
+				<option value="file18">jdiff/internal/ui/flow.go (95.0%)</option>
 				
-				<option value="file19">jdiff/internal/ui/log.go (96.5%)</option>
+				<option value="file19">jdiff/internal/ui/help.go (95.7%)</option>
 				
-				<option value="file20">jdiff/internal/ui/marks.go (94.0%)</option>
+				<option value="file20">jdiff/internal/ui/log.go (96.5%)</option>
 				
-				<option value="file21">jdiff/internal/ui/messages.go (100.0%)</option>
+				<option value="file21">jdiff/internal/ui/markdown.go (96.3%)</option>
 				
-				<option value="file22">jdiff/internal/ui/model.go (94.8%)</option>
+				<option value="file22">jdiff/internal/ui/marks.go (94.0%)</option>
 				
-				<option value="file23">jdiff/internal/ui/moved.go (100.0%)</option>
+				<option value="file23">jdiff/internal/ui/messages.go (100.0%)</option>
 				
-				<option value="file24">jdiff/internal/ui/search.go (99.1%)</option>
+				<option value="file24">jdiff/internal/ui/model.go (94.8%)</option>
 				
-				<option value="file25">jdiff/internal/ui/settings.go (96.4%)</option>
+				<option value="file25">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file26">jdiff/internal/ui/view.go (98.8%)</option>
+				<option value="file26">jdiff/internal/ui/search.go (99.1%)</option>
 				
-				<option value="file27">jdiff/internal/ui/watch.go (89.2%)</option>
+				<option value="file27">jdiff/internal/ui/settings.go (96.4%)</option>
 				
-				<option value="file28">jdiff/internal/ui/widgets.go (98.1%)</option>
+				<option value="file28">jdiff/internal/ui/view.go (98.8%)</option>
 				
-				<option value="file29">jdiff/main.go (80.9%)</option>
+				<option value="file29">jdiff/internal/ui/watch.go (89.2%)</option>
+				
+				<option value="file30">jdiff/internal/ui/widgets.go (98.1%)</option>
+				
+				<option value="file31">jdiff/main.go (82.6%)</option>
 				
 				</select>
 			</div>
@@ -265,11 +269,17 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                                 *sym.v = sym.fallback
 </span>                        }
                 }
-                // state.toml holds only the toggles.
-                <span class="cov8" title="1">if err := c.decode(c.statePath, &amp;c.Settings.Toggles); err != nil </span>{
+                // state.toml holds only the toggles. Earlier versions kept untracked
+                // there too: it is left out, without a warning.
+                <span class="cov8" title="1">state := struct {
+                        settings.Toggles
+                        Untracked bool `toml:"untracked"`
+                }{Toggles: c.Settings.Toggles}
+                if err := c.decode(c.statePath, &amp;state); err != nil </span>{
                         <span class="cov0" title="0">return nil, err
 </span>                }
-                <span class="cov8" title="1">name = m.Theme
+                <span class="cov8" title="1">c.Settings.Toggles = state.Toggles
+                name = m.Theme
                 if err := c.readThemes(filepath.Join(dir, "themes"), name); err != nil </span>{
                         <span class="cov8" title="1">return nil, err
 </span>                }
@@ -1339,8 +1349,9 @@ func (r Repo) WatchPaths() ([]string, error) {
         <span class="cov8" title="1">paths := strings.Split(strings.TrimSpace(string(out)), "\n")
         for i, p := range paths </span>{
                 <span class="cov8" title="1">if !filepath.IsAbs(p) </span>{
-                        <span class="cov8" title="1">paths[i] = filepath.Join(r.Dir, p) // relative to where git ran
+                        <span class="cov8" title="1">p = filepath.Join(r.Dir, p) // relative to where git ran
 </span>                }
+                <span class="cov8" title="1">paths[i] = filepath.Clean(p)</span> // git writes / also on Windows
         }
         <span class="cov8" title="1">return paths, nil</span>
 }
@@ -1955,6 +1966,11 @@ type Settings struct {
         // to the left; one column wide each.
         Extends  string `toml:"extends"`
         Precedes string `toml:"precedes"`
+        // Untracked (untracked) also shows the untracked files in jdiff diff,
+        // as added, where it compares with the working tree. u in the settings
+        // popup toggles it and --untracked turns it on, for the run only: it is
+        // the one toggle state.toml does not keep.
+        Untracked bool `toml:"untracked"`
         Toggles
 }
 
@@ -2012,10 +2028,6 @@ type Toggles struct {
         // changed ones, added, removed and moved. tab in the search bar toggles
         // it.
         SearchAll bool `toml:"search_all"`
-        // Untracked (untracked) also shows the untracked files in jdiff diff,
-        // as added, where it compares with the working tree. u in the settings
-        // popup toggles it.
-        Untracked bool `toml:"untracked"`
         // AutoReloadTimeout (auto_reload_timeout) is after how many minutes
         // without a key pressed or a change of the repository auto reload ends,
         // and with it its git commands; 0 is never. The settings popup sets it.
@@ -2372,6 +2384,9 @@ type Spec struct {
         PlusIndentStyle         *string `toml:"plus-indent-style" git:"jdiff"`         // unset: plus-emph-style
         MinusMovedStyle         *string `toml:"minus-moved-style" git:"jdiff"`         // removed lines that moved elsewhere
         PlusMovedStyle          *string `toml:"plus-moved-style" git:"jdiff"`          // added lines that moved here
+        DocHeadingStyle         *string `toml:"doc-heading-style" git:"jdiff"`         // headings of --readme; unset: branch-style
+        DocCodeStyle            *string `toml:"doc-code-style" git:"jdiff"`            // code in --readme; unset: file-style
+        DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme; unset: commit-hash-style
 
         // Colors are named colors that styles can use like color names.
         Colors map[string]string `toml:"colors"`
@@ -2639,6 +2654,7 @@ type Theme struct {
         FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
         CommitHash                      lipgloss.Style // commit hashes in the log
         Branch                          lipgloss.Style // branch above the commit list
+        DocHeading, DocCode, DocLink    lipgloss.Style // --readme: headings, code, links
 
         AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
@@ -2757,6 +2773,9 @@ func Resolve(sp Spec) *Theme {
 </span>        // Changed whitespace is drawn as · and →, by default like changed words.
         <span class="cov8" title="1">t.MinusIndent = styleOrStyle("minus-indent-style", sp.MinusIndentStyle, t.MinusEmph)
         t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)
+        t.DocHeading = styleOrStyle("doc-heading-style", sp.DocHeadingStyle, t.Branch)
+        t.DocCode = styleOrStyle("doc-code-style", sp.DocCodeStyle, t.Title)
+        t.DocLink = styleOrStyle("doc-link-style", sp.DocLinkStyle, t.CommitHash)
         return t</span>
 }
 </pre>
@@ -3227,12 +3246,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">a.setMsg(untrackedOnlyInDiff)
                         return a, nil
 </span>                }
-                <span class="cov8" title="1">w := toggle(a.cfg, &amp;a.cfg.Settings.Untracked)
-                cmd := a.relistFiles(false)
-                if w != "" </span>{
-                        <span class="cov0" title="0">a.setMsg(w)
-</span>                }
-                <span class="cov8" title="1">return a, cmd</span>
+                <span class="cov8" title="1">a.cfg.Settings.Untracked = !a.cfg.Settings.Untracked // not saved
+                return a, a.relistFiles(false)</span>
         }
         <span class="cov8" title="1">if a.flowShown() </span>{
                 <span class="cov8" title="1">_, cmd := a.flow.Update(msg)
@@ -3564,6 +3579,363 @@ func (a *App) frame() string {
 </pre>
 		
 		<pre class="file" id="file16" style="display: none">package ui
+
+import (
+        "cmp"
+        "fmt"
+        "io/fs"
+        "path"
+        "slices"
+        "strings"
+
+        tea "charm.land/bubbletea/v2"
+        "charm.land/lipgloss/v2"
+
+        "jdiff/internal/config"
+)
+
+// Doc shows the pages of jdiff's documentation, markdown rendered for the
+// terminal: jdiff --readme. A cursor line moves through a page; enter follows
+// the link it is on, the first unless h l or tab chose another, to another
+// page or heading, backspace goes back.
+type Doc struct {
+        cfg      *config.Config
+        docs     fs.FS
+        paths    []string // the pages in docs, in the order of n and p
+        page     int
+        rendered docPage
+        forWidth int // the width rendered is for, 0 before the first
+        top      int // the first line shown
+        cursor   int // the line of the cursor
+        link     int // the selected link, on the cursor's line; -1 for none
+        back     []docPlace
+        msg      string
+        width    int
+        height   int
+}
+
+// docPlace is where a link was followed from, and the link.
+type docPlace struct{ page, top, cursor, link int }
+
+// NewDoc returns the documentation in docs, the pages paths, on page page.
+func NewDoc(cfg *config.Config, docs fs.FS, paths []string, page int) *Doc {
+        <span class="cov8" title="1">return &amp;Doc{cfg: cfg, docs: docs, paths: paths, page: page, link: -1}
+</span>}
+
+func (d *Doc) Init() tea.Cmd { <span class="cov0" title="0">return nil }</span>
+
+func (d *Doc) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+        <span class="cov8" title="1">switch msg := msg.(type) </span>{
+        case tea.WindowSizeMsg:
+                <span class="cov8" title="1">d.width, d.height = msg.Width, msg.Height
+                d.render()</span>
+        case tea.KeyPressMsg:
+                <span class="cov8" title="1">return d, d.key(msg.String())</span>
+        case findMsg:
+                <span class="cov8" title="1">d.findText(int(msg))</span>
+        }
+        <span class="cov8" title="1">return d, nil</span>
+}
+
+// textWidth is the width pages are rendered for: the screen but a column
+// on each side, the left one for the cursor.
+func (d *Doc) textWidth() int { <span class="cov8" title="1">return max(d.width-2, 1) }</span>
+
+// bodyHeight is the number of lines shown, between the title and the status
+// bar.
+func (d *Doc) bodyHeight() int { <span class="cov8" title="1">return max(d.height-2, 1) }</span>
+
+// render renders the page for the width of the screen, unless it is already.
+func (d *Doc) render() {
+        <span class="cov8" title="1">if d.forWidth == d.textWidth() </span>{
+                <span class="cov0" title="0">return
+</span>        }
+        <span class="cov8" title="1">src, err := fs.ReadFile(d.docs, d.paths[d.page])
+        if err != nil </span>{
+                <span class="cov0" title="0">d.msg = err.Error()
+</span>        }
+        <span class="cov8" title="1">d.rendered, d.forWidth = renderMarkdown(src, d.textWidth()), d.textWidth()
+        d.scrollTo(d.top)
+        d.moveTo(d.cursor)</span>
+}
+
+// show shows page page from line top, the cursor on line cursor.
+func (d *Doc) show(page, top, cursor int) {
+        <span class="cov8" title="1">d.page, d.forWidth = page, 0
+        d.render()
+        d.scrollTo(top)
+        d.moveTo(cursor)
+</span>}
+
+// scrollTo scrolls to line top, kept where lines fill the screen.
+func (d *Doc) scrollTo(top int) {
+        <span class="cov8" title="1">d.top = max(min(top, len(d.rendered.lines)-d.bodyHeight()), 0)
+</span>}
+
+// moveTo moves the cursor to line i, kept in the page, and scrolls it into
+// view; the first link on the line is selected, and the status bar says
+// where it goes.
+func (d *Doc) moveTo(i int) {
+        <span class="cov8" title="1">n := len(d.rendered.lines)
+        d.cursor = max(min(i, n-1), 0)
+        d.top = scrollWindow(d.cursor, d.top, d.bodyHeight(), n)
+        d.link = -1
+        if d.cursor &lt; n </span>{
+                <span class="cov8" title="1">for _, s := range d.rendered.lines[d.cursor].segs </span>{
+                        <span class="cov8" title="1">if s.link &gt;= 0 </span>{
+                                <span class="cov8" title="1">d.link = s.link
+                                d.msg = d.rendered.links[s.link].target
+                                break</span>
+                        }
+                }
+        }
+}
+
+func (d *Doc) key(k string) tea.Cmd {
+        <span class="cov8" title="1">d.msg = ""
+        h := keyFile.key(docView, k)
+        body := d.bodyHeight()
+        if delta, paging, ok := motion(h, max(body-1, 1), len(d.rendered.lines)); ok </span>{
+                <span class="cov8" title="1">if paging </span>{
+                        <span class="cov8" title="1">d.scrollTo(d.top + delta)
+</span>                }
+                <span class="cov8" title="1">d.moveTo(d.cursor + delta)
+                return nil</span>
+        }
+        <span class="cov8" title="1">switch h.action </span>{
+        case "quit":
+                <span class="cov0" title="0">return tea.Quit</span>
+        case "half_page":
+                <span class="cov8" title="1">delta := direction(h.i == 1) * (body / 2)
+                d.scrollTo(d.top + delta)
+                d.moveTo(d.cursor + delta)</span>
+        case "link":
+                <span class="cov8" title="1">d.nextLink(direction(h.i == 0))</span>
+        case "line_link":
+                <span class="cov8" title="1">d.lineLink(direction(h.i == 1))</span>
+        case "follow":
+                <span class="cov8" title="1">d.follow()</span>
+        case "back":
+                <span class="cov8" title="1">if len(d.back) == 0 </span>{
+                        <span class="cov8" title="1">d.msg = "no link followed to go back from"
+                        break</span>
+                }
+                <span class="cov8" title="1">p := d.back[len(d.back)-1]
+                d.back = d.back[:len(d.back)-1]
+                d.show(p.page, p.top, p.cursor)
+                d.link, d.msg = p.link, d.rendered.links[p.link].target</span>
+        case "next_page":
+                <span class="cov8" title="1">next := d.page + direction(h.i == 0)
+                if next &lt; 0 || next &gt;= len(d.paths) </span>{
+                        <span class="cov8" title="1">d.msg = ends(h.i == 0, "last page", "first page")
+                        break</span>
+                }
+                <span class="cov8" title="1">d.show(next, 0, 0)</span>
+        case "search":
+                <span class="cov0" title="0">return askSearch</span>
+        case "match":
+                <span class="cov8" title="1">d.findText(direction(h.i == 0))</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// nextLink moves the cursor to the next link in direction dir and selects
+// it: the one after the selected link, also on the same line, or the first
+// below or last above the cursor.
+func (d *Doc) nextLink(dir int) {
+        <span class="cov8" title="1">links := d.rendered.links
+        next := d.link + dir
+        if d.link &lt; 0 </span>{
+                <span class="cov8" title="1">next = slices.IndexFunc(links, func(l pageLink) bool </span>{ <span class="cov8" title="1">return l.line &gt; d.cursor }</span>)
+                <span class="cov8" title="1">if dir &lt; 0 </span>{
+                        <span class="cov8" title="1">next = len(links) - 1
+                        if after := slices.IndexFunc(links, func(l pageLink) bool </span>{ <span class="cov8" title="1">return l.line &gt; d.cursor }</span>); after &gt;= 0 {
+                                <span class="cov8" title="1">next = after - 1
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">if next &lt; 0 || next &gt;= len(links) </span>{
+                <span class="cov8" title="1">d.msg = ends(dir &gt; 0, "no link further down", "no link further up")
+                return
+</span>        }
+        <span class="cov8" title="1">d.moveTo(links[next].line)
+        d.link, d.msg = next, links[next].target</span>
+}
+
+// lineLink selects the next link on the cursor's line in direction dir,
+// right or left.
+func (d *Doc) lineLink(dir int) {
+        <span class="cov8" title="1">var on []int
+        for _, s := range d.rendered.lines[min(d.cursor, len(d.rendered.lines)-1)].segs </span>{
+                <span class="cov8" title="1">if s.link &gt;= 0 &amp;&amp; !slices.Contains(on, s.link) </span>{
+                        <span class="cov8" title="1">on = append(on, s.link)
+</span>                }
+        }
+        <span class="cov8" title="1">i := slices.Index(on, d.link) + dir
+        switch </span>{
+        case len(on) == 0:
+                <span class="cov8" title="1">d.msg = "no link on this line"</span>
+        case i &lt; 0 || i &gt;= len(on):
+                <span class="cov8" title="1">d.msg = ends(dir &gt; 0, "no link further right", "no link further left")</span>
+        default:
+                <span class="cov8" title="1">d.link, d.msg = on[i], d.rendered.links[on[i]].target</span>
+        }
+}
+
+// follow follows the selected link: to its page and heading, which shows
+// at the top, or for a web address it shows where it goes.
+func (d *Doc) follow() {
+        <span class="cov8" title="1">if d.link &lt; 0 </span>{
+                <span class="cov8" title="1">d.msg = "no link on this line: " + keyFile.keyText("{link}") + " go to the next, previous"
+                return
+</span>        }
+        <span class="cov8" title="1">target := d.rendered.links[d.link].target
+        file, anchor, _ := strings.Cut(target, "#")
+        if strings.Contains(file, ":") </span>{ // https:, mailto:
+                <span class="cov8" title="1">d.msg = target
+                return
+</span>        }
+        <span class="cov8" title="1">page := d.page
+        if file != "" </span>{
+                <span class="cov8" title="1">page = slices.Index(d.paths, path.Join(path.Dir(d.paths[d.page]), file))
+                if page &lt; 0 </span>{
+                        <span class="cov8" title="1">d.msg = "no page " + file
+                        return
+</span>                }
+        }
+        <span class="cov8" title="1">d.back = append(d.back, docPlace{d.page, d.top, d.cursor, d.link})
+        d.show(page, 0, 0)
+        if anchor == "" </span>{
+                <span class="cov8" title="1">return
+</span>        }
+        <span class="cov8" title="1">if line, ok := d.rendered.anchors[anchor]; ok </span>{
+                <span class="cov8" title="1">d.show(page, line, line)
+</span>        } else {
+                <span class="cov8" title="1">d.msg = "no heading #" + anchor + " in " + d.paths[page]
+</span>        }
+}
+
+// findText moves the cursor to the next line, in direction dir, that holds
+// what config.Search searched for, past the cursor's own line.
+func (d *Doc) findText(dir int) {
+        <span class="cov8" title="1">q := d.cfg.Search.Query
+        m := matcherOf(q)
+        if m == nil </span>{
+                <span class="cov8" title="1">d.msg = nothingSearched
+                return
+</span>        }
+        <span class="cov8" title="1">var hits []int
+        for i, l := range d.rendered.lines </span>{
+                <span class="cov8" title="1">if len(m.spans(l.plain())) &gt; 0 </span>{
+                        <span class="cov8" title="1">hits = append(hits, i)
+</span>                }
+        }
+        <span class="cov8" title="1">if len(hits) == 0 </span>{
+                <span class="cov8" title="1">d.msg = "no match for " + q.Text + " in this page"
+                return
+</span>        }
+        <span class="cov8" title="1">i, ok := nextHit(len(hits), dir, func(i int) int </span>{ <span class="cov8" title="1">return cmp.Compare(hits[i], d.cursor) }</span>)
+        <span class="cov8" title="1">if !ok </span>{
+                <span class="cov8" title="1">d.msg = noFurther(q, dir, "")
+                return
+</span>        }
+        <span class="cov8" title="1">d.moveTo(hits[i])
+        d.msg = searchMsg(q, i, len(hits))</span>
+}
+
+func (d *Doc) View() tea.View { <span class="cov0" title="0">return tea.NewView(d.frame()) }</span>
+
+func (d *Doc) frame() string {
+        <span class="cov8" title="1">if d.width == 0 </span>{
+                <span class="cov0" title="0">return ""
+</span>        }
+        <span class="cov8" title="1">t := d.cfg.Theme
+        lines := d.rendered.lines
+        var b strings.Builder
+        where := fmt.Sprintf("page %d/%d", d.page+1, len(d.paths))
+        if n := len(lines); n &gt; d.bodyHeight() </span>{
+                <span class="cov8" title="1">where += fmt.Sprintf(" · %d%%", 100*min(d.top+d.bodyHeight(), n)/n)
+</span>        }
+        <span class="cov8" title="1">b.WriteString(statusLine(t, d.width, t.Title.Render(" "+printable(d.paths[d.page])), where+" ") + "\n")
+        m := matcherOf(d.cfg.Search.Query)
+        for i := d.top; i &lt; d.top+d.bodyHeight(); i++ </span>{
+                <span class="cov8" title="1">if i &lt; len(lines) </span>{
+                        <span class="cov8" title="1">margin := " "
+                        if i == d.cursor </span>{
+                                <span class="cov8" title="1">margin = t.Cursor.Render(margin)
+</span>                        }
+                        <span class="cov8" title="1">b.WriteString(margin + d.drawLine(lines[i], m))</span>
+                }
+                <span class="cov8" title="1">b.WriteString("\n")</span>
+        }
+        <span class="cov8" title="1">keys := statusKeys(d.cfg, barKeys{enter: "follow", back: "back", text: true})
+        b.WriteString(statusLine(t, d.width, pageStatus(d.cfg, d.msg, keys), ""))
+        return b.String()</span>
+}
+
+// drawLine draws l in the styles of its pieces, the selected link in the
+// cursor style and what m finds in the search style.
+func (d *Doc) drawLine(l docLine, m *matcher) string {
+        <span class="cov8" title="1">var found []bool
+        if m != nil </span>{
+                <span class="cov8" title="1">plain := l.plain()
+                found = make([]bool, len(plain))
+                for _, s := range m.spans(plain) </span>{
+                        <span class="cov8" title="1">for j := s.Start; j &lt; s.End; j++ </span>{
+                                <span class="cov8" title="1">found[j] = true
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">var b strings.Builder
+        off := 0
+        for _, s := range l.segs </span>{
+                <span class="cov8" title="1">st := d.style(s.style)
+                if s.link &gt;= 0 &amp;&amp; s.link == d.link </span>{
+                        <span class="cov8" title="1">st = d.cfg.Theme.Cursor
+</span>                }
+                // Runs of the piece in or out of a match.
+                <span class="cov8" title="1">for start := 0; start &lt; len(s.text); </span>{
+                        <span class="cov8" title="1">end := start + 1
+                        in := found != nil &amp;&amp; found[off+start]
+                        for end &lt; len(s.text) &amp;&amp; (found != nil &amp;&amp; found[off+end]) == in </span>{
+                                <span class="cov8" title="1">end++
+</span>                        }
+                        <span class="cov8" title="1">if in </span>{
+                                <span class="cov8" title="1">b.WriteString(d.cfg.Theme.Search.Render(s.text[start:end]))
+</span>                        } else {
+                                <span class="cov8" title="1">b.WriteString(st.Render(s.text[start:end]))
+</span>                        }
+                        <span class="cov8" title="1">start = end</span>
+                }
+                <span class="cov8" title="1">off += len(s.text)</span>
+        }
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// style returns the style of the theme for a piece of a page.
+func (d *Doc) style(s docStyle) lipgloss.Style {
+        <span class="cov8" title="1">t := d.cfg.Theme
+        switch s </span>{
+        case docBold:
+                <span class="cov8" title="1">return lipgloss.NewStyle().Bold(true)</span>
+        case docItalic:
+                <span class="cov0" title="0">return lipgloss.NewStyle().Italic(true)</span>
+        case docCode:
+                <span class="cov8" title="1">return t.DocCode</span>
+        case docHeading:
+                <span class="cov8" title="1">return t.DocHeading</span>
+        case docLink:
+                <span class="cov8" title="1">return t.DocLink</span>
+        case docDecoration:
+                <span class="cov8" title="1">return t.Decoration</span>
+        case docOverflow:
+                <span class="cov8" title="1">return t.Overflow</span>
+        }
+        <span class="cov8" title="1">return lipgloss.NewStyle()</span>
+}
+</pre>
+		
+		<pre class="file" id="file17" style="display: none">package ui
 
 import (
         "fmt"
@@ -4283,7 +4655,7 @@ func anchorName(an diff.Anchor) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file17" style="display: none">package ui
+		<pre class="file" id="file18" style="display: none">package ui
 
 import (
         "fmt"
@@ -5224,7 +5596,7 @@ func (f *Flow) row(i int) string {
 }
 </pre>
 		
-		<pre class="file" id="file18" style="display: none">package ui
+		<pre class="file" id="file19" style="display: none">package ui
 
 import (
         "fmt"
@@ -5391,7 +5763,7 @@ func overlayAt(base, pop string, x, y, w, width int) string {
 }
 </pre>
 		
-		<pre class="file" id="file19" style="display: none">package ui
+		<pre class="file" id="file20" style="display: none">package ui
 
 import (
         "fmt"
@@ -5952,7 +6324,543 @@ func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 }
 </pre>
 		
-		<pre class="file" id="file20" style="display: none">package ui
+		<pre class="file" id="file21" style="display: none">package ui
+
+import (
+        "fmt"
+        "strings"
+        "unicode"
+
+        "github.com/charmbracelet/x/ansi"
+        "github.com/yuin/goldmark"
+        "github.com/yuin/goldmark/ast"
+        "github.com/yuin/goldmark/extension"
+        east "github.com/yuin/goldmark/extension/ast"
+        "github.com/yuin/goldmark/text"
+)
+
+// docStyle is what a piece of a page is, which decides its style in the
+// theme when it is drawn.
+type docStyle int
+
+const (
+        docPlain docStyle = iota
+        docBold
+        docItalic
+        docCode
+        docHeading
+        docLink
+        docDecoration // bullets, rules, the lines of tables and quotes
+        docOverflow   // » at the end of a cut line
+)
+
+// docSeg is a piece of a line of a page in one style: printable text, part
+// of link number link of the page, -1 for none.
+type docSeg struct {
+        text  string
+        style docStyle
+        link  int
+}
+
+// docLine is a line of a page; anchor is the name of the heading it starts,
+// as links to it write it after #.
+type docLine struct {
+        segs   []docSeg
+        anchor string
+}
+
+// plain returns the text of l, without styles.
+func (l docLine) plain() string {
+        <span class="cov8" title="1">var b strings.Builder
+        for _, s := range l.segs </span>{
+                <span class="cov8" title="1">b.WriteString(s.text)
+</span>        }
+        <span class="cov8" title="1">return b.String()</span>
+}
+
+// docPage is a markdown page rendered for a width: its lines, none wider,
+// and the targets of its links with the line each starts on.
+type docPage struct {
+        lines   []docLine
+        links   []pageLink
+        anchors map[string]int // the line of each heading
+}
+
+// pageLink is a link of a page: where it goes, as written, and its first line.
+type pageLink struct {
+        target string
+        line   int
+}
+
+var markdown = goldmark.New(goldmark.WithExtensions(extension.Table))
+
+// renderMarkdown renders src for a screen width columns wide. Images are left
+// out, so a line of badges is gone; a line still too wide, of code or a table,
+// is cut with ».
+func renderMarkdown(src []byte, width int) docPage {
+        <span class="cov8" title="1">width = max(width, 1)
+        r := &amp;mdRenderer{src: src}
+        lines := r.blocks(markdown.Parser().Parse(text.NewReader(src)), width, false)
+        page := docPage{anchors: map[string]int{}}
+        for i := range r.links </span>{
+                <span class="cov8" title="1">page.links = append(page.links, pageLink{target: r.links[i], line: -1})
+</span>        }
+        <span class="cov8" title="1">for i, l := range lines </span>{
+                <span class="cov8" title="1">l.segs = cutSegs(l.segs, width)
+                lines[i] = l
+                if l.anchor != "" </span>{
+                        <span class="cov8" title="1">page.anchors[l.anchor] = i
+</span>                }
+                <span class="cov8" title="1">for _, s := range l.segs </span>{
+                        <span class="cov8" title="1">if s.link &gt;= 0 &amp;&amp; page.links[s.link].line &lt; 0 </span>{
+                                <span class="cov8" title="1">page.links[s.link].line = i
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">page.lines = lines
+        return page</span>
+}
+
+// mdRenderer renders the blocks of a markdown tree into lines.
+type mdRenderer struct {
+        src     []byte
+        links   []string        // the targets of the links found so far
+        anchors map[string]bool // the anchors given so far
+        depth   int             // of nested lists
+}
+
+// blocks renders the children of n one below the other, with an empty line
+// between them unless tight, as in the items of a tight list.
+func (r *mdRenderer) blocks(n ast.Node, width int, tight bool) []docLine {
+        <span class="cov8" title="1">var out []docLine
+        for c := n.FirstChild(); c != nil; c = c.NextSibling() </span>{
+                <span class="cov8" title="1">lines := r.block(c, width)
+                if len(lines) == 0 </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">if len(out) &gt; 0 &amp;&amp; !tight </span>{
+                        <span class="cov8" title="1">out = append(out, docLine{})
+</span>                }
+                <span class="cov8" title="1">out = append(out, lines...)</span>
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// block renders the block n, width columns wide but for code.
+func (r *mdRenderer) block(n ast.Node, width int) []docLine {
+        <span class="cov8" title="1">switch n := n.(type) </span>{
+        case *ast.Heading:
+                <span class="cov8" title="1">lines := wrapSegs(r.inline(n, docHeading), width)
+                if len(lines) == 0 </span>{
+                        <span class="cov0" title="0">return nil
+</span>                }
+                <span class="cov8" title="1">lines[0].anchor = r.anchor(n)
+                if n.Level &lt;= 2 </span>{
+                        <span class="cov8" title="1">w := 0
+                        for _, l := range lines </span>{
+                                <span class="cov8" title="1">w = max(w, segsWidth(l.segs))
+</span>                        }
+                        <span class="cov8" title="1">rule := "─"
+                        if n.Level == 1 </span>{
+                                <span class="cov8" title="1">rule = "═"
+</span>                        }
+                        <span class="cov8" title="1">lines = append(lines, docLine{segs: []docSeg{{strings.Repeat(rule, w), docDecoration, -1}}})</span>
+                }
+                <span class="cov8" title="1">return lines</span>
+        case *ast.Paragraph, *ast.TextBlock:
+                <span class="cov8" title="1">return wrapSegs(r.inline(n, docPlain), width)</span>
+        case *ast.List:
+                <span class="cov8" title="1">return r.list(n, width)</span>
+        case *ast.FencedCodeBlock, *ast.CodeBlock:
+                <span class="cov8" title="1">var out []docLine
+                lines := n.Lines()
+                for i := range lines.Len() </span>{
+                        <span class="cov8" title="1">seg := lines.At(i)
+                        line := printable(strings.TrimRight(string(seg.Value(r.src)), "\r\n"))
+                        out = append(out, docLine{segs: trimSegs([]docSeg{{"  ", docPlain, -1}, {line, docCode, -1}})})
+</span>                }
+                <span class="cov8" title="1">return out</span>
+        case *ast.Blockquote:
+                <span class="cov8" title="1">inner := r.blocks(n, max(width-2, 1), false)
+                for i := range inner </span>{
+                        <span class="cov8" title="1">inner[i].segs = append([]docSeg{{"│ ", docDecoration, -1}}, inner[i].segs...)
+</span>                }
+                <span class="cov8" title="1">return inner</span>
+        case *ast.ThematicBreak:
+                <span class="cov8" title="1">return []docLine{{segs: []docSeg{{strings.Repeat("─", width), docDecoration, -1}}}}</span>
+        case *east.Table:
+                <span class="cov8" title="1">return r.table(n, width)</span>
+        }
+        <span class="cov8" title="1">return nil</span> // HTML
+}
+
+// bullets are the marks of the items of unordered lists, by depth.
+var bullets = []string{"•", "◦", "▪"}
+
+// list renders the items of n, each after its bullet or number, its further
+// lines indented to its text.
+func (r *mdRenderer) list(n *ast.List, width int) []docLine {
+        <span class="cov8" title="1">var marks []string
+        for c, i := n.FirstChild(), 0; c != nil; c, i = c.NextSibling(), i+1 </span>{
+                <span class="cov8" title="1">if n.IsOrdered() </span>{
+                        <span class="cov8" title="1">marks = append(marks, fmt.Sprintf("%d.", n.Start+i))
+</span>                } else {
+                        <span class="cov8" title="1">marks = append(marks, bullets[min(r.depth, len(bullets)-1)])
+</span>                }
+        }
+        <span class="cov8" title="1">markW := 0
+        for _, m := range marks </span>{
+                <span class="cov8" title="1">markW = max(markW, ansi.StringWidth(m))
+</span>        }
+        <span class="cov8" title="1">indent := markW + 1
+        r.depth++
+        defer func() </span>{ <span class="cov8" title="1">r.depth-- }</span>()
+        <span class="cov8" title="1">var out []docLine
+        for c, i := n.FirstChild(), 0; c != nil; c, i = c.NextSibling(), i+1 </span>{
+                <span class="cov8" title="1">if i &gt; 0 &amp;&amp; !n.IsTight </span>{
+                        <span class="cov8" title="1">out = append(out, docLine{})
+</span>                }
+                <span class="cov8" title="1">lines := r.blocks(c, max(width-indent, 1), n.IsTight)
+                if len(lines) == 0 </span>{
+                        <span class="cov0" title="0">lines = []docLine{{}}
+</span>                }
+                <span class="cov8" title="1">for j, l := range lines </span>{
+                        <span class="cov8" title="1">lead := strings.Repeat(" ", indent)
+                        style := docPlain
+                        if j == 0 </span>{
+                                <span class="cov8" title="1">lead, style = fmt.Sprintf("%*s ", markW, marks[i]), docDecoration
+</span>                        }
+                        <span class="cov8" title="1">if len(l.segs) == 0 &amp;&amp; j &gt; 0 </span>{
+                                <span class="cov0" title="0">out = append(out, l) // an empty line stays empty
+                                continue</span>
+                        }
+                        <span class="cov8" title="1">l.segs = append([]docSeg{{lead, style, -1}}, l.segs...)
+                        out = append(out, l)</span>
+                }
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// table renders t with its columns aligned between bars, the header bold
+// and ruled off. When it does not fit, the widest column is narrowed and its
+// cells wrapped, down to tableMinColumn; beyond that the lines are cut.
+func (r *mdRenderer) table(t *east.Table, width int) []docLine {
+        <span class="cov8" title="1">var rows [][][]docSeg
+        for row := t.FirstChild(); row != nil; row = row.NextSibling() </span>{
+                <span class="cov8" title="1">style := docPlain
+                if _, ok := row.(*east.TableHeader); ok </span>{
+                        <span class="cov8" title="1">style = docBold
+</span>                }
+                <span class="cov8" title="1">var cells [][]docSeg
+                for cell := row.FirstChild(); cell != nil; cell = cell.NextSibling() </span>{
+                        <span class="cov8" title="1">cells = append(cells, r.inline(cell, style))
+</span>                }
+                <span class="cov8" title="1">rows = append(rows, cells)</span>
+        }
+        <span class="cov8" title="1">if len(rows) == 0 </span>{
+                <span class="cov0" title="0">return nil
+</span>        }
+        <span class="cov8" title="1">cols := len(t.Alignments)
+        widths := make([]int, cols)
+        for _, cells := range rows </span>{
+                <span class="cov8" title="1">for i, c := range cells </span>{
+                        <span class="cov8" title="1">if i &lt; cols </span>{
+                                <span class="cov8" title="1">for _, l := range wrapSegs(c, 1&lt;&lt;20) </span>{
+                                        <span class="cov8" title="1">widths[i] = max(widths[i], segsWidth(l.segs))
+</span>                                }
+                        }
+                }
+        }
+        <span class="cov8" title="1">const gap = 3 // " │ "
+        total := func() int </span>{
+                <span class="cov8" title="1">sum := gap * (cols - 1)
+                for _, w := range widths </span>{
+                        <span class="cov8" title="1">sum += w
+</span>                }
+                <span class="cov8" title="1">return sum</span>
+        }
+        <span class="cov8" title="1">for total() &gt; width </span>{
+                <span class="cov8" title="1">widest := 0
+                for i, w := range widths </span>{
+                        <span class="cov8" title="1">if w &gt; widths[widest] </span>{
+                                <span class="cov8" title="1">widest = i
+</span>                        }
+                }
+                <span class="cov8" title="1">if widths[widest] &lt;= tableMinColumn </span>{
+                        <span class="cov8" title="1">break</span>
+                }
+                <span class="cov8" title="1">widths[widest]--</span>
+        }
+        <span class="cov8" title="1">bar := docSeg{" │ ", docDecoration, -1}
+        var out []docLine
+        for ri, cells := range rows </span>{
+                <span class="cov8" title="1">wrapped := make([][]docLine, cols)
+                height := 1
+                for i := range cols </span>{
+                        <span class="cov8" title="1">if i &lt; len(cells) </span>{
+                                <span class="cov8" title="1">wrapped[i] = wrapSegs(cells[i], widths[i])
+</span>                        }
+                        <span class="cov8" title="1">height = max(height, len(wrapped[i]))</span>
+                }
+                <span class="cov8" title="1">for j := range height </span>{
+                        <span class="cov8" title="1">var segs []docSeg
+                        for i := range cols </span>{
+                                <span class="cov8" title="1">if i &gt; 0 </span>{
+                                        <span class="cov8" title="1">segs = append(segs, bar)
+</span>                                }
+                                <span class="cov8" title="1">var cell []docSeg
+                                if j &lt; len(wrapped[i]) </span>{
+                                        <span class="cov8" title="1">cell = wrapped[i][j].segs
+</span>                                }
+                                <span class="cov8" title="1">segs = append(segs, alignSegs(cell, widths[i], t.Alignments[i])...)</span>
+                        }
+                        <span class="cov8" title="1">out = append(out, docLine{segs: trimSegs(segs)})</span>
+                }
+                <span class="cov8" title="1">if ri == 0 </span>{
+                        <span class="cov8" title="1">var rule []string
+                        for _, w := range widths </span>{
+                                <span class="cov8" title="1">rule = append(rule, strings.Repeat("─", w))
+</span>                        }
+                        <span class="cov8" title="1">out = append(out, docLine{segs: []docSeg{{strings.Join(rule, "─┼─"), docDecoration, -1}}})</span>
+                }
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// tableMinColumn is the narrowest a column of a table is wrapped to.
+const tableMinColumn = 10
+
+// alignSegs pads segs to width as align says: right, centered or left.
+func alignSegs(segs []docSeg, width int, align east.Alignment) []docSeg {
+        <span class="cov8" title="1">pad := max(width-segsWidth(segs), 0)
+        left := 0
+        switch align </span>{
+        case east.AlignRight:
+                <span class="cov8" title="1">left = pad</span>
+        case east.AlignCenter:
+                <span class="cov0" title="0">left = pad / 2</span>
+        }
+        <span class="cov8" title="1">out := []docSeg{{strings.Repeat(" ", left), docPlain, -1}}
+        out = append(out, segs...)
+        return append(out, docSeg{strings.Repeat(" ", pad-left), docPlain, -1})</span>
+}
+
+// trimSegs drops the spaces at the end of a line.
+func trimSegs(segs []docSeg) []docSeg {
+        <span class="cov8" title="1">for len(segs) &gt; 0 </span>{
+                <span class="cov8" title="1">last := &amp;segs[len(segs)-1]
+                last.text = strings.TrimRight(last.text, " ")
+                if last.text != "" </span>{
+                        <span class="cov8" title="1">break</span>
+                }
+                <span class="cov8" title="1">segs = segs[:len(segs)-1]</span>
+        }
+        <span class="cov8" title="1">return segs</span>
+}
+
+// anchor returns the name links give heading h after #, as GitHub makes it:
+// lower case, spaces as -, without punctuation, numbered when it repeats.
+func (r *mdRenderer) anchor(h *ast.Heading) string {
+        <span class="cov8" title="1">var b strings.Builder
+        for _, s := range r.inlineQuiet(h) </span>{
+                <span class="cov8" title="1">for _, c := range strings.ToLower(s.text) </span>{
+                        <span class="cov8" title="1">switch </span>{
+                        case c == ' ':
+                                <span class="cov8" title="1">b.WriteRune('-')</span>
+                        case c == '-' || c == '_' || unicode.IsLetter(c) || unicode.IsDigit(c):
+                                <span class="cov8" title="1">b.WriteRune(c)</span>
+                        }
+                }
+        }
+        <span class="cov8" title="1">name := b.String()
+        if r.anchors == nil </span>{
+                <span class="cov8" title="1">r.anchors = map[string]bool{}
+</span>        }
+        <span class="cov8" title="1">for i := 1; r.anchors[name]; i++ </span>{
+                <span class="cov8" title="1">name = fmt.Sprintf("%s-%d", b.String(), i)
+</span>        }
+        <span class="cov8" title="1">r.anchors[name] = true
+        return name</span>
+}
+
+// inlineQuiet returns the inline pieces of n without counting its links.
+func (r *mdRenderer) inlineQuiet(n ast.Node) []docSeg {
+        <span class="cov8" title="1">links := len(r.links)
+        segs := r.inline(n, docPlain)
+        r.links = r.links[:links]
+        return segs
+</span>}
+
+// inline returns the text of the inline children of n in style, as pieces;
+// emphasis and code inside it take their own style, but in a heading or a
+// link. A hard line break is a piece "\n".
+func (r *mdRenderer) inline(n ast.Node, style docStyle) []docSeg {
+        <span class="cov8" title="1">var out []docSeg
+        r.inlineInto(n, style, -1, &amp;out)
+        return out
+</span>}
+
+func (r *mdRenderer) inlineInto(n ast.Node, style docStyle, link int, out *[]docSeg) {
+        <span class="cov8" title="1">inner := func(s docStyle) docStyle </span>{
+                <span class="cov8" title="1">if style == docHeading || style == docLink </span>{
+                        <span class="cov8" title="1">return style
+</span>                }
+                <span class="cov8" title="1">return s</span>
+        }
+        <span class="cov8" title="1">for c := n.FirstChild(); c != nil; c = c.NextSibling() </span>{
+                <span class="cov8" title="1">switch c := c.(type) </span>{
+                case *ast.Text:
+                        <span class="cov8" title="1">*out = append(*out, docSeg{printable(string(c.Segment.Value(r.src))), style, link})
+                        switch </span>{
+                        case c.HardLineBreak():
+                                <span class="cov8" title="1">*out = append(*out, docSeg{"\n", style, link})</span>
+                        case c.SoftLineBreak():
+                                <span class="cov8" title="1">*out = append(*out, docSeg{" ", style, link})</span>
+                        }
+                case *ast.String:
+                        <span class="cov0" title="0">*out = append(*out, docSeg{printable(string(c.Value)), style, link})</span>
+                case *ast.CodeSpan:
+                        <span class="cov8" title="1">var b strings.Builder
+                        for t := c.FirstChild(); t != nil; t = t.NextSibling() </span>{
+                                <span class="cov8" title="1">if t, ok := t.(*ast.Text); ok </span>{
+                                        <span class="cov8" title="1">b.Write(t.Segment.Value(r.src))
+</span>                                }
+                        }
+                        <span class="cov8" title="1">*out = append(*out, docSeg{printable(b.String()), inner(docCode), link})</span>
+                case *ast.Emphasis:
+                        <span class="cov8" title="1">s := docItalic
+                        if c.Level &gt;= 2 </span>{
+                                <span class="cov8" title="1">s = docBold
+</span>                        }
+                        <span class="cov8" title="1">r.inlineInto(c, inner(s), link, out)</span>
+                case *ast.Link:
+                        <span class="cov8" title="1">id, before := len(r.links), len(*out)
+                        r.links = append(r.links, string(c.Destination))
+                        r.inlineInto(c, docLink, id, out)
+                        if len(*out) == before </span>{ // only an image: a badge
+                                <span class="cov8" title="1">r.links = r.links[:id]
+</span>                        }
+                case *ast.AutoLink:
+                        <span class="cov8" title="1">id := len(r.links)
+                        r.links = append(r.links, string(c.URL(r.src)))
+                        *out = append(*out, docSeg{printable(string(c.Label(r.src))), docLink, id})</span>
+                case *ast.Image, *ast.RawHTML:<span class="cov8" title="1"></span>
+                default:
+                        <span class="cov0" title="0">r.inlineInto(c, style, link, out)</span>
+                }
+        }
+}
+
+// segsWidth returns the width of segs in columns.
+func segsWidth(segs []docSeg) int {
+        <span class="cov8" title="1">w := 0
+        for _, s := range segs </span>{
+                <span class="cov8" title="1">w += ansi.StringWidth(s.text)
+</span>        }
+        <span class="cov8" title="1">return w</span>
+}
+
+// wordToken is a word of inline text, which may be made of pieces in several
+// styles, and the space before it, in the style of the text it was in.
+type wordToken struct {
+        space docSeg
+        parts []docSeg
+        brk   bool // a hard line break
+}
+
+// wrapSegs fills lines of width columns with the words of segs, breaking
+// at spaces; a word wider than a line is broken where the line ends.
+func wrapSegs(segs []docSeg, width int) []docLine {
+        <span class="cov8" title="1">var words []wordToken
+        cur := wordToken{}
+        for _, s := range segs </span>{
+                <span class="cov8" title="1">if s.text == "\n" </span>{
+                        <span class="cov8" title="1">words = append(words, cur, wordToken{brk: true})
+                        cur = wordToken{}
+                        continue</span>
+                }
+                <span class="cov8" title="1">for i, part := range strings.Split(s.text, " ") </span>{
+                        <span class="cov8" title="1">if i &gt; 0 </span>{
+                                <span class="cov8" title="1">words = append(words, cur)
+                                cur = wordToken{space: docSeg{" ", s.style, s.link}}
+</span>                        }
+                        <span class="cov8" title="1">if part != "" </span>{
+                                <span class="cov8" title="1">cur.parts = append(cur.parts, docSeg{part, s.style, s.link})
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">words = append(words, cur)
+</span>
+        <span class="cov8" title="1">var out []docLine
+        var line []docSeg
+        lineW := 0
+        flush := func() </span>{
+                <span class="cov8" title="1">out = append(out, docLine{segs: line})
+                line, lineW = nil, 0
+</span>        }
+        <span class="cov8" title="1">for _, w := range words </span>{
+                <span class="cov8" title="1">if w.brk </span>{
+                        <span class="cov8" title="1">flush()
+                        continue</span>
+                }
+                <span class="cov8" title="1">if len(w.parts) == 0 </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">ww := segsWidth(w.parts)
+                switch </span>{
+                case lineW == 0:<span class="cov8" title="1"></span>
+                case lineW+1+ww &lt;= width:
+                        <span class="cov8" title="1">line = append(line, w.space)
+                        lineW++</span>
+                default:
+                        <span class="cov8" title="1">flush()</span>
+                }
+                <span class="cov8" title="1">for ww &gt; width-lineW </span>{
+                        // Only a word too long for a line of its own is broken.
+                        <span class="cov8" title="1">if lineW &gt; 0 </span>{
+                                <span class="cov0" title="0">flush()
+                                continue</span>
+                        }
+                        <span class="cov8" title="1">line = sliceSegs(w.parts, 0, width)
+                        w.parts = sliceSegs(w.parts, width, ww)
+                        ww -= width
+                        flush()</span>
+                }
+                <span class="cov8" title="1">line = append(line, w.parts...)
+                lineW += ww</span>
+        }
+        <span class="cov8" title="1">if len(line) &gt; 0 </span>{
+                <span class="cov8" title="1">flush()
+</span>        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// sliceSegs returns the columns from to to of segs.
+func sliceSegs(segs []docSeg, from, to int) []docSeg {
+        <span class="cov8" title="1">var out []docSeg
+        col := 0
+        for _, s := range segs </span>{
+                <span class="cov8" title="1">w := ansi.StringWidth(s.text)
+                if col+w &gt; from &amp;&amp; col &lt; to </span>{
+                        <span class="cov8" title="1">s.text = ansi.Cut(s.text, max(from-col, 0), min(to-col, w))
+                        out = append(out, s)
+</span>                }
+                <span class="cov8" title="1">col += w</span>
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// cutSegs returns segs cut to width columns, the last of them », when they
+// are wider.
+func cutSegs(segs []docSeg, width int) []docSeg {
+        <span class="cov8" title="1">if segsWidth(segs) &lt;= width </span>{
+                <span class="cov8" title="1">return segs
+</span>        }
+        <span class="cov8" title="1">return append(sliceSegs(segs, 0, width-1), docSeg{"»", docOverflow, -1})</span>
+}
+</pre>
+		
+		<pre class="file" id="file22" style="display: none">package ui
 
 import (
         "fmt"
@@ -6152,7 +7060,7 @@ func (p *MarksPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file21" style="display: none">package ui
+		<pre class="file" id="file23" style="display: none">package ui
 
 import (
         "fmt"
@@ -6391,7 +7299,7 @@ func ends(forward bool, last, first string) string {
 }
 </pre>
 		
-		<pre class="file" id="file22" style="display: none">// Package ui implements the interactive side-by-side diff view.
+		<pre class="file" id="file24" style="display: none">// Package ui implements the interactive side-by-side diff view.
 package ui
 
 import (
@@ -6835,7 +7743,7 @@ func (m *Model) scrollToCursor() {
 </span>}
 </pre>
 		
-		<pre class="file" id="file23" style="display: none">package ui
+		<pre class="file" id="file25" style="display: none">package ui
 
 import (
         "fmt"
@@ -6939,7 +7847,7 @@ func (d *fileDiff) spotOf(s side, line int, sh shape) spot {
 </span>}
 </pre>
 		
-		<pre class="file" id="file24" style="display: none">package ui
+		<pre class="file" id="file26" style="display: none">package ui
 
 import (
         "cmp"
@@ -7388,7 +8296,7 @@ func (s *SearchBar) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file25" style="display: none">package ui
+		<pre class="file" id="file27" style="display: none">package ui
 
 import (
         "cmp"
@@ -7479,6 +8387,7 @@ type keyPages struct {
         DiffView   []keyRow  `toml:"diff_view"`
         FlowView   []keyRow  `toml:"flow_view"`
         Everywhere []keyRow  `toml:"everywhere"`
+        DocView    []keyRow  `toml:"doc_view"`
         Help       []helpRow `toml:"help"`
 }
 
@@ -7510,7 +8419,7 @@ func (p keyPages) row(action string) keyRow {
 // rowsOf returns the rows of action in the first page that has it, in the
 // order of row.
 func (p keyPages) rowsOf(action string) []keyRow {
-        <span class="cov8" title="1">for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} </span>{
+        <span class="cov8" title="1">for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
                 <span class="cov8" title="1">var of []keyRow
                 for _, r := range rows </span>{
                         <span class="cov8" title="1">if r.Action == action </span>{
@@ -7541,7 +8450,7 @@ func (p keyPages) keyText(s string) string {
 }
 
 // twoWay lists the actions whose rows take two keys, one for each way.
-var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match"}
+var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
 
 // userRow is a row of the user's keybindings.toml, which changes only keys.
 type userRow struct {
@@ -7560,6 +8469,7 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
                 DiffView   []userRow `toml:"diff_view"`
                 FlowView   []userRow `toml:"flow_view"`
                 Everywhere []userRow `toml:"everywhere"`
+                DocView    []userRow `toml:"doc_view"`
 </span>        }
         <span class="cov8" title="1">md, err := toml.Decode(text, &amp;u)
         if err != nil </span>{
@@ -7577,7 +8487,7 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
         }{
                 {"everywhere", &amp;merged.Everywhere, u.Everywhere}, {"diff_view", &amp;merged.DiffView, u.DiffView},
                 {"flow_view", &amp;merged.FlowView, u.FlowView}, {"commit_list", &amp;merged.CommitList, u.CommitList},
-                {"file_list", &amp;merged.FileList, u.FileList},
+                {"file_list", &amp;merged.FileList, u.FileList}, {"doc_view", &amp;merged.DocView, u.DocView},
 </span>        } {
                 <span class="cov8" title="1">for _, r := range t.user </span>{
                         <span class="cov8" title="1">switch </span>{
@@ -7672,6 +8582,7 @@ const (
         fileList
         diffView
         flowView
+        docView
         everywhere // the popups over all pages
 )
 
@@ -7694,6 +8605,8 @@ func (p keyPages) tables(pg keyPage) [][]keyRow {
                 <span class="cov8" title="1">return [][]keyRow{p.DiffView, p.Everywhere}</span>
         case flowView:
                 <span class="cov8" title="1">return [][]keyRow{p.FlowView, p.DiffView, p.Everywhere}</span>
+        case docView:
+                <span class="cov8" title="1">return [][]keyRow{p.DocView, p.Everywhere}</span>
         }
         <span class="cov8" title="1">return [][]keyRow{p.Everywhere}</span>
 }
@@ -7826,7 +8739,7 @@ func keyOrderProblems(text string) []string {
 </span>                }
         }
         <span class="cov8" title="1">var words []string
-        for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} </span>{
+        for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
                 <span class="cov8" title="1">for _, r := range rows </span>{
                         <span class="cov8" title="1">words = append(words, r.Help, r.Setting)
 </span>                }
@@ -7851,7 +8764,8 @@ func (p keyPages) conflicts() []string {
         for _, t := range []struct {
                 name string
                 rows []keyRow
-        }{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList}} </span>{
+        }{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList},
+                {"doc_view", p.DocView}} </span>{
                 <span class="cov8" title="1">actions := map[string]string{}
                 for _, r := range t.rows </span>{
                         <span class="cov8" title="1">for _, name := range r.Keys </span>{
@@ -8019,7 +8933,7 @@ func (p *SettingsPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file26" style="display: none">package ui
+		<pre class="file" id="file28" style="display: none">package ui
 
 import (
         "fmt"
@@ -8557,7 +9471,7 @@ func printable(line string) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file27" style="display: none">package ui
+		<pre class="file" id="file29" style="display: none">package ui
 
 import (
         "errors"
@@ -8846,7 +9760,7 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
 }
 </pre>
 		
-		<pre class="file" id="file28" style="display: none">package ui
+		<pre class="file" id="file30" style="display: none">package ui
 
 import (
         "fmt"
@@ -8917,6 +9831,7 @@ type barKeys struct {
         back    string // the action of backspace, "" when it does nothing
         commits bool   // N and P switch commits
         flow    bool   // f switches between the flow and the single file view
+        text    bool   // a page of text, --readme: no layout, git diff or settings
 }
 
 // barState returns the index of an action's label while it is on or off.
@@ -8954,8 +9869,13 @@ func statusKeys(cfg *config.Config, k barKeys) string {
         <span class="cov8" title="1">if k.flow </span>{
                 <span class="cov8" title="1">first("flow", barState(cfg.Settings.Flow))
 </span>        }
-        <span class="cov8" title="1">first("layout", barState(cfg.Settings.SideBySide))
-        for _, action := range []string{"git_diff", "settings", "help", "quit"} </span>{
+        <span class="cov8" title="1">actions := []string{"git_diff", "settings", "help", "quit"}
+        if k.text </span>{
+                <span class="cov8" title="1">actions = actions[2:]
+</span>        } else {
+                <span class="cov8" title="1">first("layout", barState(cfg.Settings.SideBySide))
+</span>        }
+        <span class="cov8" title="1">for _, action := range actions </span>{
                 <span class="cov8" title="1">first(action, 0)
 </span>        }
         <span class="cov8" title="1">return strings.Join(keys, " · ")</span>
@@ -9517,14 +10437,15 @@ func (g *SizeGuard) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file29" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
+		<pre class="file" id="file31" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
 // alignment.
 package main
 
 import (
-        _ "embed"
-        "flag"
+        "bytes"
+        "embed"
         "fmt"
+        "io"
         "os"
         "path/filepath"
         "runtime/debug"
@@ -9532,6 +10453,8 @@ import (
 
         tea "charm.land/bubbletea/v2"
         "github.com/charmbracelet/colorprofile"
+        "github.com/charmbracelet/x/term"
+        "github.com/spf13/cobra"
 
         "jdiff/internal/config"
         "jdiff/internal/gitsrc"
@@ -9543,51 +10466,193 @@ import (
 //go:embed LICENSE
 var license string
 
-//go:embed README.md
-var readme string
+// thirdParty holds the licenses of the modules linked into jdiff, which
+// they require a binary to carry; make licenses writes it.
+//
+//go:embed LICENSE-THIRD-PARTY
+var thirdParty string
+
+// docs holds the documentation that --readme shows: the packages install only
+// the binary, so it is the only copy at hand.
+//
+//go:embed README.md doc/*.md
+var docs embed.FS
+
+// docPages are the pages of docs in the order of n and p; --readme starts
+// with the first.
+var docPages = []string{"README.md", "doc/usage.md", "doc/features.md", "doc/install.md", "doc/config.md",
+        "doc/keybindings.md", "doc/development.md"}
 
 func main() {
-        <span class="cov8" title="1">showVersion := flag.Bool("version", false, "print the version and exit")
-        showLicense := flag.Bool("license", false, "print the license and the dependencies and exit")
-        showReadme := flag.Bool("readme", false, "print the README and exit")
-        features := flag.String("features", "",
-                "delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
-                        "your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
-                        "unless main.toml names another. DELTA_FEATURES, when set, wins; with a leading + it adds\n"+
-                        "to them.")
-        flag.Usage = func() </span>{
-                <span class="cov8" title="1">fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
-                        "       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
-                        "       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
-                flag.PrintDefaults()
+        <span class="cov8" title="1">cmd, err := newRoot(start).ExecuteC()
+        if err == nil </span>{
+                <span class="cov8" title="1">return
 </span>        }
-        <span class="cov8" title="1">flag.Parse()
-        if *showVersion </span>{
-                <span class="cov8" title="1">fmt.Println(resolveVersion())
-                return
+        // The errors of running a view end in fatal; those left are of the
+        // command line, of the command cmd.
+        <span class="cov8" title="1">fmt.Fprintf(os.Stderr, "jdiff: %v\n\n%s", err, cmd.UsageString())
+        os.Exit(2)</span>
+}
+
+// options are the flags of the command line.
+type options struct {
+        version, license, readme, untracked bool
+        features                            string
+}
+
+// newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
+// whose arguments go to git as they are. jdiff's flags come before log and
+// diff. It calls start with what to show, see start.
+func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
+        <span class="cov8" title="1">var o options
+        cobra.EnableCommandSorting = false // log, diff, completion
+        root := &amp;cobra.Command{
+                Use:   "jdiff [flags] OLD NEW",
+                Short: "An interactive diff viewer for the terminal, with manual line alignment",
+                Example: "  jdiff old.txt new.txt     compare two files, or two directories\n" +
+                        "  jdiff log -20             browse the last 20 commits\n" +
+                        "  jdiff -u diff HEAD        what git diff HEAD shows, and the untracked files\n" +
+                        "  jdiff -- log log1         compare files named like a command",
+                Args: func(cmd *cobra.Command, args []string) error </span>{
+                        <span class="cov8" title="1">for _, f := range []struct {
+                                on   bool
+                                name string
+                        }{{o.version, "version"}, {o.license, "license"}, {o.readme, "readme"}} </span>{
+                                <span class="cov8" title="1">if f.on &amp;&amp; len(args) &gt; 0 </span>{
+                                        <span class="cov8" title="1">return fmt.Errorf("--%s takes no arguments, not %q", f.name, args[0])
+</span>                                }
+                                <span class="cov8" title="1">if f.on </span>{
+                                        <span class="cov8" title="1">return nil
+</span>                                }
+                        }
+                        <span class="cov8" title="1">return cobra.ExactArgs(2)(cmd, args)</span>
+                },
+                RunE: func(cmd *cobra.Command, args []string) error {
+                        <span class="cov8" title="1">mode := ""
+                        switch </span>{
+                        case o.version:
+                                <span class="cov8" title="1">fmt.Println(resolveVersion())
+                                return nil</span>
+                        case o.license:
+                                <span class="cov8" title="1">printLicense()
+                                return nil</span>
+                        case o.readme:
+                                <span class="cov8" title="1">mode = "readme"</span>
+                        }
+                        <span class="cov8" title="1">start(o, mode, args)
+                        return nil</span>
+                },
+                SilenceErrors:    true,
+                SilenceUsage:     true,
+                TraverseChildren: true, // the flags before log and diff
+        }
+        <span class="cov8" title="1">f := root.Flags()
+        f.BoolVar(&amp;o.version, "version", false, "print the version")
+        f.BoolVar(&amp;o.license, "license", false, "print the license and those of the libraries")
+        f.BoolVar(&amp;o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
+                "when the output is no terminal")
+        f.BoolVarP(&amp;o.untracked, "untracked", "u", false, "also show the untracked files in a git diff; u in the view switches them.\n"+
+                "Neither is saved")
+        f.StringVar(&amp;o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
+                "sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
+                "which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
+                "leading + it adds to them.")
+        for _, c := range []struct{ name, use, short string }{
+                {"log", "log [GIT LOG ARGS]", "browse the commits that git log lists"},
+                {"diff", "diff [GIT DIFF ARGS]", "show the files that git diff shows"},
+</span>        } {
+                <span class="cov8" title="1">root.AddCommand(&amp;cobra.Command{
+                        Use:                c.use,
+                        Short:              c.short,
+                        DisableFlagParsing: true, // all of them are git's
+                        RunE: func(cmd *cobra.Command, args []string) error </span>{
+                                <span class="cov8" title="1">start(o, c.name, args)
+                                return nil
+</span>                        },
+                })
+        }
+        <span class="cov8" title="1">root.AddCommand(&amp;cobra.Command{
+                Use:   "completion bash|zsh|fish",
+                Short: "print the script that completes jdiff's arguments in the shell",
+                Long: "Prints the script that completes jdiff's flags and arguments in the shell; after log and diff\n" +
+                        "it completes as git does, when git's completion is installed. To use it, e.g.:\n\n" +
+                        "  bash: source &lt;(jdiff completion bash)       in ~/.bashrc\n" +
+                        "  zsh:  source &lt;(jdiff completion zsh)        in ~/.zshrc, after compinit\n" +
+                        "  fish: jdiff completion fish | source        in ~/.config/fish/config.fish\n\n" +
+                        "The packages install it, so that this is not needed.",
+                ValidArgs: []string{"bash", "zsh", "fish"},
+                Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+                RunE: func(cmd *cobra.Command, args []string) error </span>{
+                        <span class="cov8" title="1">return printCompletion(cmd.OutOrStdout(), cmd.Root(), args[0])
+</span>                },
+        })
+        // A usage line for each command, jdiff's flags before log and diff, and
+        // no "jdiff [command] --help": the help of log and diff is git's.
+        <span class="cov8" title="1">usage := strings.Replace(root.UsageTemplate(), "\n  {{.CommandPath}} [command]{{end}}",
+                "{{range .Commands}}{{if .IsAvailableCommand}}\n  {{$.CommandPath}} {{if .DisableFlagParsing}}[flags] {{end}}{{.Use}}"+
+                        "{{end}}{{end}}{{end}}", 1)
+        usage = strings.Replace(usage, "{{if .HasAvailableSubCommands}}\n\nUse \"{{.CommandPath}} [command] --help\" "+
+                "for more information about a command.{{end}}", "", 1)
+        root.SetUsageTemplate(usage)
+        root.SetHelpCommand(&amp;cobra.Command{Hidden: true}) // --help does it
+        root.CompletionOptions.DisableDefaultCmd = true   // the one above
+        return root</span>
+}
+
+// shellParts holds what printCompletion adds to cobra's scripts, git.bash,
+// git.zsh and git.fish: after log and diff, git's completion takes over.
+//
+//go:embed shell
+var shellParts embed.FS
+
+// printCompletion writes the completion script of root for shell to w:
+// cobra's, then its part of shellParts. zsh calls a completion function by
+// the name of its file, _jdiff, so cobra's _jdiff is renamed for the one of
+// shellParts to call; jdiff stays bound to _jdiff.
+func printCompletion(w io.Writer, root *cobra.Command, shell string) error {
+        <span class="cov8" title="1">var b bytes.Buffer
+        var err error
+        switch shell </span>{
+        case "bash":
+                <span class="cov8" title="1">err = root.GenBashCompletionV2(&amp;b, true)</span>
+        case "zsh":
+                <span class="cov8" title="1">err = root.GenZshCompletion(&amp;b)</span>
+        case "fish":
+                <span class="cov8" title="1">err = root.GenFishCompletion(&amp;b, true)</span>
+        }
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov0" title="0">return err
 </span>        }
-        <span class="cov8" title="1">if *showLicense </span>{
-                <span class="cov8" title="1">printLicense()
-                return
+        <span class="cov8" title="1">script := b.String()
+        if shell == "zsh" </span>{
+                <span class="cov8" title="1">script = strings.ReplaceAll(script, "_jdiff", "_jdiff_cobra")
+                script = strings.Replace(script, "compdef _jdiff_cobra jdiff", "compdef _jdiff jdiff", 1)
 </span>        }
-        <span class="cov8" title="1">if *showReadme </span>{
-                <span class="cov8" title="1">fmt.Print(withoutBadges(readme))
-                return
+        <span class="cov8" title="1">part, err := shellParts.ReadFile("shell/git." + shell)
+        if err != nil </span>{
+                <span class="cov0" title="0">return err
 </span>        }
-        <span class="cov8" title="1">mode := ""
-        if flag.NArg() &gt; 0 &amp;&amp; (flag.Arg(0) == "log" || flag.Arg(0) == "diff") </span>{
-                <span class="cov8" title="1">mode = flag.Arg(0)
-</span>        }
-        <span class="cov8" title="1">if mode == "" &amp;&amp; flag.NArg() != 2 </span>{
-                <span class="cov8" title="1">flag.Usage()
-                os.Exit(2)
-</span>        }
+        <span class="cov8" title="1">_, err = io.WriteString(w, script+"\n"+string(part))
+        return err</span>
+}
+
+// start shows what mode asks for: the README, git log or git diff with the
+// git arguments args, or else the two files or directories of args.
+func start(o options, mode string, args []string) {
+        <span class="cov8" title="1">if mode == "readme" &amp;&amp; !term.IsTerminal(os.Stdout.Fd()) </span>{
+                <span class="cov8" title="1">src, err := docs.ReadFile(docPages[0])
+                if err != nil </span>{
+                        <span class="cov0" title="0">fatal(err)
+</span>                }
+                <span class="cov8" title="1">fmt.Print(withoutBadges(string(src)))
+                return</span>
+        }
 
         <span class="cov8" title="1">dir, err := config.Dir()
         if err != nil </span>{
                 <span class="cov0" title="0">dir = "" // no home: defaults only
 </span>        }
-        <span class="cov8" title="1">cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), *features)
+        <span class="cov8" title="1">cfg, err := config.Load(dir, theme.ReadGitConfig(), os.Getenv("DELTA_FEATURES"), o.features)
         if err != nil </span>{
                 <span class="cov0" title="0">fatal(err)
 </span>        }
@@ -9595,17 +10660,24 @@ func main() {
         if err != nil </span>{
                 <span class="cov0" title="0">repo = "" // not in a repository: marks with absolute paths
 </span>        }
+        <span class="cov8" title="1">if o.untracked </span>{
+                <span class="cov0" title="0">cfg.Settings.Untracked = true
+</span>        }
         <span class="cov8" title="1">cfg.LoadMarks(repo)
         ui.LoadKeys(cfg)
 </span>
+        <span class="cov8" title="1">if mode == "readme" </span>{
+                <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewDoc(cfg, docs, docPages, 0)))))
+                return
+</span>        }
         <span class="cov8" title="1">var m tea.Model
         switch mode </span>{
         case "log":
-                <span class="cov8" title="1">m, err = loadLog(cfg, flag.Args()[1:])</span>
+                <span class="cov8" title="1">m, err = loadLog(cfg, args)</span>
         case "diff":
-                <span class="cov8" title="1">m, err = loadDiff(cfg, flag.Args()[1:])</span>
+                <span class="cov8" title="1">m, err = loadDiff(cfg, args)</span>
         default:
-                <span class="cov8" title="1">m, err = load(cfg, flag.Arg(0), flag.Arg(1))</span>
+                <span class="cov8" title="1">m, err = load(cfg, args[0], args[1])</span>
         }
         <span class="cov8" title="1">if err != nil </span>{
                 <span class="cov8" title="1">fatal(err)
@@ -9617,9 +10689,13 @@ func main() {
         <span class="cov0" title="0">wrap := func(m tea.Model) tea.Model </span>{
                 <span class="cov0" title="0">return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 </span>        }
-        <span class="cov0" title="0">page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths))
-</span>        // 16 color mode: colors are drawn as ANSI colors, so the terminal
-        // palette applies. Terminals without color support stay without.
+        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))</span>
+}
+
+// run runs the program that shows page. 16 color mode: colors are drawn as
+// ANSI colors, so the terminal palette applies. Terminals without color
+// support stay without.
+func run(page tea.Model) {
         <span class="cov0" title="0">var opts []tea.ProgramOption
         if colorprofile.Detect(os.Stdout, os.Environ()) &gt; colorprofile.ANSI </span>{
                 <span class="cov0" title="0">opts = append(opts, tea.WithColorProfile(colorprofile.ANSI))
@@ -9701,8 +10777,8 @@ func fatal(err error) {
         os.Exit(1)
 </span>}
 
-// withoutBadges drops the lines of badges from a README: images to load are of
-// no use in a terminal.
+// withoutBadges drops the lines of badges from a page of the documentation:
+// images to load are of no use in a terminal.
 func withoutBadges(readme string) string {
         <span class="cov8" title="1">var b strings.Builder
         for _, line := range strings.SplitAfter(readme, "\n") </span>{
@@ -9713,18 +10789,10 @@ func withoutBadges(readme string) string {
         <span class="cov8" title="1">return b.String()</span>
 }
 
-// printLicense prints jdiff's license and the modules linked into this binary.
+// printLicense prints jdiff's license and those of the modules linked into it.
 func printLicense() {
-        <span class="cov8" title="1">fmt.Print(license)
-        bi, ok := debug.ReadBuildInfo()
-        if !ok || len(bi.Deps) == 0 </span>{
-                <span class="cov0" title="0">return
-</span>        }
-        <span class="cov8" title="1">fmt.Println("\nDependencies:")
-        for _, d := range bi.Deps </span>{
-                <span class="cov8" title="1">fmt.Println(" ", d.Path, d.Version)
-</span>        }
-}
+        <span class="cov8" title="1">fmt.Print(license, "\njdiff is built with these libraries, under their licenses:\n\n", thirdParty)
+</span>}
 
 func resolveVersion() string {
         <span class="cov8" title="1">bi, ok := debug.ReadBuildInfo()
