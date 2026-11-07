@@ -27,11 +27,11 @@ line_end = "¶"                  # drawn at the end of lines while W shows all w
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column
 precedes = "«"                  # first column of a line scrolled out to the left; one column
+untracked = false               # jdiff diff also shows untracked files; u and --untracked switch it, not saved
 
 # The toggles, also kept in state.toml:
 side_by_side = true
 flow = false
-untracked = false               # jdiff diff also shows untracked files (u)
 wrap = false
 show_whitespaces = false
 mark_whitespace = true

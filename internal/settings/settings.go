@@ -42,6 +42,11 @@ type Settings struct {
 	// to the left; one column wide each.
 	Extends  string `toml:"extends"`
 	Precedes string `toml:"precedes"`
+	// Untracked (untracked) also shows the untracked files in jdiff diff,
+	// as added, where it compares with the working tree. u in the settings
+	// popup toggles it and --untracked turns it on, for the run only: it is
+	// the one toggle state.toml does not keep.
+	Untracked bool `toml:"untracked"`
 	Toggles
 }
 
@@ -99,10 +104,6 @@ type Toggles struct {
 	// changed ones, added, removed and moved. tab in the search bar toggles
 	// it.
 	SearchAll bool `toml:"search_all"`
-	// Untracked (untracked) also shows the untracked files in jdiff diff,
-	// as added, where it compares with the working tree. u in the settings
-	// popup toggles it.
-	Untracked bool `toml:"untracked"`
 	// AutoReloadTimeout (auto_reload_timeout) is after how many minutes
 	// without a key pressed or a change of the repository auto reload ends,
 	// and with it its git commands; 0 is never. The settings popup sets it.

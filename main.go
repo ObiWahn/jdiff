@@ -47,6 +47,10 @@ func main() {
 	showLicense := flag.Bool("license", false, "print the license and those of the libraries and exit")
 	showReadme := flag.Bool("readme", false, "show the README and the documentation it links to; print the README\n"+
 		"as markdown when the output is no terminal")
+	var untracked bool
+	flag.BoolVar(&untracked, "untracked", false, "also show the untracked files in a git diff; u in the view switches\n"+
+		"them. Neither is saved")
+	flag.BoolVar(&untracked, "u", false, "short for --untracked")
 	features := flag.String("features", "",
 		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
 			"your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
@@ -55,7 +59,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: %[1]s [--version] [--license] [--readme] [--features NAMES] OLD NEW\n"+
 			"       %[1]s [--features NAMES] log [GIT LOG ARGS]\n"+
-			"       %[1]s [--features NAMES] diff [GIT DIFF ARGS]\n", os.Args[0])
+			"       %[1]s [--features NAMES] [-u|--untracked] diff [GIT DIFF ARGS]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -98,6 +102,9 @@ func main() {
 	repo, err := gitsrc.Repo{}.TopLevel()
 	if err != nil {
 		repo = "" // not in a repository: marks with absolute paths
+	}
+	if untracked {
+		cfg.Settings.Untracked = true
 	}
 	cfg.LoadMarks(repo)
 	ui.LoadKeys(cfg)

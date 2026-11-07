@@ -4,7 +4,7 @@
 jdiff OLD NEW                 # compare two files
 jdiff DIR1 DIR2               # compare two directories
 jdiff log [GIT LOG ARGS]      # browse commits, e.g. jdiff log -20 or jdiff log main..topic
-jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdiff diff --cached (the index), jdiff diff HEAD; u adds the untracked files
+jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdiff diff --cached (the index), jdiff diff HEAD; u, or -u before diff, adds the untracked files
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 

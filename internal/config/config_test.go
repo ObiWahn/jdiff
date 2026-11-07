@@ -225,6 +225,30 @@ func TestSaveState(t *testing.T) {
 	}
 }
 
+// The untracked files are not kept in state.toml: main.toml may turn them
+// on, state.toml of earlier versions is read without them or a warning.
+func TestUntrackedNotSaved(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"state.toml": "untracked = true\nflow = true\n"})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Settings.Untracked || !c.Settings.Flow || c.Warning() != "" {
+		t.Errorf("untracked %v, flow %v, warning %q; want off, on, none", c.Settings.Untracked, c.Settings.Flow, c.Warning())
+	}
+	c.Settings.Untracked = true
+	if err := c.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "state.toml")); err != nil || strings.Contains(string(data), "untracked") {
+		t.Errorf("state.toml, %v:\n%s", err, data)
+	}
+	dir = writeFiles(t, map[string]string{"main.toml": "untracked = true\n"})
+	if c, err = Load(dir, nil, "", ""); err != nil || !c.Settings.Untracked {
+		t.Errorf("main.toml: untracked %v, %v", c.Settings.Untracked, err)
+	}
+}
+
 func TestDir(t *testing.T) {
 	// Absolute paths of the system: /xdg is not absolute on Windows.
 	xdg, home := t.TempDir(), t.TempDir()

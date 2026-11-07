@@ -88,7 +88,7 @@ The keys of the diff view, and:
 | `d` | [show another `git diff`](#another-git-diff) |
 | `s` | side by side or normal layout, also of the preview |
 | `f` | flow view of all files or commits; in it, the single file view |
-| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); kept in `state.toml` |
+| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); not saved |
 | `w` | wrap long lines or cut them |
 | `W` | show all whitespace and line ends or only changed |
 | `ctrl+w` | mark changed whitespace or not |
@@ -134,7 +134,7 @@ git runs in the directory jdiff was started in, also when it compares two direct
 ### Untracked files
 
 `u` also shows the untracked files that are not ignored, as added, and lists the files anew.
-It is kept in `state.toml`, so later runs show them too.
+Unlike the other toggles it is not saved: each run starts without them, `jdiff -u diff` (`--untracked`) with them.
 
 - They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits.
 - Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`.

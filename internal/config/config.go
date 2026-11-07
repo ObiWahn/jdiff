@@ -136,10 +136,16 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 				*sym.v = sym.fallback
 			}
 		}
-		// state.toml holds only the toggles.
-		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
+		// state.toml holds only the toggles. Earlier versions kept untracked
+		// there too: it is left out, without a warning.
+		state := struct {
+			settings.Toggles
+			Untracked bool `toml:"untracked"`
+		}{Toggles: c.Settings.Toggles}
+		if err := c.decode(c.statePath, &state); err != nil {
 			return nil, err
 		}
+		c.Settings.Toggles = state.Toggles
 		name = m.Theme
 		if err := c.readThemes(filepath.Join(dir, "themes"), name); err != nil {
 			return nil, err
