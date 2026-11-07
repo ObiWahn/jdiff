@@ -908,6 +908,7 @@ func TestKeybindingsDoc(t *testing.T) {
 		{"File list", p.FileList},
 		{"Diff view", p.DiffView},
 		{"Flow view", p.FlowView},
+		{"README (`jdiff --readme`)", p.DocView},
 		{"Everywhere", p.Everywhere},
 	}
 	for _, c := range pages {

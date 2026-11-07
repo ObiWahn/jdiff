@@ -3,7 +3,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/term"
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
@@ -30,13 +31,22 @@ var license string
 //go:embed LICENSE-THIRD-PARTY
 var thirdParty string
 
-//go:embed README.md
-var readme string
+// docs holds the documentation that --readme shows: the packages install only
+// the binary, so it is the only copy at hand.
+//
+//go:embed README.md doc/*.md
+var docs embed.FS
+
+// docPages are the pages of docs in the order of n and p; --readme starts
+// with the first.
+var docPages = []string{"README.md", "doc/usage.md", "doc/features.md", "doc/install.md", "doc/config.md",
+	"doc/keybindings.md", "doc/development.md"}
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	showLicense := flag.Bool("license", false, "print the license and those of the libraries and exit")
-	showReadme := flag.Bool("readme", false, "print the README and exit")
+	showReadme := flag.Bool("readme", false, "show the README and the documentation it links to; print the README\n"+
+		"as markdown when the output is no terminal")
 	features := flag.String("features", "",
 		"delta features to use instead of delta.features: `NAMES` of [delta \"name\"] sections of\n"+
 			"your git config, separated by spaces. They only shape the \"delta\" theme, which is used\n"+
@@ -57,17 +67,24 @@ func main() {
 		printLicense()
 		return
 	}
-	if *showReadme {
-		fmt.Print(withoutBadges(readme))
-		return
-	}
 	mode := ""
-	if flag.NArg() > 0 && (flag.Arg(0) == "log" || flag.Arg(0) == "diff") {
+	switch {
+	case *showReadme:
+		mode = "readme"
+	case flag.NArg() > 0 && (flag.Arg(0) == "log" || flag.Arg(0) == "diff"):
 		mode = flag.Arg(0)
 	}
-	if mode == "" && flag.NArg() != 2 {
+	if mode == "" && flag.NArg() != 2 || mode == "readme" && flag.NArg() > 0 {
 		flag.Usage()
 		os.Exit(2)
+	}
+	if mode == "readme" && !term.IsTerminal(os.Stdout.Fd()) {
+		src, err := docs.ReadFile(docPages[0])
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Print(withoutBadges(string(src)))
+		return
 	}
 
 	dir, err := config.Dir()
@@ -85,6 +102,10 @@ func main() {
 	cfg.LoadMarks(repo)
 	ui.LoadKeys(cfg)
 
+	if mode == "readme" {
+		run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewDoc(cfg, docs, docPages, 0)))))
+		return
+	}
 	var m tea.Model
 	switch mode {
 	case "log":
@@ -104,9 +125,13 @@ func main() {
 	wrap := func(m tea.Model) tea.Model {
 		return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 	}
-	page := ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths))
-	// 16 color mode: colors are drawn as ANSI colors, so the terminal
-	// palette applies. Terminals without color support stay without.
+	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))
+}
+
+// run runs the program that shows page. 16 color mode: colors are drawn as
+// ANSI colors, so the terminal palette applies. Terminals without color
+// support stay without.
+func run(page tea.Model) {
 	var opts []tea.ProgramOption
 	if colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ANSI {
 		opts = append(opts, tea.WithColorProfile(colorprofile.ANSI))
@@ -188,8 +213,8 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
-// withoutBadges drops the lines of badges from a README: images to load are of
-// no use in a terminal.
+// withoutBadges drops the lines of badges from a page of the documentation:
+// images to load are of no use in a terminal.
 func withoutBadges(readme string) string {
 	var b strings.Builder
 	for _, line := range strings.SplitAfter(readme, "\n") {

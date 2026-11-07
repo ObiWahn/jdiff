@@ -64,6 +64,9 @@ type Spec struct {
 	PlusIndentStyle         *string `toml:"plus-indent-style" git:"jdiff"`         // unset: plus-emph-style
 	MinusMovedStyle         *string `toml:"minus-moved-style" git:"jdiff"`         // removed lines that moved elsewhere
 	PlusMovedStyle          *string `toml:"plus-moved-style" git:"jdiff"`          // added lines that moved here
+	DocHeadingStyle         *string `toml:"doc-heading-style" git:"jdiff"`         // headings of --readme; unset: branch-style
+	DocCodeStyle            *string `toml:"doc-code-style" git:"jdiff"`            // code in --readme; unset: file-style
+	DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme; unset: commit-hash-style
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`

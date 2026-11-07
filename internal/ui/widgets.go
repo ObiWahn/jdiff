@@ -69,6 +69,7 @@ type barKeys struct {
 	back    string // the action of backspace, "" when it does nothing
 	commits bool   // N and P switch commits
 	flow    bool   // f switches between the flow and the single file view
+	text    bool   // a page of text, --readme: no layout, git diff or settings
 }
 
 // barState returns the index of an action's label while it is on or off.
@@ -106,8 +107,13 @@ func statusKeys(cfg *config.Config, k barKeys) string {
 	if k.flow {
 		first("flow", barState(cfg.Settings.Flow))
 	}
-	first("layout", barState(cfg.Settings.SideBySide))
-	for _, action := range []string{"git_diff", "settings", "help", "quit"} {
+	actions := []string{"git_diff", "settings", "help", "quit"}
+	if k.text {
+		actions = actions[2:]
+	} else {
+		first("layout", barState(cfg.Settings.SideBySide))
+	}
+	for _, action := range actions {
 		first(action, 0)
 	}
 	return strings.Join(keys, " · ")

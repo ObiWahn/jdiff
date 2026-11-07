@@ -39,6 +39,7 @@ type Theme struct {
 	FileBar, CommitBar              lipgloss.Style // flow mode: start of a file, a commit
 	CommitHash                      lipgloss.Style // commit hashes in the log
 	Branch                          lipgloss.Style // branch above the commit list
+	DocHeading, DocCode, DocLink    lipgloss.Style // --readme: headings, code, links
 
 	AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
@@ -157,5 +158,8 @@ func Resolve(sp Spec) *Theme {
 	// Changed whitespace is drawn as · and →, by default like changed words.
 	t.MinusIndent = styleOrStyle("minus-indent-style", sp.MinusIndentStyle, t.MinusEmph)
 	t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)
+	t.DocHeading = styleOrStyle("doc-heading-style", sp.DocHeadingStyle, t.Branch)
+	t.DocCode = styleOrStyle("doc-code-style", sp.DocCodeStyle, t.Title)
+	t.DocLink = styleOrStyle("doc-link-style", sp.DocLinkStyle, t.CommitHash)
 	return t
 }

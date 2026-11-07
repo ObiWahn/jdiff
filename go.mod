@@ -8,6 +8,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/sys v0.47.0
 )
 

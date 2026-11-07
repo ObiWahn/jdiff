@@ -64,6 +64,22 @@ The keys of the diff view, and:
 | `c` | full or short commit messages, in the log |
 | `C` | stay in the current commit, in the log (`N` `P` still switch) |
 
+### README (`jdiff --readme`)
+
+| Key | Action |
+|---|---|
+| `j` `k` (`down` `up`) | move the cursor |
+| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
+| `ctrl+u` `ctrl+d` | half page up, down |
+| `home` `end` | top, bottom |
+| `tab` `shift+tab` | the next, previous link |
+| `h` `l` (`left` `right`) | the link left, right on the cursor's line |
+| `enter` | follow the link on the cursor's line: open its page or heading; a web address is shown |
+| `backspace` | back to where the link was followed |
+| `n` `p` | next, previous page |
+| `/` | search the page |
+| `.` `,` | next, previous match |
+
 ### Everywhere
 
 | Key | Action |

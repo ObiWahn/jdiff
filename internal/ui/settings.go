@@ -89,6 +89,7 @@ type keyPages struct {
 	DiffView   []keyRow  `toml:"diff_view"`
 	FlowView   []keyRow  `toml:"flow_view"`
 	Everywhere []keyRow  `toml:"everywhere"`
+	DocView    []keyRow  `toml:"doc_view"`
 	Help       []helpRow `toml:"help"`
 }
 
@@ -120,7 +121,7 @@ func (p keyPages) row(action string) keyRow {
 // rowsOf returns the rows of action in the first page that has it, in the
 // order of row.
 func (p keyPages) rowsOf(action string) []keyRow {
-	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
+	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} {
 		var of []keyRow
 		for _, r := range rows {
 			if r.Action == action {
@@ -151,7 +152,7 @@ func (p keyPages) keyText(s string) string {
 }
 
 // twoWay lists the actions whose rows take two keys, one for each way.
-var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match"}
+var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
 
 // userRow is a row of the user's keybindings.toml, which changes only keys.
 type userRow struct {
@@ -170,6 +171,7 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
 		DiffView   []userRow `toml:"diff_view"`
 		FlowView   []userRow `toml:"flow_view"`
 		Everywhere []userRow `toml:"everywhere"`
+		DocView    []userRow `toml:"doc_view"`
 	}
 	md, err := toml.Decode(text, &u)
 	if err != nil {
@@ -187,7 +189,7 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
 	}{
 		{"everywhere", &merged.Everywhere, u.Everywhere}, {"diff_view", &merged.DiffView, u.DiffView},
 		{"flow_view", &merged.FlowView, u.FlowView}, {"commit_list", &merged.CommitList, u.CommitList},
-		{"file_list", &merged.FileList, u.FileList},
+		{"file_list", &merged.FileList, u.FileList}, {"doc_view", &merged.DocView, u.DocView},
 	} {
 		for _, r := range t.user {
 			switch {
@@ -282,6 +284,7 @@ const (
 	fileList
 	diffView
 	flowView
+	docView
 	everywhere // the popups over all pages
 )
 
@@ -304,6 +307,8 @@ func (p keyPages) tables(pg keyPage) [][]keyRow {
 		return [][]keyRow{p.DiffView, p.Everywhere}
 	case flowView:
 		return [][]keyRow{p.FlowView, p.DiffView, p.Everywhere}
+	case docView:
+		return [][]keyRow{p.DocView, p.Everywhere}
 	}
 	return [][]keyRow{p.Everywhere}
 }
@@ -436,7 +441,7 @@ func keyOrderProblems(text string) []string {
 		}
 	}
 	var words []string
-	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList} {
+	for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} {
 		for _, r := range rows {
 			words = append(words, r.Help, r.Setting)
 		}
@@ -461,7 +466,8 @@ func (p keyPages) conflicts() []string {
 	for _, t := range []struct {
 		name string
 		rows []keyRow
-	}{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList}} {
+	}{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList},
+		{"doc_view", p.DocView}} {
 		actions := map[string]string{}
 		for _, r := range t.rows {
 			for _, name := range r.Keys {

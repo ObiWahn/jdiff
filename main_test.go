@@ -58,7 +58,7 @@ func TestMainPrints(t *testing.T) {
 	}{
 		{"--version", func(s string) bool { return s == "dev\n" }}, // go test embeds no version
 		{"--license", func(s string) bool { return strings.HasPrefix(s, license) && strings.HasSuffix(s, thirdParty) }},
-		{"--readme", func(s string) bool { return s == withoutBadges(readme) }},
+		{"--readme", func(s string) bool { return s == withoutBadges(readme(t)) }}, // stdout is no terminal
 	} {
 		stdout, _, code := runMain(t, dir, c.arg)
 		if code != 0 || !c.check(stdout) {
@@ -67,9 +67,35 @@ func TestMainPrints(t *testing.T) {
 	}
 }
 
+// readme returns the README as embedded.
+func readme(t *testing.T) string {
+	t.Helper()
+	b, err := docs.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// Every page of doc/ is a page of --readme, so that the links to it work.
+func TestDocPages(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("doc", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range append(files, "README.md") {
+		if !slices.Contains(docPages, filepath.ToSlash(f)) {
+			t.Errorf("%s is not in docPages", f)
+		}
+	}
+	if len(docPages) != len(files)+1 {
+		t.Errorf("docPages %q, files %q", docPages, files)
+	}
+}
+
 func TestMainUsage(t *testing.T) {
 	dir := t.TempDir()
-	for _, args := range [][]string{{}, {"x0"}, {"x0", "x1", "x2"}, {"--no-such-flag"}} {
+	for _, args := range [][]string{{}, {"x0"}, {"x0", "x1", "x2"}, {"--no-such-flag"}, {"--readme", "x0"}} {
 		stdout, stderr, code := runMain(t, dir, args...)
 		if code != 2 || stdout != "" || !strings.Contains(stderr, "usage: ") {
 			t.Errorf("%v: exit %d, stdout %q, stderr %.60q", args, code, stdout, stderr)
@@ -375,14 +401,14 @@ func TestThirdPartyLicenses(t *testing.T) {
 	}
 }
 
-// What --readme prints: the README has its badge, the output neither that nor
-// a gap in its place.
+// What --readme prints without a terminal: the README has its badge, the output
+// neither that nor a gap in its place.
 func TestReadmeBadge(t *testing.T) {
-	if !strings.Contains(readme, "\n[![coverage](") {
+	if !strings.Contains(readme(t), "\n[![coverage](") {
 		t.Error("the README has no coverage badge")
 	}
 	// git may check out the README with CRLF on Windows.
-	got := strings.ReplaceAll(withoutBadges(readme), "\r\n", "\n")
+	got := strings.ReplaceAll(withoutBadges(readme(t)), "\r\n", "\n")
 	if strings.Contains(got, "[![") {
 		t.Error("--readme prints a badge")
 	}

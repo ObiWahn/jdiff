@@ -5,13 +5,14 @@
 # word for an action without states. No word there means that the status bar leaves the key out; the
 # status bar's order is in statusKeys. setting is what a setting does while on, in the settings popup.
 #
-# An action is looked up in everywhere, diff_view, flow_view, commit_list and file_list, in this
-# order; the first row found gives the keys and the words.
+# An action is looked up in everywhere, diff_view, flow_view, commit_list, file_list and doc_view, in
+# this order; the first row found gives the keys and the words.
 #
 # A key pressed is looked up in the rows of its page, for the flow view then in those of diff_view,
 # then in everywhere; the first row with it decides the action. Actions that go two ways take the
-# place of the key in its row: the first key of move, next_file, history, change and match goes
-# forward or down, the first of page, half_page, ends and scroll back, up or left. Key names are
+# place of the key in its row: the first key of move, next_file, history, change, match, link and
+# next_page goes forward or down, the first of page, half_page, ends, scroll and line_link back, up or
+# left. Key names are
 # Bubble Tea's, also pgdn for pgdown and F5 for f5; <letter> stands for the letter typed next.
 #
 # In help, setting and note, {action} stands for the keys of the first row of action, {action:1} for
@@ -103,6 +104,24 @@ file_list = [
     { action = "to_commits", keys = ["backspace"], label = ["commits"], help = "back to the commits (in the log)" },
 ]
 
+# The pages of jdiff --readme: the README and the documentation it links to.
+doc_view = [
+    { action = "move", keys = ["j", "k"], help = "move the cursor" },
+    { action = "move", keys = ["down", "up"], help = "move the cursor" },
+    { action = "page", keys = ["pgup", "pgdn"], help = "page up, down" },
+    { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
+    { action = "half_page", keys = ["ctrl+u", "ctrl+d"], help = "half page up, down" },
+    { action = "ends", keys = ["home", "end"], help = "top, bottom" },
+    { action = "link", keys = ["tab", "shift+tab"], help = "the next, previous link" },
+    { action = "line_link", keys = ["h", "l"], help = "the link left, right on the cursor's line" },
+    { action = "line_link", keys = ["left", "right"], help = "the link left, right on the cursor's line" },
+    { action = "follow", keys = ["enter"], label = ["follow"], help = "follow the link on the cursor's line: open its page or heading; a web address is shown" },
+    { action = "back", keys = ["backspace"], label = ["back"], help = "back to where the link was followed" },
+    { action = "next_page", keys = ["n", "p"], help = "next, previous page" },
+    { action = "search", keys = ["/"], help = "search the page" },
+    { action = "match", keys = [".", ","], help = "next, previous match" },
+]
+
 # The lines of the help popup: an action gives its keys and its help; a heading stands alone, a note
 # goes on from the line above. The settings among them follow the order of everywhere.
 help = [
@@ -156,4 +175,9 @@ help = [
     { heading = "Flow view of the log" },
     { action = "full_messages" },
     { action = "stay_in_commit" },
+    { heading = "README and documentation (jdiff --readme)" },
+    { action = "link" },
+    { action = "line_link" },
+    { action = "follow" },
+    { note = "{back} back to where the link was followed, {next_page} next, previous page" },
 ]

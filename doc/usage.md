@@ -8,7 +8,7 @@ jdiff diff [GIT DIFF ARGS]    # what git diff shows: jdiff diff (unstaged), jdif
 jdiff --features NAMES ...    # delta features instead of delta.features, for the delta theme
 ```
 
-`jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and those of the libraries linked into it, `jdiff --readme` the README without its badge.
+`jdiff --version` prints the tag or commit it was built from, `jdiff --license` the license and those of the libraries linked into it, `jdiff --readme` shows the README rendered, and the pages of the documentation its links lead to: `enter` follows the link on the cursor's line, `backspace` goes back. When the output is no terminal, it prints the README as markdown, without its badge.
 
 ## Git aliases
 
