@@ -162,6 +162,7 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.PasteMsg:
 		if p.input != nil {
+			p.inputErr = ""
 			p.input.text += msg.Content
 			return p, nil
 		}

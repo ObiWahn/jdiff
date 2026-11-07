@@ -489,6 +489,24 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 	})
 }
 
+// Pasted text changes the number typed, as a key does: why it was none is gone.
+func TestSettingsNumberPasteClearsError(t *testing.T) {
+	s := WithSettings(config.Default(), newTestModel(numbered("x", 30), numbered("y", 30)))
+	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	pressRoot(s, "o")
+	for range len(settingOptions) - 1 {
+		pressRoot(s, "j")
+	}
+	pressRoot(s, "enter", "ctrl+u", "x", "enter")
+	if s.inputErr == "" {
+		t.Fatal("x was taken for a number")
+	}
+	s.Update(tea.PasteMsg{Content: "1"})
+	if s.inputErr != "" || s.input.text != "x1" {
+		t.Errorf("pasted after the failure: err %q, line %q", s.inputErr, s.input.text)
+	}
+}
+
 // The last option has no key: enter on it asks for the minutes in a line: enter sets and saves them, what is no
 // number stays asked for, esc keeps them. The columns stay aligned.
 func TestSettingsNumber(t *testing.T) {

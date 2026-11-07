@@ -410,6 +410,21 @@ func TestSearchInAppReachesView(t *testing.T) {
 	}
 }
 
+// Pasted text changes the line, as a key does: why it did not compile is gone.
+func TestSearchBarPasteClearsError(t *testing.T) {
+	s := newSearchBar(newSearchModel())
+	pressRoot(s, "/", "shift+tab")
+	s.Update(tea.PasteMsg{Content: "("})
+	pressRoot(s, "enter")
+	if s.err == "" {
+		t.Fatal("( compiled")
+	}
+	s.Update(tea.PasteMsg{Content: "x0)"})
+	if s.err != "" || s.input.text != "(x0)" {
+		t.Errorf("pasted after the failure: err %q, line %q", s.err, s.input.text)
+	}
+}
+
 func TestSearchBarPaste(t *testing.T) {
 	m := newSearchModel()
 	s := newSearchBar(m)
