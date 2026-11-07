@@ -96,7 +96,7 @@ func TestRenderMarkdownLinks(t *testing.T) {
 	src := "# X0, x1-x2_x3 x4.toml\n\nx5 [x6\nx7](x8.md#x9) <https://x10.example>\n\n## X0, x1-x2_x3 x4.toml"
 	p := renderMarkdown([]byte(src), 10)
 	// The heading takes three lines and its rule.
-	if want := []pageLink{{"x8.md#x9", 5}, {"https://x10.example", 6}}; !slices.Equal(p.links, want) {
+	if want := []pageLink{{"x8.md#x9", 5, false}, {"https://x10.example", 6, false}}; !slices.Equal(p.links, want) {
 		t.Errorf("links %v, want %v", p.links, want)
 	}
 	if want := map[string]int{"x0-x1-x2_x3-x4toml": 0, "x0-x1-x2_x3-x4toml-1": 9}; fmt.Sprint(p.anchors) != fmt.Sprint(want) {
@@ -105,8 +105,9 @@ func TestRenderMarkdownLinks(t *testing.T) {
 }
 
 // docTestPages are the pages of newTestDoc: a.md, then doc/b.md, which links
-// back. a.md has the lines x0 … x29 before its links, b.md the headings x0 …
-// x9 with ten lines each.
+// back and to c.toml, which is no page. a.md has the lines x0 … x29 before
+// its links, two of which lead nowhere; b.md the headings x0 … x9 with ten
+// lines each; c.toml a line of 107 columns.
 var docTestPages = []string{"a.md", "doc/b.md"}
 
 func newTestDoc(t *testing.T, width, height int) *Doc {
@@ -122,8 +123,9 @@ func newTestDoc(t *testing.T, width, height int) *Doc {
 			fmt.Fprintf(&b, "y%d%d\n\n", i, j)
 		}
 	}
-	b.WriteString("[a](../a.md)\n")
-	docs := fstest.MapFS{"a.md": {Data: []byte(a.String())}, "doc/b.md": {Data: []byte(b.String())}}
+	b.WriteString("[a](../a.md) [c](../c.toml)\n")
+	c := "# x0\nx1 = \"" + strings.Repeat("y", 100) + "\"\n"
+	docs := fstest.MapFS{"a.md": {Data: []byte(a.String())}, "doc/b.md": {Data: []byte(b.String())}, "c.toml": {Data: []byte(c)}}
 	d := NewDoc(config.Default(), docs, docTestPages, 0)
 	d.Update(tea.WindowSizeMsg{Width: width, Height: height})
 	return d
@@ -146,54 +148,70 @@ func TestDocLinks(t *testing.T) {
 	}
 	// tab goes to the first link below, then to the next on the same line.
 	pressRoot(d, "tab")
-	if d.cursor != 60 || d.selected() != "doc/b.md" || d.top != 51 || d.msg != "doc/b.md" {
+	if d.cursor != 60 || d.selected() != "doc/b.md" || d.top != 51 || d.msg != "" {
 		t.Fatalf("tab: cursor %d, link %q, top %d, msg %q", d.cursor, d.selected(), d.top, d.msg)
 	}
 	pressRoot(d, "tab", "enter")
-	if d.page != 1 || d.top != d.rendered.anchors["x5"] || d.cursor != d.top || d.rendered.lines[d.top].plain() != "x5" {
-		t.Errorf("enter on b x5: page %d, top %d, cursor %d", d.page, d.top, d.cursor)
+	if d.page != "doc/b.md" || d.top != d.rendered.anchors["x5"] || d.cursor != d.top || d.rendered.lines[d.top].plain() != "x5" {
+		t.Errorf("enter on b x5: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
 	}
 	// Back where it was, on the link followed, the second of the line.
 	pressRoot(d, "backspace")
-	if d.page != 0 || d.cursor != 60 || d.top != 51 || d.selected() != "doc/b.md#x5" || d.msg != "doc/b.md#x5" {
-		t.Errorf("backspace: page %d, cursor %d, top %d, link %q", d.page, d.cursor, d.top, d.selected())
+	if d.page != "a.md" || d.cursor != 60 || d.top != 51 || d.selected() != "doc/b.md#x5" || d.msg != "" {
+		t.Errorf("backspace: page %s, cursor %d, top %d, link %q", d.page, d.cursor, d.top, d.selected())
 	}
 	pressRoot(d, "backspace")
 	if d.msg != "no link followed to go back from" {
 		t.Errorf("backspace again: %q", d.msg)
 	}
-	for _, c := range []struct{ tabs, msg string }{
-		{"tab tab tab", "https://x30.example"},
-		{"tab tab tab tab", "no page x31.md"},
-		{"tab tab tab tab tab", "no heading #x99 in doc/b.md"},
-	} {
-		d := newTestDoc(t, 80, 12)
-		pressRoot(d, strings.Fields(c.tabs)...)
-		pressRoot(d, "enter")
-		if d.msg != c.msg {
-			t.Errorf("%s enter: %q, want %q", c.tabs, d.msg, c.msg)
-		}
+	// A web address shows in a box, enter does nothing more. The links to a
+	// page and a heading that are not there are no links: tab passes them,
+	// they are drawn as text.
+	web := newTestDoc(t, 80, 12)
+	pressRoot(web, "tab", "tab", "tab", "enter")
+	if web.page != "a.md" || web.msg != "" || !strings.Contains(ansi.Strip(web.frame()), "│ https://x30.example │") {
+		t.Errorf("enter on x30: page %s, %q, no box of the address:\n%s", web.page, web.msg, ansi.Strip(web.frame()))
+	}
+	pressRoot(web, "tab")
+	if web.selected() != "https://x30.example" || web.msg != "no link further down" {
+		t.Errorf("tab past x30: %q, %q", web.selected(), web.msg)
+	}
+	// The box is there while the cursor is on the web address, links into
+	// the documentation have none.
+	pressRoot(web, "k")
+	if strings.Contains(web.frame(), "x30.example") {
+		t.Errorf("the box stays when the cursor leaves the link:\n%s", ansi.Strip(web.frame()))
+	}
+	pressRoot(web, "j", "l")
+	if web.selected() != "doc/b.md#x5" || strings.Contains(web.frame(), "╭") {
+		t.Errorf("a box for %q:\n%s", web.selected(), ansi.Strip(web.frame()))
+	}
+	pressRoot(web, "h") // x5 drawn as a link, not selected
+	frame := web.frame()
+	if strings.Contains(frame, web.cfg.Theme.DocLink.Render("x31")) || strings.Contains(frame, web.cfg.Theme.DocLink.Render("x99")) ||
+		!strings.Contains(frame, web.cfg.Theme.DocLink.Render("x5")) {
+		t.Errorf("links that lead nowhere are drawn as links, or links are not:\n%q", frame)
 	}
 	// The cursor on the line of links selects the first and says where it goes.
 	pressRoot(d, "end")
-	if d.selected() != "doc/b.md" || d.msg != "doc/b.md" {
+	if d.selected() != "doc/b.md" || d.msg != "" {
 		t.Errorf("end: link %q, msg %q", d.selected(), d.msg)
 	}
-	pressRoot(d, "tab", "tab", "tab", "tab", "tab")
-	if d.selected() != "doc/b.md#x99" || d.msg != "no link further down" {
+	pressRoot(d, "tab", "tab", "tab")
+	if d.selected() != "https://x30.example" || d.msg != "no link further down" {
 		t.Errorf("past the last: %q, %q", d.selected(), d.msg)
 	}
 	pressRoot(d, "shift+tab")
-	if d.selected() != "x31.md" {
+	if d.selected() != "doc/b.md#x5" {
 		t.Errorf("shift+tab: %q", d.selected())
 	}
-	// h l go through the links of the line only.
+	// h l go through the links of the line only, those that lead somewhere.
 	pressRoot(d, "l", "l")
-	if d.selected() != "doc/b.md#x99" || d.msg != "no link further right" {
+	if d.selected() != "https://x30.example" || d.msg != "no link further right" {
 		t.Errorf("l on the last: %q, %q", d.selected(), d.msg)
 	}
 	pressRoot(d, "h", "left", "right")
-	if d.selected() != "x31.md" || d.msg != "x31.md" {
+	if d.selected() != "doc/b.md#x5" || d.msg != "" {
 		t.Errorf("h left right: %q, %q", d.selected(), d.msg)
 	}
 	pressRoot(d, "home", "h", "h", "h", "h", "h")
@@ -210,13 +228,99 @@ func TestDocLinks(t *testing.T) {
 	}
 	// A link back from doc/b.md, relative to it.
 	pressRoot(d, "n", "end", "enter")
-	if d.page != 0 || d.top != 0 || d.cursor != 0 {
-		t.Errorf("../a.md: page %d, top %d, cursor %d", d.page, d.top, d.cursor)
+	if d.page != "a.md" || d.top != 0 || d.cursor != 0 {
+		t.Errorf("../a.md: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
 	}
 }
 
 // a.md has 61 lines, 10 shown: the cursor moves, and paging moves the screen
 // and the cursor along.
+// A file that is no markdown, reached by a link: as it is, its long line
+// wrapped and indented, outside the order of n and p.
+func TestDocFile(t *testing.T) {
+	d := newTestDoc(t, 40, 12) // pages 38 columns wide
+	pressRoot(d, "n", "end", "l", "enter")
+	// Broken at the last space, then where the line ends.
+	want := []string{"# x0", "x1 =", `  "` + strings.Repeat("y", 35), "  " + strings.Repeat("y", 36), "  " + strings.Repeat("y", 29) + `"`}
+	if got := plainLines(d.rendered); d.page != "c.toml" || !slices.Equal(got, want) {
+		t.Fatalf("c.toml: page %s, lines\n%q\nwant\n%q", d.page, got, want)
+	}
+	if title := strings.Split(ansi.Strip(d.frame()), "\n")[0]; strings.Contains(title, "page") {
+		t.Errorf("title %q: c.toml is no page of n p", title)
+	}
+	pressRoot(d, "n")
+	if d.page != "c.toml" || d.msg != "c.toml is no page of n p: backspace goes back" {
+		t.Errorf("n: page %s, %q", d.page, d.msg)
+	}
+	pressRoot(d, "backspace")
+	if d.page != "doc/b.md" || d.selected() != "../c.toml" {
+		t.Errorf("backspace: page %s, link %q", d.page, d.selected())
+	}
+}
+
+func TestRenderText(t *testing.T) {
+	for _, c := range []struct {
+		src   string
+		width int
+		want  []string
+	}{
+		{"x0\n\nx1\n", 10, []string{"x0", "", "x1"}},
+		{"x0\r\nx1", 10, []string{"x0", "x1"}},
+		{"x0\tx1", 10, []string{"x0  x1"}}, // tabs every 4 columns
+		{"x0123456789", 4, []string{"x012", "  34", "  56", "  78", "  9"}},
+		{"x0123", 2, []string{"x0", "12", "3"}}, // too narrow to indent
+		{"x0 x1 x2 x3", 6, []string{"x0 x1", "  x2", "  x3"}},
+		{"    x0 x1", 6, []string{"    x0", "   x1"}}, // not in the indentation
+		{"", 10, []string{""}},
+	} {
+		if got := plainLines(renderText([]byte(c.src), c.width)); !slices.Equal(got, c.want) {
+			t.Errorf("%q at %d: %q, want %q", c.src, c.width, got, c.want)
+		}
+	}
+}
+
+// All links of the README and doc/ lead to a page and heading, or the web:
+// none are broken.
+func TestDocLinksResolve(t *testing.T) {
+	docs := fstest.MapFS{}
+	var pages []string
+	for _, f := range append([]string{"README.md"}, globDocs(t)...) {
+		b, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(f)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs[f], pages = &fstest.MapFile{Data: b}, append(pages, f)
+	}
+	b, err := os.ReadFile("keybindings.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs["internal/ui/keybindings.toml"] = &fstest.MapFile{Data: b}
+	for i, page := range pages {
+		d := NewDoc(config.Default(), docs, pages, i)
+		d.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+		for _, l := range d.rendered.links {
+			if l.broken {
+				t.Errorf("%s: link %s leads nowhere", page, l.target)
+			}
+		}
+	}
+}
+
+// globDocs returns the pages of doc/, as paths in docs.
+func globDocs(t *testing.T) []string {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join("..", "..", "doc", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, f := range files {
+		out = append(out, "doc/"+filepath.Base(f))
+	}
+	return out
+}
+
 func TestDocPagesAndScroll(t *testing.T) {
 	d := newTestDoc(t, 80, 12)
 	for _, c := range []struct {
@@ -235,16 +339,16 @@ func TestDocPagesAndScroll(t *testing.T) {
 		t.Errorf("the cursor's line is not marked: %q", rows[1])
 	}
 	pressRoot(d, "p")
-	if d.page != 0 || d.msg != "first page" {
-		t.Errorf("p on the first: page %d, %q", d.page, d.msg)
+	if d.page != "a.md" || d.msg != "first page" {
+		t.Errorf("p on the first: page %s, %q", d.page, d.msg)
 	}
 	pressRoot(d, "j", "n")
-	if d.page != 1 || d.top != 0 || d.cursor != 0 || !strings.HasPrefix(ansi.Strip(d.frame()), " doc/b.md") {
-		t.Errorf("n: page %d, top %d, cursor %d", d.page, d.top, d.cursor)
+	if d.page != "doc/b.md" || d.top != 0 || d.cursor != 0 || !strings.HasPrefix(ansi.Strip(d.frame()), " doc/b.md") {
+		t.Errorf("n: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
 	}
 	pressRoot(d, "n")
-	if d.page != 1 || d.msg != "last page" {
-		t.Errorf("n on the last: page %d, %q", d.page, d.msg)
+	if d.page != "doc/b.md" || d.msg != "last page" {
+		t.Errorf("n on the last: page %s, %q", d.page, d.msg)
 	}
 }
 
@@ -287,7 +391,8 @@ func TestDocStatusBar(t *testing.T) {
 	}
 }
 
-// docFiles returns the pages of jdiff's documentation.
+// docFiles returns the pages of jdiff's documentation, and the built-in
+// keybindings.toml, which it links to.
 func docFiles(t *testing.T) map[string][]byte {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join("..", "..", "doc", "*.md"))
@@ -295,7 +400,7 @@ func docFiles(t *testing.T) map[string][]byte {
 		t.Fatal(err)
 	}
 	out := map[string][]byte{}
-	for _, f := range append(files, filepath.Join("..", "..", "README.md")) {
+	for _, f := range append(files, filepath.Join("..", "..", "README.md"), "keybindings.toml") {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
@@ -312,11 +417,15 @@ func docFiles(t *testing.T) map[string][]byte {
 func TestDocSweep(t *testing.T) {
 	files := docFiles(t)
 	for name, src := range files {
-		links := len(renderMarkdown(src, 1000).links)
+		render := renderMarkdown
+		if filepath.Ext(name) != ".md" {
+			render = renderText
+		}
+		links := len(render(src, 1000).links)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			for w := minWidth - 2; w <= 200; w++ {
-				p := renderMarkdown(src, w)
+				p := render(src, w)
 				for i, l := range p.lines {
 					if lw := segsWidth(l.segs); lw > w {
 						t.Fatalf("width %d: line %d is %d wide: %q", w, i, lw, l.plain())

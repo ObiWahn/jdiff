@@ -66,7 +66,7 @@ type Spec struct {
 	PlusMovedStyle          *string `toml:"plus-moved-style" git:"jdiff"`          // added lines that moved here
 	DocHeadingStyle         *string `toml:"doc-heading-style" git:"jdiff"`         // headings of --readme; unset: branch-style
 	DocCodeStyle            *string `toml:"doc-code-style" git:"jdiff"`            // code in --readme; unset: file-style
-	DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme; unset: commit-hash-style
+	DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`
@@ -141,6 +141,8 @@ func Builtin() Spec {
 		HiddenCharStyle:         str("normal red"),
 		OverflowStyle:           str("blue"),
 		SearchStyle:             str("black yellow"),
+		// Links as browsers draw them.
+		DocLinkStyle: str("bright-blue bold"),
 	}
 }
 

@@ -227,8 +227,9 @@ func TestMoreStyle(t *testing.T) {
 	}
 }
 
-// The styles of --readme follow the styles they fall back to, also those a
-// theme sets, unless set themselves.
+// The styles of --readme: headings and code follow the styles they fall back
+// to, also those a theme sets, unless set themselves; links are bright blue
+// and bold, as browsers draw them.
 func TestDocStyles(t *testing.T) {
 	th := Default()
 	for _, c := range []struct {
@@ -237,16 +238,18 @@ func TestDocStyles(t *testing.T) {
 	}{
 		{"heading", th.DocHeading, th.Branch},
 		{"code", th.DocCode, th.Title},
-		{"link", th.DocLink, th.CommitHash},
 	} {
 		if c.got.GetForeground() != c.want.GetForeground() || c.got.GetBold() != c.want.GetBold() {
 			t.Errorf("%s: %v, want the style it falls back to, %v", c.name, c.got.GetForeground(), c.want.GetForeground())
 		}
 	}
+	if th.DocLink.GetForeground() != lipgloss.Color("12") || !th.DocLink.GetBold() {
+		t.Errorf("link: %v bold %v, want bright blue bold", th.DocLink.GetForeground(), th.DocLink.GetBold())
+	}
 	th = Resolve(FromGit(Config{"jdiff.branch-style": "red", "delta.file-style": "green", "jdiff.commit-hash-style": "cyan"}, nil))
 	if th.DocHeading.GetForeground() != lipgloss.Color("1") || th.DocCode.GetForeground() != lipgloss.Color("2") ||
-		th.DocLink.GetForeground() != lipgloss.Color("6") {
-		t.Errorf("unset, with the styles set: %v %v %v, want red green cyan",
+		th.DocLink.GetForeground() != lipgloss.Color("12") {
+		t.Errorf("unset, with the others set: %v %v %v, want red green bright blue",
 			th.DocHeading.GetForeground(), th.DocCode.GetForeground(), th.DocLink.GetForeground())
 	}
 	th = Resolve(FromGit(Config{"jdiff.doc-heading-style": "magenta bold", "jdiff.doc-code-style": "bright-black",

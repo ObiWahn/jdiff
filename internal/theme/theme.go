@@ -160,6 +160,6 @@ func Resolve(sp Spec) *Theme {
 	t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)
 	t.DocHeading = styleOrStyle("doc-heading-style", sp.DocHeadingStyle, t.Branch)
 	t.DocCode = styleOrStyle("doc-code-style", sp.DocCodeStyle, t.Title)
-	t.DocLink = styleOrStyle("doc-link-style", sp.DocLinkStyle, t.CommitHash)
+	t.DocLink = style("doc-link-style", sp.DocLinkStyle, def.DocLinkStyle)
 	return t
 }

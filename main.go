@@ -34,9 +34,10 @@ var license string
 var thirdParty string
 
 // docs holds the documentation that --readme shows: the packages install only
-// the binary, so it is the only copy at hand.
+// the binary, so it is the only copy at hand. doc/config.md links to the
+// built-in keybindings.toml.
 //
-//go:embed README.md doc/*.md
+//go:embed README.md doc/*.md internal/ui/keybindings.toml
 var docs embed.FS
 
 // docPages are the pages of docs in the order of n and p; --readme starts

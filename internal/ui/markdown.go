@@ -60,10 +60,12 @@ type docPage struct {
 	anchors map[string]int // the line of each heading
 }
 
-// pageLink is a link of a page: where it goes, as written, and its first line.
+// pageLink is a link of a page: where it goes, as written, and its first
+// line; broken when it leads nowhere, which Doc decides.
 type pageLink struct {
 	target string
 	line   int
+	broken bool
 }
 
 var markdown = goldmark.New(goldmark.WithExtensions(extension.Table))
@@ -92,6 +94,35 @@ func renderMarkdown(src []byte, width int) docPage {
 		}
 	}
 	page.lines = lines
+	return page
+}
+
+// renderText renders a file that is no markdown for a screen width columns
+// wide: its lines as code, the long ones wrapped at the last space that
+// fits, past their indentation, else where the line ends; the further pieces
+// indented.
+func renderText(src []byte, width int) docPage {
+	width = max(width, 1)
+	page := docPage{anchors: map[string]int{}}
+	text := strings.TrimSuffix(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
+	for _, line := range strings.Split(text, "\n") {
+		rest, lead, w := printable(line), "", width
+		add := func(s string) {
+			page.lines = append(page.lines, docLine{segs: trimSegs([]docSeg{{lead, docPlain, -1}, {s, docCode, -1}})})
+		}
+		for ansi.StringWidth(rest) > w {
+			piece := ansi.Truncate(rest, w, "")
+			if i := strings.LastIndex(piece, " "); i > 0 && strings.TrimSpace(piece[:i]) != "" {
+				piece = piece[:i+1]
+			}
+			add(piece)
+			rest = rest[len(piece):]
+			if lead == "" && width > 2 {
+				lead, w = "  ", width-2
+			}
+		}
+		add(rest)
+	}
 	return page
 }
 

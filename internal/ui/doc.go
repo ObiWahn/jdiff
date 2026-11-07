@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 )
@@ -17,12 +18,15 @@ import (
 // Doc shows the pages of jdiff's documentation, markdown rendered for the
 // terminal: jdiff --readme. A cursor line moves through a page; enter follows
 // the link it is on, the first unless h l or tab chose another, to another
-// page or heading, backspace goes back.
+// page or heading, backspace goes back. Only links that lead to a file of
+// docs, and a heading there, or to the web are links. A file that is no
+// markdown, reached by a link, shows as it is.
 type Doc struct {
 	cfg      *config.Config
 	docs     fs.FS
-	paths    []string // the pages in docs, in the order of n and p
-	page     int
+	order    []string                  // the pages in docs, in the order of n and p
+	page     string                    // the file of docs shown
+	anchors  map[string]map[string]int // the headings of other pages, see anchorsOf
 	rendered docPage
 	forWidth int // the width rendered is for, 0 before the first
 	top      int // the first line shown
@@ -35,11 +39,15 @@ type Doc struct {
 }
 
 // docPlace is where a link was followed from, and the link.
-type docPlace struct{ page, top, cursor, link int }
+type docPlace struct {
+	page              string
+	top, cursor, link int
+}
 
-// NewDoc returns the documentation in docs, the pages paths, on page page.
-func NewDoc(cfg *config.Config, docs fs.FS, paths []string, page int) *Doc {
-	return &Doc{cfg: cfg, docs: docs, paths: paths, page: page, link: -1}
+// NewDoc returns the documentation in docs, whose pages are order, on page
+// order[page].
+func NewDoc(cfg *config.Config, docs fs.FS, order []string, page int) *Doc {
+	return &Doc{cfg: cfg, docs: docs, order: order, page: order[page], anchors: map[string]map[string]int{}, link: -1}
 }
 
 func (d *Doc) Init() tea.Cmd { return nil }
@@ -70,17 +78,26 @@ func (d *Doc) render() {
 	if d.forWidth == d.textWidth() {
 		return
 	}
-	src, err := fs.ReadFile(d.docs, d.paths[d.page])
+	src, err := fs.ReadFile(d.docs, d.page)
 	if err != nil {
 		d.msg = err.Error()
 	}
-	d.rendered, d.forWidth = renderMarkdown(src, d.textWidth()), d.textWidth()
+	d.forWidth = d.textWidth()
+	if path.Ext(d.page) == ".md" {
+		d.rendered = renderMarkdown(src, d.forWidth)
+	} else {
+		d.rendered = renderText(src, d.forWidth)
+	}
+	for i, l := range d.rendered.links {
+		_, _, ok := d.resolve(l.target)
+		d.rendered.links[i].broken = !ok
+	}
 	d.scrollTo(d.top)
 	d.moveTo(d.cursor)
 }
 
-// show shows page page from line top, the cursor on line cursor.
-func (d *Doc) show(page, top, cursor int) {
+// show shows page from line top, the cursor on line cursor.
+func (d *Doc) show(page string, top, cursor int) {
 	d.page, d.forWidth = page, 0
 	d.render()
 	d.scrollTo(top)
@@ -93,8 +110,7 @@ func (d *Doc) scrollTo(top int) {
 }
 
 // moveTo moves the cursor to line i, kept in the page, and scrolls it into
-// view; the first link on the line is selected, and the status bar says
-// where it goes.
+// view; the first link on the line that resolves is selected.
 func (d *Doc) moveTo(i int) {
 	n := len(d.rendered.lines)
 	d.cursor = max(min(i, n-1), 0)
@@ -102,9 +118,8 @@ func (d *Doc) moveTo(i int) {
 	d.link = -1
 	if d.cursor < n {
 		for _, s := range d.rendered.lines[d.cursor].segs {
-			if s.link >= 0 {
+			if d.live(s.link) {
 				d.link = s.link
-				d.msg = d.rendered.links[s.link].target
 				break
 			}
 		}
@@ -143,14 +158,18 @@ func (d *Doc) key(k string) tea.Cmd {
 		p := d.back[len(d.back)-1]
 		d.back = d.back[:len(d.back)-1]
 		d.show(p.page, p.top, p.cursor)
-		d.link, d.msg = p.link, d.rendered.links[p.link].target
+		d.link = p.link
 	case "next_page":
-		next := d.page + direction(h.i == 0)
-		if next < 0 || next >= len(d.paths) {
+		i := slices.Index(d.order, d.page)
+		next := i + direction(h.i == 0)
+		switch {
+		case i < 0:
+			d.msg = d.page + " is no page of " + keyFile.keyText("{next_page}") + ": " + keyFile.keyText("{back}") + " goes back"
+		case next < 0 || next >= len(d.order):
 			d.msg = ends(h.i == 0, "last page", "first page")
-			break
+		default:
+			d.show(d.order[next], 0, 0)
 		}
-		d.show(next, 0, 0)
 	case "search":
 		return askSearch
 	case "match":
@@ -159,27 +178,32 @@ func (d *Doc) key(k string) tea.Cmd {
 	return nil
 }
 
+// live reports whether link i of the page is one: it resolves.
+func (d *Doc) live(i int) bool { return i >= 0 && !d.rendered.links[i].broken }
+
 // nextLink moves the cursor to the next link in direction dir and selects
 // it: the one after the selected link, also on the same line, or the first
 // below or last above the cursor.
 func (d *Doc) nextLink(dir int) {
 	links := d.rendered.links
-	next := d.link + dir
-	if d.link < 0 {
-		next = slices.IndexFunc(links, func(l pageLink) bool { return l.line > d.cursor })
+	next := -1
+	for i := range links {
+		j := i
 		if dir < 0 {
-			next = len(links) - 1
-			if after := slices.IndexFunc(links, func(l pageLink) bool { return l.line > d.cursor }); after >= 0 {
-				next = after - 1
-			}
+			j = len(links) - 1 - i
+		}
+		after := d.link >= 0 && (j-d.link)*dir > 0 || d.link < 0 && (links[j].line-d.cursor)*dir > 0
+		if after && d.live(j) {
+			next = j
+			break
 		}
 	}
-	if next < 0 || next >= len(links) {
+	if next < 0 {
 		d.msg = ends(dir > 0, "no link further down", "no link further up")
 		return
 	}
 	d.moveTo(links[next].line)
-	d.link, d.msg = next, links[next].target
+	d.link = next
 }
 
 // lineLink selects the next link on the cursor's line in direction dir,
@@ -187,7 +211,7 @@ func (d *Doc) nextLink(dir int) {
 func (d *Doc) lineLink(dir int) {
 	var on []int
 	for _, s := range d.rendered.lines[min(d.cursor, len(d.rendered.lines)-1)].segs {
-		if s.link >= 0 && !slices.Contains(on, s.link) {
+		if d.live(s.link) && !slices.Contains(on, s.link) {
 			on = append(on, s.link)
 		}
 	}
@@ -198,41 +222,65 @@ func (d *Doc) lineLink(dir int) {
 	case i < 0 || i >= len(on):
 		d.msg = ends(dir > 0, "no link further right", "no link further left")
 	default:
-		d.link, d.msg = on[i], d.rendered.links[on[i]].target
+		d.link = on[i]
 	}
 }
 
-// follow follows the selected link: to its page and heading, which shows
-// at the top, or for a web address it shows where it goes.
+// follow follows the selected link to its page and heading, which shows at
+// the top; for a web address the box of frame shows it already.
 func (d *Doc) follow() {
 	if d.link < 0 {
 		d.msg = "no link on this line: " + keyFile.keyText("{link}") + " go to the next, previous"
 		return
 	}
 	target := d.rendered.links[d.link].target
-	file, anchor, _ := strings.Cut(target, "#")
-	if strings.Contains(file, ":") { // https:, mailto:
-		d.msg = target
+	page, anchor, _ := d.resolve(target)
+	if page == "" {
 		return
-	}
-	page := d.page
-	if file != "" {
-		page = slices.Index(d.paths, path.Join(path.Dir(d.paths[d.page]), file))
-		if page < 0 {
-			d.msg = "no page " + file
-			return
-		}
 	}
 	d.back = append(d.back, docPlace{d.page, d.top, d.cursor, d.link})
 	d.show(page, 0, 0)
-	if anchor == "" {
-		return
-	}
-	if line, ok := d.rendered.anchors[anchor]; ok {
+	if line := d.rendered.anchors[anchor]; anchor != "" {
 		d.show(page, line, line)
-	} else {
-		d.msg = "no heading #" + anchor + " in " + d.paths[page]
 	}
+}
+
+// resolve returns the file of docs and the heading that target, a link of
+// the page shown, goes to, and whether both are there; for a web address
+// the file is "".
+func (d *Doc) resolve(target string) (page, anchor string, ok bool) {
+	file, anchor, _ := strings.Cut(target, "#")
+	if strings.Contains(file, ":") { // https:, mailto:
+		return "", "", true
+	}
+	page = d.page
+	if file != "" {
+		page = path.Join(path.Dir(d.page), file)
+		if _, err := fs.Stat(d.docs, page); err != nil {
+			return page, anchor, false
+		}
+	}
+	if anchor == "" {
+		return page, "", true
+	}
+	_, ok = d.anchorsOf(page)[anchor]
+	return page, anchor, ok
+}
+
+// anchorsOf returns the headings of page by the names links give them, with
+// their lines for the width of the page shown when it is that page.
+func (d *Doc) anchorsOf(page string) map[string]int {
+	if page == d.page {
+		return d.rendered.anchors
+	}
+	a, ok := d.anchors[page]
+	if !ok {
+		if src, err := fs.ReadFile(d.docs, page); err == nil && path.Ext(page) == ".md" {
+			a = renderMarkdown(src, 80).anchors
+		}
+		d.anchors[page] = a
+	}
+	return a
 }
 
 // findText moves the cursor to the next line, in direction dir, that holds
@@ -272,11 +320,14 @@ func (d *Doc) frame() string {
 	t := d.cfg.Theme
 	lines := d.rendered.lines
 	var b strings.Builder
-	where := fmt.Sprintf("page %d/%d", d.page+1, len(d.paths))
-	if n := len(lines); n > d.bodyHeight() {
-		where += fmt.Sprintf(" · %d%%", 100*min(d.top+d.bodyHeight(), n)/n)
+	var where []string
+	if i := slices.Index(d.order, d.page); i >= 0 {
+		where = append(where, fmt.Sprintf("page %d/%d", i+1, len(d.order)))
 	}
-	b.WriteString(statusLine(t, d.width, t.Title.Render(" "+printable(d.paths[d.page])), where+" ") + "\n")
+	if n := len(lines); n > d.bodyHeight() {
+		where = append(where, fmt.Sprintf("%d%%", 100*min(d.top+d.bodyHeight(), n)/n))
+	}
+	b.WriteString(statusLine(t, d.width, t.Title.Render(" "+printable(d.page)), strings.Join(where, " · ")+" ") + "\n")
 	m := matcherOf(d.cfg.Search.Query)
 	for i := d.top; i < d.top+d.bodyHeight(); i++ {
 		if i < len(lines) {
@@ -290,7 +341,38 @@ func (d *Doc) frame() string {
 	}
 	keys := statusKeys(d.cfg, barKeys{enter: "follow", back: "back", text: true})
 	b.WriteString(statusLine(t, d.width, pageStatus(d.cfg, d.msg, keys), ""))
-	return b.String()
+	return d.withWebAddress(b.String())
+}
+
+// withWebAddress returns frame with a box of the web address of the selected
+// link below its line, or above it near the bottom, while the cursor is on
+// it; links into the documentation need none.
+func (d *Doc) withWebAddress(frame string) string {
+	if d.link < 0 {
+		return frame
+	}
+	target := d.rendered.links[d.link].target
+	if page, _, _ := d.resolve(target); page != "" {
+		return frame
+	}
+	row := 1 + d.cursor - d.top // in frame, below the title
+	y := row + 1
+	if y+minBoxHeight > 1+d.bodyHeight() {
+		y = row - minBoxHeight
+	}
+	if y < 1 {
+		return frame // no room
+	}
+	x := 1 // the cursor's column, then the line up to the link
+	for _, s := range d.rendered.lines[d.cursor].segs {
+		if s.link == d.link {
+			break
+		}
+		x += ansi.StringWidth(s.text)
+	}
+	address := printable(target)
+	w := min(ansi.StringWidth(address)+4, d.width)
+	return overlayAt(frame, box(d.cfg.Theme, w, minBoxHeight, "", []string{address}), max(min(x, d.width-w), 0), y, w, d.width)
 }
 
 // drawLine draws l in the styles of its pieces, the selected link in the
@@ -310,8 +392,11 @@ func (d *Doc) drawLine(l docLine, m *matcher) string {
 	off := 0
 	for _, s := range l.segs {
 		st := d.style(s.style)
-		if s.link >= 0 && s.link == d.link {
+		switch {
+		case s.link >= 0 && s.link == d.link:
 			st = d.cfg.Theme.Cursor
+		case s.link >= 0 && !d.live(s.link):
+			st = d.style(docPlain) // leads nowhere
 		}
 		// Runs of the piece in or out of a match.
 		for start := 0; start < len(s.text); {

@@ -59,7 +59,7 @@ everywhere = [
 ]
 ```
 
-- The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list` and `file_list`; the actions and their keys are those of the [built-in file](../internal/ui/keybindings.toml).
+- The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list`, `file_list` and `doc_view` (the README of `--readme`); the actions and their keys are those of the [built-in file](../internal/ui/keybindings.toml).
 - The rows of an action replace all its rows on that page: above, `x` `y` take the place of both `j` `k` and `down` `up` in the commit list. To keep a key, list its row too.
 - An action that goes two ways takes two keys, in the order of the built-in row: for `move` down, then up.
 - The status bar, the help and the settings popup show your keys with their usual words. Messages, and the keys inside popups and input fields, stay as built in.
@@ -84,6 +84,6 @@ sand = "#c2b280"
 The options:
 
 - From delta: `minus-style`, `minus-emph-style`, `minus-non-emph-style`, `plus-style`, `plus-emph-style`, `plus-non-emph-style`, `zero-style`, `line-numbers-minus-style`, `line-numbers-plus-style`, `line-numbers-zero-style`, `line-numbers-left-style`, `line-numbers-right-style`, `file-style`, `file-decoration-style`, `inline-hint-style`, `file-added-label`, `file-removed-label`, `file-modified-label`, `file-renamed-label`.
-- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `search-style` (text found by `/`), `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`, `doc-heading-style` (headings of `--readme`; unset: `branch-style`), `doc-code-style` (code there; unset: `file-style`), `doc-link-style` (links there; unset: `commit-hash-style`).
+- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style`, `whitespace-style`, `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `search-style` (text found by `/`), `minus-indent-style`, `plus-indent-style`, `minus-moved-style`, `plus-moved-style`, `doc-heading-style` (headings of `--readme`; unset: `branch-style`), `doc-code-style` (code there; unset: `file-style`), `doc-link-style` (links there).
 
 Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`, …), then a foreground and a background color, given as a name, `bright-` name, 0–255 or `#rrggbb`. Colors beyond the 16 ANSI colors are mapped to the nearest one.
