@@ -676,6 +676,11 @@ func TestKeyOrderProblems(t *testing.T) {
 			rows += fmt.Sprintf("{ keys = [%q] },\n", o.key)
 		}
 	}
+	for _, o := range settingOptions {
+		if o.action != "" {
+			rows += fmt.Sprintf("{ action = %q, setting = \"x\" },\n", o.action)
+		}
+	}
 	table := func(rows string) string { return "everywhere = [\n" + rows + "]\n" }
 	if got := keyOrderProblems(table(rows)); len(got) != 0 {
 		t.Errorf("all there: %q", got)
@@ -687,6 +692,7 @@ func TestKeyOrderProblems(t *testing.T) {
 		{table(rows + `{ keys = ["x0"] },` + "\n"), "key x0 is not in the help"},
 		{table(strings.Replace(rows, `{ keys = ["t"] },`+"\n", "", 1)), "setting t is not in the table"},
 		{table(rows) + `help = [{ action = "x0" }]`, "action x0 has no help"},
+		{table(strings.Replace(rows, `{ action = "wrap", setting = "x" },`+"\n", "", 1)), "setting wrap has no words"},
 	} {
 		got := keyOrderProblems(c.text)
 		if len(got) != 1 || !strings.Contains(got[0], c.want) {

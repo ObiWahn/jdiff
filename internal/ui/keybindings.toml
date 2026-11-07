@@ -3,7 +3,7 @@
 # A row: action names what the keys do, and several rows may share one, keys are the keys, help
 # describes them. label is the word in the status bar, by the state of the action: [on, off], or one
 # word for an action without states. No word there means that the status bar leaves the key out; the
-# status bar's order is in statusKeys.
+# status bar's order is in statusKeys. setting is what a setting does while on, in the settings popup.
 #
 # An action is looked up in everywhere, diff_view, flow_view, commit_list and file_list, in this
 # order; the first row found gives the keys and the words.
@@ -15,19 +15,20 @@
 everywhere = [
     { action = "marks", keys = ["\\"], help = "jump marks: enter jumps, d or del deletes" },
     { action = "git_diff", keys = ["d"], label = ["git diff"], help = "popup: show git diff ARGS instead; ↑ the current ARGS, enter show" },
-    { action = "layout", keys = ["s"], label = ["unified", "split"], help = "side by side or normal layout, also of the preview" },
-    { action = "flow", keys = ["f"], label = ["file", "flow"], help = "flow view of all files or commits; in it, the single file view" },
-    { action = "untracked", keys = ["u"], help = "also show untracked files, in a git diff" },
-    { action = "wrap", keys = ["w"], help = "wrap long lines or cut them" },
-    { action = "whitespace", keys = ["W"], help = "show all whitespace and line ends or only changed" },
-    { action = "mark_whitespace", keys = ["ctrl+w"], help = "mark changed whitespace or not" },
-    { action = "trailing", keys = ["t"], help = "show trailing whitespace or not" },
-    { action = "line_ends", keys = ["e"], help = "show all \\r\\n line ends (␍) or only changed" },
-    { action = "bold", keys = ["b"], help = "bold or plain changed words" },
-    { action = "preview", keys = ["v"], help = "show or hide the message box or diff preview" },
+    { action = "layout", keys = ["s"], label = ["unified", "split"], help = "side by side or normal layout, also of the preview", setting = "side by side layout" },
+    { action = "flow", keys = ["f"], label = ["file", "flow"], help = "flow view of all files or commits; in it, the single file view", setting = "flow view of all files or commits" },
+    { action = "untracked", keys = ["u"], help = "also show untracked files, in a git diff", setting = "also show untracked files, in a git diff" },
+    { action = "wrap", keys = ["w"], help = "wrap long lines or cut them", setting = "wrap long lines" },
+    { action = "whitespace", keys = ["W"], help = "show all whitespace and line ends or only changed", setting = "show all whitespace and line ends" },
+    { action = "mark_whitespace", keys = ["ctrl+w"], help = "mark changed whitespace or not", setting = "mark changed whitespace" },
+    { action = "trailing", keys = ["t"], help = "show trailing whitespace or not", setting = "show trailing whitespace" },
+    { action = "line_ends", keys = ["e"], help = "show all \\r\\n line ends (␍) or only changed", setting = "show all \\r\\n line ends (␍)" },
+    { action = "bold", keys = ["b"], help = "bold or plain changed words", setting = "bold changed words" },
+    { action = "preview", keys = ["v"], help = "show or hide the message box or diff preview", setting = "show the message box, the diff preview" },
     { action = "settings", keys = ["o", "F8"], label = ["settings"], help = "a popup with these settings, to find them" },
     { action = "reload", keys = ["r", "F5", "ctrl+r"], help = "load again: git diff, git log, the directories or the files" },
     { action = "auto_reload", keys = ["R"], help = "auto reload: load again when the repository changes; off at each start" },
+    { action = "auto_reload_timeout", setting = "minutes without keys or changes until auto reload ends; 0 never" },
     { action = "help", keys = ["?"], label = ["help"], help = "this help (? esc q close, j k scroll)" },
     { action = "quit", keys = ["q", "ctrl+c"], label = ["quit"], help = "quit" },
 ]
@@ -61,8 +62,8 @@ flow_view = [
     { action = "next_file", keys = ["n", "p"], help = "next, previous file bar" },
     { action = "history", keys = ["N", "P"], help = "next, previous commit bar in history" },
     { action = "flow", keys = ["f"], help = "single file view" },
-    { action = "full_messages", keys = ["c"], help = "full or short commit messages" },
-    { action = "stay_in_commit", keys = ["C"], help = "stay in the current commit (N P still switch)" },
+    { action = "full_messages", keys = ["c"], help = "full or short commit messages", setting = "full commit messages, in the log's flow view" },
+    { action = "stay_in_commit", keys = ["C"], help = "stay in the current commit (N P still switch)", setting = "stay in the current commit, there (N P still switch)" },
 ]
 
 commit_list = [

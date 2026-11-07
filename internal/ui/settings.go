@@ -16,33 +16,42 @@ import (
 )
 
 // settingOption is a line of the settings popup: the key that toggles it
-// there and on the pages, what it does while on, and the toggle. With ask,
-// the page below toggles it, when it can. With logFlow, its key works only in
-// the log's flow view, where it shows; in the popup always. With number instead
-// of the toggle, it is a number, asked for in a line; it has no key, the cursor
-// goes to it in the popup.
+// there and on the pages, the action of its row in keybindings.toml, what it
+// does while on, from that row, and the toggle. With ask, the page below
+// toggles it, when it can. With logFlow, its key works only in the log's flow
+// view, where it shows; in the popup always. With number instead of the toggle,
+// it is a number, asked for in a line; it has no key, the cursor goes to it in
+// the popup.
 type settingOption struct {
-	key, what string
-	setting   func(*config.Config) *bool
-	ask       tea.Cmd
-	logFlow   bool
-	number    func(*config.Config) *int
+	key, action, what string
+	setting           func(*config.Config) *bool
+	ask               tea.Cmd
+	logFlow           bool
+	number            func(*config.Config) *int
 }
 
-var settingOptions = []settingOption{
-	{key: "s", what: "side by side layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
-	{key: "f", what: "flow view of all files or commits", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
-	{key: untrackedKey, what: "also show untracked files, in a git diff", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
-	{key: "w", what: "wrap long lines", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
-	{key: "W", what: "show all whitespace and line ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
-	{key: "ctrl+w", what: "mark changed whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
-	{key: "t", what: "show trailing whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
-	{key: "e", what: "show all \\r\\n line ends (␍)", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
-	{key: "b", what: "bold changed words", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
-	{key: "v", what: "show the message box, the diff preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
-	{key: "c", what: "full commit messages, in the log's flow view", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
-	{key: "C", what: "stay in the current commit, there (N P still switch)", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
-	{what: "minutes without keys or changes until auto reload ends; 0 never", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
+var settingOptions = settingWords([]settingOption{
+	{key: "s", action: "layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
+	{key: "f", action: "flow", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
+	{key: untrackedKey, action: "untracked", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
+	{key: "w", action: "wrap", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
+	{key: "W", action: "whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
+	{key: "ctrl+w", action: "mark_whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
+	{key: "t", action: "trailing", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
+	{key: "e", action: "line_ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
+	{key: "b", action: "bold", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
+	{key: "v", action: "preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
+	{key: "c", action: "full_messages", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
+	{key: "C", action: "stay_in_commit", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
+	{action: "auto_reload_timeout", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
+})
+
+// settingWords returns options with what they do from keybindings.toml.
+func settingWords(options []settingOption) []settingOption {
+	for i := range options {
+		options[i].what = keyFile.row(options[i].action).Setting
+	}
+	return options
 }
 
 // keybindingsFile lists the keys of all pages and decides the order of the
@@ -53,10 +62,11 @@ var keybindingsFile string
 
 // keyRow is a row of keybindings.toml.
 type keyRow struct {
-	Action string
-	Keys   []string
-	Label  []string
-	Help   string
+	Action  string
+	Keys    []string
+	Label   []string
+	Help    string
+	Setting string
 }
 
 // helpRow is a line of the help popup in keybindings.toml.
@@ -114,7 +124,9 @@ func (r keyRow) label(state int) string {
 func (p keyPages) order() []string {
 	var keys []string
 	for _, r := range p.Everywhere {
-		keys = append(keys, r.Keys[0])
+		if len(r.Keys) > 0 {
+			keys = append(keys, r.Keys[0])
+		}
 	}
 	return keys
 }
@@ -157,8 +169,8 @@ func OrderSettings() {
 }
 
 // keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
-// all pages with a key that does not exist or stands twice, a setting missing, a
-// line of the help with an action that has no help.
+// all pages with a key that does not exist or stands twice, a setting missing or
+// without words, a line of the help with an action that has no help.
 func keyOrderProblems(text string) []string {
 	p, err := readKeys(text)
 	if err != nil {
@@ -180,6 +192,11 @@ func keyOrderProblems(text string) []string {
 	for _, o := range settingOptions {
 		if o.key != "" && !o.logFlow && !slices.Contains(keys, o.key) {
 			problems = append(problems, "setting "+o.key+" is not in the table")
+		}
+	}
+	for _, o := range settingOptions {
+		if p.row(o.action).Setting == "" {
+			problems = append(problems, "setting "+o.action+" has no words")
 		}
 	}
 	for _, r := range p.Help {
