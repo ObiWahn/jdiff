@@ -125,9 +125,8 @@ func (h *Help) key(k string) tea.Cmd {
 	return nil
 }
 
-// boxHeight is the height of the popup: all lines when they fit, else the
-// screen but a line above and below.
-func (h *Help) boxHeight() int { return min(len(bindings)+2, max(h.height-2, minBoxHeight)) }
+// boxHeight is the height of the popup.
+func (h *Help) boxHeight() int { return popupHeight(len(bindings), h.height) }
 
 // scroll moves the shown lines by delta; from the top, it moves on by two
 // at once, as the window never starts at the second line.

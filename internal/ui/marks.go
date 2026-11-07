@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 )
@@ -114,11 +113,10 @@ func notInDiff(letter string, m config.Mark) string {
 // del deletes it.
 type MarksPopup struct {
 	tea.Model
-	cfg           *config.Config
-	open          bool
-	cursor, top   int    // the selected mark, the first one shown
-	msg           string // a problem saving the marks
-	width, height int
+	cfg  *config.Config
+	open bool
+	listPopup
+	msg string // a problem saving the marks
 }
 
 // WithMarks returns m with the marks popup.
@@ -173,17 +171,10 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 	return nil
 }
 
-// boxHeight is the height of the popup: all marks when they fit, else the
-// screen but a line above and below.
-func (p *MarksPopup) boxHeight() int {
-	return min(max(len(p.cfg.Marks()), 1)+2, max(p.height-2, minBoxHeight))
-}
+// boxHeight is the height of the popup.
+func (p *MarksPopup) boxHeight() int { return popupHeight(len(p.cfg.Marks()), p.height) }
 
-func (p *MarksPopup) move(delta int) {
-	n := len(p.cfg.Marks())
-	p.cursor = max(min(p.cursor+delta, n-1), 0)
-	p.top = windowAround(p.cursor, p.top, p.boxHeight()-2, n).first
-}
+func (p *MarksPopup) move(delta int) { p.moveIn(delta, len(p.cfg.Marks())) }
 
 func (p *MarksPopup) View() tea.View { return tea.NewView(p.frame()) }
 
@@ -195,23 +186,9 @@ func (p *MarksPopup) frame() string {
 	t := p.cfg.Theme
 	marks := p.cfg.Marks()
 	all := make([]string, len(marks))
-	widest := 0
 	for i, mk := range marks {
 		all[i] = fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
-		widest = max(widest, ansi.StringWidth(all[i]))
-	}
-	w := windowAround(p.cursor, p.top, p.boxHeight()-2, len(marks))
-	lines := w.rows(t, len(marks), func(i int) string {
-		if i == p.cursor {
-			return t.Cursor.Render(all[i])
-		}
-		return all[i]
-	})
-	if len(marks) == 0 {
-		lines = []string{t.Hint.Render("no marks: m and a letter sets one")}
-		widest = 40
 	}
 	title := popupTitle(t, "marks", p.msg, "enter jump · d delete · esc close")
-	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
-	return overlay(base, box(t, width, p.boxHeight(), title, lines), width, p.width)
+	return p.draw(t, base, title, all, "no marks: m and a letter sets one")
 }

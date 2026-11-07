@@ -128,13 +128,12 @@ func KeyOrderProblems(readme string) []string {
 // several can be set while the page below shows them.
 type SettingsPopup struct {
 	tea.Model
-	cfg           *config.Config
-	open          bool
-	cursor, top   int        // the selected option, the first one shown
-	msg           string     // a problem saving the toggles
-	input         *lineInput // while it asks for the number of the option
-	inputErr      string     // why the number typed is none
-	width, height int
+	cfg  *config.Config
+	open bool
+	listPopup
+	msg      string     // a problem saving the toggles
+	input    *lineInput // while it asks for the number of the option
+	inputErr string     // why the number typed is none
 }
 
 // WithSettings returns m with the settings popup.
@@ -235,17 +234,7 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// boxHeight is the height of the popup: all options when they fit, else the
-// screen but a line above and below.
-func (p *SettingsPopup) boxHeight() int {
-	return min(len(settingOptions)+2, max(p.height-2, minBoxHeight))
-}
-
-func (p *SettingsPopup) move(delta int) {
-	n := len(settingOptions)
-	p.cursor = max(min(p.cursor+delta, n-1), 0)
-	p.top = windowAround(p.cursor, p.top, p.boxHeight()-2, n).first
-}
+func (p *SettingsPopup) move(delta int) { p.moveIn(delta, len(settingOptions)) }
 
 func (p *SettingsPopup) View() tea.View { return tea.NewView(p.frame()) }
 
@@ -271,21 +260,11 @@ func (p *SettingsPopup) frame() string {
 		keyW = max(keyW, ansi.StringWidth(o.key))
 		stateW = max(stateW, ansi.StringWidth(states[i]))
 	}
-	widest := 0
 	for i, o := range settingOptions {
 		all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, o.key, o.what)
-		widest = max(widest, ansi.StringWidth(all[i]))
 	}
-	w := windowAround(p.cursor, p.top, p.boxHeight()-2, n)
-	lines := w.rows(t, n, func(i int) string {
-		if i == p.cursor {
-			return t.Cursor.Render(all[i])
-		}
-		return all[i]
-	})
 	title := popupTitle(t, "settings", p.msg, "enter toggle · esc close")
-	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
-	view := overlay(base, box(t, width, p.boxHeight(), title, lines), width, p.width)
+	view := p.draw(t, base, title, all, "")
 	if p.input == nil {
 		return view
 	}

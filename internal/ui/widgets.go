@@ -104,6 +104,50 @@ func box(t *theme.Theme, width, height int, title string, lines []string) string
 	return b.String()
 }
 
+// popupHeight is the height of a popup of n lines, at least one, on a screen
+// height lines high: all lines when they fit, else the screen but a line above
+// and below.
+func popupHeight(n, height int) int { return min(max(n, 1)+2, max(height-2, minBoxHeight)) }
+
+// emptyListWidth is the least width of the line of a listPopup without items.
+const emptyListWidth = 40
+
+// listPopup is the state of a popup that lists items with a cursor, so that
+// such popups move and look the same.
+type listPopup struct {
+	cursor, top   int // the selected item, the first one shown
+	width, height int
+}
+
+// moveIn moves the cursor by delta among n items.
+func (p *listPopup) moveIn(delta, n int) {
+	p.cursor = max(min(p.cursor+delta, n-1), 0)
+	p.top = windowAround(p.cursor, p.top, popupHeight(n, p.height)-2, n).first
+}
+
+// draw draws the popup over base: the items all in a box, the selected one in
+// the cursor style, or empty as a hint when there are none. It is as wide as
+// the items and title need, up to the width of the screen.
+func (p *listPopup) draw(t *theme.Theme, base, title string, all []string, empty string) string {
+	n := len(all)
+	height := popupHeight(n, p.height)
+	lines := windowAround(p.cursor, p.top, height-2, n).rows(t, n, func(i int) string {
+		if i == p.cursor {
+			return t.Cursor.Render(all[i])
+		}
+		return all[i]
+	})
+	widest := 0
+	for _, item := range all {
+		widest = max(widest, ansi.StringWidth(item))
+	}
+	if n == 0 {
+		lines, widest = []string{t.Hint.Render(empty)}, emptyListWidth
+	}
+	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
+	return overlay(base, box(t, width, height, title, lines), width, p.width)
+}
+
 // scrollWindow returns the first shown item of a window h items high over n
 // items: top, moved as little as needed to show cursor.
 func scrollWindow(cursor, top, h, n int) int {
