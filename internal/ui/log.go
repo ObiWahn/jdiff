@@ -157,7 +157,7 @@ func (l *Log) addCounts(m countsMsg) {
 	l.counting = false
 	if m.err != nil {
 		l.counts = nil
-		l.setMsg("line counts: " + m.err.Error())
+		l.setMsg("line counts: " + firstLine(m.err))
 		return
 	}
 	for _, h := range m.hashes {
@@ -348,7 +348,7 @@ func (l *Log) openCommit(i int, path string) bool {
 	}
 	e := l.commits[i]
 	if _, err := l.app(i); err != nil {
-		l.msg = err.Error()
+		l.msg = firstLine(err)
 		return false
 	}
 	e.app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
@@ -402,7 +402,7 @@ func (l *Log) relistCommits(quiet bool) {
 	}
 	branch, commits, err := l.relist()
 	if err != nil {
-		l.setMsg(err.Error())
+		l.setMsg(firstLine(err))
 		return
 	}
 	parts := map[*commitEntry]*flowPart{}

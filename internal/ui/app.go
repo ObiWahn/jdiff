@@ -326,7 +326,7 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 	}
 	files, err := a.relist()
 	if err != nil {
-		a.setMsg(err.Error())
+		a.setMsg(firstLine(err))
 		return nil
 	}
 	kept := map[string]*entry{}

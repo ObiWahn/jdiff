@@ -137,6 +137,20 @@ func TestAppListWideLabel(t *testing.T) {
 	}
 }
 
+// Of an error of several lines, as git writes them, the status bar shows the
+// first.
+func TestAppRelistErrorFirstLine(t *testing.T) {
+	a := NewApp(config.Default(), []source.File{
+		{Path: "f00", New: []string{"x"}, InNew: true},
+		{Path: "f01", New: []string{"x"}, InNew: true},
+	}).WithRelist(func() ([]source.File, error) { return nil, errors.New("x0\nx1") })
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	a.Update(refreshMsg{})
+	if a.msg != "x0" {
+		t.Errorf("listing again: %q", a.msg)
+	}
+}
+
 func TestAppRenameLabel(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{
 		{Path: "new.go", OldPath: "old.go", Old: []string{"x"}, New: []string{"x", "y"}, InOld: true, InNew: true},

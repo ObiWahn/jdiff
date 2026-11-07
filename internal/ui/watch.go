@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -207,8 +206,7 @@ func (s *DiffSwitch) waitRepo() tea.Cmd {
 
 // showAutoReloadError returns the command showing why auto reload is off.
 func showAutoReloadError(err error) tea.Cmd {
-	msg, _, _ := strings.Cut(err.Error(), "\n")
-	return func() tea.Msg { return showMsg("auto reload: " + msg) }
+	return func() tea.Msg { return showMsg("auto reload: " + firstLine(err)) }
 }
 
 // diskPaths returns the paths of the sides of f on disk, cleaned as

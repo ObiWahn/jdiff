@@ -383,7 +383,7 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 func (s *DiffSwitch) show(args []string) tea.Cmd {
 	files, err := s.gitDiff(args)
 	if err != nil {
-		s.err, _, _ = strings.Cut(err.Error(), "\n")
+		s.err = firstLine(err)
 		return nil
 	}
 	s.input = nil

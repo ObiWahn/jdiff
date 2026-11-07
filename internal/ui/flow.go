@@ -530,7 +530,7 @@ func (f *Flow) loadPart(p int) {
 	part := f.parts[p]
 	app, err := f.load(p)
 	if err != nil {
-		part.err = err.Error()
+		part.err = firstLine(err)
 	} else {
 		part.app = app
 	}

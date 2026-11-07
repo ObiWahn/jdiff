@@ -405,6 +405,34 @@ func TestLogListWideAuthor(t *testing.T) {
 	}
 }
 
+// Of an error of several lines, as git writes them, the log shows the first:
+// the status bar and a note have one line.
+func TestLogErrorFirstLine(t *testing.T) {
+	fail := errors.New("x0\nx1")
+	commits := []gitsrc.Commit{{Hash: "c00", Short: "c00", Subject: "subject c00"}}
+	load := func(gitsrc.Commit) ([]source.File, error) { return nil, fail }
+	l := NewLog(config.Default(), "main", commits, false, load, nil).
+		WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, fail })
+	l.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+
+	l.Update(refreshMsg{})
+	if l.msg != "x0" {
+		t.Errorf("listing again: %q", l.msg)
+	}
+	l.openCommit(0, "")
+	if l.msg != "x0" {
+		t.Errorf("opening a commit: %q", l.msg)
+	}
+	l.addCounts(countsMsg{err: fail})
+	if l.msg != "line counts: x0" {
+		t.Errorf("counting: %q", l.msg)
+	}
+	l.flow.loadPart(0)
+	if got := l.flow.parts[0].err; got != "x0" {
+		t.Errorf("in the flow view: %q", got)
+	}
+}
+
 func TestLogMessageBox(t *testing.T) {
 	l, _ := newTestLog()
 	l.commits[0].Body = "first line\nsecond line\nthird line"

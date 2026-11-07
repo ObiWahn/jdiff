@@ -161,6 +161,13 @@ type toggleFlowMsg struct{}
 
 func toggleFlow() tea.Msg { return toggleFlowMsg{} }
 
+// firstLine returns the first line of err: git writes errors of several lines,
+// where the status bar and notes have one.
+func firstLine(err error) string {
+	line, _, _ := strings.Cut(err.Error(), "\n")
+	return line
+}
+
 // saveState writes the toggles to state.toml, returning a message when that
 // fails, else "".
 func saveState(cfg *config.Config) string {
