@@ -476,8 +476,8 @@ type blob struct {
 	missing bool
 }
 
-// catFiles reads the objects named by specs ("rev:path") with a single
-// git cat-file --batch process.
+// catFiles reads the objects named by specs, their ids, with a single git
+// cat-file --batch process.
 func (r Repo) catFiles(specs []string) ([]blob, error) {
 	if len(specs) == 0 {
 		return nil, nil

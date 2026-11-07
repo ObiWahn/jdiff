@@ -285,7 +285,7 @@ func (f *Flow) jump() {
 }
 
 // jumpTo moves the cursor to row i, unless it is -1, for a jump within the
-// flow (o, '): the screen stays when i is on it, see jumpTop.
+// flow (g, '): the screen stays when i is on it, see jumpTop.
 func (f *Flow) jumpTo(i int) {
 	if i < 0 {
 		return

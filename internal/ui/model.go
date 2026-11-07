@@ -281,7 +281,7 @@ func (m *Model) jump() tea.Cmd {
 	return nil
 }
 
-// jumpTo puts the cursor on at, for a jump within this view (o, '): the
+// jumpTo puts the cursor on at, for a jump within this view (g, '): the
 // screen stays when at is on it, see jumpTop.
 func (m *Model) jumpTo(at spot) {
 	m.syncLayout() // a fold opened for at: the cursor keeps its line
