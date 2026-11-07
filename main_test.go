@@ -114,6 +114,9 @@ func TestCommandLine(t *testing.T) {
 		{[]string{"--readme"}, started{options{readme: true}, "readme", []string{}}},
 		{[]string{"-u", "diff", "--cached", "-u"}, started{options{untracked: true}, "diff", []string{"--cached", "-u"}}},
 		{[]string{"--untracked", "diff"}, started{options{untracked: true}, "diff", []string{}}},
+		// After --, files named like a command.
+		{[]string{"--", "log", "log1"}, started{options{}, "", []string{"log", "log1"}}},
+		{[]string{"-u", "--", "completion", "x0"}, started{options{untracked: true}, "", []string{"completion", "x0"}}},
 		{[]string{"--features", "x0 x1", "log", "-20", "--readme"}, started{options{features: "x0 x1"}, "log", []string{"-20", "--readme"}}},
 		{[]string{"diff", "--help"}, started{options{}, "diff", []string{"--help"}}},
 	} {

@@ -153,9 +153,9 @@ func TestDocLinks(t *testing.T) {
 	if d.page != 1 || d.top != d.rendered.anchors["x5"] || d.cursor != d.top || d.rendered.lines[d.top].plain() != "x5" {
 		t.Errorf("enter on b x5: page %d, top %d, cursor %d", d.page, d.top, d.cursor)
 	}
-	// Back where it was, on the first link of the line.
+	// Back where it was, on the link followed, the second of the line.
 	pressRoot(d, "backspace")
-	if d.page != 0 || d.cursor != 60 || d.top != 51 || d.selected() != "doc/b.md" {
+	if d.page != 0 || d.cursor != 60 || d.top != 51 || d.selected() != "doc/b.md#x5" || d.msg != "doc/b.md#x5" {
 		t.Errorf("backspace: page %d, cursor %d, top %d, link %q", d.page, d.cursor, d.top, d.selected())
 	}
 	pressRoot(d, "backspace")

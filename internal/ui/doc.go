@@ -34,8 +34,8 @@ type Doc struct {
 	height   int
 }
 
-// docPlace is where a link was followed from.
-type docPlace struct{ page, top, cursor int }
+// docPlace is where a link was followed from, and the link.
+type docPlace struct{ page, top, cursor, link int }
 
 // NewDoc returns the documentation in docs, the pages paths, on page page.
 func NewDoc(cfg *config.Config, docs fs.FS, paths []string, page int) *Doc {
@@ -143,6 +143,7 @@ func (d *Doc) key(k string) tea.Cmd {
 		p := d.back[len(d.back)-1]
 		d.back = d.back[:len(d.back)-1]
 		d.show(p.page, p.top, p.cursor)
+		d.link, d.msg = p.link, d.rendered.links[p.link].target
 	case "next_page":
 		next := d.page + direction(h.i == 0)
 		if next < 0 || next >= len(d.paths) {
@@ -222,7 +223,7 @@ func (d *Doc) follow() {
 			return
 		}
 	}
-	d.back = append(d.back, docPlace{d.page, d.top, d.cursor})
+	d.back = append(d.back, docPlace{d.page, d.top, d.cursor, d.link})
 	d.show(page, 0, 0)
 	if anchor == "" {
 		return

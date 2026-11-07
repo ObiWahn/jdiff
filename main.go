@@ -72,7 +72,8 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 		Short: "An interactive diff viewer for the terminal, with manual line alignment",
 		Example: "  jdiff old.txt new.txt     compare two files, or two directories\n" +
 			"  jdiff log -20             browse the last 20 commits\n" +
-			"  jdiff -u diff HEAD        what git diff HEAD shows, and the untracked files",
+			"  jdiff -u diff HEAD        what git diff HEAD shows, and the untracked files\n" +
+			"  jdiff -- log log1         compare files named like a command",
 		Args: func(cmd *cobra.Command, args []string) error {
 			for _, f := range []struct {
 				on   bool
