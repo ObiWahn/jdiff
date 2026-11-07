@@ -60,14 +60,7 @@ func (e *entry) refresh(after func(*fileDiff)) string {
 	if e.Binary {
 		return ""
 	}
-	msg := refreshFile(&e.File, e.diff, func() {
-		if e.view != nil {
-			e.view.syncLayout()
-		}
-		if after != nil {
-			after(e.diff)
-		}
-	})
+	msg := refreshFile(&e.File, e.diff, func() { e.followReload(after) })
 	if msg != "" {
 		e.updateStats()
 	}
@@ -91,14 +84,20 @@ func (e *entry) update(f source.File, after func(*fileDiff)) (dropped int, chang
 		}
 		changed = true
 		dropped += e.diff.reload(side(s), lines)
-		if e.view != nil {
-			e.view.syncLayout()
-		}
-		if after != nil {
-			after(e.diff)
-		}
+		e.followReload(after)
 	}
 	return dropped, changed
+}
+
+// followReload lets its diff view and after, unless nil, follow a reload of
+// its diff.
+func (e *entry) followReload(after func(*fileDiff)) {
+	if e.view != nil {
+		e.view.syncLayout()
+	}
+	if after != nil {
+		after(e.diff)
+	}
 }
 
 func (e *entry) updateStats() {
