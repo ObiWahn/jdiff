@@ -6,9 +6,14 @@
   thing again: e.g. `lineInput` (with `cancels`), `inputBox`, `box`, `popupTitle`,
   `overlay`/`overlayAt`, `windowAt`/`windowAround`, `statusText`/`statusLine`,
   `toggle`/`saveState`, `printable`, `cutLeft`.
-- Where two places do the same, factor it into one helper when that is not too costly; an
-  abstraction that makes the callers harder to read, or covers only a coincidence, is not worth
-  it.
+- Share code where a substantial amount of it is the same, or where the copies must behave the
+  same and should not drift apart: a fix in one would be needed in the other. A few lines equal
+  by coincidence stay separate, even if identical today.
+- Saving a few lines is no reason. Against a helper count: bool or -1 parameters, closures in place
+  of plain loops, long argument lists, and coupling views that may diverge. Within one type it
+  costs less than across views.
+- Comments on a shared helper say what its callers rely on and who deliberately does not use
+  it, not where it is used.
 
 ## Colors
 
