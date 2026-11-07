@@ -111,6 +111,10 @@ func (e *entry) updateStats() {
 	e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil, diff.Options{}))
 }
 
+// fileListRows is the most rows the file list takes while the preview shows,
+// so that on a tall screen the preview gets the rest.
+const fileListRows = 15
+
 // App is the Bubble Tea model of the file selector. It shows the diff view
 // of the selected file and returns to the list on backspace. A single file
 // is opened directly.
@@ -171,7 +175,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	for _, f := range files {
 		a.addEntry(group, &entry{File: f})
 	}
-	a.list = list{n: len(a.files), preview: &cfg.Settings.Preview}
+	a.list = list{n: len(a.files), preview: &cfg.Settings.Preview, maxRows: fileListRows}
 	if len(files) == 0 {
 		a.msg = "no changed files"
 	}

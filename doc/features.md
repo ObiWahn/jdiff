@@ -29,7 +29,7 @@ delta highlights syntax; jdiff does not.
   - `C` keeps the cursor inside the current commit.
 - **Search:** `/` searches the diff, as plain text or a regular expression, `.` and `,` go to the next and previous match, in the flow view through all files, in the log within the current commit.
 - **Long lists:** when the file or commit list, the help or the jump list goes on above or below, its first or last row says so, e.g. `↓ 21 more`; an arrow never stands for a single item, which is shown instead.
-- **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`).
+- **Previews:** the commit list shows the selected commit's message, the file list a preview of the selected file's diff (`v`). With the preview, the file list takes at most 15 rows, so that the preview gets the rest of a tall screen.
 - **Whitespace:** changed indentation, tabs and runs of spaces are marked as `·` and `→`, only their added or removed part, not single spaces between changed words.
   - `W` draws all whitespace so and line ends as `¶` (`line_end`).
   - `ctrl+w` turns the marking of changed whitespace off.

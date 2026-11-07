@@ -708,8 +708,9 @@ func TestFileListArrowsSweep(t *testing.T) {
 		fmt.Sscanf(r[strings.LastIndex(r, " ")+1:], "f%d.go", &k)
 		return k
 	}
+	// Up to 40 rows: from 35 on, the preview leaves the list fileListRows rows.
 	for _, preview := range []bool{false, true} {
-		for height := minHeight; height <= 30; height++ {
+		for height := minHeight; height <= 40; height++ {
 			t.Run(fmt.Sprintf("preview %v height %d", preview, height), func(t *testing.T) {
 				t.Parallel()
 				a := NewApp(config.Default(), files)
@@ -806,6 +807,35 @@ func TestFileListArrows(t *testing.T) {
 	check("smaller window", "  ↑ 28 more", "f28.go", "f29.go")
 	pressApp(a, "home")
 	check("home in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
+}
+
+// With the preview, the file list takes at most fileListRows rows, and the
+// preview the rest; without it, the list takes all. The commit list has no
+// such limit.
+func TestFileListRows(t *testing.T) {
+	var files []source.File
+	for i := range 30 {
+		files = append(files, source.File{Path: fmt.Sprintf("f%02d.go", i), Old: []string{"a"}, New: []string{"b"},
+			InOld: true, InNew: true})
+	}
+	a := NewApp(config.Default(), files)
+	a.cfg.Settings.Preview = true
+	a.Update(tea.WindowSizeMsg{Width: 60, Height: 60}) // room for 57 rows
+	if l, b := a.listHeight(), a.boxHeight(); l != fileListRows || b != 57-fileListRows-1 {
+		t.Errorf("with the preview: list %d, box %d; want %d, %d", l, b, fileListRows, 57-fileListRows-1)
+	}
+	if rows := viewRows(a.frame(), 2, 2+fileListRows); rows[fileListRows-1] != "  ↓ 16 more" {
+		t.Errorf("last row of the list: %q", rows[fileListRows-1])
+	}
+	a.cfg.Settings.Preview = false
+	if l := a.listHeight(); l != 57 {
+		t.Errorf("without the preview: list %d, want 57", l)
+	}
+	preview := true
+	commits := list{n: 30, preview: &preview, height: 60}
+	if l := commits.listHeight(); l != 28 {
+		t.Errorf("commit list with the box: %d rows, want half of the room, 28", l)
+	}
 }
 
 func TestDiffSwitchBackspaceCloses(t *testing.T) {

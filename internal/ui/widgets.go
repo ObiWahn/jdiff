@@ -228,18 +228,28 @@ type list struct {
 	cursor, top   int
 	n             int
 	preview       *bool // the setting that shows the box
+	maxRows       int   // the most rows of the list while the box shows, 0 for no limit
 	width, height int
+}
+
+// rows returns how many rows the list would take with the box: all items, up
+// to maxRows.
+func (li *list) rows() int {
+	if li.maxRows > 0 {
+		return min(li.n, li.maxRows)
+	}
+	return li.n
 }
 
 // listHeight is the height of the list below the heading and an empty line.
 func (li *list) listHeight() int {
-	h, _ := splitList(li.height, li.n, *li.preview)
+	h, _ := splitList(li.height, li.rows(), *li.preview)
 	return h
 }
 
 // boxHeight is the height of the box below the list, 0 when it is hidden.
 func (li *list) boxHeight() int {
-	_, h := splitList(li.height, li.n, *li.preview)
+	_, h := splitList(li.height, li.rows(), *li.preview)
 	return h
 }
 
