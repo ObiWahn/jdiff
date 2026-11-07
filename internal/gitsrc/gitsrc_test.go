@@ -159,6 +159,48 @@ func gitIn(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// With diff.relative set, in a subdirectory, a commit still has all its files,
+// by their paths from the top, and all their lines, as in Diff.
+func TestCommitWithDiffRelative(t *testing.T) {
+	r := newRepo(t)
+	sub := filepath.Join(r.Dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Join(sub, "f00"), filepath.Join(r.Dir, "f01")} {
+		if err := os.WriteFile(p, []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitIn(t, r.Dir, "add", ".")
+	gitIn(t, r.Dir, "commit", "-qm", "both")
+	gitIn(t, r.Dir, "config", "diff.relative", "true")
+
+	in := Repo{Dir: sub}
+	commits, err := in.Log([]string{"-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := in.Files(commits[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, f := range files {
+		paths = append(paths, f.Path)
+	}
+	if want := []string{"f01", "sub/f00"}; !slices.Equal(paths, want) {
+		t.Errorf("files %q, want %q", paths, want)
+	}
+	counts, err := in.Counts([]string{commits[0].Hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := counts[commits[0].Hash]; c.Added != 2 || c.Removed != 0 {
+		t.Errorf("counts %+v, want 2 added", c)
+	}
+}
+
 func TestDiff(t *testing.T) {
 	r := newRepo(t)
 	write := func(name, content string) {

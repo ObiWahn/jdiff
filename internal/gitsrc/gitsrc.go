@@ -111,7 +111,7 @@ func (r Repo) Counts(hashes []string) (map[string]LineCounts, error) {
 	if len(hashes) == 0 {
 		return counts, nil
 	}
-	out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--format=%x1e%H", "--numstat",
+	out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--format=%x1e%H", "--numstat", "--no-relative",
 		"--diff-merges=first-parent", "--end-of-options"}, hashes...)...)
 	if err != nil {
 		return nil, err
@@ -199,7 +199,8 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 	if base == "" {
 		base = emptyTree
 	}
-	out, err := r.git("diff", "--no-ext-diff", "--raw", "-z", "--no-abbrev", "-M", base, c.Hash)
+	// Paths relative to the top, also with diff.relative set.
+	out, err := r.git("diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M", base, c.Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -241,8 +242,8 @@ type rawEntry struct {
 }
 
 // parseRaw parses the output of git diff --raw -z. Unmerged files are left
-// out. Files and diff share only this: they run git with other options, and
-// diff needs a working tree, which git log does not.
+// out. Files and diff share only this: diff needs a working tree, which git
+// log does not.
 func parseRaw(out []byte) ([]rawEntry, error) {
 	var entries []rawEntry
 	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
