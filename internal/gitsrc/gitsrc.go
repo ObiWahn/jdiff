@@ -179,8 +179,9 @@ func (r Repo) WatchPaths() ([]string, error) {
 	paths := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for i, p := range paths {
 		if !filepath.IsAbs(p) {
-			paths[i] = filepath.Join(r.Dir, p) // relative to where git ran
+			p = filepath.Join(r.Dir, p) // relative to where git ran
 		}
+		paths[i] = filepath.Clean(p) // git writes / also on Windows
 	}
 	return paths, nil
 }
