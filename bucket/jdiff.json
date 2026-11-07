@@ -1,12 +1,12 @@
 {
-    "version": "0.0.4",
+    "version": "0.0.5",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/ObiWahn/jdiff/releases/download/v0.0.4/jdiff-v0.0.4-windows-amd64.zip",
+            "url": "https://github.com/ObiWahn/jdiff/releases/download/v0.0.5/jdiff-v0.0.5-windows-amd64.zip",
             "bin": [
                 "jdiff.exe"
             ],
-            "hash": "dea6b02603d5c8f2b401b31f0f694feeebe0ead6eaf733cddab0be4841050315"
+            "hash": "d948d80124e838e28c88008657cf825a8577cf8e0931e4506017a17dc1e2c0b5"
         }
     },
     "homepage": "https://github.com/ObiWahn/jdiff",
