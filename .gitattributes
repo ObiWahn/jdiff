@@ -1,0 +1,2 @@
+# Shell scripts that jdiff embeds and prints: LF, also in Windows checkouts.
+shell/* text eol=lf
