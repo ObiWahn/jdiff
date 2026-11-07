@@ -87,7 +87,7 @@
 				
 				<option value="file15">jdiff/internal/ui/app.go (95.6%)</option>
 				
-				<option value="file16">jdiff/internal/ui/doc.go (95.6%)</option>
+				<option value="file16">jdiff/internal/ui/doc.go (96.4%)</option>
 				
 				<option value="file17">jdiff/internal/ui/filediff.go (95.5%)</option>
 				
@@ -97,7 +97,7 @@
 				
 				<option value="file20">jdiff/internal/ui/log.go (96.5%)</option>
 				
-				<option value="file21">jdiff/internal/ui/markdown.go (96.3%)</option>
+				<option value="file21">jdiff/internal/ui/markdown.go (96.5%)</option>
 				
 				<option value="file22">jdiff/internal/ui/marks.go (94.0%)</option>
 				
@@ -2386,7 +2386,7 @@ type Spec struct {
         PlusMovedStyle          *string `toml:"plus-moved-style" git:"jdiff"`          // added lines that moved here
         DocHeadingStyle         *string `toml:"doc-heading-style" git:"jdiff"`         // headings of --readme; unset: branch-style
         DocCodeStyle            *string `toml:"doc-code-style" git:"jdiff"`            // code in --readme; unset: file-style
-        DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme; unset: commit-hash-style
+        DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme
 
         // Colors are named colors that styles can use like color names.
         Colors map[string]string `toml:"colors"`
@@ -2461,6 +2461,8 @@ func Builtin() Spec {
                 HiddenCharStyle:         str("normal red"),
                 OverflowStyle:           str("blue"),
                 SearchStyle:             str("black yellow"),
+                // Links as browsers draw them.
+                DocLinkStyle: str("bright-blue bold"),
 </span>        }
 }
 
@@ -2775,7 +2777,7 @@ func Resolve(sp Spec) *Theme {
         t.PlusIndent = styleOrStyle("plus-indent-style", sp.PlusIndentStyle, t.PlusEmph)
         t.DocHeading = styleOrStyle("doc-heading-style", sp.DocHeadingStyle, t.Branch)
         t.DocCode = styleOrStyle("doc-code-style", sp.DocCodeStyle, t.Title)
-        t.DocLink = styleOrStyle("doc-link-style", sp.DocLinkStyle, t.CommitHash)
+        t.DocLink = style("doc-link-style", sp.DocLinkStyle, def.DocLinkStyle)
         return t</span>
 }
 </pre>
@@ -3590,6 +3592,7 @@ import (
 
         tea "charm.land/bubbletea/v2"
         "charm.land/lipgloss/v2"
+        "github.com/charmbracelet/x/ansi"
 
         "jdiff/internal/config"
 )
@@ -3597,12 +3600,15 @@ import (
 // Doc shows the pages of jdiff's documentation, markdown rendered for the
 // terminal: jdiff --readme. A cursor line moves through a page; enter follows
 // the link it is on, the first unless h l or tab chose another, to another
-// page or heading, backspace goes back.
+// page or heading, backspace goes back. Only links that lead to a file of
+// docs, and a heading there, or to the web are links. A file that is no
+// markdown, reached by a link, shows as it is.
 type Doc struct {
         cfg      *config.Config
         docs     fs.FS
-        paths    []string // the pages in docs, in the order of n and p
-        page     int
+        order    []string                  // the pages in docs, in the order of n and p
+        page     string                    // the file of docs shown
+        anchors  map[string]map[string]int // the headings of other pages, see anchorsOf
         rendered docPage
         forWidth int // the width rendered is for, 0 before the first
         top      int // the first line shown
@@ -3615,11 +3621,15 @@ type Doc struct {
 }
 
 // docPlace is where a link was followed from, and the link.
-type docPlace struct{ page, top, cursor, link int }
+type docPlace struct {
+        page              string
+        top, cursor, link int
+}
 
-// NewDoc returns the documentation in docs, the pages paths, on page page.
-func NewDoc(cfg *config.Config, docs fs.FS, paths []string, page int) *Doc {
-        <span class="cov8" title="1">return &amp;Doc{cfg: cfg, docs: docs, paths: paths, page: page, link: -1}
+// NewDoc returns the documentation in docs, whose pages are order, on page
+// order[page].
+func NewDoc(cfg *config.Config, docs fs.FS, order []string, page int) *Doc {
+        <span class="cov8" title="1">return &amp;Doc{cfg: cfg, docs: docs, order: order, page: order[page], anchors: map[string]map[string]int{}, link: -1}
 </span>}
 
 func (d *Doc) Init() tea.Cmd { <span class="cov0" title="0">return nil }</span>
@@ -3650,17 +3660,26 @@ func (d *Doc) render() {
         <span class="cov8" title="1">if d.forWidth == d.textWidth() </span>{
                 <span class="cov0" title="0">return
 </span>        }
-        <span class="cov8" title="1">src, err := fs.ReadFile(d.docs, d.paths[d.page])
+        <span class="cov8" title="1">src, err := fs.ReadFile(d.docs, d.page)
         if err != nil </span>{
                 <span class="cov0" title="0">d.msg = err.Error()
 </span>        }
-        <span class="cov8" title="1">d.rendered, d.forWidth = renderMarkdown(src, d.textWidth()), d.textWidth()
-        d.scrollTo(d.top)
+        <span class="cov8" title="1">d.forWidth = d.textWidth()
+        if path.Ext(d.page) == ".md" </span>{
+                <span class="cov8" title="1">d.rendered = renderMarkdown(src, d.forWidth)
+</span>        } else {
+                <span class="cov8" title="1">d.rendered = renderText(src, d.forWidth)
+</span>        }
+        <span class="cov8" title="1">for i, l := range d.rendered.links </span>{
+                <span class="cov8" title="1">_, _, ok := d.resolve(l.target)
+                d.rendered.links[i].broken = !ok
+</span>        }
+        <span class="cov8" title="1">d.scrollTo(d.top)
         d.moveTo(d.cursor)</span>
 }
 
-// show shows page page from line top, the cursor on line cursor.
-func (d *Doc) show(page, top, cursor int) {
+// show shows page from line top, the cursor on line cursor.
+func (d *Doc) show(page string, top, cursor int) {
         <span class="cov8" title="1">d.page, d.forWidth = page, 0
         d.render()
         d.scrollTo(top)
@@ -3673,8 +3692,7 @@ func (d *Doc) scrollTo(top int) {
 </span>}
 
 // moveTo moves the cursor to line i, kept in the page, and scrolls it into
-// view; the first link on the line is selected, and the status bar says
-// where it goes.
+// view; the first link on the line that resolves is selected.
 func (d *Doc) moveTo(i int) {
         <span class="cov8" title="1">n := len(d.rendered.lines)
         d.cursor = max(min(i, n-1), 0)
@@ -3682,9 +3700,8 @@ func (d *Doc) moveTo(i int) {
         d.link = -1
         if d.cursor &lt; n </span>{
                 <span class="cov8" title="1">for _, s := range d.rendered.lines[d.cursor].segs </span>{
-                        <span class="cov8" title="1">if s.link &gt;= 0 </span>{
+                        <span class="cov8" title="1">if d.live(s.link) </span>{
                                 <span class="cov8" title="1">d.link = s.link
-                                d.msg = d.rendered.links[s.link].target
                                 break</span>
                         }
                 }
@@ -3723,14 +3740,18 @@ func (d *Doc) key(k string) tea.Cmd {
                 <span class="cov8" title="1">p := d.back[len(d.back)-1]
                 d.back = d.back[:len(d.back)-1]
                 d.show(p.page, p.top, p.cursor)
-                d.link, d.msg = p.link, d.rendered.links[p.link].target</span>
+                d.link = p.link</span>
         case "next_page":
-                <span class="cov8" title="1">next := d.page + direction(h.i == 0)
-                if next &lt; 0 || next &gt;= len(d.paths) </span>{
-                        <span class="cov8" title="1">d.msg = ends(h.i == 0, "last page", "first page")
-                        break</span>
+                <span class="cov8" title="1">i := slices.Index(d.order, d.page)
+                next := i + direction(h.i == 0)
+                switch </span>{
+                case i &lt; 0:
+                        <span class="cov8" title="1">d.msg = d.page + " is no page of " + keyFile.keyText("{next_page}") + ": " + keyFile.keyText("{back}") + " goes back"</span>
+                case next &lt; 0 || next &gt;= len(d.order):
+                        <span class="cov8" title="1">d.msg = ends(h.i == 0, "last page", "first page")</span>
+                default:
+                        <span class="cov8" title="1">d.show(d.order[next], 0, 0)</span>
                 }
-                <span class="cov8" title="1">d.show(next, 0, 0)</span>
         case "search":
                 <span class="cov0" title="0">return askSearch</span>
         case "match":
@@ -3739,27 +3760,32 @@ func (d *Doc) key(k string) tea.Cmd {
         <span class="cov8" title="1">return nil</span>
 }
 
+// live reports whether link i of the page is one: it resolves.
+func (d *Doc) live(i int) bool { <span class="cov8" title="1">return i &gt;= 0 &amp;&amp; !d.rendered.links[i].broken }</span>
+
 // nextLink moves the cursor to the next link in direction dir and selects
 // it: the one after the selected link, also on the same line, or the first
 // below or last above the cursor.
 func (d *Doc) nextLink(dir int) {
         <span class="cov8" title="1">links := d.rendered.links
-        next := d.link + dir
-        if d.link &lt; 0 </span>{
-                <span class="cov8" title="1">next = slices.IndexFunc(links, func(l pageLink) bool </span>{ <span class="cov8" title="1">return l.line &gt; d.cursor }</span>)
-                <span class="cov8" title="1">if dir &lt; 0 </span>{
-                        <span class="cov8" title="1">next = len(links) - 1
-                        if after := slices.IndexFunc(links, func(l pageLink) bool </span>{ <span class="cov8" title="1">return l.line &gt; d.cursor }</span>); after &gt;= 0 {
-                                <span class="cov8" title="1">next = after - 1
-</span>                        }
+        next := -1
+        for i := range links </span>{
+                <span class="cov8" title="1">j := i
+                if dir &lt; 0 </span>{
+                        <span class="cov8" title="1">j = len(links) - 1 - i
+</span>                }
+                <span class="cov8" title="1">after := d.link &gt;= 0 &amp;&amp; (j-d.link)*dir &gt; 0 || d.link &lt; 0 &amp;&amp; (links[j].line-d.cursor)*dir &gt; 0
+                if after &amp;&amp; d.live(j) </span>{
+                        <span class="cov8" title="1">next = j
+                        break</span>
                 }
         }
-        <span class="cov8" title="1">if next &lt; 0 || next &gt;= len(links) </span>{
+        <span class="cov8" title="1">if next &lt; 0 </span>{
                 <span class="cov8" title="1">d.msg = ends(dir &gt; 0, "no link further down", "no link further up")
                 return
 </span>        }
         <span class="cov8" title="1">d.moveTo(links[next].line)
-        d.link, d.msg = next, links[next].target</span>
+        d.link = next</span>
 }
 
 // lineLink selects the next link on the cursor's line in direction dir,
@@ -3767,7 +3793,7 @@ func (d *Doc) nextLink(dir int) {
 func (d *Doc) lineLink(dir int) {
         <span class="cov8" title="1">var on []int
         for _, s := range d.rendered.lines[min(d.cursor, len(d.rendered.lines)-1)].segs </span>{
-                <span class="cov8" title="1">if s.link &gt;= 0 &amp;&amp; !slices.Contains(on, s.link) </span>{
+                <span class="cov8" title="1">if d.live(s.link) &amp;&amp; !slices.Contains(on, s.link) </span>{
                         <span class="cov8" title="1">on = append(on, s.link)
 </span>                }
         }
@@ -3778,41 +3804,65 @@ func (d *Doc) lineLink(dir int) {
         case i &lt; 0 || i &gt;= len(on):
                 <span class="cov8" title="1">d.msg = ends(dir &gt; 0, "no link further right", "no link further left")</span>
         default:
-                <span class="cov8" title="1">d.link, d.msg = on[i], d.rendered.links[on[i]].target</span>
+                <span class="cov8" title="1">d.link = on[i]</span>
         }
 }
 
-// follow follows the selected link: to its page and heading, which shows
-// at the top, or for a web address it shows where it goes.
+// follow follows the selected link to its page and heading, which shows at
+// the top; for a web address the box of frame shows it already.
 func (d *Doc) follow() {
         <span class="cov8" title="1">if d.link &lt; 0 </span>{
                 <span class="cov8" title="1">d.msg = "no link on this line: " + keyFile.keyText("{link}") + " go to the next, previous"
                 return
 </span>        }
         <span class="cov8" title="1">target := d.rendered.links[d.link].target
-        file, anchor, _ := strings.Cut(target, "#")
-        if strings.Contains(file, ":") </span>{ // https:, mailto:
-                <span class="cov8" title="1">d.msg = target
-                return
-</span>        }
-        <span class="cov8" title="1">page := d.page
-        if file != "" </span>{
-                <span class="cov8" title="1">page = slices.Index(d.paths, path.Join(path.Dir(d.paths[d.page]), file))
-                if page &lt; 0 </span>{
-                        <span class="cov8" title="1">d.msg = "no page " + file
-                        return
-</span>                }
-        }
-        <span class="cov8" title="1">d.back = append(d.back, docPlace{d.page, d.top, d.cursor, d.link})
-        d.show(page, 0, 0)
-        if anchor == "" </span>{
+        page, anchor, _ := d.resolve(target)
+        if page == "" </span>{
                 <span class="cov8" title="1">return
 </span>        }
-        <span class="cov8" title="1">if line, ok := d.rendered.anchors[anchor]; ok </span>{
+        <span class="cov8" title="1">d.back = append(d.back, docPlace{d.page, d.top, d.cursor, d.link})
+        d.show(page, 0, 0)
+        if line := d.rendered.anchors[anchor]; anchor != "" </span>{
                 <span class="cov8" title="1">d.show(page, line, line)
-</span>        } else {
-                <span class="cov8" title="1">d.msg = "no heading #" + anchor + " in " + d.paths[page]
 </span>        }
+}
+
+// resolve returns the file of docs and the heading that target, a link of
+// the page shown, goes to, and whether both are there; for a web address
+// the file is "".
+func (d *Doc) resolve(target string) (page, anchor string, ok bool) {
+        <span class="cov8" title="1">file, anchor, _ := strings.Cut(target, "#")
+        if strings.Contains(file, ":") </span>{ // https:, mailto:
+                <span class="cov8" title="1">return "", "", true
+</span>        }
+        <span class="cov8" title="1">page = d.page
+        if file != "" </span>{
+                <span class="cov8" title="1">page = path.Join(path.Dir(d.page), file)
+                if _, err := fs.Stat(d.docs, page); err != nil </span>{
+                        <span class="cov8" title="1">return page, anchor, false
+</span>                }
+        }
+        <span class="cov8" title="1">if anchor == "" </span>{
+                <span class="cov8" title="1">return page, "", true
+</span>        }
+        <span class="cov8" title="1">_, ok = d.anchorsOf(page)[anchor]
+        return page, anchor, ok</span>
+}
+
+// anchorsOf returns the headings of page by the names links give them, with
+// their lines for the width of the page shown when it is that page.
+func (d *Doc) anchorsOf(page string) map[string]int {
+        <span class="cov8" title="1">if page == d.page </span>{
+                <span class="cov8" title="1">return d.rendered.anchors
+</span>        }
+        <span class="cov8" title="1">a, ok := d.anchors[page]
+        if !ok </span>{
+                <span class="cov8" title="1">if src, err := fs.ReadFile(d.docs, page); err == nil &amp;&amp; path.Ext(page) == ".md" </span>{
+                        <span class="cov8" title="1">a = renderMarkdown(src, 80).anchors
+</span>                }
+                <span class="cov8" title="1">d.anchors[page] = a</span>
+        }
+        <span class="cov8" title="1">return a</span>
 }
 
 // findText moves the cursor to the next line, in direction dir, that holds
@@ -3852,11 +3902,14 @@ func (d *Doc) frame() string {
         <span class="cov8" title="1">t := d.cfg.Theme
         lines := d.rendered.lines
         var b strings.Builder
-        where := fmt.Sprintf("page %d/%d", d.page+1, len(d.paths))
-        if n := len(lines); n &gt; d.bodyHeight() </span>{
-                <span class="cov8" title="1">where += fmt.Sprintf(" · %d%%", 100*min(d.top+d.bodyHeight(), n)/n)
+        var where []string
+        if i := slices.Index(d.order, d.page); i &gt;= 0 </span>{
+                <span class="cov8" title="1">where = append(where, fmt.Sprintf("page %d/%d", i+1, len(d.order)))
 </span>        }
-        <span class="cov8" title="1">b.WriteString(statusLine(t, d.width, t.Title.Render(" "+printable(d.paths[d.page])), where+" ") + "\n")
+        <span class="cov8" title="1">if n := len(lines); n &gt; d.bodyHeight() </span>{
+                <span class="cov8" title="1">where = append(where, fmt.Sprintf("%d%%", 100*min(d.top+d.bodyHeight(), n)/n))
+</span>        }
+        <span class="cov8" title="1">b.WriteString(statusLine(t, d.width, t.Title.Render(" "+printable(d.page)), strings.Join(where, " · ")+" ") + "\n")
         m := matcherOf(d.cfg.Search.Query)
         for i := d.top; i &lt; d.top+d.bodyHeight(); i++ </span>{
                 <span class="cov8" title="1">if i &lt; len(lines) </span>{
@@ -3870,7 +3923,38 @@ func (d *Doc) frame() string {
         }
         <span class="cov8" title="1">keys := statusKeys(d.cfg, barKeys{enter: "follow", back: "back", text: true})
         b.WriteString(statusLine(t, d.width, pageStatus(d.cfg, d.msg, keys), ""))
-        return b.String()</span>
+        return d.withWebAddress(b.String())</span>
+}
+
+// withWebAddress returns frame with a box of the web address of the selected
+// link below its line, or above it near the bottom, while the cursor is on
+// it; links into the documentation need none.
+func (d *Doc) withWebAddress(frame string) string {
+        <span class="cov8" title="1">if d.link &lt; 0 </span>{
+                <span class="cov8" title="1">return frame
+</span>        }
+        <span class="cov8" title="1">target := d.rendered.links[d.link].target
+        if page, _, _ := d.resolve(target); page != "" </span>{
+                <span class="cov8" title="1">return frame
+</span>        }
+        <span class="cov8" title="1">row := 1 + d.cursor - d.top // in frame, below the title
+        y := row + 1
+        if y+minBoxHeight &gt; 1+d.bodyHeight() </span>{
+                <span class="cov8" title="1">y = row - minBoxHeight
+</span>        }
+        <span class="cov8" title="1">if y &lt; 1 </span>{
+                <span class="cov8" title="1">return frame // no room
+</span>        }
+        <span class="cov8" title="1">x := 1 // the cursor's column, then the line up to the link
+        for _, s := range d.rendered.lines[d.cursor].segs </span>{
+                <span class="cov8" title="1">if s.link == d.link </span>{
+                        <span class="cov8" title="1">break</span>
+                }
+                <span class="cov8" title="1">x += ansi.StringWidth(s.text)</span>
+        }
+        <span class="cov8" title="1">address := printable(target)
+        w := min(ansi.StringWidth(address)+4, d.width)
+        return overlayAt(frame, box(d.cfg.Theme, w, minBoxHeight, "", []string{address}), max(min(x, d.width-w), 0), y, w, d.width)</span>
 }
 
 // drawLine draws l in the styles of its pieces, the selected link in the
@@ -3890,9 +3974,12 @@ func (d *Doc) drawLine(l docLine, m *matcher) string {
         off := 0
         for _, s := range l.segs </span>{
                 <span class="cov8" title="1">st := d.style(s.style)
-                if s.link &gt;= 0 &amp;&amp; s.link == d.link </span>{
-                        <span class="cov8" title="1">st = d.cfg.Theme.Cursor
-</span>                }
+                switch </span>{
+                case s.link &gt;= 0 &amp;&amp; s.link == d.link:
+                        <span class="cov8" title="1">st = d.cfg.Theme.Cursor</span>
+                case s.link &gt;= 0 &amp;&amp; !d.live(s.link):
+                        <span class="cov8" title="1">st = d.style(docPlain)</span> // leads nowhere
+                }
                 // Runs of the piece in or out of a match.
                 <span class="cov8" title="1">for start := 0; start &lt; len(s.text); </span>{
                         <span class="cov8" title="1">end := start + 1
@@ -6386,10 +6473,12 @@ type docPage struct {
         anchors map[string]int // the line of each heading
 }
 
-// pageLink is a link of a page: where it goes, as written, and its first line.
+// pageLink is a link of a page: where it goes, as written, and its first
+// line; broken when it leads nowhere, which Doc decides.
 type pageLink struct {
         target string
         line   int
+        broken bool
 }
 
 var markdown = goldmark.New(goldmark.WithExtensions(extension.Table))
@@ -6419,6 +6508,35 @@ func renderMarkdown(src []byte, width int) docPage {
         }
         <span class="cov8" title="1">page.lines = lines
         return page</span>
+}
+
+// renderText renders a file that is no markdown for a screen width columns
+// wide: its lines as code, the long ones wrapped at the last space that
+// fits, past their indentation, else where the line ends; the further pieces
+// indented.
+func renderText(src []byte, width int) docPage {
+        <span class="cov8" title="1">width = max(width, 1)
+        page := docPage{anchors: map[string]int{}}
+        text := strings.TrimSuffix(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
+        for _, line := range strings.Split(text, "\n") </span>{
+                <span class="cov8" title="1">rest, lead, w := printable(line), "", width
+                add := func(s string) </span>{
+                        <span class="cov8" title="1">page.lines = append(page.lines, docLine{segs: trimSegs([]docSeg{{lead, docPlain, -1}, {s, docCode, -1}})})
+</span>                }
+                <span class="cov8" title="1">for ansi.StringWidth(rest) &gt; w </span>{
+                        <span class="cov8" title="1">piece := ansi.Truncate(rest, w, "")
+                        if i := strings.LastIndex(piece, " "); i &gt; 0 &amp;&amp; strings.TrimSpace(piece[:i]) != "" </span>{
+                                <span class="cov8" title="1">piece = piece[:i+1]
+</span>                        }
+                        <span class="cov8" title="1">add(piece)
+                        rest = rest[len(piece):]
+                        if lead == "" &amp;&amp; width &gt; 2 </span>{
+                                <span class="cov8" title="1">lead, w = "  ", width-2
+</span>                        }
+                }
+                <span class="cov8" title="1">add(rest)</span>
+        }
+        <span class="cov8" title="1">return page</span>
 }
 
 // mdRenderer renders the blocks of a markdown tree into lines.
@@ -10473,9 +10591,10 @@ var license string
 var thirdParty string
 
 // docs holds the documentation that --readme shows: the packages install only
-// the binary, so it is the only copy at hand.
+// the binary, so it is the only copy at hand. doc/config.md links to the
+// built-in keybindings.toml.
 //
-//go:embed README.md doc/*.md
+//go:embed README.md doc/*.md internal/ui/keybindings.toml
 var docs embed.FS
 
 // docPages are the pages of docs in the order of n and p; --readme starts
