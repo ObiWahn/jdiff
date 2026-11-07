@@ -40,7 +40,7 @@ On Linux and macOS, make a bare binary executable with `chmod +x`.
 
 ## From source
 
-jdiff needs Go 1.24 or newer:
+jdiff needs Go 1.26 or newer:
 
 ```sh
 make build        # builds bin/jdiff

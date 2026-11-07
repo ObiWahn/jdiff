@@ -7,6 +7,7 @@ make build       # builds bin/jdiff
 make test        # go test -race with a timeout; the sweeps (tests named ...Sweep) without -race
 make test-race   # all tests with -race, the sweeps too: before a release
 make cover       # test coverage: by package and function in bin/coverage.txt, lines in bin/coverage.html
+make licenses    # writes LICENSE-THIRD-PARTY after a change of dependencies; make test fails until then
 make tag         # on a clean master, after test-race: tag HEAD with the next vX.Y.Z, not pushed
 make vet
 make vuln        # govulncheck, installed with go install golang.org/x/vuln/cmd/govulncheck@latest

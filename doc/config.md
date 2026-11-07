@@ -7,7 +7,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `s` `f` `u` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C`, the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `s` `f` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` (not `u`: untracked files are off at each start), the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 | `keybindings.toml` | [your keys](#keybindingstoml), where they differ from the built-in ones |
 

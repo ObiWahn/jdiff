@@ -31,7 +31,7 @@ brew install --cask obiwahn/jdiff/jdiff
 scoop bucket add jdiff https://github.com/ObiWahn/jdiff
 scoop install jdiff
 
-# In a clone of this repository, with Go 1.24 or newer
+# In a clone of this repository, with Go 1.26 or newer
 go install .
 ```
 
