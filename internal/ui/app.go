@@ -788,7 +788,7 @@ func (a *App) frame() string {
 		if e.Binary {
 			cnt = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 		}
-		lbl := st(lipgloss.NewStyle()).Render(fmt.Sprintf(" %-*s ", lblW, e.label(t)))
+		lbl := st(lipgloss.NewStyle()).Render(" " + pad(e.label(t), lblW, lipgloss.NewStyle()) + " ")
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
 	hints := "enter open · f flow · d git diff · o settings · ? help · q quit"

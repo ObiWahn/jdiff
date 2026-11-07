@@ -389,6 +389,22 @@ func TestLogListColumns(t *testing.T) {
 	}
 }
 
+// Authors are padded by the columns they take: the date stays aligned with
+// wide characters in the name.
+func TestLogListWideAuthor(t *testing.T) {
+	commits := []gitsrc.Commit{
+		{Hash: "c00", Short: "c00", Date: "2026-10-22", Author: "日本語", Subject: "subject c00"},
+		{Hash: "c01", Short: "c01", Date: "2026-10-22", Author: "abcdefgh", Subject: "subject c01"},
+	}
+	l := NewLog(config.Default(), "main", commits, false, nil, nil)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	lines := topLines(l, 4)
+	column := func(line string) int { return ansi.StringWidth(line[:strings.Index(line, "2026-10-22")]) }
+	if a, b := column(lines[2]), column(lines[3]); a != b {
+		t.Errorf("date in columns %d and %d:\n%s\n%s", a, b, lines[2], lines[3])
+	}
+}
+
 func TestLogMessageBox(t *testing.T) {
 	l, _ := newTestLog()
 	l.commits[0].Body = "first line\nsecond line\nthird line"

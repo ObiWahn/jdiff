@@ -527,7 +527,7 @@ func (l *Log) frame() string {
 		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
 		c := l.commits[i]
-		author := fmt.Sprintf("%-*s", authW, ansi.Truncate(c.Author, maxAuthorWidth, "…"))
+		author := pad(ansi.Truncate(c.Author, maxAuthorWidth, "…"), authW, lipgloss.NewStyle())
 		subject := ansi.Truncate(c.Subject, subjW, "…")
 		subject += strings.Repeat(" ", subjW-ansi.StringWidth(subject))
 		return " " + st(t.CommitHash).Render(c.Short) + "  " + counts(t, st, c.Added, c.Removed, addW, remW) + "  " +

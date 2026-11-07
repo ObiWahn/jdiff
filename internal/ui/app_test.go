@@ -120,6 +120,23 @@ func TestAppSingleFileOpensDirectly(t *testing.T) {
 	}
 }
 
+// Labels are padded by the columns they take: the names stay aligned with wide
+// characters in a label of the theme.
+func TestAppListWideLabel(t *testing.T) {
+	cfg := config.Default()
+	cfg.Theme.ModifiedLabel, cfg.Theme.AddedLabel = "変更", "added"
+	a := NewApp(cfg, []source.File{
+		{Path: "f00", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+		{Path: "f01", New: []string{"y"}, InNew: true},
+	})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	lines := topLines(a, 4)
+	column := func(line, name string) int { return ansi.StringWidth(line[:strings.Index(line, name)]) }
+	if c0, c1 := column(lines[2], "f00"), column(lines[3], "f01"); c0 != c1 {
+		t.Errorf("names in columns %d and %d:\n%s\n%s", c0, c1, lines[2], lines[3])
+	}
+}
+
 func TestAppRenameLabel(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{
 		{Path: "new.go", OldPath: "old.go", Old: []string{"x"}, New: []string{"x", "y"}, InOld: true, InNew: true},
