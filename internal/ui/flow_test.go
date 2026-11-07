@@ -537,13 +537,13 @@ func TestFlowSearchAgainBothWays(t *testing.T) {
 		return fmt.Sprintf("file %d: %s", file, d.lines[right][d.lineAt(right, line)])
 	}
 	for _, c := range []struct{ key, want, msg string }{
-		{nextKey, "file 0: new9", "/new: match 1/3 · . next · , previous"},
-		{nextKey, "file 0: new24", "/new: match 2/3 · . next · , previous"},
-		{nextKey, "file 2: new", "/new: match 3/3 · . next · , previous"},
-		{nextKey, "file 2: new", "/new: no match further down"},
-		{prevKey, "file 0: new24", "/new: match 2/3 · . next · , previous"},
-		{prevKey, "file 0: new9", "/new: match 1/3 · . next · , previous"},
-		{prevKey, "file 0: new9", "/new: no match further up"},
+		{".", "file 0: new9", "/new: match 1/3 · . next · , previous"},
+		{".", "file 0: new24", "/new: match 2/3 · . next · , previous"},
+		{".", "file 2: new", "/new: match 3/3 · . next · , previous"},
+		{".", "file 2: new", "/new: no match further down"},
+		{",", "file 0: new24", "/new: match 2/3 · . next · , previous"},
+		{",", "file 0: new9", "/new: match 1/3 · . next · , previous"},
+		{",", "file 0: new9", "/new: no match further up"},
 	} {
 		pressApp(a, c.key)
 		if got := at(); got != c.want || a.flow.msg != c.msg {

@@ -237,34 +237,35 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 		return nil
 	}
+	h := keyFile.key(commitList, k)
 	page := max(l.listHeight()-1, 1)
-	if delta, _, ok := motion(k, page, len(l.commits)); ok {
+	if delta, _, ok := motion(h, page, len(l.commits)); ok {
 		l.moveCursor(delta)
 		return nil
 	}
-	switch k {
-	case "q", "ctrl+c":
+	switch h.action {
+	case "quit":
 		return tea.Quit
-	case "enter":
+	case "open":
 		if l.cfg.Settings.Flow {
 			l.showFlow(-1, nil)
 		} else {
 			l.openCommit(l.cursor, "")
 		}
-	case "f":
+	case "flow":
 		return toggleFlow
-	case "n", "p", "N", "P":
+	case "history":
 		// The next or previous commit in history, as N and P go from its files.
-		dir := historyDir(k)
+		dir := historyDir(h)
 		if i := l.cursor + l.order.step(dir); i >= 0 && i < len(l.commits) {
 			l.moveCursor(i - l.cursor)
 		} else {
 			l.msg = ends(dir > 0, "last commit", "first commit")
 		}
-	case "'":
-		l.prefix, l.msg = k, "jump to mark: press its letter"
+	case "jump":
+		l.prefix, l.msg = h.action, "jump to mark: press its letter"
 	default:
-		return pageKey(k, false)
+		return pageKey(h, false)
 	}
 	return nil
 }

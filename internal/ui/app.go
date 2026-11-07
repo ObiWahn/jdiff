@@ -476,7 +476,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if a.open != nil {
-		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "backspace" {
+		if k, ok := msg.(tea.KeyPressMsg); ok && keyFile.key(diffView, k.String()).action == "to_files" {
 			a.open.updateStats()
 			a.open = nil
 			if a.inLog() && a.single() {
@@ -508,8 +508,9 @@ func (a *App) key(k string) tea.Cmd {
 		}
 		return nil
 	}
+	h := keyFile.key(fileList, k)
 	page := max(a.listHeight()-1, 1)
-	if delta, paging, ok := motion(k, page, len(a.files)); ok {
+	if delta, paging, ok := motion(h, page, len(a.files)); ok {
 		if h := a.boxHeight(); paging && h > 0 && a.cursor < len(a.files) {
 			// The preview scrolls, by its height less a line, as the list pages.
 			a.scrollPreview(direction(delta > 0) * max(h-3, 1))
@@ -518,33 +519,29 @@ func (a *App) key(k string) tea.Cmd {
 		a.moveCursor(delta)
 		return nil
 	}
-	switch k {
-	case "q", "ctrl+c":
+	switch h.action {
+	case "quit":
 		return tea.Quit
-	case "p":
-		a.moveCursor(-1)
-	case "n":
-		a.moveCursor(1)
-	case "enter":
+	case "open":
 		if a.inLog() && a.cfg.Settings.Flow && a.cursor < len(a.files) {
 			file := a.cursor
 			return func() tea.Msg { return flowAtMsg(file) }
 		}
 		a.openFile()
-	case "backspace":
+	case "to_commits":
 		if a.inLog() {
 			return func() tea.Msg { return backMsg{} }
 		}
-	case "N", "P":
+	case "history":
 		if a.inLog() {
-			return switchCommit(k)
+			return switchCommit(h)
 		}
-	case "f":
+	case "flow":
 		return toggleFlow
-	case "'":
-		a.prefix, a.msg = k, "jump to mark: press its letter"
+	case "jump":
+		a.prefix, a.msg = h.action, "jump to mark: press its letter"
 	default:
-		return pageKey(k, false)
+		return pageKey(h, false)
 	}
 	return nil
 }

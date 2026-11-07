@@ -8,8 +8,13 @@
 # An action is looked up in everywhere, diff_view, flow_view, commit_list and file_list, in this
 # order; the first row found gives the keys and the words.
 #
+# A key pressed is looked up in the rows of its page, for the flow view then in those of diff_view,
+# then in everywhere; the first row with it decides the action. Actions that go two ways take the
+# place of the key in its row: the first key of move, next_file, history, change and match goes
+# forward or down, the first of page, half_page, ends and scroll back, up or left. Key names are
+# Bubble Tea's, also pgdn for pgdown and F5 for f5; <letter> stands for the letter typed next.
+#
 # The rows of everywhere decide the order of the settings, by their first key (OrderSettings).
-# It binds no key yet: the code handles them.
 # doc/keybindings.md lists the same keys in the same order; TestKeybindingsDoc checks that.
 
 everywhere = [
@@ -39,11 +44,13 @@ diff_view = [
     { action = "fold", keys = ["space"], help = "fold or unfold unchanged code" },
     { action = "fold_all", keys = ["ctrl+space"], help = "fold or unfold all of the file" },
     { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "move", keys = ["down", "up"], help = "move" },
     { action = "page", keys = ["pgup", "pgdn"], help = "page up, down (also ctrl+b ctrl+f); the file list scrolls its preview" },
     { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
     { action = "half_page", keys = ["ctrl+u", "ctrl+d"], help = "half page up, down" },
     { action = "ends", keys = ["home", "end"], help = "first, last; top, bottom" },
     { action = "scroll", keys = ["h", "l"], help = "scroll left, right, unless lines are wrapped" },
+    { action = "scroll", keys = ["left", "right"], help = "scroll left, right" },
     { action = "change", keys = ["]", "["], help = "next, previous change" },
     { action = "next_file", keys = ["n", "p"], help = "next, previous file; in the commit list commit" },
     { action = "history", keys = ["N", "P"], label = ["commit"], help = "next, previous commit in history (in the log)" },
@@ -68,17 +75,20 @@ flow_view = [
 
 commit_list = [
     { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "move", keys = ["down", "up"], help = "move" },
     { action = "history", keys = ["N", "P"], help = "next, previous commit in history" },
     { action = "history", keys = ["n", "p"], help = "next, previous commit in history" },
     { action = "page", keys = ["pgup", "pgdn"], help = "page up, down" },
     { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "page up, down" },
     { action = "ends", keys = ["home", "end"], help = "first, last commit" },
     { action = "open", keys = ["enter"], label = ["open"], help = "show the files of the commit, the diff of the file" },
+    { action = "jump", keys = ["'<letter>"], help = "a mark: says to open a commit to jump to it" },
     { action = "flow", keys = ["f"], help = "flow view of all commits" },
 ]
 
 file_list = [
     { action = "move", keys = ["j", "k"], help = "move" },
+    { action = "move", keys = ["down", "up"], help = "move" },
     { action = "move", keys = ["n", "p"], help = "move" },
     { action = "page", keys = ["pgup", "pgdn"], help = "scroll the diff preview; page while it is hidden" },
     { action = "page", keys = ["ctrl+b", "ctrl+f"], help = "scroll the diff preview; page while it is hidden" },

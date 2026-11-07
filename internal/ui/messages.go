@@ -47,9 +47,6 @@ func refreshAll() tea.Msg { return refreshMsg{} }
 // nothingChanged is the message after loading again the same.
 const nothingChanged = "nothing changed"
 
-// autoReloadKey toggles auto reload. The pages hand it on, as diffKey.
-const autoReloadKey = "R"
-
 // askAutoReloadMsg asks DiffSwitch to toggle auto reload.
 type askAutoReloadMsg struct{}
 
@@ -82,66 +79,55 @@ func refreshed(added, gone, changed, dropped int) string {
 	return strings.Join(parts, ", ")
 }
 
-// diffKey asks for the arguments of git diff to show instead of what is
-// shown.
-const diffKey = "d"
-
 // askDiffMsg asks DiffSwitch for the arguments of git diff to show next.
 type askDiffMsg struct{}
 
 func askDiff() tea.Msg { return askDiffMsg{} }
-
-// settingsKey and settingsFKey open the settings popup. The pages hand them
-// on, as diffKey, and not the popup itself as ? and \: o is a mark letter too,
-// which m and ' take before the page looks at the key.
-const settingsKey, settingsFKey = "o", "f8"
 
 // askSettingsMsg asks SettingsPopup to open.
 type askSettingsMsg struct{}
 
 func askSettings() tea.Msg { return askSettingsMsg{} }
 
-// toggleSettingMsg asks SettingsPopup to toggle the option of key, with the
+// toggleSettingMsg asks SettingsPopup to toggle the option of action, with the
 // popup closed.
-type toggleSettingMsg struct{ key string }
+type toggleSettingMsg struct{ action string }
 
-// settingKey returns the command toggling the option of key k, nil when no
+// settingKey returns the command toggling the option of action, nil when no
 // option has it or, outside the log's flow view (logFlow), one that only
-// matters there. The pages hand these keys on as settingsKey, for the same
-// reason.
-func settingKey(k string, logFlow bool) tea.Cmd {
-	i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == k })
+// matters there.
+func settingKey(action string, logFlow bool) tea.Cmd {
+	i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key != "" && o.action == action })
 	if i < 0 || settingOptions[i].logFlow && !logFlow {
 		return nil
 	}
-	return func() tea.Msg { return toggleSettingMsg{k} }
+	return func() tea.Msg { return toggleSettingMsg{action} }
 }
 
-// pageKey returns the command of key k that all pages hand on: loading again,
-// auto reload, the popups of git diff and the settings, or the option of k, see
-// settingKey; nil when k is none of them.
-func pageKey(k string, logFlow bool) tea.Cmd {
-	switch k {
-	case "r", "f5", "ctrl+r":
+// pageKey returns the command of key h that all pages hand on: loading again,
+// auto reload, the popups of git diff and the settings, or the option of its
+// action, see settingKey; nil when h is none of them. The pages hand them on,
+// and not the popups themselves as the help and the marks: o is a mark letter
+// too, which m and ' take before the page looks at the key.
+func pageKey(h keyHit, logFlow bool) tea.Cmd {
+	switch h.action {
+	case "reload":
 		return refreshAll
-	case autoReloadKey:
+	case "auto_reload":
 		return askAutoReload
-	case diffKey:
+	case "git_diff":
 		return askDiff
-	case settingsKey, settingsFKey:
+	case "settings":
 		return askSettings
 	}
-	return settingKey(k, logFlow)
+	return settingKey(h.action, logFlow)
 }
 
 // settingChangedMsg tells the page below SettingsPopup that a toggle changed,
 // so that it lays out what depends on it. The diff view does on any message.
 // problem says why it is not saved, for the page to show when the popup is
 // closed.
-type settingChangedMsg struct{ key, problem string }
-
-// untrackedKey toggles the untracked files of a git diff.
-const untrackedKey = "u"
+type settingChangedMsg struct{ action, problem string }
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of
 // its git diff, which only the file selector of one has.
@@ -180,9 +166,9 @@ func saveState(cfg *config.Config) string {
 // The direction in history is decided here only: historyDir turns a key
 // into it, historyOrder.step into a step through a list of commits.
 
-// historyDir returns where key k goes in history: 1 to the next commit, for
-// N and n, -1 to the previous one, for P and p.
-func historyDir(k string) int { return direction(k == "N" || k == "n") }
+// historyDir returns where key h of history goes: 1 to the next commit, for
+// the first key of its row, as N and n, -1 to the previous one, as P and p.
+func historyDir(h keyHit) int { return direction(h.i == 0) }
 
 // historyOrder is the order of a list of commits, as git log lists them:
 // the step from a commit to the next one in history, -1 when the newest
@@ -200,10 +186,10 @@ func orderOf(oldestFirst bool) historyOrder {
 // step returns the step through the list to go in direction dir in history.
 func (o historyOrder) step(dir int) int { return dir * int(o) }
 
-// switchCommit returns the command asking the log for the commit key k goes
+// switchCommit returns the command asking the log for the commit key h goes
 // to in history.
-func switchCommit(k string) tea.Cmd {
-	dir := switchCommitMsg(historyDir(k))
+func switchCommit(h keyHit) tea.Cmd {
+	dir := switchCommitMsg(historyDir(h))
 	return func() tea.Msg { return dir }
 }
 
@@ -220,23 +206,17 @@ func runeKey(s string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: s}
 }
 
-// motion returns how many rows the cursor moves on k, page rows for a page
-// and far to the first or last row, whether k pages, so that views of file
-// content move the window along, and whether k moves the cursor at all.
-func motion(k string, page, far int) (delta int, paging, ok bool) {
-	switch k {
-	case "up", "k":
-		return -1, false, true
-	case "down", "j":
-		return 1, false, true
-	case "pgup", "ctrl+b":
-		return -page, true, true
-	case "pgdown", "ctrl+f":
-		return page, true, true
-	case "home":
-		return -far, false, true
-	case "end":
-		return far, false, true
+// motion returns how many rows the cursor moves on key h, page rows for a
+// page and far to the first or last row, whether h pages, so that views of
+// file content move the window along, and whether h moves the cursor at all.
+func motion(h keyHit, page, far int) (delta int, paging, ok bool) {
+	switch h.action {
+	case "move":
+		return direction(h.i == 0), false, true
+	case "page":
+		return direction(h.i == 1) * page, true, true
+	case "ends":
+		return direction(h.i == 1) * far, false, true
 	}
 	return 0, false, false
 }

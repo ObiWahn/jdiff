@@ -123,7 +123,7 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Wrapped lines take other pieces, and end in line_end or ␍, which take
 		// a column.
 		f.keepScreenRow(f.relocate)
-		if msg.key == "C" && f.inLog() && f.cfg.Settings.StayInCommit {
+		if msg.action == "stay_in_commit" && f.inLog() && f.cfg.Settings.StayInCommit {
 			f.msg = "staying in commit " + f.parts[f.rows[f.cursor].part].commit.Short
 		}
 		if msg.problem != "" {
@@ -135,7 +135,8 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f *Flow) key(k string) tea.Cmd {
-	if f.replacing != nil && k != "enter" && k != "esc" {
+	h := keyFile.key(flowView, k)
+	if f.replacing != nil && h.action != "anchor" && h.action != "cancel_mark" {
 		f.replacing.replace = nil
 		f.replacing = nil
 	}
@@ -144,7 +145,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.prefix = ""
 		switch {
 		case !isMarkLetter(k):
-		case p == "m":
+		case p == "set_mark":
 			f.setMark(k)
 		default:
 			f.gotoMark(k)
@@ -152,7 +153,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		return nil
 	}
 	page := max(f.bodyHeight()-1, 1)
-	if delta, paging, ok := motion(k, page, far); ok {
+	if delta, paging, ok := motion(h, page, far); ok {
 		if paging {
 			f.scroll(delta)
 		} else {
@@ -160,65 +161,63 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	switch k {
-	case "q", "ctrl+c":
+	switch h.action {
+	case "quit":
 		return tea.Quit
-	case "f":
+	case "flow":
 		return toggleFlow
-	case "backspace":
+	case "to_files":
 		return func() tea.Msg { return backMsg{} }
-	case "tab":
+	case "pane":
 		f.active = f.active.other()
-	case "ctrl+u":
-		f.scroll(-page / 2)
-	case "ctrl+d":
-		f.scroll(page / 2)
-	case "left", "h":
-		f.xoff = max(f.xoff-8, 0)
-	case "right", "l":
-		f.xoff += 8
-	case "]", "[":
-		if !f.search(direction(k == "]"), f.changeStart, true) && f.msg == "" {
+	case "half_page":
+		f.scroll(direction(h.i == 1) * (page / 2))
+	case "scroll":
+		if h.i == 0 {
+			f.xoff = max(f.xoff-8, 0)
+		} else {
+			f.xoff += 8
+		}
+	case "change":
+		if !f.search(direction(h.i == 0), f.changeStart, true) && f.msg == "" {
 			f.msg = "no more changes"
 		}
-	case "n", "p":
-		if f.search(direction(k == "n"), f.isKind(flowFile, 0), true) {
+	case "next_file":
+		if f.search(direction(h.i == 0), f.isKind(flowFile, 0), true) {
 			f.barToTop()
 		} else if f.msg == "" {
-			f.msg = ends(k == "n", "last file", "first file")
+			f.msg = ends(h.i == 0, "last file", "first file")
 		}
-	case "N", "P":
+	case "history":
 		switch {
 		case !f.inLog():
-		case f.search(f.order.step(historyDir(k)), f.isKind(flowCommit, 0), false):
+		case f.search(f.order.step(historyDir(h)), f.isKind(flowCommit, 0), false):
 			f.barToTop()
 		default:
-			f.msg = ends(historyDir(k) > 0, "last commit", "first commit")
+			f.msg = ends(historyDir(h) > 0, "last commit", "first commit")
 		}
-	case "enter", "esc", "space", "ctrl+space":
-		f.delegate(k)
-	case searchKey:
+	case "anchor", "cancel_mark", "fold", "fold_all":
+		f.delegate(h.action)
+	case "search":
 		return askSearch
-	case nextKey:
-		f.findText(1)
-	case prevKey:
-		f.findText(-1)
-	case "g":
+	case "match":
+		f.findText(direction(h.i == 0))
+	case "moved":
 		f.jump()
-	case "m":
-		f.prefix, f.msg = k, "set mark: press a letter"
-	case "'":
-		f.prefix, f.msg = k, "jump to mark: press its letter"
+	case "set_mark":
+		f.prefix, f.msg = h.action, "set mark: press a letter"
+	case "jump":
+		f.prefix, f.msg = h.action, "jump to mark: press its letter"
 	default:
-		return pageKey(k, f.inLog())
+		return pageKey(h, f.inLog())
 	}
 	return nil
 }
 
-// delegate runs an anchor or fold key on the diff of the file under the
+// delegate runs an anchor or fold action on the diff of the file under the
 // cursor.
-func (f *Flow) delegate(k string) {
-	if k == "esc" && f.replacing == nil && f.marked != nil && f.marked.pending != nil {
+func (f *Flow) delegate(action string) {
+	if action == "cancel_mark" && f.replacing == nil && f.marked != nil && f.marked.pending != nil {
 		// The mark may be in another file than the cursor.
 		f.keepScreenRow(func() {
 			f.dropMark()
@@ -228,7 +227,7 @@ func (f *Flow) delegate(k string) {
 		return
 	}
 	if len(f.rows) == 0 || f.rows[f.cursor].kind != flowDiff {
-		if k != "esc" {
+		if action != "cancel_mark" {
 			f.msg = "no line here"
 		}
 		return
@@ -236,12 +235,12 @@ func (f *Flow) delegate(k string) {
 	r := f.rows[f.cursor]
 	e := f.parts[r.part].app.files[r.file]
 	d := e.diff
-	if k == "enter" && f.marked != d {
+	if action == "anchor" && f.marked != d {
 		f.dropMark()
 	}
 	var at spot
 	f.keepScreenRow(func() {
-		at, f.msg = d.act(k, spot{r.line, r.sub, f.active}, f.built)
+		at, f.msg = d.act(action, spot{r.line, r.sub, f.active}, f.built)
 		e.updateStats()
 		f.build()
 		if i := f.findDiff(r.part, r.file, at.v, at.sub); i >= 0 {

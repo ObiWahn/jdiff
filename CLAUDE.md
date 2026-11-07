@@ -36,8 +36,9 @@
   each page shows only those that work there, the other keys are in the help (?). The labels of
   f and s name what the key switches to, so pressing it changes only its own label. The anchors
   stand at the right end.
-- `internal/ui/keybindings.toml` holds the keys of all pages, with their labels in the status bar
-  and their lines of the help; change the words there, not in the code. It binds no key yet. The
+- `internal/ui/keybindings.toml` binds the keys of all pages to actions, with their labels in the
+  status bar and their lines of the help; change keys and words there, not in the code, which
+  switches on actions (`keyFile.key`). The keys inside popups and input fields stay in the code. The
   rows of `everywhere` decide the order of the settings: the popup and the help's block of settings
   follow them at startup (`ui.OrderSettings`). A setting with a key of its own is a row of
   `everywhere`, unless it works only in one view (`logFlow`); `TestKeybindingsFile` checks that.

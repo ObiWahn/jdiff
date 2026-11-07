@@ -461,12 +461,12 @@ func TestSearchBarPasteLines(t *testing.T) {
 
 func TestFlowSearchAgainWithoutQuery(t *testing.T) {
 	a := newFlowApp()
-	pressApp(a, "f", nextKey)
+	pressApp(a, "f", ".")
 	if a.flow.msg != "nothing searched yet: / searches" {
-		t.Errorf("%s: msg %q", nextKey, a.flow.msg)
+		t.Errorf("%s: msg %q", ".", a.flow.msg)
 	}
-	pressApp(a, "j", prevKey)
+	pressApp(a, "j", ",")
 	if a.flow.msg != "nothing searched yet: / searches" {
-		t.Errorf("%s: msg %q", prevKey, a.flow.msg)
+		t.Errorf("%s: msg %q", ",", a.flow.msg)
 	}
 }

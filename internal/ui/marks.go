@@ -128,7 +128,7 @@ func (p *MarksPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.width, p.height = msg.Width, msg.Height
 		p.move(0)
 	case tea.KeyPressMsg:
-		if cmd, ok := popupKeys(msg, p.open, "\\", p.key); ok {
+		if cmd, ok := popupKeys(msg, p.open, "marks", p.key); ok {
 			return p, cmd
 		}
 	}
@@ -142,9 +142,13 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
 		return nil
 	}
+	if isAction(k, "marks") {
+		p.open = false
+		return nil
+	}
 	marks := p.cfg.Marks()
 	switch k {
-	case "\\", "esc", "q":
+	case "esc", "q":
 		p.open = false
 	case "ctrl+c":
 		return tea.Quit
@@ -161,9 +165,9 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 		}
 	case "enter":
 		if p.cursor < len(marks) {
-			// Jump as ' and the letter do on the page.
+			// Jump as the key of jump, ', and the letter do on the page.
 			p.open = false
-			p.Model.Update(runeKey("'"))
+			p.Model.Update(runeKey(keyName(keyFile.row("jump").Keys[0])))
 			_, cmd := p.Model.Update(runeKey(marks[p.cursor].Letter))
 			return cmd
 		}

@@ -18,10 +18,6 @@ import (
 	"jdiff/internal/settings"
 )
 
-// searchKey opens the search bar; nextKey and prevKey search again forward
-// and backward.
-const searchKey, nextKey, prevKey = "/", ".", ","
-
 // askSearchMsg asks SearchBar for the query to search for.
 type askSearchMsg struct{}
 

@@ -692,6 +692,7 @@ func TestKeyOrderProblems(t *testing.T) {
 		{table(rows + `{ keys = ["x0"] },` + "\n"), "key x0 is not in the help"},
 		{table(strings.Replace(rows, `{ keys = ["t"] },`+"\n", "", 1)), "setting t is not in the table"},
 		{table(rows) + `help = [{ action = "x0" }]`, "action x0 has no help"},
+		{table(rows) + `diff_view = [{ action = "a", keys = ["x"] }, { action = "b", keys = ["x"] }]`, "key x has two actions in diff_view"},
 		{table(strings.Replace(rows, `{ action = "wrap", setting = "x" },`+"\n", "", 1)), "setting wrap has no words"},
 	} {
 		got := keyOrderProblems(c.text)
@@ -719,6 +720,35 @@ func TestKeyLabel(t *testing.T) {
 	}
 	if got := keyFile.row("x0").label(0); got != "" {
 		t.Errorf("no row: label %q", got)
+	}
+}
+
+// The keys of keybindings.toml as Bubble Tea names them, and the page that
+// looks them up first; two-way actions say which key of the row it is.
+func TestKeyLookup(t *testing.T) {
+	for _, c := range []struct {
+		pg   keyPage
+		k    string
+		want keyHit
+	}{
+		{diffView, "j", keyHit{"move", 0}},
+		{diffView, "up", keyHit{"move", 1}},
+		{diffView, "pgdown", keyHit{"page", 1}},
+		{diffView, "ctrl+b", keyHit{"page", 0}},
+		{diffView, "f5", keyHit{"reload", 1}},
+		{diffView, "m", keyHit{"set_mark", 0}},
+		{diffView, "n", keyHit{"next_file", 0}},
+		{commitList, "n", keyHit{"history", 0}},
+		{fileList, "p", keyHit{"move", 1}},
+		{flowView, "c", keyHit{"full_messages", 0}},
+		{flowView, "]", keyHit{"change", 0}},
+		{diffView, "c", keyHit{}},
+		{everywhere, "f8", keyHit{"settings", 1}},
+		{everywhere, "F8", keyHit{}},
+	} {
+		if got := keyFile.key(c.pg, c.k); got != c.want {
+			t.Errorf("page %d, %s: %+v, want %+v", c.pg, c.k, got, c.want)
+		}
 	}
 }
 

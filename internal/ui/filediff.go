@@ -267,34 +267,34 @@ func lineMap(old, new []string) []int {
 	return moved
 }
 
-// act runs the anchor and fold key k (enter, esc, space or ctrl+space) at
-// the cursor at, in the screen lines of sh. It returns the cursor afterwards
-// and the message to show, "" for none.
-func (d *fileDiff) act(k string, at spot, sh shape) (spot, string) {
+// act runs the anchor and fold action (anchor, cancel_mark, fold or
+// fold_all) at the cursor at, in the screen lines of sh. It returns the cursor
+// afterwards and the message to show, "" for none.
+func (d *fileDiff) act(action string, at spot, sh shape) (spot, string) {
 	if d.replace != nil {
 		an := *d.replace
 		d.replace = nil
-		switch k {
-		case "enter":
+		switch action {
+		case "anchor":
 			for _, c := range diff.Conflicts(d.anchors, an) {
 				d.removeAnchor(c)
 			}
 			return d.addAnchor(an, at.side, sh)
-		case "esc":
+		case "cancel_mark":
 			return at, "replace cancelled"
 		}
 	}
-	switch k {
-	case "esc":
+	switch action {
+	case "cancel_mark":
 		if d.pending != nil {
 			d.pending = nil
 			return at, "mark cancelled"
 		}
-	case "enter":
+	case "anchor":
 		return d.enter(at, sh)
-	case "space":
+	case "fold":
 		return d.toggleNearestBlock(at)
-	case "ctrl+space":
+	case "fold_all":
 		return d.toggleAllBlocks(at)
 	}
 	return at, ""

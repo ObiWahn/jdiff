@@ -159,19 +159,20 @@ func (m *Model) key(k string) tea.Cmd {
 		m.prefix = ""
 		switch {
 		case !isMarkLetter(k):
-		case p == "m":
+		case p == "set_mark":
 			m.msg = setMark(m.cfg, m.fileDiff, k, m.cursor)
 		default:
 			return m.gotoMark(k, m.pos()-m.top)
 		}
 		return nil
 	}
-	if m.replace != nil && k != "enter" && k != "esc" {
+	h := keyFile.key(diffView, k)
+	if m.replace != nil && h.action != "anchor" && h.action != "cancel_mark" {
 		m.replace = nil
 	}
 
 	page := max(m.bodyHeight()-1, 1)
-	if delta, paging, ok := motion(k, page, len(m.screen)); ok {
+	if delta, paging, ok := motion(h, page, len(m.screen)); ok {
 		if paging {
 			m.scroll(delta)
 		} else {
@@ -179,52 +180,48 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	switch k {
-	case "q", "ctrl+c":
+	switch h.action {
+	case "quit":
 		return tea.Quit
-	case "tab":
+	case "pane":
 		m.active = m.active.other()
-	case "ctrl+u":
-		m.scroll(-page / 2)
-	case "ctrl+d":
-		m.scroll(page / 2)
-	case "left", "h":
-		m.xoff = max(m.xoff-8, 0)
-	case "right", "l":
-		m.xoff += 8
-	case "]":
-		m.nextChange(1)
-	case "[":
-		m.nextChange(-1)
-	case "n", "p":
+	case "half_page":
+		m.scroll(direction(h.i == 1) * (page / 2))
+	case "scroll":
+		if h.i == 0 {
+			m.xoff = max(m.xoff-8, 0)
+		} else {
+			m.xoff += 8
+		}
+	case "change":
+		m.nextChange(direction(h.i == 0))
+	case "next_file":
 		if m.canBack {
-			dir := switchFileMsg(direction(k == "n"))
+			dir := switchFileMsg(direction(h.i == 0))
 			return func() tea.Msg { return dir }
 		}
-	case "N", "P":
+	case "history":
 		if m.commitNav {
-			return switchCommit(k)
+			return switchCommit(h)
 		}
-	case searchKey:
+	case "search":
 		return askSearch
-	case nextKey:
-		m.findText(1)
-	case prevKey:
-		m.findText(-1)
-	case "f":
+	case "match":
+		m.findText(direction(h.i == 0))
+	case "flow":
 		if m.canBack {
 			return toggleFlow
 		}
 	default:
-		return pageKey(k, false)
-	case "enter", "esc", "space", "ctrl+space":
-		m.act(k)
-	case "g":
+		return pageKey(h, false)
+	case "anchor", "cancel_mark", "fold", "fold_all":
+		m.act(h.action)
+	case "moved":
 		return m.jump()
-	case "m":
-		m.prefix, m.msg = k, "set mark: press a letter"
-	case "'":
-		m.prefix, m.msg = k, "jump to mark: press its letter"
+	case "set_mark":
+		m.prefix, m.msg = h.action, "set mark: press a letter"
+	case "jump":
+		m.prefix, m.msg = h.action, "jump to mark: press its letter"
 	}
 	return nil
 }
@@ -296,14 +293,14 @@ func (m *Model) show(at spot, screenRow int) {
 	m.place(at.v, at.sub, screenRow)
 }
 
-// act runs an anchor or fold key on the diff at the cursor, which stays on
+// act runs an anchor or fold action on the diff at the cursor, which stays on
 // its screen row.
-func (m *Model) act(k string) {
+func (m *Model) act(action string) {
 	var msg string
 	m.keepScreenRow(func() {
 		changes := m.changes
 		var at spot
-		at, msg = m.fileDiff.act(k, spot{m.cursor, m.sub, m.active}, m.screenShape)
+		at, msg = m.fileDiff.act(action, spot{m.cursor, m.sub, m.active}, m.screenShape)
 		if m.changes != changes {
 			m.buildScreen()
 		}

@@ -53,7 +53,7 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 		h.scroll(0)
 	case tea.KeyPressMsg:
-		if cmd, ok := popupKeys(msg, h.open, "?", h.key); ok {
+		if cmd, ok := popupKeys(msg, h.open, "help", h.key); ok {
 			return h, cmd
 		}
 	}
@@ -62,11 +62,11 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // popupKeys passes the key press msg to key, when the popup is open or msg
-// opens it with opener, and reports whether it did; else msg is for the
-// page below.
+// opens it, being a key of action opener, and reports whether it did; else
+// msg is for the page below.
 func popupKeys(msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
 	k := msg.String()
-	if !open && k != opener {
+	if !open && !isAction(k, opener) {
 		return nil, false
 	}
 	return key(k), true
@@ -78,8 +78,12 @@ func (h *Help) key(k string) tea.Cmd {
 		h.open, h.top = true, 0
 		return nil
 	}
+	if isAction(k, "help") {
+		h.open = false
+		return nil
+	}
 	switch k {
-	case "?", "esc", "q":
+	case "esc", "q":
 		h.open = false
 	case "ctrl+c":
 		return tea.Quit

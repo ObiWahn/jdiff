@@ -8,18 +8,19 @@
 
 | Key | Action |
 |---|---|
-| `j` `k` | move |
+| `j` `k` (`down` `up`) | move |
 | `N` `P`, `n` `p` | next, previous commit in history, also with `--reverse` |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
 | `home` `end` | first, last commit |
 | `enter` | show the files of the commit |
+| `'<letter>` | a mark: says to open a commit to jump to it |
 | `f` | flow view of all commits |
 
 ### File list
 
 | Key | Action |
 |---|---|
-| `j` `k`, `n` `p` | move |
+| `j` `k` (`down` `up`), `n` `p` | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
 | `home` `end` | first, last file |
 | `enter` | show the diff of the file |
@@ -35,10 +36,10 @@
 | `enter` | mark a line, then its partner: anchor; on an anchored line: remove the anchor |
 | `esc` | cancel the mark |
 | `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
-| `j` `k` | move |
+| `j` `k` (`down` `up`) | move |
 | `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
 | `home` `end` | top, bottom |
-| `h` `l` | scroll left, right, unless lines are wrapped |
+| `h` `l` (`left` `right`) | scroll left, right, unless lines are wrapped |
 | `]` `[` | next, previous change |
 | `n` `p` | next, previous file |
 | `N` `P` | next, previous commit in history (in the log) |

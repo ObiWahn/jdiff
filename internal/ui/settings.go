@@ -31,31 +31,36 @@ type settingOption struct {
 }
 
 var settingOptions = settingWords([]settingOption{
-	{key: "s", action: "layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
-	{key: "f", action: "flow", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
-	{key: untrackedKey, action: "untracked", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
-	{key: "w", action: "wrap", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
-	{key: "W", action: "whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
-	{key: "ctrl+w", action: "mark_whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
-	{key: "t", action: "trailing", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
-	{key: "e", action: "line_ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
-	{key: "b", action: "bold", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
-	{key: "v", action: "preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
-	{key: "c", action: "full_messages", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
-	{key: "C", action: "stay_in_commit", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
+	{action: "layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
+	{action: "flow", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
+	{action: "untracked", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
+	{action: "wrap", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
+	{action: "whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
+	{action: "mark_whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
+	{action: "trailing", setting: func(c *config.Config) *bool { return &c.Settings.ShowTrailing }},
+	{action: "line_ends", setting: func(c *config.Config) *bool { return &c.Settings.ShowCR }},
+	{action: "bold", setting: func(c *config.Config) *bool { return &c.Settings.BoldChanges }},
+	{action: "preview", setting: func(c *config.Config) *bool { return &c.Settings.Preview }},
+	{action: "full_messages", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
+	{action: "stay_in_commit", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{action: "auto_reload_timeout", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
 })
 
-// settingWords returns options with what they do from keybindings.toml.
+// settingWords returns options with their keys and what they do from
+// keybindings.toml.
 func settingWords(options []settingOption) []settingOption {
 	for i := range options {
-		options[i].what = keyFile.row(options[i].action).Setting
+		r := keyFile.row(options[i].action)
+		if len(r.Keys) > 0 {
+			options[i].key = r.Keys[0]
+		}
+		options[i].what = r.Setting
 	}
 	return options
 }
 
-// keybindingsFile lists the keys of all pages and decides the order of the
-// settings. It binds no key.
+// keybindingsFile binds the keys of all pages to actions, gives their words and
+// decides the order of the settings.
 //
 //go:embed keybindings.toml
 var keybindingsFile string
@@ -109,6 +114,72 @@ func (p keyPages) row(action string) keyRow {
 		}
 	}
 	return keyRow{}
+}
+
+// keyPage is a page whose keys are looked up in keybindings.toml.
+type keyPage int
+
+const (
+	commitList keyPage = iota
+	fileList
+	diffView
+	flowView
+	everywhere // the popups over all pages
+)
+
+// keyHit is what a key does: the action of its row, "" for none, and its place
+// in the row, which gives the way of actions that go two ways (see
+// keybindings.toml).
+type keyHit struct {
+	action string
+	i      int
+}
+
+// tables returns the rows the keys of page pg are looked up in, in order.
+func (p keyPages) tables(pg keyPage) [][]keyRow {
+	switch pg {
+	case commitList:
+		return [][]keyRow{p.CommitList, p.Everywhere}
+	case fileList:
+		return [][]keyRow{p.FileList, p.Everywhere}
+	case diffView:
+		return [][]keyRow{p.DiffView, p.Everywhere}
+	case flowView:
+		return [][]keyRow{p.FlowView, p.DiffView, p.Everywhere}
+	}
+	return [][]keyRow{p.Everywhere}
+}
+
+// key returns what key k, as Bubble Tea names it, does on page pg.
+func (p keyPages) key(pg keyPage, k string) keyHit {
+	for _, rows := range p.tables(pg) {
+		for _, r := range rows {
+			for i, name := range r.Keys {
+				if keyName(name) == k {
+					return keyHit{r.Action, i}
+				}
+			}
+		}
+	}
+	return keyHit{}
+}
+
+// isAction reports whether key k does action on all pages: the popups over
+// them open and close on such keys.
+func isAction(k, action string) bool { return keyFile.key(everywhere, k).action == action }
+
+// keyName returns Bubble Tea's name of the key written as name in
+// keybindings.toml, which writes pgdn and F5 as the help shows them, and
+// <letter> for the letter that follows.
+func keyName(name string) string {
+	name = strings.TrimSuffix(name, "<letter>")
+	if name == "pgdn" {
+		return "pgdown"
+	}
+	if n, ok := strings.CutPrefix(name, "F"); ok && n != "" && strings.Trim(n, "0123456789") == "" {
+		return "f" + n
+	}
+	return name
 }
 
 // label returns the word of the status bar in state, "" when there is none.
@@ -170,7 +241,8 @@ func OrderSettings() {
 
 // keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
 // all pages with a key that does not exist or stands twice, a setting missing or
-// without words, a line of the help with an action that has no help.
+// without words, a line of the help with an action that has no help, a key with
+// two actions on one page.
 func keyOrderProblems(text string) []string {
 	p, err := readKeys(text)
 	if err != nil {
@@ -197,6 +269,20 @@ func keyOrderProblems(text string) []string {
 	for _, o := range settingOptions {
 		if p.row(o.action).Setting == "" {
 			problems = append(problems, "setting "+o.action+" has no words")
+		}
+	}
+	for _, t := range []struct {
+		name string
+		rows []keyRow
+	}{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList}} {
+		actions := map[string]string{}
+		for _, r := range t.rows {
+			for _, name := range r.Keys {
+				if a, ok := actions[keyName(name)]; ok && a != r.Action {
+					problems = append(problems, "key "+name+" has two actions in "+t.name+": "+a+", "+r.Action)
+				}
+				actions[keyName(name)] = r.Action
+			}
 		}
 	}
 	for _, r := range p.Help {
@@ -234,7 +320,7 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
 		return p, nil
 	case toggleSettingMsg:
-		i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == msg.key })
+		i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.action == msg.action })
 		return p, p.flip(settingOptions[i])
 	case tea.KeyPressMsg:
 		switch {
@@ -256,8 +342,12 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key handles k in the open popup.
 func (p *SettingsPopup) key(k string) tea.Cmd {
+	if isAction(k, "settings") {
+		p.open = false
+		return nil
+	}
 	switch k {
-	case settingsKey, settingsFKey, "esc", "q":
+	case "esc", "q":
 		p.open = false
 	case "ctrl+c":
 		return tea.Quit
@@ -268,7 +358,7 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 	case "enter", "space":
 		return p.flip(settingOptions[p.cursor])
 	default:
-		if i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key == k }); i >= 0 {
+		if i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key != "" && keyName(o.key) == k }); i >= 0 {
 			p.move(i - p.cursor)
 			return p.flip(settingOptions[i])
 		}
@@ -290,7 +380,7 @@ func (p *SettingsPopup) flip(o settingOption) tea.Cmd {
 	if p.open {
 		p.msg, problem = problem, ""
 	}
-	_, cmd := p.Model.Update(settingChangedMsg{o.key, problem})
+	_, cmd := p.Model.Update(settingChangedMsg{o.action, problem})
 	return cmd
 }
 
