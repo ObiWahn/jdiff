@@ -134,10 +134,17 @@ func (d *fileDiff) hits(m *matcher, all bool) []hit {
 }
 
 // nextHit returns the index of the hit to go to in direction dir among n
-// hits in order, which before reports to come before the cursor: forward
-// the first that does not, backward the last that does; false past the
-// last or before the first, as the search does not wrap around.
-func nextHit(n, dir int, before func(i int) bool) (int, bool) {
+// hits in order, which compare compares to the cursor: forward the first
+// after it, backward the last before it, so that the cursor's own line is
+// passed; false past the last or before the first, as the search does not
+// wrap around.
+func nextHit(n, dir int, compare func(i int) int) (int, bool) {
+	before := func(i int) bool {
+		if dir > 0 {
+			return compare(i) <= 0
+		}
+		return compare(i) < 0
+	}
 	after := 0 // the first hit not before the cursor
 	for after < n && before(after) {
 		after++
@@ -149,14 +156,15 @@ func nextHit(n, dir int, before func(i int) bool) (int, bool) {
 }
 
 // showMatch returns the horizontal scroll that shows the first match of m
-// in the line of side s of d, in a pane width columns wide, scrolled by
-// xoff: xoff when the match is in view, else in steps of 8 columns, as h
-// and l scroll, the match a step from the left edge.
-func (d *fileDiff) showMatch(m *matcher, s side, line, xoff, width int) int {
+// in the line of side s of d, in a view viewWidth columns wide, scrolled by
+// xoff: xoff when lines are wrapped or the match is in view, else in steps of
+// 8 columns, as h and l scroll, the match a step from the left edge.
+func (d *fileDiff) showMatch(m *matcher, s side, line, xoff, viewWidth int) int {
 	spans := m.spans(d.lines[s][line])
-	if len(spans) == 0 {
+	if d.cfg.Settings.Wrap || len(spans) == 0 {
 		return xoff
 	}
+	width := d.contentWidth(viewWidth, !d.cfg.Settings.SideBySide)
 	text := d.lines[s][line]
 	from := ansi.StringWidth(printable(text[:spans[0].Start]))
 	to := from + ansi.StringWidth(printable(text[spans[0].Start:spans[0].End]))
@@ -165,6 +173,9 @@ func (d *fileDiff) showMatch(m *matcher, s side, line, xoff, width int) int {
 	}
 	return max(from-8, 0) / 8 * 8
 }
+
+// nothingSearched is the message of . and , before the first search.
+const nothingSearched = "nothing searched yet: / searches"
 
 // searchMsg returns the status message of match i of n for q.
 func searchMsg(q config.Query, i, n int) string {
@@ -201,7 +212,7 @@ func (m *Model) findText(dir int) {
 	q := m.cfg.Search.Query
 	mt := matcherOf(q)
 	if mt == nil {
-		m.msg = "nothing searched yet: / searches"
+		m.msg = nothingSearched
 		return
 	}
 	hits := m.hits(mt, m.cfg.Settings.SearchAll)
@@ -214,15 +225,7 @@ func (m *Model) findText(dir int) {
 	if m.cursor < len(m.view) {
 		pos.row = m.view[m.cursor].row
 	}
-	// Forward, the cursor's own line counts as before it, backward as after
-	// it, so that it is passed.
-	before := func(i int) bool {
-		if dir > 0 {
-			return hits[i].order() <= pos.order()
-		}
-		return hits[i].order() < pos.order()
-	}
-	i, ok := nextHit(len(hits), dir, before)
+	i, ok := nextHit(len(hits), dir, func(i int) int { return cmp.Compare(hits[i].order(), pos.order()) })
 	if !ok {
 		m.msg = noFurther(q, dir, "")
 		return
@@ -230,9 +233,7 @@ func (m *Model) findText(dir int) {
 	h := hits[i]
 	line := lineOf(m.rows[h.row], h.side)
 	m.jumpTo(m.reveal(h.side, line, m.shape()))
-	if !m.cfg.Settings.Wrap {
-		m.xoff = m.showMatch(mt, h.side, line, m.xoff, m.contentWidth(m.width, !m.cfg.Settings.SideBySide))
-	}
+	m.xoff = m.showMatch(mt, h.side, line, m.xoff, m.width)
 	m.msg = searchMsg(q, i, len(hits))
 }
 
@@ -251,7 +252,7 @@ func (f *Flow) findText(dir int) {
 	q := f.cfg.Search.Query
 	mt := matcherOf(q)
 	if mt == nil {
-		f.msg = "nothing searched yet: / searches"
+		f.msg = nothingSearched
 		return
 	}
 	cur := 0 // the cursor's part
@@ -290,16 +291,10 @@ func (f *Flow) findText(dir int) {
 			pos.row = f.parts[r.part].app.files[r.file].diff.view[r.line].row
 		}
 	}
-	compare := func(a, b flowHit) int {
-		return cmp.Or(cmp.Compare(a.part, b.part), cmp.Compare(a.file, b.file), cmp.Compare(a.order(), b.order()))
-	}
-	before := func(i int) bool {
-		if dir > 0 {
-			return compare(hits[i], pos) <= 0
-		}
-		return compare(hits[i], pos) < 0
-	}
-	i, ok := nextHit(len(hits), dir, before)
+	i, ok := nextHit(len(hits), dir, func(i int) int {
+		a := hits[i]
+		return cmp.Or(cmp.Compare(a.part, pos.part), cmp.Compare(a.file, pos.file), cmp.Compare(a.order(), pos.order()))
+	})
 	if !ok {
 		f.msg = noFurther(q, dir, where)
 		return
@@ -311,9 +306,7 @@ func (f *Flow) findText(dir int) {
 	f.relocate() // a fold may have opened: the cursor keeps its row
 	f.jumpTo(f.findDiff(h.part, h.file, at.v, at.sub))
 	f.active, f.msg = h.side, searchMsg(q, i, len(hits))
-	if !f.cfg.Settings.Wrap {
-		f.xoff = d.showMatch(mt, h.side, line, f.xoff, d.contentWidth(f.width, !f.cfg.Settings.SideBySide))
-	}
+	f.xoff = d.showMatch(mt, h.side, line, f.xoff, f.width)
 }
 
 // SearchBar wraps the view: / opens a bar at the bottom to type what to
