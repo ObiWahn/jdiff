@@ -451,7 +451,7 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		if s.input != nil {
 			s.err = ""
-			s.input.text += msg.Content
+			s.input.paste(msg.Content)
 			return s, nil
 		}
 	}
@@ -475,7 +475,11 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 	}
 	switch k.String() {
 	case "enter":
-		args := strings.Fields(in.text)
+		args, err := splitArgs(in.text)
+		if err != nil {
+			s.err = err.Error()
+			return nil
+		}
 		if len(args) == 0 {
 			s.input = nil
 			return nil
@@ -483,12 +487,64 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 		return s.show(args)
 	case "up":
 		if args, ok := s.current(); ok {
-			in.text = strings.Join(args, " ")
+			in.text = joinArgs(args)
 		}
 	default:
 		in.edit(k)
 	}
 	return nil
+}
+
+// splitArgs splits text into arguments at spaces, as a shell does for
+// quotes: 'single' and "double" quotes keep spaces, a backslash outside
+// single quotes the character after it.
+func splitArgs(text string) ([]string, error) {
+	var args []string
+	var cur strings.Builder
+	inArg, quote, escaped := false, rune(0), false
+	for _, r := range text {
+		switch {
+		case escaped:
+			cur.WriteRune(r)
+			escaped = false
+		case r == '\\' && quote != '\'':
+			escaped, inArg = true, true
+		case quote != 0 && r == quote:
+			quote = 0
+		case quote != 0:
+			cur.WriteRune(r)
+		case r == '\'' || r == '"':
+			quote, inArg = r, true
+		case r == ' ':
+			if inArg {
+				args, inArg = append(args, cur.String()), false
+				cur.Reset()
+			}
+		default:
+			cur.WriteRune(r)
+			inArg = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("missing closing %c", quote)
+	}
+	if inArg {
+		args = append(args, cur.String())
+	}
+	return args, nil
+}
+
+// joinArgs returns args as splitArgs reads them back: quoted where they hold
+// spaces, quotes or backslashes, or are empty.
+func joinArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = a
+		if a == "" || strings.ContainsAny(a, " '\"\\") {
+			quoted[i] = "'" + strings.ReplaceAll(a, "'", `'"'"'`) + "'"
+		}
+	}
+	return strings.Join(quoted, " ")
 }
 
 // show replaces the view by the files of git diff with args, from scratch,
@@ -568,9 +624,24 @@ func (in *lineInput) cancels(k tea.KeyPressMsg) bool {
 	return k.String() == "esc" || k.String() == "backspace" && in.text == ""
 }
 
+// paste adds pasted text, which comes as a tea.PasteMsg: on one line, line
+// breaks and tabs as spaces, without characters that are not visible, which
+// could reach the terminal.
+func (in *lineInput) paste(text string) {
+	in.text += strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			return ' '
+		case hiddenChar(r):
+			return -1
+		}
+		return r
+	}, text)
+}
+
 // edit applies k to the text: typed text is added, backspace deletes a
 // character, ctrl+w a word and ctrl+u the line. Pasted text comes as a
-// tea.PasteMsg, which the owner adds.
+// tea.PasteMsg, which the owner adds with paste.
 func (in *lineInput) edit(k tea.KeyPressMsg) {
 	switch k.String() {
 	case "backspace":

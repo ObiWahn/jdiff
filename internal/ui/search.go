@@ -403,7 +403,7 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		if s.input != nil {
 			s.err = ""
-			s.input.text += msg.Content
+			s.input.paste(msg.Content)
 			return s, nil
 		}
 	}

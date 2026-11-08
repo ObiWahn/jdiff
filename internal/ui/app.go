@@ -205,9 +205,10 @@ func (a *App) stop() {
 	}
 }
 
-// diffCommand returns the git diff command line of args.
+// diffCommand returns the git diff command line of args, quoted as the
+// popup of git diff reads them.
 func diffCommand(args []string) string {
-	return strings.TrimSpace("git diff " + strings.Join(args, " "))
+	return strings.TrimSpace("git diff " + joinArgs(args))
 }
 
 // inLog reports whether a is part of the log: backspace and N/P go to the
@@ -785,7 +786,7 @@ func (a *App) frame() string {
 		if a.cfg.Settings.Untracked {
 			cmd += " + untracked"
 		}
-		head += "  " + t.Hint.Render(cmd)
+		head += "  " + t.Hint.Render(printable(cmd))
 	}
 
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
