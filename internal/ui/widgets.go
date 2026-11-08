@@ -11,6 +11,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/notify"
+	"jdiff/internal/source"
 	"jdiff/internal/theme"
 )
 
@@ -394,8 +395,12 @@ type DiffSwitch struct {
 	autoGen    int
 	input      *lineInput // while it asks
 	err        string     // why git failed, until the next key
-	width      int
-	height     int
+	// running is set while git diff runs for the request number diffGen of
+	// show.
+	running bool
+	diffGen int
+	width   int
+	height  int
 }
 
 // WithDiffSwitch returns the switch for view, which wrap puts in its
@@ -425,8 +430,10 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 	case askDiffMsg:
-		s.input, s.err = &lineInput{}, ""
+		s.input, s.err, s.running = &lineInput{}, "", false
 		return s, nil
+	case diffListedMsg:
+		return s, s.showDiff(msg)
 	case askAutoReloadMsg:
 		return s, s.toggleAutoReload()
 	case autoTickMsg:
@@ -470,7 +477,7 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 	case k.String() == "ctrl+c":
 		return tea.Quit
 	case in.cancels(k):
-		s.input = nil
+		s.input, s.running = nil, false
 		return nil
 	}
 	switch k.String() {
@@ -547,14 +554,40 @@ func joinArgs(args []string) string {
 	return strings.Join(quoted, " ")
 }
 
-// show replaces the view by the files of git diff with args, from scratch,
-// closes the popup and returns the command starting the new view. When git
-// fails, the view and the popup stay, which shows the first line of git's
-// message.
+// diffListedMsg brings the files of git diff with args, run for the request
+// number gen of show, or why git failed.
+type diffListedMsg struct {
+	gen   int
+	args  []string
+	files []source.File
+	err   error
+}
+
+// show returns the command running git diff with args in the background,
+// for showDiff. The popup stays open meanwhile and says so; esc closes it
+// and drops the files, as another request does.
 func (s *DiffSwitch) show(args []string) tea.Cmd {
-	files, err := s.gitDiff(args, s.cfg.Settings.Untracked)
-	if err != nil {
-		s.err = firstLine(err)
+	s.diffGen++
+	s.running = true
+	gen, untracked, gitDiff := s.diffGen, s.cfg.Settings.Untracked, s.gitDiff
+	return func() tea.Msg {
+		files, err := gitDiff(args, untracked)
+		return diffListedMsg{gen, args, files, err}
+	}
+}
+
+// showDiff replaces the view by the files msg brings, from scratch, closes
+// the popup and returns the command starting the new view; when the popup was
+// closed or asked again meanwhile, it drops them. When git failed, the view
+// and the popup stay, which shows the first line of git's message.
+func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
+	if msg.gen != s.diffGen || !s.running { // closed or opened again meanwhile
+		return nil
+	}
+	s.running = false
+	args, files := msg.args, msg.files
+	if msg.err != nil {
+		s.err = firstLine(msg.err)
 		return nil
 	}
 	s.input = nil
@@ -589,7 +622,11 @@ func (s *DiffSwitch) frame() string {
 	if _, ok := s.current(); ok {
 		keys = "enter show · ↑ current · esc cancel"
 	}
-	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", "", keys), printable(s.input.text), s.err, true)
+	msg := ""
+	if s.running {
+		msg = "running git diff…"
+	}
+	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.input.text), s.err, true)
 	return overlay(base, pop, w, s.width)
 }
 

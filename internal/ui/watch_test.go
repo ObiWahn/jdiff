@@ -593,7 +593,8 @@ func TestAutoReloadSurvivesDiffSwitch(t *testing.T) {
 	s, g, _, _ := newAutoReload(t)
 	s.Update(askAutoReloadMsg{})
 	gen := s.autoGen
-	s.show([]string{"HEAD~1"})
+	s.input = &lineInput{}
+	s.Update(s.show([]string{"HEAD~1"})()) // git diff, which runs in the background
 	s.statusRuns++
 	_, cmd := s.Update(autoStatusMsg{gen: gen, status: "s1"})
 	loadNow(t, s, cmd)
