@@ -57,7 +57,9 @@ type Flow struct {
 	order historyOrder                 // of the commits, the parts in the log
 
 	rows      []flowRow
-	built     shape // what the rows of the diffs were built for
+	rowAt     map[flowRow]int // index of each row, see find
+	stale     bool            // a row changed since rowAt was built
+	built     shape           // what the rows of the diffs were built for
 	cursor    int
 	top       int
 	xoff      int
@@ -374,6 +376,10 @@ func (f *Flow) build() {
 			}
 		}
 	}
+	f.rowAt, f.stale = make(map[flowRow]int, len(f.rows)), false
+	for i, r := range slices.Backward(f.rows) {
+		f.rowAt[r] = i // the first of equal rows, as a search finds
+	}
 	f.cursor = max(min(f.cursor, len(f.rows)-1), 0)
 }
 
@@ -431,6 +437,7 @@ func (f *Flow) followFiles(part int, old, new []*entry) {
 	if r.part != part || r.file < 0 {
 		return
 	}
+	f.stale = true
 	for i := r.file; i < len(old); i++ {
 		if j := slices.Index(new, old[i]); j >= 0 {
 			if i == r.file {
@@ -451,6 +458,7 @@ func (f *Flow) followParts(old []*flowPart) {
 	if f.cursor < len(f.rows) {
 		r := &f.rows[f.cursor]
 		r.part = slices.Index(f.parts, old[r.part])
+		f.stale = true
 	}
 }
 
@@ -491,7 +499,17 @@ func (f *Flow) findDiff(part, file, line, sub int) int {
 	return f.find(flowRow{flowDiff, part, file, line, 0})
 }
 
+// find returns the index of row r, or -1. The rows are indexed by build: a
+// long log has many, and each move looks for rows. After a row changed in
+// place, as followFiles and followParts do before the rows are rebuilt, they
+// are searched.
 func (f *Flow) find(r flowRow) int {
+	if !f.stale {
+		if i, ok := f.rowAt[r]; ok {
+			return i
+		}
+		return -1
+	}
 	for i, x := range f.rows {
 		if x == r {
 			return i
