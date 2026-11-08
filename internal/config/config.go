@@ -242,7 +242,9 @@ func (c *Config) SaveState() error {
 }
 
 // writeTOML writes header and v as TOML to path, through a temporary file
-// so that the file is never left half written.
+// so that the file is never left half written. Each write has a temporary
+// file of its own: jdiffs running at the same time must not rename each
+// other's.
 func writeTOML(path, header string, v any) error {
 	var b bytes.Buffer
 	b.WriteString(header)
@@ -252,11 +254,19 @@ func writeTOML(path, header string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b.Bytes(), 0o644); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	_, err = tmp.Write(b.Bytes())
+	err = errors.Join(err, tmp.Close(), os.Chmod(tmp.Name(), 0o644))
+	if err == nil {
+		err = os.Rename(tmp.Name(), path)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
 }
 
 // Dir returns the configuration directory the files were read from, "" for

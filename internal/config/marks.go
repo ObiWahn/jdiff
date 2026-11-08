@@ -69,6 +69,7 @@ func (c *Config) Marks() []LetterMark {
 // SetMark sets the mark of letter in the current repository and saves the
 // marks.
 func (c *Config) SetMark(letter string, m Mark) error {
+	c.reloadMarks()
 	if c.marks.all == nil {
 		c.marks.all = map[string]map[string]Mark{}
 	}
@@ -82,11 +83,25 @@ func (c *Config) SetMark(letter string, m Mark) error {
 // DeleteMark deletes the mark of letter in the current repository and saves
 // the marks.
 func (c *Config) DeleteMark(letter string) error {
+	c.reloadMarks()
 	delete(c.marks.all[c.marks.repo], letter)
 	if len(c.marks.all[c.marks.repo]) == 0 {
 		delete(c.marks.all, c.marks.repo)
 	}
 	return c.saveMarks()
+}
+
+// reloadMarks reads the marks of all repositories again before a change, so
+// that it keeps those another jdiff saved since this one read them. A file
+// that cannot be parsed leaves the marks as they are, see LoadMarks.
+func (c *Config) reloadMarks() {
+	if c.marks.path == "" {
+		return
+	}
+	all := map[string]map[string]Mark{}
+	if _, err := toml.DecodeFile(c.marks.path, &all); err == nil || errors.Is(err, fs.ErrNotExist) {
+		c.marks.all = all
+	}
 }
 
 func (c *Config) saveMarks() error {
