@@ -170,17 +170,23 @@ func TestNoViewOverflows(t *testing.T) {
 
 func TestHelpArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
-	n := len(helpLines(keys.Builtin()))
+	// At 80 columns long lines wrap, so rows are more than lines.
+	probe := WithHelp(config.Default(), newTestApp())
+	probe.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressRoot(probe, "?")
+	n := len(probe.rows)
+	if n <= len(probe.lines) {
+		t.Fatalf("80 columns: %d rows of %d lines, none wrapped", n, len(probe.lines))
+	}
 	// The box has height-4 rows. Each of these sizes must stay: one and two
 	// rows (no arrows), three and four (the smallest with arrows), some,
-	// n-2, n-1 (an arrow hides two lines), n (all fit exactly) and n+1. A
-	// narrow screen keeps drawing fast.
+	// n-2, n-1 (an arrow hides two rows), n (all fit exactly) and n+1.
 	for _, rows := range []int{1, 2, 3, 4, 12, n - 2, n - 1, n, n + 1} {
 		t.Run(fmt.Sprint("rows ", rows), func(t *testing.T) {
 			t.Parallel()
 			height := rows + 4
 			h := WithHelp(config.Default(), newTestApp())
-			h.Update(tea.WindowSizeMsg{Width: 30, Height: height})
+			h.Update(tea.WindowSizeMsg{Width: 80, Height: height})
 			pressRoot(h, "?")
 			rows = min(rows, n) // room for more: the box stays at the lines' height
 			if h.boxHeight()-2 != rows {
@@ -229,6 +235,55 @@ func TestHelpArrowsSweep(t *testing.T) {
 					fail("the arrow below is wrong")
 				case !hasDown && n > rows && h.top+shown != n:
 					fail("lines hidden below without an arrow")
+				}
+			}
+		})
+	}
+}
+
+// TestHelpWrapsSweep checks at each width that the help shows all its words,
+// wrapping what does not fit instead of cutting it. The widths go from the
+// least with a column left for the words, keyW+9, up to one past all fit; 80
+// and 100 must stay, where lines were cut before. The box is as wide as its
+// widest row, with border and padding.
+func TestHelpWrapsSweep(t *testing.T) {
+	t.Parallel()
+	probe := WithHelp(config.Default(), newTestApp())
+	probe.Update(tea.WindowSizeMsg{Width: 1000, Height: 20})
+	pressRoot(probe, "?")
+	fits, keyW := probe.boxWidth, 0
+	for _, b := range probe.lines {
+		keyW = max(keyW, ansi.StringWidth(b.key))
+	}
+	noSpace := func(s string) string { return strings.Join(strings.Fields(s), "") }
+	for width := keyW + 9; width <= fits+1; width++ {
+		t.Run(fmt.Sprint("width ", width), func(t *testing.T) {
+			t.Parallel()
+			h := WithHelp(config.Default(), newTestApp())
+			h.Update(tea.WindowSizeMsg{Width: width, Height: 20})
+			pressRoot(h, "?")
+			h.Update(tea.WindowSizeMsg{Width: width, Height: len(h.rows) + 4}) // all rows fit
+			got := popupRows(h.frame())
+			if len(got) != len(h.rows) {
+				t.Fatalf("%d rows shown of %d", len(got), len(h.rows))
+			}
+			if wrapped := len(h.rows) > len(h.lines); wrapped != (width < fits) {
+				t.Errorf("%d rows of %d lines in a box %d wide, all fit from %d", len(h.rows), len(h.lines), h.boxWidth, fits)
+			}
+			rowW := 0
+			for _, r := range got {
+				rowW = max(rowW, ansi.StringWidth(r))
+			}
+			if h.boxWidth != rowW+4 {
+				t.Errorf("box %d wide for rows up to %d wide", h.boxWidth, rowW)
+			}
+			text := noSpace(strings.Join(got, " "))
+			if strings.Contains(text, "…") {
+				t.Errorf("a line is cut:\n%s", strings.Join(got, "\n"))
+			}
+			for _, b := range h.lines {
+				if want := noSpace(b.key + b.what); !strings.Contains(text, want) {
+					t.Errorf("lacks %q %q:\n%s", b.key, b.what, strings.Join(got, "\n"))
 				}
 			}
 		})
