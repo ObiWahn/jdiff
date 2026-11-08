@@ -437,6 +437,11 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s.repoWatch != nil && msg.w == s.repoWatch {
 			return s, s.onRepoChanged()
 		}
+	case watchEndedMsg:
+		if s.repoWatch != nil && msg.w == s.repoWatch {
+			s.repoWatch = nil // the regular checks still see all changes
+			return s, nil
+		}
 	case tea.KeyPressMsg:
 		s.lastActive = time.Now()
 		if s.input != nil {

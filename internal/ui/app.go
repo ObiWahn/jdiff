@@ -436,6 +436,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.refresh(changed)
 		return a, waitChanges(a.notify)
+	case watchEndedMsg:
+		if msg.w != a.notify {
+			return a, nil
+		}
+		a.notify = nil
+		if a.ticking {
+			return a, nil
+		}
+		a.ticking = true
+		return a, watchTick(a.cfg, a)
 	case jumpMsg:
 		a.jump(msg)
 		return a, nil

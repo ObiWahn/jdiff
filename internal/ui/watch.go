@@ -32,12 +32,17 @@ type changedMsg struct {
 	paths []string
 }
 
+// watchEndedMsg reports that inotify watcher w stopped reporting changes: it
+// was closed, or a directory could not be watched any more. The view whose
+// watcher it still is checks its files itself from now on.
+type watchEndedMsg struct{ w *notify.Watcher }
+
 // waitChanges returns the command waiting for the next changes w reports.
 func waitChanges(w *notify.Watcher) tea.Cmd {
 	return func() tea.Msg {
 		paths, ok := <-w.Changes()
 		if !ok {
-			return nil
+			return watchEndedMsg{w}
 		}
 		return changedMsg{w, paths}
 	}

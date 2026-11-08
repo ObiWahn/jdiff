@@ -112,6 +112,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msg = msg
 		}
 		return m, waitChanges(m.notify)
+	case watchEndedMsg:
+		if msg.w != m.notify {
+			return m, nil
+		}
+		m.notify = nil
+		return m, watchTick(m.cfg, m)
 	case refreshMsg:
 		m.refresh(msg.quiet)
 	case showMsg:

@@ -22,9 +22,10 @@ import (
 const settle = 50 * time.Millisecond
 
 // mask selects the events that change a file's content or replace or
-// remove it; touching its times or mode does not.
+// remove it, and the move of a watched directory; touching its times or mode
+// does not.
 const mask = unix.IN_MODIFY | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
-	unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
+	unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_MOVE_SELF | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
 
 // Watcher reports changes to files. All watches share one inotify instance,
 // which takes one file descriptor.
@@ -73,7 +74,8 @@ func New(paths []string, maxDirs int) (*Watcher, error) {
 }
 
 // Changes returns the channel of changed paths, as given to New, in sorted
-// batches. It is closed when the watcher is.
+// batches. It is closed when the watcher is, and when a directory cannot be
+// watched any more (see read).
 func (w *Watcher) Changes() <-chan []string { return w.changes }
 
 // Close stops watching.
@@ -88,7 +90,10 @@ func (w *Watcher) Close() error {
 
 // read sends the watched paths the kernel reports to raw, until the
 // watcher is closed. When the kernel's queue overflowed, events were lost:
-// all paths are sent.
+// all paths are sent. When a watched directory is gone or moved away, as
+// when a checkout removes and makes it again, its paths are sent and the
+// directory at its path is watched anew; when it cannot be, read ends, which
+// closes Changes, so that the caller checks the files itself.
 func (w *Watcher) read(raw chan<- string) {
 	defer close(raw)
 	send := func(paths []string) bool {
@@ -114,25 +119,59 @@ func (w *Watcher) read(raw chan<- string) {
 			name := bytes.TrimRight(buf[off+unix.SizeofInotifyEvent:off+unix.SizeofInotifyEvent+nameLen], "\x00")
 			off += unix.SizeofInotifyEvent + nameLen
 			var paths []string
-			if evMask&unix.IN_Q_OVERFLOW != 0 {
+			lost := false
+			dir, known := w.dirs[wd]
+			switch {
+			case evMask&unix.IN_Q_OVERFLOW != 0:
 				for _, ps := range w.names {
 					paths = append(paths, ps...)
 				}
-			} else if dir, ok := w.dirs[wd]; ok && len(name) > 0 {
+			case evMask&(unix.IN_IGNORED|unix.IN_MOVE_SELF) != 0 && known:
+				delete(w.dirs, wd)
+				for p, ps := range w.names {
+					if filepath.Dir(p) == dir {
+						paths = append(paths, ps...)
+					}
+				}
+				lost = !w.rewatch(dir, wd, evMask&unix.IN_MOVE_SELF != 0)
+			case known && len(name) > 0:
 				paths = w.names[filepath.Join(dir, string(name))]
 			}
-			if !send(paths) {
+			if !send(paths) || lost {
 				return
 			}
 		}
 	}
 }
 
+// rewatch watches the directory at dir again after its watch wd ended, or,
+// with moved, removes wd, which follows the directory moved away. It reports
+// whether it could. The file's descriptor is used through Control, so that
+// Close cannot close it meanwhile.
+func (w *Watcher) rewatch(dir string, wd int32, moved bool) bool {
+	conn, err := w.file.SyscallConn()
+	if err != nil {
+		return false
+	}
+	ok := false
+	conn.Control(func(fd uintptr) {
+		if moved {
+			unix.InotifyRmWatch(int(fd), uint32(wd))
+		}
+		if wd, err := unix.InotifyAddWatch(int(fd), dir, mask); err == nil {
+			w.dirs[int32(wd)] = dir
+			ok = true
+		}
+	})
+	return ok
+}
+
 // batch collects the paths from raw for settle after the first one and
-// sends them on as one batch, until raw is closed.
+// sends them on as one batch, until raw is closed; the batch collected
+// then is still sent.
 func (w *Watcher) batch(raw <-chan string) {
 	defer close(w.changes)
-	for {
+	for open := true; open; {
 		p, ok := <-raw
 		if !ok {
 			return
@@ -145,7 +184,8 @@ func (w *Watcher) batch(raw <-chan string) {
 			case p, ok := <-raw:
 				if !ok {
 					timer.Stop()
-					return
+					open = false
+					break collect
 				}
 				set[p] = true
 			case <-timer.C:
