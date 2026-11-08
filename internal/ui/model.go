@@ -218,8 +218,6 @@ func (m *Model) key(k string) tea.Cmd {
 		if m.canBack {
 			return toggleFlow
 		}
-	default:
-		return pageKey(h, false)
 	case "anchor", "cancel_mark", "fold", "fold_all":
 		m.act(h.action)
 	case "moved":
@@ -228,6 +226,8 @@ func (m *Model) key(k string) tea.Cmd {
 		m.prefix, m.msg = h.action, "set mark: press a letter"
 	case "jump":
 		m.prefix, m.msg = h.action, "jump to mark: press its letter"
+	default:
+		return pageKey(h, false)
 	}
 	return nil
 }
