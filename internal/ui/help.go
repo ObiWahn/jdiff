@@ -78,21 +78,32 @@ func (h *Help) key(k string) tea.Cmd {
 		h.open, h.top = true, 0
 		return nil
 	}
-	if isAction(k, "help") {
-		h.open = false
-		return nil
+	cmd, _ := popupNav(k, "help", &h.open, h.scroll)
+	return cmd
+}
+
+// popupNav handles the keys that all popups share, so that they close and
+// move alike: a key of opener, esc and q close the popup, ctrl+c quits, down
+// and j move by one, up and k back. It reports whether k was one of them;
+// the popup handles the others.
+func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
+	if isAction(k, opener) {
+		*open = false
+		return nil, true
 	}
 	switch k {
 	case "esc", "q":
-		h.open = false
+		*open = false
 	case "ctrl+c":
-		return tea.Quit
+		return tea.Quit, true
 	case "down", "j":
-		h.scroll(1)
+		move(1)
 	case "up", "k":
-		h.scroll(-1)
+		move(-1)
+	default:
+		return nil, false
 	}
-	return nil
+	return nil, true
 }
 
 // boxHeight is the height of the popup.

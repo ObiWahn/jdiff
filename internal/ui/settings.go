@@ -532,19 +532,10 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key handles k in the open popup.
 func (p *SettingsPopup) key(k string) tea.Cmd {
-	if isAction(k, "settings") {
-		p.open = false
-		return nil
+	if cmd, ok := popupNav(k, "settings", &p.open, p.move); ok {
+		return cmd
 	}
 	switch k {
-	case "esc", "q":
-		p.open = false
-	case "ctrl+c":
-		return tea.Quit
-	case "down", "j":
-		p.move(1)
-	case "up", "k":
-		p.move(-1)
 	case "enter", "space":
 		return p.flip(settingOptions[p.cursor])
 	default:

@@ -142,20 +142,11 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
 		return nil
 	}
-	if isAction(k, "marks") {
-		p.open = false
-		return nil
+	if cmd, ok := popupNav(k, "marks", &p.open, p.move); ok {
+		return cmd
 	}
 	marks := p.cfg.Marks()
 	switch k {
-	case "esc", "q":
-		p.open = false
-	case "ctrl+c":
-		return tea.Quit
-	case "down", "j":
-		p.move(1)
-	case "up", "k":
-		p.move(-1)
 	case "d", "delete":
 		if p.cursor < len(marks) {
 			if err := p.cfg.DeleteMark(marks[p.cursor].Letter); err != nil {
