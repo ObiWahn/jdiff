@@ -35,5 +35,5 @@ delta highlights syntax; jdiff does not.
   - `ctrl+w` turns the marking of changed whitespace off.
   - `t` shows trailing whitespace.
   - Changed `\r\n` line ends show as `␍`, all of them with `e`.
-  - Invisible characters, among them those that change the text direction, show as `☠`.
+  - Invisible characters, among them those that change the text direction, zero-width spaces and joiners, show as `☠`. Spaces that take room, as the no-break space, are drawn as they are; emoji joined into one sign, as a family, show as their emoji.
 - **16-color output:** every color is an ANSI color, so your terminal palette decides how jdiff looks.

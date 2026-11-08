@@ -547,10 +547,10 @@ func TestHighlightHiddenChars(t *testing.T) {
 		"a\u202eb", // right-to-left override: would reorder the text
 		"a\u2066b", // left-to-right isolate
 		"a\u200bb", // zero-width space
-		"a\u00a0b", // no-break space
+		"a\u200db", // zero-width joiner between letters
 		"a\x1bb",   // escape: would start a terminal sequence
-		"a\u3000b", // ideographic space, two columns
 		"a\u00adb", // soft hyphen
+		"a\u2028b", // line separator
 	} {
 		got := highlight(text, nil, lineStyles{hidden: hidden})
 		if ansi.Strip(got) != "a☠b" || !strings.Contains(got, "\x1b[41m☠") {
@@ -559,6 +559,43 @@ func TestHighlightHiddenChars(t *testing.T) {
 	}
 	if got := printable("x\u202ey"); got != "x☠y" {
 		t.Errorf("printable: %q, want x☠y", got)
+	}
+}
+
+// Spaces that take room are visible: they are drawn as they are, and as ·
+// while all whitespace is shown. Emoji joined into one sign, as a family,
+// show as their emoji, without the joiners, also within changed words and
+// what / found.
+func TestHighlightVisibleSpacesAndEmoji(t *testing.T) {
+	for _, text := range []string{"a\u00a0b", "a\u2003b", "a\u2009b", "a\u3000b"} {
+		if got := ansi.Strip(highlight(text, nil, lineStyles{})); got != text {
+			t.Errorf("highlight(%q) = %q, want it as it is", text, got)
+		}
+	}
+	if got := ansi.Strip(highlight("a\u3000b\u00a0c", nil, lineStyles{showAll: true})); got != "a· b·c" {
+		t.Errorf("showing all whitespace: %q, want a· b·c, the ideographic space two columns", got)
+	}
+	family := "\U0001F468\u200d\U0001F469\u200d\U0001F467"
+	parts := "\U0001F468\U0001F469\U0001F467"
+	for _, c := range []struct{ text, want string }{
+		{"x " + family + " y", "x " + parts + " y"},
+		{"\U0001F3F3\ufe0f\u200d\U0001F308", "\U0001F3F3\ufe0f\U0001F308"},         // rainbow flag
+		{"\U0001F469\U0001F3FD\u200d\U0001F4BB", "\U0001F469\U0001F3FD\U0001F4BB"}, // with a skin tone
+	} {
+		if got := printable(c.text); got != c.want {
+			t.Errorf("printable(%q) = %q, want %q", c.text, got, c.want)
+		}
+	}
+	emph := lipgloss.NewStyle().Bold(true)
+	match := lipgloss.NewStyle().Underline(true)
+	text := "x " + family + " y"
+	got := highlight(text, []diff.Span{{Start: 2, End: len(text) - 2}},
+		lineStyles{emph: emph, matches: []diff.Span{{Start: len(text) - 1, End: len(text)}}, match: match})
+	if ansi.Strip(got) != "x "+parts+" y" || !strings.Contains(got, emph.Render(parts)) || !strings.Contains(got, match.Render("y")) {
+		t.Errorf("emphasized family, y found: %q", got)
+	}
+	if w := ansi.StringWidth(printable(text)); w != 10 {
+		t.Errorf("width %d, want 10: three emoji of two columns", w)
 	}
 }
 

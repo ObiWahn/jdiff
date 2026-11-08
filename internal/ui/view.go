@@ -71,9 +71,11 @@ func (p painter) paint(s string) string {
 	return p.open + s + p.close
 }
 
-// hiddenSymbol stands for characters that are not visible text, a space or
-// a tab: control and format characters, among them those that change the
-// direction of text and could reorder what is shown, and unusual spaces.
+// hiddenSymbol stands for characters that are not visible: control and
+// format characters, among them those that change the direction of text and
+// could reorder what is shown, zero-width spaces and joiners, and the line
+// and paragraph separators. Spaces that take room, as the no-break space,
+// are visible: they are drawn as they are.
 const hiddenSymbol = "☠"
 
 // hiddenChar reports whether r is drawn as hiddenSymbol.
@@ -81,7 +83,69 @@ func hiddenChar(r rune) bool {
 	if r < utf8.RuneSelf { // ASCII: only control characters
 		return r != '\t' && (r < 0x20 || r == 0x7f)
 	}
-	return r != '\t' && (unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) || unicode.IsSpace(r) && r != ' ')
+	return unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)
+}
+
+// zwj is the zero-width joiner, which joins emoji into one sign, as the man,
+// woman and girl of a family.
+const zwj = '\u200d'
+
+// emojiJoiners returns the byte offsets of the joiners in s that join two
+// emoji into one sign. They are not drawn, so that the sign shows as its
+// emoji: terminals that cannot join emoji draw it so, wider than one sign,
+// and the panes would not line up. A joiner elsewhere, as between letters,
+// is invisible, a hidden character.
+func emojiJoiners(s string) []int {
+	var out []int
+	for i, r := range s {
+		if r != zwj || i == 0 {
+			continue
+		}
+		prev, _ := utf8.DecodeLastRuneInString(s[:i])
+		next, _ := utf8.DecodeRuneInString(s[i+utf8.RuneLen(zwj):])
+		// Emoji are symbols; the one before may end in the selector of its
+		// emoji form or a skin tone.
+		if (unicode.Is(unicode.So, prev) || prev == '\ufe0f' || prev >= 0x1f3fb && prev <= 0x1f3ff) &&
+			unicode.Is(unicode.So, next) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// dropJoiners returns text without its emoji joiners (see emojiJoiners), and
+// the byte ranges spans and matches of text as ranges of the text left.
+func dropJoiners(text string, spans, matches []diff.Span) (string, []diff.Span, []diff.Span) {
+	at := emojiJoiners(text)
+	if len(at) == 0 {
+		return text, spans, matches
+	}
+	n := utf8.RuneLen(zwj)
+	var b strings.Builder
+	from := 0
+	for _, i := range at {
+		b.WriteString(text[from:i])
+		from = i + n
+	}
+	b.WriteString(text[from:])
+	// shift moves an offset back by the joiners before it.
+	shift := func(p int) int {
+		before := 0
+		for _, i := range at {
+			if i < p {
+				before++
+			}
+		}
+		return p - before*n
+	}
+	moved := func(in []diff.Span) []diff.Span {
+		var out []diff.Span
+		for _, sp := range in {
+			out = append(out, diff.Span{Start: shift(sp.Start), End: shift(sp.End)})
+		}
+		return out
+	}
+	return b.String(), moved(spans), moved(matches)
 }
 
 // sideStyles returns the styles of side s for whole-line changes, the
@@ -401,6 +465,7 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
 	if cr {
 		text = text[:len(text)-1]
 	}
+	text, spans, st.matches = dropJoiners(text, spans, st.matches)
 	var b strings.Builder
 	col := 0
 	pBase, pEmph, pSpace, pWS := newPainter(st.base), newPainter(st.emph), newPainter(st.space), newPainter(st.ws)
@@ -516,6 +581,12 @@ func expand(b *strings.Builder, text string, col *int, visible bool) {
 		case r == ' ' && visible:
 			b.WriteRune('·')
 			*col++
+		case unicode.IsSpace(r) && !hiddenChar(r) && visible:
+			// A space of another width, as the ideographic space: · in
+			// its room.
+			w := max(ansi.StringWidth(string(r)), 1)
+			b.WriteString("·" + strings.Repeat(" ", w-1))
+			*col += w
 		case hiddenChar(r):
 			b.WriteString(hiddenSymbol)
 			*col++
@@ -527,10 +598,12 @@ func expand(b *strings.Builder, text string, col *int, visible bool) {
 }
 
 // printable returns line as drawn, see expand, so that its width is known:
-// text from files, git or marks may hold tabs and control characters.
+// text from files, git or marks may hold tabs and control characters. The
+// joiners of emoji are left out, see emojiJoiners.
 func printable(line string) string {
 	var b strings.Builder
 	col := 0
+	line, _, _ = dropJoiners(line, nil, nil)
 	expand(&b, line, &col, false)
 	return b.String()
 }
