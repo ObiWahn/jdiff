@@ -291,11 +291,11 @@ func TestDocLinksResolve(t *testing.T) {
 		}
 		docs[f], pages = &fstest.MapFile{Data: b}, append(pages, f)
 	}
-	b, err := os.ReadFile("keybindings.toml")
+	b, err := os.ReadFile(filepath.Join("..", "keys", "keybindings.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs["internal/ui/keybindings.toml"] = &fstest.MapFile{Data: b}
+	docs["internal/keys/keybindings.toml"] = &fstest.MapFile{Data: b}
 	for i, page := range pages {
 		d := NewDoc(config.Default(), docs, pages, i)
 		d.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -400,7 +400,7 @@ func docFiles(t *testing.T) map[string][]byte {
 		t.Fatal(err)
 	}
 	out := map[string][]byte{}
-	for _, f := range append(files, filepath.Join("..", "..", "README.md"), "keybindings.toml") {
+	for _, f := range append(files, filepath.Join("..", "..", "README.md"), filepath.Join("..", "keys", "keybindings.toml")) {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)

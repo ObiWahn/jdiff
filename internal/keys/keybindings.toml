@@ -18,7 +18,7 @@
 # In help, setting and note, {action} stands for the keys of the first row of action, {action:1} for
 # those of its second row: the words follow the keys of the user's keybindings.toml.
 #
-# The rows of everywhere decide the order of the settings, by their first key (OrderSettings).
+# The rows of everywhere decide the order of the settings, by their first key (Map.Order).
 # doc/keybindings.md lists the same keys in the same order; TestKeybindingsDoc checks that.
 
 everywhere = [

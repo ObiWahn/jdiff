@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 )
 
 // switchFileMsg asks the file selector to show the next (1) or previous (-1)
@@ -96,9 +97,10 @@ type toggleSettingMsg struct{ action string }
 // settingKey returns the command toggling the option of action, nil when no
 // option has it or, outside the log's flow view (logFlow), one that only
 // matters there.
-func settingKey(action string, logFlow bool) tea.Cmd {
-	i := slices.IndexFunc(settingOptions, func(o settingOption) bool { return o.key != "" && o.action == action })
-	if i < 0 || settingOptions[i].logFlow && !logFlow {
+func settingKey(k *keys.Map, action string, logFlow bool) tea.Cmd {
+	options := settingWords(k, settingTable)
+	i := slices.IndexFunc(options, func(o settingOption) bool { return o.key != "" && o.action == action })
+	if i < 0 || options[i].logFlow && !logFlow {
 		return nil
 	}
 	return func() tea.Msg { return toggleSettingMsg{action} }
@@ -109,8 +111,8 @@ func settingKey(action string, logFlow bool) tea.Cmd {
 // action, see settingKey; nil when h is none of them. The pages hand them on,
 // and not the popups themselves as the help and the marks: o is a mark letter
 // too, which m and ' take before the page looks at the key.
-func pageKey(h keyHit, logFlow bool) tea.Cmd {
-	switch h.action {
+func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
+	switch h.Action {
 	case "reload":
 		return refreshAll
 	case "auto_reload":
@@ -120,7 +122,7 @@ func pageKey(h keyHit, logFlow bool) tea.Cmd {
 	case "settings":
 		return askSettings
 	}
-	return settingKey(h.action, logFlow)
+	return settingKey(k, h.Action, logFlow)
 }
 
 // settingChangedMsg tells the page below SettingsPopup that a toggle changed,
@@ -168,7 +170,7 @@ func saveState(cfg *config.Config) string {
 
 // historyDir returns where key h of history goes: 1 to the next commit, for
 // the first key of its row, as N and n, -1 to the previous one, as P and p.
-func historyDir(h keyHit) int { return direction(h.i == 0) }
+func historyDir(h keys.Hit) int { return direction(h.Index == 0) }
 
 // historyOrder is the order of a list of commits, as git log lists them:
 // the step from a commit to the next one in history, -1 when the newest
@@ -188,7 +190,7 @@ func (o historyOrder) step(dir int) int { return dir * int(o) }
 
 // switchCommit returns the command asking the log for the commit key h goes
 // to in history.
-func switchCommit(h keyHit) tea.Cmd {
+func switchCommit(h keys.Hit) tea.Cmd {
 	dir := switchCommitMsg(historyDir(h))
 	return func() tea.Msg { return dir }
 }
@@ -209,14 +211,14 @@ func runeKey(s string) tea.KeyPressMsg {
 // motion returns how many rows the cursor moves on key h, page rows for a
 // page and far to the first or last row, whether h pages, so that views of
 // file content move the window along, and whether h moves the cursor at all.
-func motion(h keyHit, page, far int) (delta int, paging, ok bool) {
-	switch h.action {
+func motion(h keys.Hit, page, far int) (delta int, paging, ok bool) {
+	switch h.Action {
 	case "move":
-		return direction(h.i == 0), false, true
+		return direction(h.Index == 0), false, true
 	case "page":
-		return direction(h.i == 1) * page, true, true
+		return direction(h.Index == 1) * page, true, true
 	case "ends":
-		return direction(h.i == 1) * far, false, true
+		return direction(h.Index == 1) * far, false, true
 	}
 	return 0, false, false
 }

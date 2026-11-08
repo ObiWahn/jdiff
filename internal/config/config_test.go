@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"jdiff/internal/keys"
 	"jdiff/internal/settings"
 	"jdiff/internal/theme"
 )
@@ -67,6 +68,28 @@ func TestUnknownKeys(t *testing.T) {
 	if c.Settings.Context != 3 || !strings.Contains(w, "main.toml: unknown contxt") ||
 		!strings.Contains(w, "state.toml: unknown context") {
 		t.Errorf("context %d, warning %q", c.Settings.Context, w)
+	}
+}
+
+// The user's keybindings.toml changes the keys; a problem with it is a
+// warning, and the built-in keys stay.
+func TestUserKeys(t *testing.T) {
+	c, err := Load(writeFiles(t, map[string]string{"keybindings.toml": `everywhere = [{ action = "settings", keys = ["O"] }]`}), nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Keys.Row("settings").Keys[0] != "O" || c.Warning() != "" {
+		t.Errorf("keys %q, warning %q", c.Keys.Row("settings").Keys, c.Warning())
+	}
+	c, err = Load(writeFiles(t, map[string]string{"keybindings.toml": `everywhere = [{ action = "x0", keys = ["x"] }]`}), nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := c.Warning(); !strings.Contains(w, "keybindings.toml: no action x0 in everywhere; the built-in keys are used") {
+		t.Errorf("warning %q", w)
+	}
+	if c.Keys != keys.Builtin() {
+		t.Errorf("the keys are not the built-in ones: %q", c.Keys.Row("settings").Keys)
 	}
 }
 

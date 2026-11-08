@@ -8,6 +8,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/keys"
 	"jdiff/internal/notify"
 	"jdiff/internal/source"
 )
@@ -172,8 +173,8 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	h := keyFile.key(diffView, k)
-	if m.replace != nil && h.action != "anchor" && h.action != "cancel_mark" {
+	h := m.cfg.Keys.Key(keys.DiffView, k)
+	if m.replace != nil && h.Action != "anchor" && h.Action != "cancel_mark" {
 		m.replace = nil
 	}
 
@@ -186,24 +187,24 @@ func (m *Model) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	switch h.action {
+	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "pane":
 		m.active = m.active.other()
 	case "half_page":
-		m.scroll(direction(h.i == 1) * (page / 2))
+		m.scroll(direction(h.Index == 1) * (page / 2))
 	case "scroll":
-		if h.i == 0 {
+		if h.Index == 0 {
 			m.xoff = max(m.xoff-8, 0)
 		} else {
 			m.xoff += 8
 		}
 	case "change":
-		m.nextChange(direction(h.i == 0))
+		m.nextChange(direction(h.Index == 0))
 	case "next_file":
 		if m.canBack {
-			dir := switchFileMsg(direction(h.i == 0))
+			dir := switchFileMsg(direction(h.Index == 0))
 			return func() tea.Msg { return dir }
 		}
 	case "history":
@@ -213,21 +214,21 @@ func (m *Model) key(k string) tea.Cmd {
 	case "search":
 		return askSearch
 	case "match":
-		m.findText(direction(h.i == 0))
+		m.findText(direction(h.Index == 0))
 	case "flow":
 		if m.canBack {
 			return toggleFlow
 		}
 	case "anchor", "cancel_mark", "fold", "fold_all":
-		m.act(h.action)
+		m.act(h.Action)
 	case "moved":
 		return m.jump()
 	case "set_mark":
-		m.prefix, m.msg = h.action, "set mark: press a letter"
+		m.prefix, m.msg = h.Action, "set mark: press a letter"
 	case "jump":
-		m.prefix, m.msg = h.action, "jump to mark: press its letter"
+		m.prefix, m.msg = h.Action, "jump to mark: press its letter"
 	default:
-		return pageKey(h, false)
+		return pageKey(m.cfg.Keys, h, false)
 	}
 	return nil
 }

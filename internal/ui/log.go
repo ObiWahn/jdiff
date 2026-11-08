@@ -12,6 +12,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
 
@@ -260,13 +261,13 @@ func (l *Log) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	h := keyFile.key(commitList, k)
+	h := l.cfg.Keys.Key(keys.CommitList, k)
 	page := max(l.listHeight()-1, 1)
 	if delta, _, ok := motion(h, page, len(l.commits)); ok {
 		l.moveCursor(delta)
 		return nil
 	}
-	switch h.action {
+	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "open":
@@ -286,9 +287,9 @@ func (l *Log) key(k string) tea.Cmd {
 			l.msg = ends(dir > 0, "last commit", "first commit")
 		}
 	case "jump":
-		l.prefix, l.msg = h.action, "jump to mark: press its letter"
+		l.prefix, l.msg = h.Action, "jump to mark: press its letter"
 	default:
-		return pageKey(h, false)
+		return pageKey(l.cfg.Keys, h, false)
 	}
 	return nil
 }

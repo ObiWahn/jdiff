@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
 
@@ -28,7 +29,7 @@ func setOption(m tea.Model, cfg *config.Config, keys ...string) {
 // optionValues returns the values of all options.
 func optionValues(cfg *config.Config) []bool {
 	var out []bool
-	for _, o := range settingOptions {
+	for _, o := range settingOptions(keys.Builtin()) {
 		if o.setting == nil {
 			continue // a number: see TestSettingsNumber
 		}
@@ -78,7 +79,7 @@ func TestSettingsOpenOnAllPages(t *testing.T) {
 func TestSettingsOptions(t *testing.T) {
 	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "W": "show_whitespaces", "ctrl+w": "mark_whitespace",
 		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "w": "wrap", "c": "full_messages", "C": "stay_in_commit"}
-	for i, o := range settingOptions {
+	for i, o := range settingOptions(keys.Builtin()) {
 		if o.ask != nil || o.number != nil {
 			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber
 		}
@@ -125,10 +126,10 @@ func TestSettingsMoveAndClose(t *testing.T) {
 	if s.cursor != 0 {
 		t.Errorf("past the first option: cursor %d", s.cursor)
 	}
-	for range len(settingOptions) + 3 {
+	for range len(settingOptions(keys.Builtin())) + 3 {
 		pressRoot(s, "j")
 	}
-	if s.cursor != len(settingOptions)-1 {
+	if s.cursor != len(settingOptions(keys.Builtin()))-1 {
 		t.Errorf("past the last option: cursor %d", s.cursor)
 	}
 	pressRoot(s, "esc")
@@ -176,7 +177,7 @@ func TestSettingsKeysLeftThePages(t *testing.T) {
 		m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		pressRoot(m, page.keys...)
 		before := fmt.Sprint(optionValues(cfg))
-		for _, o := range settingOptions {
+		for _, o := range settingOptions(keys.Builtin()) {
 			if o.key != "f" { // the pages' own key: see TestSettingsFlow
 				pressRoot(m, o.key)
 			}
@@ -246,7 +247,7 @@ func TestSettingsWrapInFlowBelowPopup(t *testing.T) {
 
 func TestSettingsPopupSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
-	n := len(settingOptions)
+	n := len(settingOptions(keys.Builtin()))
 	// Every height from the smallest drawn past "all fit" at n+4; a narrow
 	// terminal keeps drawing fast, and 30 columns still show the key of a line.
 	for height := minHeight; height <= n+6; height++ {
@@ -270,7 +271,7 @@ func TestSettingsPopupSweep(t *testing.T) {
 				if len(got) != rows {
 					t.Fatalf("step %d: %d rows, want %d: %q", step, len(got), rows, got)
 				}
-				cursorOption := fmt.Sprintf("] %s ", settingOptions[s.cursor].key)
+				cursorOption := fmt.Sprintf("] %s ", settingOptions(keys.Builtin())[s.cursor].key)
 				if !strings.Contains(strings.Join(got, "\n"), cursorOption) {
 					t.Fatalf("step %d: option %d out of view: %q", step, s.cursor, got)
 				}
@@ -293,7 +294,7 @@ func TestSettingsPopupSweep(t *testing.T) {
 func TestHelpListsSharedKeysOnce(t *testing.T) {
 	everywhere := map[string]bool{}
 	section, seen := "", map[string]bool{}
-	for _, b := range bindings {
+	for _, b := range helpLines(keys.Builtin()) {
 		if b.key == "" {
 			if !strings.HasPrefix(b.what, " ") {
 				section, seen = b.what, map[string]bool{}
@@ -315,7 +316,7 @@ func TestHelpListsSharedKeysOnce(t *testing.T) {
 // The letters of the settings work on the pages, without the popup.
 func TestSettingKeysOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
-		for _, o := range settingOptions {
+		for _, o := range settingOptions(keys.Builtin()) {
 			if o.ask != nil || o.logFlow || o.number != nil {
 				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere, TestSettingsNumber
 			}
@@ -338,7 +339,7 @@ func TestSettingKeysOnAllPages(t *testing.T) {
 
 func TestLogFlowKeysOnlyThere(t *testing.T) {
 	for _, page := range settingsPages() {
-		for _, o := range settingOptions {
+		for _, o := range settingOptions(keys.Builtin()) {
 			if !o.logFlow {
 				continue
 			}
@@ -496,7 +497,7 @@ func TestSettingsNumberPasteClearsError(t *testing.T) {
 	s := WithSettings(config.Default(), newTestModel(numbered("x", 30), numbered("y", 30)))
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	pressRoot(s, "o")
-	for range len(settingOptions) - 1 {
+	for range len(settingOptions(keys.Builtin())) - 1 {
 		pressRoot(s, "j")
 	}
 	pressRoot(s, "enter", "ctrl+u", "x", "enter")
@@ -531,7 +532,7 @@ func TestSettingsNumber(t *testing.T) {
 	if s.input != nil {
 		t.Errorf("a in the popup: input %+v", s.input)
 	}
-	for range len(settingOptions) - 1 {
+	for range len(settingOptions(keys.Builtin())) - 1 {
 		pressRoot(s, "j")
 	}
 	pressRoot(s, "enter")
@@ -612,40 +613,12 @@ func TestSettingsFlow(t *testing.T) {
 	}
 }
 
-// A keybindings.toml with its rows in another order; the same keys on other
-// pages do not count.
-const orderedKeys = `file_list = [{ keys = ["w"] }]
-everywhere = [
-    { keys = ["\\"] },
-    { keys = ["b"] },
-    { keys = ["f"] },
-    { keys = ["s"] },
-    { keys = ["o", "F8"] },
-]
-diff_view = [{ keys = ["t"] }]
-`
-
-func keyOrderOf(t *testing.T, text string) []string {
-	t.Helper()
-	p, err := readKeys(text)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p.order()
-}
-
-func TestKeyOrder(t *testing.T) {
-	want := []string{`\`, "b", "f", "s", "o"}
-	if got := keyOrderOf(t, orderedKeys); !slices.Equal(got, want) {
-		t.Errorf("order: %q, want %q", got, want)
-	}
-}
-
-// The settings follow the rows, those not in them stay behind and all else
-// stays where it is.
+// The settings follow the order of the rows of everywhere, those not in them
+// stay behind and all else stays where it is.
 func TestOrderSettings(t *testing.T) {
 	type o = settingOption
-	options, bs := orderSettings(keyOrderOf(t, orderedKeys),
+	order := []string{`\`, "b", "f", "s", "o"}
+	options, bs := orderSettings(order,
 		[]o{{key: "s"}, {key: "f"}, {key: "t"}, {key: "b"}, {key: "c", logFlow: true}, {what: "x0"}},
 		[]binding{{"", "Everywhere"}, {"j k", "x1"}, {"s", "x2"}, {"f", "x3"}, {"b", "x4"}, {"o F8", "x5"}, {"", "Flow"}, {"c", "x6"}})
 	var keys []string
@@ -669,14 +642,34 @@ func TestOrderSettings(t *testing.T) {
 	}
 }
 
+// The settings and the help follow the order and the keys of the user's file.
+func TestSettingsOfUserKeys(t *testing.T) {
+	cfg := config.Default()
+	p, problems := cfg.Keys.User(`everywhere = [
+    { action = "wrap", keys = ["W2"] },
+    { action = "layout", keys = ["S"] },
+]`)
+	if len(problems) != 0 {
+		t.Fatal(problems)
+	}
+	cfg.Keys = &p
+	options := settingOptions(cfg.Keys)
+	if i := slices.IndexFunc(options, func(o settingOption) bool { return o.action == "layout" }); options[i].key != "S" {
+		t.Errorf("layout: key %q", options[i].key)
+	}
+	if !slices.ContainsFunc(helpLines(cfg.Keys), func(b binding) bool { return b.key == "W2" }) {
+		t.Errorf("the help has not W2: %q", helpLines(cfg.Keys))
+	}
+}
+
 func TestKeyOrderProblems(t *testing.T) {
 	var rows string
-	for _, o := range settingOptions {
+	for _, o := range settingOptions(keys.Builtin()) {
 		if o.key != "" && !o.logFlow {
 			rows += fmt.Sprintf("{ keys = [%q] },\n", o.key)
 		}
 	}
-	for _, o := range settingOptions {
+	for _, o := range settingOptions(keys.Builtin()) {
 		if o.action != "" {
 			rows += fmt.Sprintf("{ action = %q, setting = \"x\" },\n", o.action)
 		}
@@ -704,153 +697,15 @@ func TestKeyOrderProblems(t *testing.T) {
 
 // keybindings.toml decides the order of the settings: it must fit them.
 func TestKeybindingsFile(t *testing.T) {
-	if problems := keyOrderProblems(keybindingsFile); len(problems) != 0 {
+	if problems := keyOrderProblems(keys.BuiltinText); len(problems) != 0 {
 		t.Errorf("keybindings.toml: %q", problems)
 	}
 }
 
-// A label past the end or empty is none, and so is an action without a row: the
-// status bar leaves the key out.
-func TestKeyLabel(t *testing.T) {
-	r := keyRow{Label: []string{"on", ""}}
-	for state, want := range []string{"on", "", ""} {
-		if got := r.label(state); got != want {
-			t.Errorf("state %d: label %q, want %q", state, got, want)
-		}
-	}
-	if got := keyFile.row("x0").label(0); got != "" {
-		t.Errorf("no row: label %q", got)
-	}
-}
-
-// The keys of keybindings.toml as Bubble Tea names them, and the page that
-// looks them up first; two-way actions say which key of the row it is.
-func TestKeyLookup(t *testing.T) {
-	for _, c := range []struct {
-		pg   keyPage
-		k    string
-		want keyHit
-	}{
-		{diffView, "j", keyHit{"move", 0}},
-		{diffView, "up", keyHit{"move", 1}},
-		{diffView, "pgdown", keyHit{"page", 1}},
-		{diffView, "ctrl+b", keyHit{"page", 0}},
-		{diffView, "f5", keyHit{"reload", 1}},
-		{diffView, "m", keyHit{"set_mark", 0}},
-		{diffView, "n", keyHit{"next_file", 0}},
-		{commitList, "n", keyHit{"history", 0}},
-		{fileList, "p", keyHit{"move", 1}},
-		{flowView, "c", keyHit{"full_messages", 0}},
-		{flowView, "]", keyHit{"change", 0}},
-		{diffView, "c", keyHit{}},
-		{everywhere, "f8", keyHit{"settings", 1}},
-		{everywhere, "F8", keyHit{}},
-	} {
-		if got := keyFile.key(c.pg, c.k); got != c.want {
-			t.Errorf("page %d, %s: %+v, want %+v", c.pg, c.k, got, c.want)
-		}
-	}
-}
-
-// Placeholders stand for the keys of a row of their action, "" for none.
-func TestKeyText(t *testing.T) {
-	for in, want := range map[string]string{
-		"{settings} close":   "o F8 close",
-		"also {page:1}":      "also ctrl+b ctrl+f",
-		"{page}":             "pgup pgdn",
-		"{page:5}|{nothing}": "|",
-		"no {braces":         "no {braces",
-	} {
-		if got := keyFile.keyText(in); got != want {
-			t.Errorf("%q: %q, want %q", in, got, want)
-		}
-	}
-	if !slices.Contains(bindings, binding{"?", "this help (? esc q close, j k scroll)"}) {
-		t.Errorf("the help's line of ? is not expanded: %q", bindings)
-	}
-}
-
-// The user's file replaces the rows of an action on a page, keeping their
-// words, and leaves the built-in keys as they are.
-func TestUserKeys(t *testing.T) {
-	p, problems := keyFile.userKeys(`commit_list = [{ action = "move", keys = ["x", "y"] }]
-everywhere = [{ action = "settings", keys = ["O"] }]
-`)
-	if len(problems) != 0 {
-		t.Fatalf("problems: %q", problems)
-	}
-	for _, c := range []struct {
-		pg   keyPage
-		k    string
-		want keyHit
-	}{
-		{commitList, "x", keyHit{"move", 0}},
-		{commitList, "y", keyHit{"move", 1}},
-		{commitList, "j", keyHit{}},
-		{commitList, "down", keyHit{}}, // its second row is replaced too
-		{diffView, "j", keyHit{"move", 0}},
-		{diffView, "O", keyHit{"settings", 0}},
-		{diffView, "o", keyHit{}},
-	} {
-		if got := p.key(c.pg, c.k); got != c.want {
-			t.Errorf("page %d, %s: %+v, want %+v", c.pg, c.k, got, c.want)
-		}
-	}
-	if r := p.row("settings"); !slices.Equal(r.Label, []string{"settings"}) || r.Help == "" {
-		t.Errorf("settings lost its words: %+v", r)
-	}
-	if got := p.keyText("{settings} close"); got != "O close" {
-		t.Errorf("placeholder: %q", got)
-	}
-	// The settings keep their order: the row stays where it was.
-	want := slices.Clone(keyFile.order())
-	want[slices.Index(want, "o")] = "O"
-	if !slices.Equal(p.order(), want) {
-		t.Errorf("order: %q, want %q", p.order(), want)
-	}
-	if keyFile.key(commitList, "j").action != "move" || keyFile.row("settings").Keys[0] != "o" {
-		t.Errorf("the built-in keys changed")
-	}
-}
-
-// A file with a problem changes no key.
-func TestUserKeysProblems(t *testing.T) {
-	for _, c := range []struct{ text, want string }{
-		{"everywhere = [", "toml:"},
-		{"x = 1", "unknown x"},
-		{`help = [{ note = "x" }]`, "unknown help"},
-		{`everywhere = [{ action = "quit", keys = ["Q"], label = ["x"] }]`, "unknown everywhere.label"},
-		{`commit_list = [{ action = "anchor", keys = ["x"] }]`, "no action anchor in commit_list"},
-		{`commit_list = [{ action = "move", keys = ["x"] }]`, "move in commit_list takes two keys"},
-		{`diff_view = [{ action = "pane", keys = ["j"] }]`, "key j has two actions in diff_view"},
-		{`diff_view = [{ action = "pane", keys = [] }]`, "pane in diff_view has no keys"},
-	} {
-		p, problems := keyFile.userKeys(c.text)
-		if len(problems) == 0 || !strings.Contains(strings.Join(problems, "; "), c.want) {
-			t.Errorf("%s: problems %q, want %q", c.text, problems, c.want)
-		}
-		if p.key(diffView, "j").action != "move" || p.key(diffView, "tab").action != "pane" {
-			t.Errorf("%s: the keys changed", c.text)
-		}
-	}
-}
-
-// A problem with the user's file is a warning, and the built-in keys stay.
-func TestLoadKeysWarns(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, KeysFile), []byte(`everywhere = [{ action = "x0", keys = ["x"] }]`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := config.Load(dir, nil, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	LoadKeys(cfg)
-	if w := cfg.Warning(); !strings.Contains(w, "keybindings.toml: no action x0 in everywhere; the built-in keys are used") {
-		t.Errorf("warning %q", w)
-	}
-	if keyFile.row("settings").Keys[0] != "o" {
-		t.Errorf("the built-in keys changed")
+// The help's words show the keys of their placeholders.
+func TestHelpLinesText(t *testing.T) {
+	if bs := helpLines(keys.Builtin()); !slices.Contains(bs, binding{"?", "this help (? esc q close, j k scroll)"}) {
+		t.Errorf("the help's line of ? is not expanded: %q", bs)
 	}
 }
 
@@ -897,13 +752,13 @@ func TestKeybindingsDoc(t *testing.T) {
 			}
 		}
 	}
-	p, err := readKeys(keybindingsFile)
+	p, err := keys.Read(keys.BuiltinText)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pages := []struct {
 		heading string
-		rows    []keyRow
+		rows    []keys.Row
 	}{
 		{"Commit list (`jdiff log`)", p.CommitList},
 		{"File list", p.FileList},

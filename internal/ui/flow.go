@@ -12,6 +12,7 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keys"
 )
 
 // flowKind is the kind of a row of the flow view.
@@ -156,8 +157,8 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f *Flow) key(k string) tea.Cmd {
-	h := keyFile.key(flowView, k)
-	if f.replacing != nil && h.action != "anchor" && h.action != "cancel_mark" {
+	h := f.cfg.Keys.Key(keys.FlowView, k)
+	if f.replacing != nil && h.Action != "anchor" && h.Action != "cancel_mark" {
 		f.replacing.replace = nil
 		f.replacing = nil
 	}
@@ -183,7 +184,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	switch h.action {
+	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "flow":
@@ -193,17 +194,17 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "pane":
 		f.active = f.active.other()
 	case "half_page":
-		f.scroll(direction(h.i == 1) * (page / 2))
+		f.scroll(direction(h.Index == 1) * (page / 2))
 	case "scroll":
-		if h.i == 0 {
+		if h.Index == 0 {
 			f.xoff = max(f.xoff-8, 0)
 		} else {
 			f.xoff += 8
 		}
 	case "change":
-		f.nextChange(direction(h.i == 0))
+		f.nextChange(direction(h.Index == 0))
 	case "next_file":
-		f.nextFile(direction(h.i == 0))
+		f.nextFile(direction(h.Index == 0))
 	case "history":
 		if !f.inLog() {
 			break
@@ -215,19 +216,19 @@ func (f *Flow) key(k string) tea.Cmd {
 			f.msg = ends(historyDir(h) > 0, "last commit", "first commit")
 		}
 	case "anchor", "cancel_mark", "fold", "fold_all":
-		f.delegate(h.action)
+		f.delegate(h.Action)
 	case "search":
 		return askSearch
 	case "match":
-		f.findText(direction(h.i == 0))
+		f.findText(direction(h.Index == 0))
 	case "moved":
 		f.jump()
 	case "set_mark":
-		f.prefix, f.msg = h.action, "set mark: press a letter"
+		f.prefix, f.msg = h.Action, "set mark: press a letter"
 	case "jump":
-		f.prefix, f.msg = h.action, "jump to mark: press its letter"
+		f.prefix, f.msg = h.Action, "jump to mark: press its letter"
 	default:
-		return pageKey(h, f.inLog())
+		return pageKey(f.cfg.Keys, h, f.inLog())
 	}
 	return nil
 }

@@ -9,26 +9,25 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 )
 
 // binding is a key and what it does; a binding without key is a heading.
 type binding struct{ key, what string }
 
-// bindings lists the lines of the help popup, from keybindings.toml.
-var bindings = keyFile.bindings()
-
-// bindings returns the lines of the help popup.
-func (p keyPages) bindings() []binding {
+// helpBindings returns the lines of the help popup of k, in the order of its
+// help; helpLines puts the settings in their order.
+func helpBindings(p *keys.Map) []binding {
 	var bs []binding
 	for _, h := range p.Help {
 		switch {
 		case h.Heading != "":
 			bs = append(bs, binding{"", h.Heading})
 		case h.Note != "":
-			bs = append(bs, binding{"", "  " + p.keyText(h.Note)})
+			bs = append(bs, binding{"", "  " + p.Text(h.Note)})
 		default:
-			r := p.row(h.Action)
-			bs = append(bs, binding{strings.Join(r.Keys, " "), p.keyText(r.Help)})
+			r := p.Row(h.Action)
+			bs = append(bs, binding{strings.Join(r.Keys, " "), p.Text(r.Help)})
 		}
 	}
 	return bs
@@ -39,13 +38,16 @@ func (p keyPages) bindings() []binding {
 type Help struct {
 	tea.Model
 	cfg           *config.Config
+	lines         []binding // of cfg.Keys, which do not change
 	open          bool
 	top           int // first shown line of the popup
 	width, height int
 }
 
 // WithHelp returns m with the help popup.
-func WithHelp(cfg *config.Config, m tea.Model) *Help { return &Help{Model: m, cfg: cfg} }
+func WithHelp(cfg *config.Config, m tea.Model) *Help {
+	return &Help{Model: m, cfg: cfg, lines: helpLines(cfg.Keys)}
+}
 
 func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -53,7 +55,7 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 		h.scroll(0)
 	case tea.KeyPressMsg:
-		if cmd, ok := popupKeys(msg, h.open, "help", h.key); ok {
+		if cmd, ok := popupKeys(h.cfg.Keys, msg, h.open, "help", h.key); ok {
 			return h, cmd
 		}
 	}
@@ -64,9 +66,9 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // popupKeys passes the key press msg to key, when the popup is open or msg
 // opens it, being a key of action opener, and reports whether it did; else
 // msg is for the page below.
-func popupKeys(msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
+func popupKeys(km *keys.Map, msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
 	k := msg.String()
-	if !open && !isAction(k, opener) {
+	if !open && !isAction(km, k, opener) {
 		return nil, false
 	}
 	return key(k), true
@@ -78,7 +80,7 @@ func (h *Help) key(k string) tea.Cmd {
 		h.open, h.top = true, 0
 		return nil
 	}
-	cmd, _ := popupNav(k, "help", &h.open, h.scroll)
+	cmd, _ := popupNav(h.cfg.Keys, k, "help", &h.open, h.scroll)
 	return cmd
 }
 
@@ -86,8 +88,8 @@ func (h *Help) key(k string) tea.Cmd {
 // move alike: a key of opener, esc and q close the popup, ctrl+c quits, down
 // and j move by one, up and k back. It reports whether k was one of them;
 // the popup handles the others.
-func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
-	if isAction(k, opener) {
+func popupNav(km *keys.Map, k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
+	if isAction(km, k, opener) {
 		*open = false
 		return nil, true
 	}
@@ -107,7 +109,7 @@ func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool
 }
 
 // boxHeight is the height of the popup.
-func (h *Help) boxHeight() int { return popupHeight(len(bindings), h.height) }
+func (h *Help) boxHeight() int { return popupHeight(len(h.lines), h.height) }
 
 // scroll moves the shown lines by delta; from the top, it moves on by two
 // at once, as the window never starts at the second line.
@@ -116,7 +118,7 @@ func (h *Help) scroll(delta int) {
 	if top == 1 && delta > 0 {
 		top = 2
 	}
-	h.top = windowAt(top, h.boxHeight()-2, len(bindings)).first
+	h.top = windowAt(top, h.boxHeight()-2, len(h.lines)).first
 }
 
 func (h *Help) View() tea.View { return tea.NewView(h.frame()) }
@@ -126,7 +128,7 @@ func (h *Help) frame() string {
 	if !h.open || h.width == 0 {
 		return base
 	}
-	t := h.cfg.Theme
+	t, bindings := h.cfg.Theme, h.lines
 	keyW, whatW := 0, 0
 	for _, b := range bindings {
 		keyW = max(keyW, ansi.StringWidth(b.key))

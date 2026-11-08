@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 	"jdiff/internal/notify"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
@@ -87,14 +88,14 @@ func barState(on bool) int {
 // its own label: f and s name what they switch to. All other keys are in the
 // help. keybindings.toml gives the keys and the words.
 func statusKeys(cfg *config.Config, k barKeys) string {
-	var keys []string
-	add := func(row keyRow, keyNames string, state int) {
-		if l := row.label(state); l != "" {
-			keys = append(keys, keyNames+" "+l)
+	var shown []string
+	add := func(row keys.Row, keyNames string, state int) {
+		if l := row.LabelIn(state); l != "" {
+			shown = append(shown, keyNames+" "+l)
 		}
 	}
 	first := func(action string, state int) {
-		if r := keyFile.row(action); len(r.Keys) > 0 {
+		if r := cfg.Keys.Row(action); len(r.Keys) > 0 {
 			add(r, r.Keys[0], state)
 		}
 	}
@@ -103,7 +104,7 @@ func statusKeys(cfg *config.Config, k barKeys) string {
 		first(k.back, 0)
 	}
 	if k.commits {
-		r := keyFile.row("history")
+		r := cfg.Keys.Row("history")
 		add(r, strings.Join(r.Keys, "/"), 0)
 	}
 	if k.flow {
@@ -118,7 +119,7 @@ func statusKeys(cfg *config.Config, k barKeys) string {
 	for _, action := range actions {
 		first(action, 0)
 	}
-	return strings.Join(keys, " · ")
+	return strings.Join(shown, " · ")
 }
 
 // minBoxHeight fits the borders and one line.

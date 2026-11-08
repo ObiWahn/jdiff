@@ -39,7 +39,7 @@ var thirdParty string
 // the binary, so it is the only copy at hand. doc/config.md links to the
 // built-in keybindings.toml.
 //
-//go:embed README.md doc/*.md internal/ui/keybindings.toml
+//go:embed README.md doc/*.md internal/keys/keybindings.toml
 var docs embed.FS
 
 // docPages are the pages of docs in the order of n and p; --readme starts
@@ -228,7 +228,6 @@ func start(o options, mode string, args []string) {
 		cfg.Settings.Untracked = true
 	}
 	cfg.LoadMarks(repo)
-	ui.LoadKeys(cfg)
 
 	if mode == "readme" {
 		run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewDoc(cfg, docs, docPages, 0)))))
@@ -246,7 +245,6 @@ func start(o options, mode string, args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	ui.OrderSettings()
 	// d replaces whatever is shown by the files of git diff, which runs in
 	// the current directory; the search bar and the popups are put around
 	// the new view too.

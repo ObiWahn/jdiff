@@ -23,6 +23,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/charmbracelet/x/ansi"
 
+	"jdiff/internal/keys"
 	"jdiff/internal/settings"
 	"jdiff/internal/theme"
 )
@@ -31,6 +32,7 @@ import (
 // all of them.
 type Config struct {
 	Theme    *theme.Theme
+	Keys     *keys.Map // the keys of all pages, the built-in ones with the user's
 	Settings settings.Settings
 	Themes   []theme.Spec // all themes found; Theme is the selected one
 
@@ -71,7 +73,7 @@ func (s *Search) Add(q Query) {
 
 // Default returns the default theme and settings, without files.
 func Default() *Config {
-	return &Config{Theme: theme.Default(), Settings: settings.Default()}
+	return &Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
 }
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
@@ -108,7 +110,7 @@ type mainFile struct {
 // files that cannot be parsed are an error, unless they are theme files not
 // selected. An empty dir reads no files.
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
-	c := &Config{Settings: settings.Default()}
+	c := &Config{Keys: keys.Builtin(), Settings: settings.Default()}
 	c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
 	name := ""
 	if dir != "" {
@@ -167,6 +169,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			return nil, err
 		}
 		c.Settings.Toggles = state.Toggles
+		var problems []string
+		if c.Keys, problems = keys.Load(dir); len(problems) > 0 {
+			c.warnings = append(c.warnings, keys.FileName+": "+strings.Join(problems, "; ")+"; the built-in keys are used")
+		}
 		name = m.Theme
 		if err := c.readThemes(filepath.Join(dir, "themes"), name); err != nil {
 			return nil, err

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 )
 
 // Doc shows the pages of jdiff's documentation, markdown rendered for the
@@ -128,7 +129,7 @@ func (d *Doc) moveTo(i int) {
 
 func (d *Doc) key(k string) tea.Cmd {
 	d.msg = ""
-	h := keyFile.key(docView, k)
+	h := d.cfg.Keys.Key(keys.DocView, k)
 	body := d.bodyHeight()
 	if delta, paging, ok := motion(h, max(body-1, 1), len(d.rendered.lines)); ok {
 		if paging {
@@ -137,17 +138,17 @@ func (d *Doc) key(k string) tea.Cmd {
 		d.moveTo(d.cursor + delta)
 		return nil
 	}
-	switch h.action {
+	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "half_page":
-		delta := direction(h.i == 1) * (body / 2)
+		delta := direction(h.Index == 1) * (body / 2)
 		d.scrollTo(d.top + delta)
 		d.moveTo(d.cursor + delta)
 	case "link":
-		d.nextLink(direction(h.i == 0))
+		d.nextLink(direction(h.Index == 0))
 	case "line_link":
-		d.lineLink(direction(h.i == 1))
+		d.lineLink(direction(h.Index == 1))
 	case "follow":
 		d.follow()
 	case "back":
@@ -161,19 +162,19 @@ func (d *Doc) key(k string) tea.Cmd {
 		d.link = p.link
 	case "next_page":
 		i := slices.Index(d.order, d.page)
-		next := i + direction(h.i == 0)
+		next := i + direction(h.Index == 0)
 		switch {
 		case i < 0:
-			d.msg = d.page + " is no page of " + keyFile.keyText("{next_page}") + ": " + keyFile.keyText("{back}") + " goes back"
+			d.msg = d.page + " is no page of " + d.cfg.Keys.Text("{next_page}") + ": " + d.cfg.Keys.Text("{back}") + " goes back"
 		case next < 0 || next >= len(d.order):
-			d.msg = ends(h.i == 0, "last page", "first page")
+			d.msg = ends(h.Index == 0, "last page", "first page")
 		default:
 			d.show(d.order[next], 0, 0)
 		}
 	case "search":
 		return askSearch
 	case "match":
-		d.findText(direction(h.i == 0))
+		d.findText(direction(h.Index == 0))
 	}
 	return nil
 }
@@ -230,7 +231,7 @@ func (d *Doc) lineLink(dir int) {
 // the top; for a web address the box of frame shows it already.
 func (d *Doc) follow() {
 	if d.link < 0 {
-		d.msg = "no link on this line: " + keyFile.keyText("{link}") + " go to the next, previous"
+		d.msg = "no link on this line: " + d.cfg.Keys.Text("{link}") + " go to the next, previous"
 		return
 	}
 	target := d.rendered.links[d.link].target

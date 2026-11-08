@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 )
 
 func TestHelpPopup(t *testing.T) {
@@ -169,7 +170,7 @@ func TestNoViewOverflows(t *testing.T) {
 
 func TestHelpArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
-	n := len(bindings)
+	n := len(helpLines(keys.Builtin()))
 	// The box has height-4 rows. Each of these sizes must stay: one and two
 	// rows (no arrows), three and four (the smallest with arrows), some,
 	// n-2, n-1 (an arrow hides two lines), n (all fit exactly) and n+1. A
@@ -236,8 +237,8 @@ func TestHelpArrowsSweep(t *testing.T) {
 
 // The help names the key of every setting.
 func TestHelpListsSettings(t *testing.T) {
-	for _, o := range settingOptions {
-		if !slices.ContainsFunc(bindings, func(b binding) bool { return b.key == o.key }) {
+	for _, o := range settingOptions(keys.Builtin()) {
+		if !slices.ContainsFunc(helpLines(keys.Builtin()), func(b binding) bool { return b.key == o.key }) {
 			t.Errorf("the help has no line for %s: %s", o.key, o.what)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keys"
 	"jdiff/internal/notify"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
@@ -561,7 +562,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	if a.open != nil {
-		if k, ok := msg.(tea.KeyPressMsg); ok && keyFile.key(diffView, k.String()).action == "to_files" {
+		if k, ok := msg.(tea.KeyPressMsg); ok && a.cfg.Keys.Key(keys.DiffView, k.String()).Action == "to_files" {
 			a.open.updateStats()
 			a.open = nil
 			if a.inLog() && a.single() {
@@ -593,7 +594,7 @@ func (a *App) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	h := keyFile.key(fileList, k)
+	h := a.cfg.Keys.Key(keys.FileList, k)
 	page := max(a.listHeight()-1, 1)
 	if delta, paging, ok := motion(h, page, len(a.files)); ok {
 		if h := a.boxHeight(); paging && h > 0 && a.cursor < len(a.files) {
@@ -604,7 +605,7 @@ func (a *App) key(k string) tea.Cmd {
 		a.moveCursor(delta)
 		return nil
 	}
-	switch h.action {
+	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "open":
@@ -624,9 +625,9 @@ func (a *App) key(k string) tea.Cmd {
 	case "flow":
 		return toggleFlow
 	case "jump":
-		a.prefix, a.msg = h.action, "jump to mark: press its letter"
+		a.prefix, a.msg = h.Action, "jump to mark: press its letter"
 	default:
-		return pageKey(h, false)
+		return pageKey(a.cfg.Keys, h, false)
 	}
 	return nil
 }

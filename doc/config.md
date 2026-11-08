@@ -59,7 +59,7 @@ everywhere = [
 ]
 ```
 
-- The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list`, `file_list` and `doc_view` (the README of `--readme`); the actions and their keys are those of the [built-in file](../internal/ui/keybindings.toml).
+- The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list`, `file_list` and `doc_view` (the README of `--readme`); the actions and their keys are those of the [built-in file](../internal/keys/keybindings.toml).
 - The rows of an action replace all its rows on that page: above, `x` `y` take the place of both `j` `k` and `down` `up` in the commit list. To keep a key, list its row too.
 - An action that goes two ways takes two keys, in the order of the built-in row: for `move` down, then up.
 - The status bar, the help and the settings popup show your keys with their usual words. Messages, and the keys inside popups and input fields, stay as built in.
