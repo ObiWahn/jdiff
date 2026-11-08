@@ -26,6 +26,12 @@ type Moves struct {
 // as moved, as in git, so that lone braces and the like are not marked.
 const minMovedAlnum = 20
 
+// maxCommonStarts is how many places a block may start at among the added
+// lines when its first two lines have fewer than minMovedAlnum letters and
+// digits, as a closing brace and a blank line: found in thousands of places
+// in a large change, trying them all from each removed pair took seconds.
+const maxCommonStarts = 64
+
 // FindMoves finds blocks of consecutive removed lines that were added again
 // as consecutive lines, in the same file or another one. Lines are compared
 // without surrounding whitespace, as Align matches them. Lines of an Equal
@@ -93,8 +99,18 @@ func FindMoves(files []MoveInput) Moves {
 	}
 	// longest returns the longest block starting at removed line l of file
 	// i among the added lines cands, the first one on a tie, and its length.
-	longest := func(i, l int, cands []Ref) (best Ref, n int) {
+	// With limit above 0 it tries only the first limit of them still free.
+	longest := func(i, l int, cands []Ref, limit int) (best Ref, n int) {
+		tried := 0
 		for _, c := range cands {
+			if limit > 0 {
+				if added[c.File].used[c.Line] {
+					continue
+				}
+				if tried++; tried > limit {
+					break
+				}
+			}
 			k := 0
 			for matches(i, l+k, Ref{c.File, c.Line + k}) {
 				k++
@@ -114,10 +130,14 @@ func FindMoves(files []MoveInput) Moves {
 			var best Ref
 			n := 0
 			if l+1 < len(f.Old) {
-				best, n = longest(i, l, pairs[pairKey(f.Old, l)])
+				limit := 0
+				if alnum(f.Old[l:l+2]) < minMovedAlnum {
+					limit = maxCommonStarts
+				}
+				best, n = longest(i, l, pairs[pairKey(f.Old, l)], limit)
 			}
 			if n < 2 && alnum(f.Old[l:l+1]) >= minMovedAlnum {
-				best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])])
+				best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])], 0)
 			}
 			if n == 0 || alnum(f.Old[l:l+n]) < minMovedAlnum {
 				continue
