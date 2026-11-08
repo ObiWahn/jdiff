@@ -275,8 +275,13 @@ func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && 
 
 // showFlow shows the flow view on file of the commit under the cursor,
 // where its diff view from leaves it, or on its bar for from nil and on the
-// commit's bar for file -1 (see Flow.showFrom).
+// commit's bar for file -1 (see Flow.showFrom). A list that loading again
+// emptied has no commit to show.
 func (l *Log) showFlow(file int, from *Model) {
+	if len(l.commits) == 0 {
+		l.msg = "no commits"
+		return
+	}
 	l.open, l.files = l.commits[l.cursor], false
 	l.flow.width, l.flow.height = l.width, l.height
 	l.flow.showFrom(l.cursor, file, from)

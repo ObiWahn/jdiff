@@ -834,7 +834,7 @@ func (f *Flow) header() string {
 	t := f.cfg.Theme
 	p, file, _ := f.position()
 	var b strings.Builder
-	if f.inLog() {
+	if f.inLog() && p < len(f.parts) {
 		c := f.parts[p].commit
 		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
