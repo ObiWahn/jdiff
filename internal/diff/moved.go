@@ -122,7 +122,28 @@ func FindMoves(files []MoveInput) Moves {
 		return best, n
 	}
 	for i, f := range files {
+		// The letters and digits of each line, counted once: a block is
+		// counted again for each line it may start at.
+		counted := make([]int, len(f.Old))
+		for l := range counted {
+			counted[l] = -1
+		}
+		letters := func(from, to int) int {
+			n := 0
+			for l := from; l < to; l++ {
+				if counted[l] < 0 {
+					counted[l] = alnum(f.Old[l : l+1])
+				}
+				n += counted[l]
+			}
+			return n
+		}
 		for l := 0; l < len(f.Old); l++ {
+			// Only a removed line not in a block yet starts one, see
+			// matches.
+			if _, ok := removed[i].row[l]; !ok || removed[i].used[l] {
+				continue
+			}
 			// Blocks of two lines or more start among the pairs, in the
 			// order of the candidates. A single line counts only with
 			// enough letters and digits of its own, rarely found in many
@@ -131,15 +152,15 @@ func FindMoves(files []MoveInput) Moves {
 			n := 0
 			if l+1 < len(f.Old) {
 				limit := 0
-				if alnum(f.Old[l:l+2]) < minMovedAlnum {
+				if letters(l, l+2) < minMovedAlnum {
 					limit = maxCommonStarts
 				}
 				best, n = longest(i, l, pairs[pairKey(f.Old, l)], limit)
 			}
-			if n < 2 && alnum(f.Old[l:l+1]) >= minMovedAlnum {
+			if n < 2 && letters(l, l+1) >= minMovedAlnum {
 				best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])], 0)
 			}
-			if n == 0 || alnum(f.Old[l:l+n]) < minMovedAlnum {
+			if n == 0 || letters(l, l+n) < minMovedAlnum {
 				continue
 			}
 			for k := range n {
