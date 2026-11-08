@@ -123,6 +123,10 @@ type App struct {
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
 	files  []*entry
 	relist ListFunc // lists the files again, nil when they cannot be
+	// relisting is set while the files are listed again in the background,
+	// again when they are to be listed once more after that, quietly with
+	// againQuiet (see relistFiles).
+	relisting, again, againQuiet bool
 	// gitDiff runs git diff with arguments, nil outside jdiff diff; diffArgs
 	// are those of the files shown.
 	gitDiff  DiffFunc
@@ -149,14 +153,15 @@ func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, f
 // ListFunc lists the files of a comparison again.
 type ListFunc func() ([]source.File, error)
 
-// DiffFunc returns the files git diff compares with args.
-type DiffFunc func(args []string) ([]source.File, error)
+// DiffFunc returns the files git diff compares with args, with the
+// untracked files as added when untracked is set. It runs in the background:
+// it must not read the settings, which the keys change meanwhile.
+type DiffFunc func(args []string, untracked bool) ([]source.File, error)
 
 // WithGitDiff makes a the files of git diff with args, which r runs again,
 // and returns a.
 func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
 	a.gitDiff, a.diffArgs = gitDiff, args
-	a.relist = func() ([]source.File, error) { return a.gitDiff(a.diffArgs) }
 	return a
 }
 
@@ -317,22 +322,62 @@ func (a *App) refresh(which func(i int) bool) {
 	}
 }
 
-// relistFiles lists the files again (r). New files are added and gone ones
-// dropped; a file still there keeps its entry, and so its diff with anchors
-// and folds, reloaded where its content changed. A file that became binary
-// or stopped being binary counts as gone and new. The cursor stays on its
-// file; when the file shown is gone, the list is shown. The files are
-// watched anew; it returns the command waiting for their changes. With quiet,
-// it does not say when nothing changed.
+// filesListedMsg brings the files app listed again, or why it could not.
+type filesListedMsg struct {
+	app   *App
+	files []source.File
+	err   error
+	quiet bool
+}
+
+// relistFiles returns the command listing the files again (r) in the
+// background: git diff, or the two directories. The files stay usable
+// meanwhile. While a listing runs, another one is not started, but run once
+// it is done, since what to list may have changed, as the untracked files.
+// With quiet, as auto reload asks, nothing is said unless something changed.
 func (a *App) relistFiles(quiet bool) tea.Cmd {
-	if a.relist == nil {
+	list := a.relist
+	if a.gitDiff != nil {
+		args, untracked, gitDiff := a.diffArgs, a.cfg.Settings.Untracked, a.gitDiff
+		list = func() ([]source.File, error) { return gitDiff(args, untracked) }
+	}
+	if list == nil {
 		a.setMsg("nothing to load again")
 		return nil
 	}
-	files, err := a.relist()
-	if err != nil {
-		a.setMsg(firstLine(err))
+	if a.relisting {
+		a.againQuiet = quiet && (!a.again || a.againQuiet)
+		a.again = true
 		return nil
+	}
+	a.relisting = true
+	if !quiet {
+		a.setMsg("loading again…")
+	}
+	return func() tea.Msg {
+		files, err := list()
+		return filesListedMsg{a, files, err, quiet}
+	}
+}
+
+// filesListed takes the files listed again. New files are added and gone
+// ones dropped; a file still there keeps its entry, and so its diff with
+// anchors and folds, reloaded where its content changed. A file that became
+// binary or stopped being binary counts as gone and new. The cursor stays on
+// its file; when the file shown is gone, the list is shown. The files are
+// watched anew; it returns the command waiting for their changes, and the
+// one listing them once more when that was asked for meanwhile.
+func (a *App) filesListed(res filesListedMsg) tea.Cmd {
+	a.relisting = false
+	var next tea.Cmd
+	if a.again {
+		a.again = false
+		next = a.relistFiles(a.againQuiet)
+	}
+	files, quiet := res.files, res.quiet
+	if res.err != nil {
+		a.setMsg(firstLine(res.err))
+		return next
 	}
 	kept := map[string]*entry{}
 	for _, e := range a.files {
@@ -397,9 +442,23 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 		a.setMsg(msg)
 	}
 	if a.inLog() {
-		return nil
+		return next
 	}
-	return a.watch()
+	return batch(a.watch(), next)
+}
+
+// batch returns the commands that are not nil, as one: tea.Batch of them
+// when there are several, so that a single command stays plain, as the
+// tests run them.
+func batch(cmds ...tea.Cmd) tea.Cmd {
+	cmds = slices.DeleteFunc(cmds, func(c tea.Cmd) bool { return c == nil })
+	switch len(cmds) {
+	case 0:
+		return nil
+	case 1:
+		return cmds[0]
+	}
+	return tea.Batch(cmds...)
 }
 
 // flowShown reports whether the flow view is shown instead of a diff view.
@@ -467,6 +526,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case refreshMsg:
 		return a, a.relistFiles(msg.quiet)
+	case filesListedMsg:
+		if msg.app != a {
+			return a, nil
+		}
+		return a, a.filesListed(msg)
 	case showMsg:
 		a.setMsg(string(msg))
 		return a, nil

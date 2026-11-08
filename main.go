@@ -251,7 +251,7 @@ func start(o options, mode string, args []string) {
 	wrap := func(m tea.Model) tea.Model {
 		return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 	}
-	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))
+	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -314,24 +314,20 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-	diff := gitDiff(cfg)
-	files, err := diff(args)
+	files, err := gitDiff(args, cfg.Settings.Untracked)
 	if err != nil {
 		return nil, err
 	}
-	return ui.NewApp(cfg, files).WithGitDiff(args, diff), nil
+	return ui.NewApp(cfg, files).WithGitDiff(args, gitDiff), nil
 }
 
-// gitDiff returns the function running git diff, which follows the toggle of
-// the untracked files.
-func gitDiff(cfg *config.Config) ui.DiffFunc {
-	repo := gitsrc.Repo{}
-	return func(args []string) ([]source.File, error) {
-		if cfg.Settings.Untracked {
-			return repo.DiffUntracked(args)
-		}
-		return repo.Diff(args)
+// gitDiff runs git diff with args, with the untracked files when untracked
+// is set; see ui.DiffFunc.
+func gitDiff(args []string, untracked bool) ([]source.File, error) {
+	if untracked {
+		return gitsrc.Repo{}.DiffUntracked(args)
 	}
+	return gitsrc.Repo{}.Diff(args)
 }
 
 func fatal(err error) {

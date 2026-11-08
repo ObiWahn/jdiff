@@ -552,7 +552,7 @@ func joinArgs(args []string) string {
 // fails, the view and the popup stay, which shows the first line of git's
 // message.
 func (s *DiffSwitch) show(args []string) tea.Cmd {
-	files, err := s.gitDiff(args)
+	files, err := s.gitDiff(args, s.cfg.Settings.Untracked)
 	if err != nil {
 		s.err = firstLine(err)
 		return nil

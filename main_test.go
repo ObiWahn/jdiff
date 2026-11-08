@@ -335,8 +335,12 @@ func shown(m tea.Model) string {
 
 // pressReload presses r, which loads again, on m. The command after loading is not
 // run: it is the next check for changes of what is watched, which never ends.
+// pressReload presses r on m and runs what follows, as the runtime does: the
+// message asking to load again, and the command listing the files, which
+// runs in the background. The commands after that watch the files.
 func pressReload(m tea.Model) {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	_, cmd = m.Update(cmd())
 	m.Update(cmd())
 }
 

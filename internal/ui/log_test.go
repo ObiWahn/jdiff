@@ -415,7 +415,8 @@ func TestLogErrorFirstLine(t *testing.T) {
 		WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, fail })
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 
-	l.Update(refreshMsg{})
+	_, cmd := l.Update(refreshMsg{})
+	l.Update(cmd()) // the listing, which runs in the background
 	if l.msg != "x0" {
 		t.Errorf("listing again: %q", l.msg)
 	}

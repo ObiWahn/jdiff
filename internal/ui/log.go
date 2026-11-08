@@ -56,6 +56,10 @@ type Log struct {
 	cols     logColumns              // see measure
 	loadGen  int                     // counts the requests of requestCommit
 	pending  *commitRequest          // the commit loading, nil for none
+	// relisting is set while the commits are listed again in the
+	// background, again when they are to be listed once more after that,
+	// quietly with againQuiet (see relistCommits).
+	relisting, again, againQuiet bool
 
 	commits []*commitEntry
 	order   historyOrder // of commits
@@ -203,7 +207,11 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		l.commitLoaded(msg)
 		return nil
 	case refreshMsg:
-		l.relistCommits(msg.quiet)
+		return l.relistCommits(msg.quiet)
+	case commitsListedMsg:
+		if msg.log == l {
+			return l.commitsListed(msg)
+		}
 		return nil
 	case showMsg:
 		l.setMsg(string(msg))
@@ -469,20 +477,56 @@ func (l *Log) commitLoaded(msg commitLoadedMsg) {
 	l.openCommit(slices.Index(l.commits, e), req.path)
 }
 
-// relistCommits lists the commits again (r). New commits are added and gone
-// ones dropped; a commit still there keeps its entry, and so its files with
-// their anchors and folds: its content cannot change. The cursor stays on
-// its commit; when the commit shown is gone, the list is shown. With quiet, it
-// does not say when nothing changed.
-func (l *Log) relistCommits(quiet bool) {
+// commitsListedMsg brings the commits log listed again, with the branch, or
+// why it could not.
+type commitsListedMsg struct {
+	log     *Log
+	branch  string
+	commits []gitsrc.Commit
+	err     error
+	quiet   bool
+}
+
+// relistCommits returns the command listing the commits again (r) in the
+// background, as App.relistFiles does the files: the commits stay usable
+// meanwhile, and a listing asked for while one runs runs after it.
+func (l *Log) relistCommits(quiet bool) tea.Cmd {
 	if l.relist == nil {
 		l.setMsg("nothing to load again")
-		return
+		return nil
 	}
-	branch, commits, err := l.relist()
-	if err != nil {
-		l.setMsg(firstLine(err))
-		return
+	if l.relisting {
+		l.againQuiet = quiet && (!l.again || l.againQuiet)
+		l.again = true
+		return nil
+	}
+	l.relisting = true
+	if !quiet {
+		l.setMsg("loading again…")
+	}
+	list := l.relist
+	return func() tea.Msg {
+		branch, commits, err := list()
+		return commitsListedMsg{l, branch, commits, err, quiet}
+	}
+}
+
+// commitsListed takes the commits listed again. New commits are added and
+// gone ones dropped; a commit still there keeps its entry, and so its files
+// with their anchors and folds: its content cannot change. The cursor stays
+// on its commit; when the commit shown is gone, the list is shown. It returns
+// the command listing them once more when that was asked for meanwhile.
+func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
+	l.relisting = false
+	var next tea.Cmd
+	if l.again {
+		l.again = false
+		next = l.relistCommits(l.againQuiet)
+	}
+	branch, commits, quiet := res.branch, res.commits, res.quiet
+	if res.err != nil {
+		l.setMsg(firstLine(res.err))
+		return next
 	}
 	parts := map[*commitEntry]*flowPart{}
 	for _, p := range l.flow.parts {
@@ -538,6 +582,7 @@ func (l *Log) relistCommits(quiet bool) {
 	if !quiet || msg != nothingChanged {
 		l.setMsg(msg)
 	}
+	return next
 }
 
 // filesOfFlow shows the file list of the commit under the flow view's

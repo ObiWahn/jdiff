@@ -350,6 +350,7 @@ func TestAppRelistSwitchesWatching(t *testing.T) {
 	list = append(slices.Clone(list), source.File{Path: "e.txt", NewFile: third, New: []string{"e"}, InNew: true})
 	old := a.notify
 	_, cmd := a.Update(refreshMsg{})
+	_, cmd = a.Update(cmd()) // the listing, which runs in the background
 	if a.notify != nil || !a.ticking || cmd == nil {
 		t.Fatalf("over the limit after r: notify %v ticking %v; want polling", a.notify, a.ticking)
 	}
@@ -359,6 +360,7 @@ func TestAppRelistSwitchesWatching(t *testing.T) {
 	// Back under the limit: inotify again, and the pending tick ends.
 	list = list[:len(list)-1]
 	_, cmd = a.Update(refreshMsg{})
+	_, cmd = a.Update(cmd())
 	if a.notify == nil {
 		t.Fatal("under the limit after r: not watched by inotify")
 	}
@@ -444,6 +446,25 @@ func (r *fakeRepo) getPaths() ([]string, error) { return r.paths, nil }
 // newAutoReload returns the switch around a file selector of git diff, with
 // the repository of a watched file, and the file. The view and the switch share
 // their configuration, as in the program.
+// loadNow runs the listing of the files that cmd starts, as the runtime does
+// in the background, and gives s its result. Auto reload starts it in a batch
+// with its tick and the wait for the watcher, which the tests do not run: the
+// listing comes first.
+func loadNow(t *testing.T, s tea.Model, cmd tea.Cmd) {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("no listing started")
+	}
+	msg := cmd()
+	if b, ok := msg.(tea.BatchMsg); ok {
+		msg = b[0]()
+	}
+	if _, ok := msg.(filesListedMsg); !ok {
+		t.Fatalf("got %T, want the files listed", msg)
+	}
+	s.Update(msg)
+}
+
 func newAutoReload(t *testing.T) (*DiffSwitch, *fakeGitDiff, *fakeRepo, string) {
 	t.Helper()
 	g := &fakeGitDiff{}
@@ -485,7 +506,8 @@ func TestAutoReloadOnAndOff(t *testing.T) {
 	if strings.Contains(ansi.Strip(s.frame()), "auto reload") {
 		t.Errorf("the badge shows while off:\n%s", ansi.Strip(s.frame()))
 	}
-	s.Update(askAutoReloadMsg{})
+	_, cmd := s.Update(askAutoReloadMsg{})
+	loadNow(t, s, cmd)
 	if !s.cfg.AutoReload || len(g.runs) != 1 {
 		t.Fatalf("on: %v, runs %v; want one load", s.cfg.AutoReload, g.runs)
 	}
@@ -501,7 +523,8 @@ func TestAutoReloadOnAndOff(t *testing.T) {
 	}
 	repo.status = "s1"
 	s.statusRuns++
-	s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	_, cmd = s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	loadNow(t, s, cmd)
 	if len(g.runs) != 2 {
 		t.Errorf("new status: runs %v", g.runs)
 	}
@@ -572,7 +595,8 @@ func TestAutoReloadSurvivesDiffSwitch(t *testing.T) {
 	gen := s.autoGen
 	s.show([]string{"HEAD~1"})
 	s.statusRuns++
-	s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	_, cmd := s.Update(autoStatusMsg{gen: gen, status: "s1"})
+	loadNow(t, s, cmd)
 	if !s.cfg.AutoReload || len(g.runs) < 2 || !slices.Equal(g.runs[len(g.runs)-1], []string{"HEAD~1"}) {
 		t.Errorf("on %v, runs %v; want the new diff loaded", s.cfg.AutoReload, g.runs)
 	}

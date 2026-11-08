@@ -145,7 +145,8 @@ func TestAppRelistErrorFirstLine(t *testing.T) {
 		{Path: "f01", New: []string{"x"}, InNew: true},
 	}).WithRelist(func() ([]source.File, error) { return nil, errors.New("x0\nx1") })
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	a.Update(refreshMsg{})
+	_, cmd := a.Update(refreshMsg{})
+	a.Update(cmd()) // the listing, which runs in the background
 	if a.msg != "x0" {
 		t.Errorf("listing again: %q", a.msg)
 	}
@@ -354,7 +355,7 @@ type fakeGitDiff struct {
 	err  error
 }
 
-func (g *fakeGitDiff) diff(args []string) ([]source.File, error) {
+func (g *fakeGitDiff) diff(args []string, untracked bool) ([]source.File, error) {
 	g.runs = append(g.runs, args)
 	if g.err != nil {
 		return nil, g.err
@@ -890,14 +891,14 @@ func newUntrackedApp() *App {
 	file := func(name string) source.File {
 		return source.File{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
 	}
-	list := func([]string) ([]source.File, error) {
+	list := func(_ []string, untracked bool) ([]source.File, error) {
 		files := []source.File{file("f00"), file("f01")}
-		if cfg.Settings.Untracked {
+		if untracked {
 			files = append(files, source.File{Path: "x0", New: []string{"new"}, InNew: true})
 		}
 		return files, nil
 	}
-	files, _ := list(nil)
+	files, _ := list(nil, cfg.Settings.Untracked)
 	a := NewApp(cfg, files).WithGitDiff([]string{"HEAD"}, list)
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	return a
