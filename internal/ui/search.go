@@ -315,6 +315,10 @@ func (f *Flow) findText(dir int) {
 	if f.cursor < len(f.rows) {
 		cur = f.rows[f.cursor].part
 	}
+	if f.inLog() && f.unloaded(cur) {
+		f.await(cur, func() { f.findText(dir) })
+		return
+	}
 	where := ""
 	if f.inLog() {
 		where = " of this commit"

@@ -49,12 +49,20 @@ const far = 1 << 30
 // after the other, each starting with a bar, and in the log each commit
 // starting with its message. Files share their diffs with the single file
 // view, so anchors and folds carry over; cursor and scrolling are the
-// flow's own. Commits are loaded once they come near the cursor.
+// flow's own. In the log, commits load in the background once they are on
+// the screen, one at a time; until then a note says that they load.
 type Flow struct {
 	cfg   *config.Config
 	parts []*flowPart
-	load  func(part int) (*App, error) // loads the files of a commit, nil outside the log
-	order historyOrder                 // of the commits, the parts in the log
+	// load returns the command loading the files of the commit of part,
+	// whose result the log gives back to partLoaded; nil outside the log.
+	load  func(part int) tea.Cmd
+	order historyOrder // of the commits, the parts in the log
+
+	loading *flowPart // the commit loading, nil for none
+	ahead   int       // the way of the last move, whose commits a screen beyond load too
+	atEnd   bool      // end was pressed last: the cursor stays on the last row
+	waiting *flowWait // a search waiting for a commit to load
 
 	rows      []flowRow
 	rowAt     map[flowRow]int // index of each row, see find
@@ -72,7 +80,14 @@ type Flow struct {
 	msg           string
 }
 
-func newFlow(cfg *config.Config, parts []*flowPart, load func(int) (*App, error)) *Flow {
+// flowWait is a search that reached a commit not loaded yet: redo runs it
+// again once part is loaded.
+type flowWait struct {
+	part *flowPart
+	redo func()
+}
+
+func newFlow(cfg *config.Config, parts []*flowPart, load func(int) tea.Cmd) *Flow {
 	f := &Flow{cfg: cfg, parts: parts, load: load}
 	f.build()
 	return f
@@ -132,7 +147,11 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.msg = msg.problem
 		}
 	}
-	f.loadVisible()
+	// A key's own command comes first, alone, as the tests run commands one
+	// at a time; the next message starts the load.
+	if cmd == nil {
+		cmd = f.nextLoad()
+	}
 	return f, cmd
 }
 
@@ -143,6 +162,7 @@ func (f *Flow) key(k string) tea.Cmd {
 		f.replacing = nil
 	}
 	f.msg = ""
+	f.atEnd, f.waiting = false, nil // another key: end and searches let go
 	if p := f.prefix; p != "" {
 		f.prefix = ""
 		switch {
@@ -181,21 +201,17 @@ func (f *Flow) key(k string) tea.Cmd {
 			f.xoff += 8
 		}
 	case "change":
-		if !f.search(direction(h.i == 0), f.changeStart, true) && f.msg == "" {
-			f.msg = "no more changes"
-		}
+		f.nextChange(direction(h.i == 0))
 	case "next_file":
-		if f.search(direction(h.i == 0), f.isKind(flowFile, 0), true) {
-			f.barToTop()
-		} else if f.msg == "" {
-			f.msg = ends(h.i == 0, "last file", "first file")
-		}
+		f.nextFile(direction(h.i == 0))
 	case "history":
-		switch {
-		case !f.inLog():
-		case f.search(f.order.step(historyDir(h)), f.isKind(flowCommit, 0), false):
+		if !f.inLog() {
+			break
+		}
+		// The bars of all commits are there, loaded or not: no waiting.
+		if r, _ := f.search(f.order.step(historyDir(h)), f.isKind(flowCommit, 0), false, false); r == found {
 			f.barToTop()
-		default:
+		} else {
 			f.msg = ends(historyDir(h) > 0, "last commit", "first commit")
 		}
 	case "anchor", "cancel_mark", "fold", "fold_all":
@@ -355,11 +371,14 @@ func (f *Flow) build() {
 		f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 	}
 	for p, part := range f.parts {
+		if part.app == nil && part.commit != nil {
+			part.app = part.commit.app // loaded for the list meanwhile
+		}
 		for i := range f.commitLines(part) {
 			add(flowCommit, p, -1, i)
 		}
-		if part.err != "" || (part.app != nil && len(part.app.files) == 0) {
-			add(flowNote, p, -1, 0)
+		if part.app == nil || len(part.app.files) == 0 {
+			add(flowNote, p, -1, 0) // loading, why it cannot, or no files
 		}
 		if part.app == nil {
 			continue
@@ -522,81 +541,83 @@ func (f *Flow) find(r flowRow) int {
 // files outside it.
 func (f *Flow) inLog() bool { return f.load != nil }
 
+// unloaded reports whether the files of part are not loaded yet, neither
+// for the flow nor for the list.
 func (f *Flow) unloaded(part int) bool {
 	p := f.parts[part]
-	return p.app == nil && p.err == ""
+	return p.app == nil && p.err == "" && (p.commit == nil || p.commit.app == nil)
 }
 
-// unloadedIn returns a commit with rows in [a, b] that is not loaded yet, or
-// -1.
-func (f *Flow) unloadedIn(a, b int) int {
-	if !f.inLog() {
-		return -1
+// nextLoad returns the command loading the next commit, nil while one loads
+// or none is to: the one a search waits for, else the first on the screen
+// not loaded yet, else the first within a screen from the cursor on the way
+// of the last move, so that it is there when the cursor comes.
+func (f *Flow) nextLoad() tea.Cmd {
+	if !f.inLog() || f.loading != nil {
+		return nil
 	}
-	for i := max(a, 0); i <= min(b, len(f.rows)-1); i++ {
-		if p := f.rows[i].part; f.unloaded(p) {
-			return p
+	p := -1
+	if w := f.waiting; w != nil {
+		p = slices.Index(f.parts, w.part)
+	}
+	h := f.bodyHeight()
+	first := func(from, to int) {
+		for i := max(from, 0); p < 0 && i < min(to, len(f.rows)); i++ {
+			if q := f.rows[i].part; f.unloaded(q) {
+				p = q
+			}
 		}
 	}
-	return -1
+	first(f.top, f.top+h)
+	switch {
+	case f.ahead > 0:
+		first(f.cursor, f.cursor+h+1)
+	case f.ahead < 0:
+		first(f.cursor-h, f.cursor+1)
+	}
+	if p < 0 || !f.unloaded(p) {
+		return nil
+	}
+	f.loading = f.parts[p]
+	return f.load(p)
 }
 
-// loadPart loads the files of commit p; the cursor stays on its row and its
-// screen row.
-func (f *Flow) loadPart(p int) {
-	part := f.parts[p]
-	app, err := f.load(p)
+// partLoaded takes the files of the commit of part, which the log loaded,
+// or why they could not be. The cursor stays on its row and screen row, or
+// after end on the last row; a search waiting for the commit goes on. It
+// returns the command loading the next commit.
+func (f *Flow) partLoaded(part *flowPart, err error) tea.Cmd {
+	if f.loading == part {
+		f.loading = nil
+	}
 	if err != nil {
 		part.err = firstLine(err)
-	} else {
-		part.app = app
 	}
-	f.keepScreenRow(f.relocate)
+	f.keepScreenRow(f.relocate) // build takes the files from the commit
+	if f.atEnd {
+		_, f.cursor = f.bounds()
+		f.scrollToCursor()
+	}
+	if w := f.waiting; w != nil && !f.unloaded(slices.Index(f.parts, w.part)) {
+		f.waiting = nil
+		w.redo()
+	}
+	return f.nextLoad()
 }
 
-// loadVisible loads the commits shown on screen.
-func (f *Flow) loadVisible() {
-	for {
-		p := f.unloadedIn(f.top, f.top+f.bodyHeight()-1)
-		if p < 0 {
-			return
-		}
-		f.loadPart(p)
-	}
+// await makes the search redo wait for commit p to load, saying so.
+func (f *Flow) await(p int, redo func()) {
+	f.waiting = &flowWait{f.parts[p], redo}
+	f.msg = "loading " + f.parts[p].commit.Short + "…"
 }
 
-// moveCursor moves the cursor by delta rows. Commits on the way and a
-// screen beyond are loaded first, so it lands where it would with all
-// commits loaded; for far only those around where it lands, the others load
-// as they come near.
+// moveCursor moves the cursor by delta rows, over the rows there are: the
+// commits on the way load as they come on the screen. For far, end, the
+// cursor stays on the last row as they load, until another key.
 func (f *Flow) moveCursor(delta int) {
-	if max(delta, -delta) >= far {
-		f.loadAroundEnd(delta)
-	} else {
-		f.loadAhead(delta)
-	}
 	f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
+	f.atEnd, f.ahead = delta >= far, direction(delta > 0)
 	f.scrollToCursor()
-}
-
-// loadAroundEnd loads the commits within a screen of the first row the cursor
-// may go to, for delta below 0, else of the last. Only home and end need it:
-// should those keys go, as they may, this and the far branch of moveCursor go
-// with their cases in motion.
-func (f *Flow) loadAroundEnd(delta int) {
-	h := f.bodyHeight()
-	for {
-		lo, hi := f.bounds()
-		end := hi
-		if delta < 0 {
-			end = lo
-		}
-		p := f.unloadedIn(end-h, end+h)
-		if p < 0 {
-			return
-		}
-		f.loadPart(p)
-	}
 }
 
 // bounds returns the first and last row the cursor may go to: those of its
@@ -626,58 +647,69 @@ func (f *Flow) confine(i int) int {
 }
 
 // scroll moves the window by delta rows, as far as it can, and the cursor
-// along, so that the cursor keeps its screen row. Commits are loaded first,
-// as for moveCursor.
+// along, so that the cursor keeps its screen row.
 func (f *Flow) scroll(delta int) {
-	f.loadAhead(delta)
+	f.ahead = direction(delta > 0)
 	top := f.top
 	f.top = max(min(f.top+delta, len(f.rows)-f.bodyHeight()), 0)
 	f.cursor = f.confine(max(min(f.cursor+f.top-top, len(f.rows)-1), 0))
 	f.scrollToCursor()
 }
 
-// loadAhead loads the commits on the way of a cursor move by delta rows and
-// a screen beyond.
-func (f *Flow) loadAhead(delta int) {
-	h := f.bodyHeight()
-	for {
-		lo, hi := f.cursor, f.cursor+delta+h
-		if delta < 0 {
-			lo, hi = f.cursor+delta-h, f.cursor
+// searchResult is how a search ended.
+type searchResult int
+
+const (
+	notFound searchResult = iota
+	found
+	unloadedOnTheWay // a commit on the way is not loaded yet, see search
+)
+
+// search moves the cursor to the next row in direction dir for which ok
+// holds. With stay set it does not leave the bounds; reaching them sets a
+// warning. With wait, a commit on the way that is not loaded yet ends it,
+// at the first of its rows that are there that ok does not take: its part
+// is returned, for the caller to wait for it (see await), else -1.
+func (f *Flow) search(dir int, ok func(int) bool, stay, wait bool) (searchResult, int) {
+	for i := f.cursor + dir; i >= 0 && i < len(f.rows); i += dir {
+		if lo, hi := f.bounds(); stay && (i < lo || i > hi) {
+			f.confine(i)
+			return notFound, -1
 		}
-		p := f.unloadedIn(lo, hi)
-		if p < 0 {
-			break
+		if ok(i) {
+			f.cursor = i
+			f.scrollToCursor()
+			return found, -1
 		}
-		f.loadPart(p)
+		if p := f.rows[i].part; wait && f.inLog() && f.unloaded(p) {
+			return unloadedOnTheWay, p
+		}
+	}
+	return notFound, -1
+}
+
+// nextChange moves the cursor to the start of the next (dir > 0) or previous
+// block of changed rows, waiting for the commits on the way to load.
+func (f *Flow) nextChange(dir int) {
+	switch r, p := f.search(dir, f.changeStart, true, true); {
+	case r == unloadedOnTheWay:
+		f.await(p, func() { f.nextChange(dir) })
+	case r == notFound && f.msg == "":
+		f.msg = "no more changes"
 	}
 }
 
-// search moves the cursor to the next row in direction dir for which ok
-// holds, loading commits on the way, and reports whether there is one. With
-// stay set it does not leave the bounds; reaching them sets a warning.
-func (f *Flow) search(dir int, ok func(int) bool, stay bool) bool {
-	for {
-		loaded := false
-		for i := f.cursor + dir; i >= 0 && i < len(f.rows); i += dir {
-			if lo, hi := f.bounds(); stay && (i < lo || i > hi) {
-				f.confine(i)
-				return false
-			}
-			if p := f.rows[i].part; f.inLog() && f.unloaded(p) {
-				f.loadPart(p)
-				loaded = true
-				break
-			}
-			if ok(i) {
-				f.cursor = i
-				f.scrollToCursor()
-				return true
-			}
-		}
-		if !loaded {
-			return false
-		}
+// nextFile moves the cursor to the bar of the next (dir > 0) or previous
+// file, at the top of the screen, waiting for the commits on the way to
+// load.
+func (f *Flow) nextFile(dir int) {
+	switch r, p := f.search(dir, f.isKind(flowFile, 0), true, true); {
+	case r == found:
+		f.barToTop()
+	case r == unloadedOnTheWay:
+		f.await(p, func() { f.nextFile(dir) })
+	case f.msg == "":
+		f.msg = ends(dir > 0, "last file", "first file")
 	}
 }
 
@@ -705,9 +737,7 @@ func (f *Flow) changeStart(i int) bool {
 // the file bar for line -1 and on the commit bar for file -1, at screen row
 // screenRow.
 func (f *Flow) show(part, file, line, sub, screenRow int) {
-	if f.inLog() && f.unloaded(part) {
-		f.loadPart(part)
-	}
+	f.ahead, f.atEnd, f.waiting = 0, false, nil
 	// While hidden, diff views may have changed the diffs or the layout.
 	f.build()
 	f.adopt(part, file)
@@ -722,7 +752,6 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	f.cursor = max(i, 0)
 	f.top = f.cursor - screenRow
 	f.scrollToCursor()
-	f.loadVisible()
 }
 
 // showFrom shows file of part where its diff view from leaves it: on the
@@ -949,6 +978,8 @@ func (f *Flow) row(i int) string {
 			note = "binary file"
 		case part.err != "":
 			note = printable(part.err)
+		case part.app == nil:
+			note = "loading…"
 		}
 		return mark + text("  "+note, t.Hint)
 	}

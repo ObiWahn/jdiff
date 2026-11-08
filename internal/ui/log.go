@@ -91,7 +91,10 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
 	l.measure()
-	l.flow = newFlow(cfg, parts, l.app)
+	l.flow = newFlow(cfg, parts, func(p int) tea.Cmd {
+		part := l.flow.parts[p]
+		return l.loadCmd(part.commit, 0, part)
+	})
 	l.flow.order = l.order
 	if len(commits) == 0 {
 		l.msg = "no commits"
@@ -183,8 +186,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		l.width, l.height = msg.Width, msg.Height
 		l.scrollToCursor()
 		if l.flowShown() {
-			l.flow.Update(msg)
-			return nil
+			_, cmd := l.flow.Update(msg)
+			return cmd
 		}
 	case settingChangedMsg:
 		l.scrollToCursor() // the message box takes room from the list
@@ -193,19 +196,16 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		}
 	case backMsg:
 		if l.flowShown() {
-			l.filesOfFlow()
-		} else {
-			l.open, l.files = nil, false
+			return l.filesOfFlow()
 		}
+		l.open, l.files = nil, false
 		return nil
 	case flowAtMsg:
-		l.showFlow(int(msg), nil)
-		return nil
+		return l.showFlow(int(msg), nil)
 	case switchCommitMsg:
 		return l.switchCommit(int(msg))
 	case commitLoadedMsg:
-		l.commitLoaded(msg)
-		return nil
+		return l.commitLoaded(msg)
 	case refreshMsg:
 		return l.relistCommits(msg.quiet)
 	case commitsListedMsg:
@@ -220,11 +220,11 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		l.setMsg(untrackedOnlyInDiff)
 		return nil
 	case toggleFlowMsg:
-		l.toggleFlow()
+		cmd := l.toggleFlow()
 		if w := saveState(l.cfg); w != "" {
 			l.setMsg(w)
 		}
-		return nil
+		return cmd
 	}
 	if l.flowShown() {
 		_, cmd := l.flow.Update(msg)
@@ -263,7 +263,7 @@ func (l *Log) key(k string) tea.Cmd {
 		return tea.Quit
 	case "open":
 		if l.cfg.Settings.Flow {
-			l.showFlow(-1, nil)
+			return l.showFlow(-1, nil)
 		} else {
 			return l.requestCommit(l.cursor, "")
 		}
@@ -290,41 +290,43 @@ func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && 
 
 // showFlow shows the flow view on file of the commit under the cursor,
 // where its diff view from leaves it, or on its bar for from nil and on the
-// commit's bar for file -1 (see Flow.showFrom). A list that loading again
-// emptied has no commit to show.
-func (l *Log) showFlow(file int, from *Model) {
+// commit's bar for file -1 (see Flow.showFrom), and returns the command
+// loading the commits on the screen. A list that loading again emptied has
+// no commit to show.
+func (l *Log) showFlow(file int, from *Model) tea.Cmd {
 	if len(l.commits) == 0 {
 		l.msg = "no commits"
-		return
+		return nil
 	}
 	l.open, l.files = l.commits[l.cursor], false
 	l.flow.width, l.flow.height = l.width, l.height
 	l.flow.showFrom(l.cursor, file, from)
+	return l.flow.nextLoad()
 }
 
 // toggleFlow switches between the flow view and the files of the commit
-// under the cursor, keeping the cursor on its line and screen row.
-func (l *Log) toggleFlow() {
+// under the cursor, keeping the cursor on its line and screen row, and
+// returns the command loading the commits on the screen of the flow view.
+func (l *Log) toggleFlow() tea.Cmd {
 	st := &l.cfg.Settings
 	if !st.Flow {
 		st.Flow = true
 		switch {
 		case l.open == nil:
-			l.showFlow(-1, nil)
+			return l.showFlow(-1, nil)
 		case l.open.app.open == nil:
-			l.showFlow(l.open.app.cursor, nil)
+			return l.showFlow(l.open.app.cursor, nil)
 		default:
-			l.showFlow(l.open.app.cursor, l.open.app.open.view)
+			return l.showFlow(l.open.app.cursor, l.open.app.open.view)
 		}
-		return
 	}
 	st.Flow = false
 	if l.open == nil {
-		return
+		return nil
 	}
 	if l.files { // the file list stays
 		l.files = false
-		return
+		return nil
 	}
 	p, file, line := l.flow.position()
 	screenRow := l.flow.cursor - l.flow.top
@@ -333,8 +335,11 @@ func (l *Log) toggleFlow() {
 		path = e.app.files[file].Path
 	}
 	l.open = nil
+	if l.commits[p].app == nil { // still loading: its files when they come
+		return l.requestCommit(p, "")
+	}
 	if !l.openCommit(p, path) {
-		return
+		return nil
 	}
 	app := l.open.app
 	if app.open == nil && file >= 0 {
@@ -344,6 +349,7 @@ func (l *Log) toggleFlow() {
 	if app.open != nil && app.open.Path == path {
 		app.open.view.takeOver(l.flow, line, screenRow)
 	}
+	return nil
 }
 
 // app returns the file selector of commit i, loading its files on first
@@ -409,22 +415,48 @@ func (l *Log) switchCommit(dir int) tea.Cmd {
 	return l.requestCommit(i, path)
 }
 
-// commitLoadedMsg brings the files of the commit with hash, loaded for the
-// request number gen of requestCommit, or why they could not be.
+// commitLoadedMsg brings the files of the commit with hash, or why they
+// could not be loaded: for the request number gen of requestCommit or
+// filesOfFlow, 0 for none, and for part of the flow view, nil for none.
 type commitLoadedMsg struct {
 	gen   int
 	hash  string
 	files []source.File
 	err   error
+	part  *flowPart
+}
+
+// loadCmd returns the command loading the files of e in the background, for
+// request gen and the flow's part, see commitLoadedMsg. Only git runs there:
+// the views are made when the files come, on the keys' side, which owns the
+// settings.
+func (l *Log) loadCmd(e *commitEntry, gen int, part *flowPart) tea.Cmd {
+	c, load := e.Commit, l.load
+	return func() tea.Msg {
+		files, err := load(c)
+		return commitLoadedMsg{gen, c.Hash, files, err, part}
+	}
 }
 
 // commitRequest is the commit requestCommit loads: shown with path open
-// when it arrives, if the view is still from, which it was asked from; msg
-// says that it loads.
+// when it arrives, if the view is still from, which it was asked from; with
+// files, as filesOfFlow asks, its file list when the flow view still shows
+// it. msg says that it loads.
 type commitRequest struct {
 	gen       int
 	path, msg string
 	from      *commitEntry
+	files     bool
+}
+
+// request starts loading the files of e for req, dropping any request
+// before, and returns the command; the status bar says that it loads.
+func (l *Log) request(e *commitEntry, req commitRequest) tea.Cmd {
+	l.loadGen++
+	req.gen, req.msg = l.loadGen, "loading "+e.Short+"…"
+	l.pending = &req
+	l.setMsg(req.msg)
+	return l.loadCmd(e, req.gen, nil)
 }
 
 // requestCommit shows commit i as openCommit does, at once when its files
@@ -443,38 +475,43 @@ func (l *Log) requestCommit(i int, path string) tea.Cmd {
 		}
 		return nil
 	}
-	l.loadGen++
-	l.pending = &commitRequest{gen: l.loadGen, path: path, msg: "loading " + e.Short + "…", from: l.open}
-	l.setMsg(l.pending.msg)
-	gen, c, load := l.loadGen, e.Commit, l.load
-	return func() tea.Msg {
-		files, err := load(c)
-		return commitLoadedMsg{gen, c.Hash, files, err}
-	}
+	return l.request(e, commitRequest{path: path, from: l.open})
 }
 
-// commitLoaded shows the commit msg brings, when it is still the one asked
-// for last and the view is the one it was asked from. Files the flow view
-// loaded meanwhile are kept.
-func (l *Log) commitLoaded(msg commitLoadedMsg) {
+// commitLoaded takes the files msg brings: they become the commit's, unless
+// it has some already, loaded for the list or the flow view meanwhile. The
+// flow view, when it loaded them, shows them; a request shows the commit,
+// when it is still the one asked for last and the view is the one it was
+// asked from. It returns the command loading the next commit of the flow
+// view.
+func (l *Log) commitLoaded(msg commitLoadedMsg) tea.Cmd {
+	e := l.byHash[msg.hash]
+	if e != nil && e.app == nil && msg.err == nil {
+		e.app = newApp(l.cfg, msg.files, &e.Commit)
+	}
+	var cmd tea.Cmd
+	if msg.part != nil {
+		cmd = l.flow.partLoaded(msg.part, msg.err)
+	}
 	req := l.pending
 	if req == nil || msg.gen != req.gen {
-		return
+		return cmd
 	}
 	l.pending = nil
 	l.dropMsg(req.msg)
-	e := l.byHash[msg.hash]
-	if e == nil || l.open != req.from || l.flowShown() {
-		return
-	}
-	if msg.err != nil {
+	switch {
+	case e == nil:
+	case req.files:
+		if p, _, _ := l.flow.position(); l.flowShown() && l.commits[p] == e {
+			cmd = batch(cmd, l.filesOfFlow())
+		}
+	case l.open != req.from || l.flowShown():
+	case msg.err != nil:
 		l.setMsg(firstLine(msg.err))
-		return
+	default:
+		l.openCommit(slices.Index(l.commits, e), req.path)
 	}
-	if e.app == nil {
-		e.app = newApp(l.cfg, msg.files, &e.Commit)
-	}
-	l.openCommit(slices.Index(l.commits, e), req.path)
+	return cmd
 }
 
 // commitsListedMsg brings the commits log listed again, with the branch, or
@@ -572,7 +609,7 @@ func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
 	case shown:
 		l.flow.followParts(oldParts)
 		l.flow.keepScreenRow(l.flow.relocate)
-		l.flow.loadVisible()
+		next = batch(next, l.flow.nextLoad())
 		l.cursor, _, _ = l.flow.position()
 		l.open = l.commits[l.cursor]
 	case open != nil:
@@ -588,16 +625,21 @@ func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
 // filesOfFlow shows the file list of the commit under the flow view's
 // cursor, on its file, as backspace does from a diff view. A commit of one
 // file, or one that cannot be loaded, has no list to show: the commits are
-// shown, on it.
-func (l *Log) filesOfFlow() {
+// shown, on it. A commit still loading shows its list when its files come;
+// it returns the command loading them.
+func (l *Log) filesOfFlow() tea.Cmd {
 	p, file, _ := l.flow.position()
 	l.cursor = p
 	l.scrollToCursor()
-	app, err := l.app(p)
-	if err != nil || app.single() {
-		l.open, l.files = nil, false
-		return
+	e := l.commits[p]
+	if e.app == nil && l.flow.parts[p].err == "" { // its list when it comes
+		return l.request(e, commitRequest{files: true})
 	}
+	if e.app == nil || e.app.single() {
+		l.open, l.files = nil, false
+		return nil
+	}
+	app := e.app
 	app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
 	app.open = nil
 	if file >= 0 {
@@ -605,6 +647,7 @@ func (l *Log) filesOfFlow() {
 		app.scrollToCursor()
 	}
 	l.open, l.files = l.commits[p], true
+	return nil
 }
 
 // dropMsg clears msg where setMsg may have put it, unless another message

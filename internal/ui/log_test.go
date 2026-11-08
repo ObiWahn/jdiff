@@ -428,7 +428,7 @@ func TestLogErrorFirstLine(t *testing.T) {
 	if l.msg != "line counts: x0" {
 		t.Errorf("counting: %q", l.msg)
 	}
-	l.flow.loadPart(0)
+	l.Update(l.flow.load(0)()) // the flow's load, which runs in the background
 	if got := l.flow.parts[0].err; got != "x0" {
 		t.Errorf("in the flow view: %q", got)
 	}

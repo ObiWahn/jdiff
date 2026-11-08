@@ -266,7 +266,7 @@ func TestFlowFindText(t *testing.T) {
 	f := l.flow
 	for p := range f.parts {
 		if f.unloaded(p) {
-			f.loadPart(p)
+			l.Update(f.load(p)()) // the load, which runs in the background
 		}
 	}
 	where := func() string {
