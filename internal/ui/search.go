@@ -40,7 +40,7 @@ func compile(q config.Query) (*matcher, error) {
 	m := &matcher{q: q}
 	if q.Regex {
 		src := q.Text
-		if !strings.ContainsFunc(src, unicode.IsUpper) {
+		if !hasUpper(src, true) {
 			src = "(?i)" + src
 		}
 		re, err := regexp.Compile(src)
@@ -88,18 +88,78 @@ func (m *matcher) spans(text string) []diff.Span {
 		return out
 	}
 	q := m.q.Text
-	exact := strings.ContainsFunc(q, unicode.IsUpper)
-	for i := 0; i+len(q) <= len(text); {
-		part := text[i : i+len(q)]
-		if exact && part == q || !exact && strings.EqualFold(part, q) {
-			out = append(out, diff.Span{Start: i, End: i + len(q)})
-			i += len(q)
+	exact := hasUpper(q, false)
+	for i := 0; i < len(text); {
+		end := -1
+		switch {
+		case exact && strings.HasPrefix(text[i:], q):
+			end = i + len(q)
+		case !exact:
+			if n := foldPrefix(text[i:], q); n >= 0 {
+				end = i + n
+			}
+		}
+		if end > i {
+			out = append(out, diff.Span{Start: i, End: end})
+			i = end
 			continue
 		}
 		_, n := utf8.DecodeRuneInString(text[i:])
 		i += n
 	}
 	return out
+}
+
+// foldPrefix returns the length in bytes of the start of s that is q with
+// case ignored, rune by rune, or -1. The lengths may differ, as of K and the
+// Kelvin sign.
+func foldPrefix(s, q string) int {
+	j := 0
+	for _, qr := range q {
+		if j >= len(s) {
+			return -1
+		}
+		r, n := utf8.DecodeRuneInString(s[j:])
+		if r != qr && !strings.EqualFold(string(r), string(qr)) {
+			return -1
+		}
+		j += n
+	}
+	return j
+}
+
+// hasUpper reports whether query holds an upper case letter, which makes the
+// search match case. In a regular expression the letters of escapes, as \S,
+// \pL, \p{Lu} or \x4A, do not count.
+func hasUpper(query string, regex bool) bool {
+	if !regex {
+		return strings.ContainsFunc(query, unicode.IsUpper)
+	}
+	for i := 0; i < len(query); {
+		r, n := utf8.DecodeRuneInString(query[i:])
+		i += n
+		switch {
+		case r == '\\' && i < len(query):
+			e, m := utf8.DecodeRuneInString(query[i:])
+			i += m
+			if e == 'p' || e == 'P' || e == 'x' {
+				switch {
+				case i < len(query) && query[i] == '{':
+					if j := strings.IndexByte(query[i:], '}'); j >= 0 {
+						i += j + 1
+					}
+				case e == 'x':
+					i = min(i+2, len(query))
+				case i < len(query):
+					_, m := utf8.DecodeRuneInString(query[i:])
+					i += m
+				}
+			}
+		case unicode.IsUpper(r):
+			return true
+		}
+	}
+	return false
 }
 
 // hit is a line found by /: side's line of diff row row.
