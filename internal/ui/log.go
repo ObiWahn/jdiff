@@ -54,6 +54,8 @@ type Log struct {
 	byHash   map[string]*commitEntry // the commits by hash
 	minCount int                     // the least width of the count columns
 	cols     logColumns              // see measure
+	loadGen  int                     // counts the requests of requestCommit
+	pending  *commitRequest          // the commit loading, nil for none
 
 	commits []*commitEntry
 	order   historyOrder // of commits
@@ -196,7 +198,9 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		l.showFlow(int(msg), nil)
 		return nil
 	case switchCommitMsg:
-		l.switchCommit(int(msg))
+		return l.switchCommit(int(msg))
+	case commitLoadedMsg:
+		l.commitLoaded(msg)
 		return nil
 	case refreshMsg:
 		l.relistCommits(msg.quiet)
@@ -253,7 +257,7 @@ func (l *Log) key(k string) tea.Cmd {
 		if l.cfg.Settings.Flow {
 			l.showFlow(-1, nil)
 		} else {
-			l.openCommit(l.cursor, "")
+			return l.requestCommit(l.cursor, "")
 		}
 	case "flow":
 		return toggleFlow
@@ -375,10 +379,11 @@ func (l *Log) openCommit(i int, path string) bool {
 }
 
 // switchCommit shows the next (dir > 0) or previous commit in history,
-// keeping the open file when the other commit changed it too.
-func (l *Log) switchCommit(dir int) {
+// keeping the open file when the other commit changed it too, and returns
+// the command loading it, see requestCommit.
+func (l *Log) switchCommit(dir int) tea.Cmd {
 	if l.open == nil {
-		return
+		return nil
 	}
 	app := l.open.app
 	path := ""
@@ -388,14 +393,80 @@ func (l *Log) switchCommit(dir int) {
 	i := l.cursor + l.order.step(dir)
 	if i < 0 || i >= len(l.commits) {
 		app.setMsg(ends(dir > 0, "last commit", "first commit"))
-		return
+		return nil
 	}
 	if app.open != nil {
 		app.open.updateStats()
 	}
-	if !l.openCommit(i, path) {
-		app.setMsg(l.msg)
+	return l.requestCommit(i, path)
+}
+
+// commitLoadedMsg brings the files of the commit with hash, loaded for the
+// request number gen of requestCommit, or why they could not be.
+type commitLoadedMsg struct {
+	gen   int
+	hash  string
+	files []source.File
+	err   error
+}
+
+// commitRequest is the commit requestCommit loads: shown with path open
+// when it arrives, if the view is still from, which it was asked from; msg
+// says that it loads.
+type commitRequest struct {
+	gen       int
+	path, msg string
+	from      *commitEntry
+}
+
+// requestCommit shows commit i as openCommit does, at once when its files
+// are loaded, else it returns the command loading them, which runs git
+// without blocking the keys. The status bar says what loads meanwhile, and
+// the view stays usable; moving to another view, or another request, drops
+// the files when they come.
+func (l *Log) requestCommit(i int, path string) tea.Cmd {
+	if i < 0 || i >= len(l.commits) {
+		return nil
 	}
+	e := l.commits[i]
+	if e.app != nil {
+		if !l.openCommit(i, path) && l.open != nil {
+			l.open.app.setMsg(l.msg)
+		}
+		return nil
+	}
+	l.loadGen++
+	l.pending = &commitRequest{gen: l.loadGen, path: path, msg: "loading " + e.Short + "…", from: l.open}
+	l.setMsg(l.pending.msg)
+	gen, c, load := l.loadGen, e.Commit, l.load
+	return func() tea.Msg {
+		files, err := load(c)
+		return commitLoadedMsg{gen, c.Hash, files, err}
+	}
+}
+
+// commitLoaded shows the commit msg brings, when it is still the one asked
+// for last and the view is the one it was asked from. Files the flow view
+// loaded meanwhile are kept.
+func (l *Log) commitLoaded(msg commitLoadedMsg) {
+	req := l.pending
+	if req == nil || msg.gen != req.gen {
+		return
+	}
+	l.pending = nil
+	l.dropMsg(req.msg)
+	e := l.byHash[msg.hash]
+	if e == nil || l.open != req.from || l.flowShown() {
+		return
+	}
+	if msg.err != nil {
+		l.setMsg(firstLine(msg.err))
+		return
+	}
+	if e.app == nil {
+		e.app = newApp(l.cfg, msg.files, &e.Commit)
+	}
+	l.openCommit(slices.Index(l.commits, e), req.path)
 }
 
 // relistCommits lists the commits again (r). New commits are added and gone
@@ -489,6 +560,27 @@ func (l *Log) filesOfFlow() {
 		app.scrollToCursor()
 	}
 	l.open, l.files = l.commits[p], true
+}
+
+// dropMsg clears msg where setMsg may have put it, unless another message
+// took its place.
+func (l *Log) dropMsg(msg string) {
+	if l.msg == msg {
+		l.msg = ""
+	}
+	if l.flow.msg == msg {
+		l.flow.msg = ""
+	}
+	for _, e := range l.commits {
+		if a := e.app; a != nil {
+			if a.msg == msg {
+				a.msg = ""
+			}
+			if a.open != nil && a.open.view != nil && a.open.view.msg == msg {
+				a.open.view.msg = ""
+			}
+		}
+	}
 }
 
 // setMsg shows msg in the status bar of whatever is displayed.
