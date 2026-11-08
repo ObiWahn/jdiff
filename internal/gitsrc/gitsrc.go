@@ -242,9 +242,14 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 		return nil, err
 	}
 	var files []source.File
-	var specs []string // blob requests for git cat-file, two per file
+	var specs []string // blob requests for git cat-file, of the sides there are
 	for _, e := range entries {
-		specs = append(specs, e.oldID, e.newID)
+		if e.file.InOld {
+			specs = append(specs, e.oldID)
+		}
+		if e.file.InNew {
+			specs = append(specs, e.newID)
+		}
 		files = append(files, e.file)
 	}
 
@@ -252,13 +257,16 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	n := 0
 	for i := range files {
 		f := &files[i]
 		if f.InOld {
-			f.Old, f.Binary = lines(blobs[2*i], f.Binary)
+			f.Old, f.Binary = lines(blobs[n], f.Binary)
+			n++
 		}
 		if f.InNew {
-			f.New, f.Binary = lines(blobs[2*i+1], f.Binary)
+			f.New, f.Binary = lines(blobs[n], f.Binary)
+			n++
 		}
 	}
 	return files, nil
@@ -554,6 +562,8 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 	}
 	cmd := exec.Command("git", "cat-file", "--batch")
 	cmd.Dir = r.Dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -604,5 +614,11 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		}
 		blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}
 	}
-	return blobs, cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("git cat-file: %s", msg)
+		}
+		return nil, fmt.Errorf("git cat-file: %w", err)
+	}
+	return blobs, nil
 }
