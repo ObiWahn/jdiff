@@ -43,64 +43,60 @@ type Settings struct {
 	Extends  string `toml:"extends"`
 	Precedes string `toml:"precedes"`
 	// Untracked (untracked) also shows the untracked files in jdiff diff,
-	// as added, where it compares with the working tree. u in the settings
-	// popup toggles it and --untracked turns it on, for the run only: it is
-	// the one toggle state.toml does not keep.
+	// as added, where it compares with the working tree. The key of action
+	// untracked toggles it and --untracked turns it on, for the run only: it
+	// is the one toggle state.toml does not keep.
 	Untracked bool `toml:"untracked"`
 	Toggles
 }
 
 // Toggles are the settings switched by keys, which state.toml keeps as last
-// set; their TOML keys are on the same level as the other settings.
+// set; their TOML keys are on the same level as the other settings. The keys
+// are those of the action named with each, in keybindings.toml of package ui,
+// which the user may change.
 type Toggles struct {
 	// Flow (flow) shows all files one after the other instead of one file
-	// at a time; f toggles it.
+	// at a time; action flow.
 	Flow bool `toml:"flow"`
 	// SideBySide (side_by_side) shows the old and new file next to each
-	// other; off, they are shown in one column like git diff. s in the settings
-	// popup toggles it.
+	// other; off, they are shown in one column like git diff; action layout.
 	SideBySide bool `toml:"side_by_side"`
 	// Preview (preview) shows a box below the commit and file lists with
-	// the selected commit's message or file's diff; v in the settings popup
-	// toggles it.
+	// the selected commit's message or file's diff; action preview.
 	Preview bool `toml:"preview"`
 	// ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
-	// not only changed whitespace, and the end of lines as LineEnd; W
-	// in the settings popup toggles it.
+	// not only changed whitespace, and the end of lines as LineEnd; action
+	// whitespace.
 	ShowWhitespaces bool `toml:"show_whitespaces"`
 	// MarkWhitespace (mark_whitespace) draws changed whitespace as · and →
 	// in the style of changed words: indentation, tabs and runs of spaces,
 	// not a single space between changed words; off, all changed whitespace
-	// looks like unchanged whitespace. ctrl+w in the settings popup
-	// toggles it.
+	// looks like unchanged whitespace; action mark_whitespace.
 	MarkWhitespace bool `toml:"mark_whitespace"`
 	// ShowTrailing (show_trailing) draws whitespace at the end of lines as ·
-	// and → in the trailing whitespace style. t in the settings popup toggles
-	// it.
+	// and → in the trailing whitespace style; action trailing.
 	ShowTrailing bool `toml:"show_trailing"`
 	// ShowCR (show_cr) draws the \r of all \r\n line ends as CREnd, not
-	// only of changed ones. e in the settings popup toggles it.
+	// only of changed ones; action line_ends.
 	ShowCR bool `toml:"show_cr"`
 	// Wrap (wrap) wraps lines longer than their pane onto further screen
-	// lines; off, they are cut and h and l scroll them. w in the
-	// settings popup toggles it.
+	// lines; off, they are cut and scrolled sideways; action wrap.
 	Wrap bool `toml:"wrap"`
 	// BoldChanges (bold_changes) draws changed words and whitespace bold
 	// where the theme says so; off, without bold, which terminals often
-	// draw brighter. b in the settings popup toggles it.
+	// draw brighter; action bold.
 	BoldChanges bool `toml:"bold_changes"`
 	// FullMessages (full_messages) shows the whole commit message in the
-	// flow view of the log; off, only the subject. c in the settings popup
-	// toggles it.
+	// flow view of the log; off, only the subject; action full_messages.
 	FullMessages bool `toml:"full_messages"`
 	// StayInCommit (stay_in_commit) keeps the cursor of the flow view of the
-	// log in the current commit: moves out of it stop with a warning, N and
-	// P still switch commits. C in the settings popup toggles it.
+	// log in the current commit: moves out of it stop with a warning, the keys
+	// of action history still switch commits; action stay_in_commit.
 	StayInCommit bool `toml:"stay_in_commit"`
-	// SearchRegex (search_regex) searches with / for a regular expression;
+	// SearchRegex (search_regex) searches, action search, for a regular expression;
 	// off, for plain text. shift+tab in the search bar toggles it.
 	SearchRegex bool `toml:"search_regex"`
-	// SearchAll (search_all) searches with / in all lines; off, only in
+	// SearchAll (search_all) searches, action search, in all lines; off, only in
 	// changed ones, added, removed and moved. tab in the search bar toggles
 	// it.
 	SearchAll bool `toml:"search_all"`
