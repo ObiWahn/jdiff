@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -127,6 +128,9 @@ type App struct {
 	// again when they are to be listed once more after that, quietly with
 	// againQuiet (see relistFiles).
 	relisting, again, againQuiet bool
+	// ctx ends the git commands of the view, cancel ends ctx, see stop.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// gitDiff runs git diff with arguments, nil outside jdiff diff; diffArgs
 	// are those of the files shown.
 	gitDiff  DiffFunc
@@ -150,13 +154,15 @@ type App struct {
 // NewApp returns the file selector for files.
 func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, nil) }
 
-// ListFunc lists the files of a comparison again.
-type ListFunc func() ([]source.File, error)
+// ListFunc lists the files of a comparison again. It runs in the background,
+// and ends when ctx is done.
+type ListFunc func(ctx context.Context) ([]source.File, error)
 
 // DiffFunc returns the files git diff compares with args, with the
 // untracked files as added when untracked is set. It runs in the background:
-// it must not read the settings, which the keys change meanwhile.
-type DiffFunc func(args []string, untracked bool) ([]source.File, error)
+// it must not read the settings, which the keys change meanwhile; it ends
+// when ctx is done.
+type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source.File, error)
 
 // WithGitDiff makes a the files of git diff with args, which r runs again,
 // and returns a.
@@ -175,6 +181,7 @@ func (a *App) WithRelist(list ListFunc) *App {
 // files of commit when it is set.
 func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
 	a := &App{cfg: cfg, commit: commit}
+	a.ctx, a.cancel = context.WithCancel(context.Background())
 	// The files are searched for moved code together.
 	group := &moveGroup{}
 	for _, f := range files {
@@ -203,8 +210,10 @@ func (a *App) addEntry(group *moveGroup, e *entry) {
 	a.files = append(a.files, e)
 }
 
-// stop stops watching the files: the view is replaced.
+// stop stops watching the files and ends the git commands of the view: it
+// is replaced, or the program ends.
 func (a *App) stop() {
+	a.cancel()
 	if a.notify != nil {
 		a.notify.Close()
 	}
@@ -339,7 +348,7 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 	list := a.relist
 	if a.gitDiff != nil {
 		args, untracked, gitDiff := a.diffArgs, a.cfg.Settings.Untracked, a.gitDiff
-		list = func() ([]source.File, error) { return gitDiff(args, untracked) }
+		list = func(ctx context.Context) ([]source.File, error) { return gitDiff(ctx, args, untracked) }
 	}
 	if list == nil {
 		a.setMsg("nothing to load again")
@@ -354,8 +363,9 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 	if !quiet {
 		a.setMsg("loading again…")
 	}
+	ctx := a.ctx
 	return func() tea.Msg {
-		files, err := list()
+		files, err := list(ctx)
 		return filesListedMsg{a, files, err, quiet}
 	}
 }

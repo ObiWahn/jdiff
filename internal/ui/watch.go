@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -95,10 +96,13 @@ func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
 	if s.cfg.Settings.AutoReloadInterval <= 0 {
 		return showAutoReloadError(errors.New("auto_reload_interval is 0"))
 	}
-	status, err := s.repoStatus()
+	ctx, cancel := context.WithCancel(context.Background())
+	status, err := s.repoStatus(ctx)
 	if err != nil {
+		cancel()
 		return showAutoReloadError(err)
 	}
+	s.autoCtx, s.autoCancel = ctx, cancel
 	s.cfg.AutoReload, s.lastStatus, s.lastActive = true, status, time.Now()
 	s.autoGen++
 	s.watchRepo()
@@ -107,10 +111,15 @@ func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
 	return tea.Batch(cmd, s.autoTick(), s.waitRepo())
 }
 
-// stopAutoReload ends auto reload: no git commands run for it from now on.
+// stopAutoReload ends auto reload: its git commands are killed, and none
+// run for it from now on.
 func (s *DiffSwitch) stopAutoReload() {
 	s.cfg.AutoReload = false
 	s.autoGen++
+	if s.autoCancel != nil {
+		s.autoCancel()
+		s.autoCancel = nil
+	}
 	if s.repoWatch != nil {
 		s.repoWatch.Close()
 		s.repoWatch = nil
@@ -127,9 +136,9 @@ func (s *DiffSwitch) autoTick() tea.Cmd {
 // checkStatus returns the command running git status.
 func (s *DiffSwitch) checkStatus() tea.Cmd {
 	s.statusRuns++
-	gen, status := s.autoGen, s.repoStatus
+	gen, status, ctx := s.autoGen, s.repoStatus, s.autoCtx
 	return func() tea.Msg {
-		st, err := status()
+		st, err := status(ctx)
 		return autoStatusMsg{gen, st, err}
 	}
 }

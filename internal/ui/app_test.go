@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -143,7 +144,7 @@ func TestAppRelistErrorFirstLine(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{
 		{Path: "f00", New: []string{"x"}, InNew: true},
 		{Path: "f01", New: []string{"x"}, InNew: true},
-	}).WithRelist(func() ([]source.File, error) { return nil, errors.New("x0\nx1") })
+	}).WithRelist(func(context.Context) ([]source.File, error) { return nil, errors.New("x0\nx1") })
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	_, cmd := a.Update(refreshMsg{})
 	a.Update(cmd()) // the listing, which runs in the background
@@ -223,7 +224,7 @@ func newRelistApp(files *[]source.File, err *error) *App {
 		{Path: "b.go", New: []string{"new"}, InNew: true},
 		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
 	}
-	a := NewApp(config.Default(), *files).WithRelist(func() ([]source.File, error) { return *files, *err })
+	a := NewApp(config.Default(), *files).WithRelist(func(context.Context) ([]source.File, error) { return *files, *err })
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return a
 }
@@ -355,7 +356,7 @@ type fakeGitDiff struct {
 	err  error
 }
 
-func (g *fakeGitDiff) diff(args []string, untracked bool) ([]source.File, error) {
+func (g *fakeGitDiff) diff(_ context.Context, args []string, untracked bool) ([]source.File, error) {
 	g.runs = append(g.runs, args)
 	if g.err != nil {
 		return nil, g.err
@@ -891,14 +892,14 @@ func newUntrackedApp() *App {
 	file := func(name string) source.File {
 		return source.File{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
 	}
-	list := func(_ []string, untracked bool) ([]source.File, error) {
+	list := func(_ context.Context, _ []string, untracked bool) ([]source.File, error) {
 		files := []source.File{file("f00"), file("f01")}
 		if untracked {
 			files = append(files, source.File{Path: "x0", New: []string{"new"}, InNew: true})
 		}
 		return files, nil
 	}
-	files, _ := list(nil, cfg.Settings.Untracked)
+	files, _ := list(context.Background(), nil, cfg.Settings.Untracked)
 	a := NewApp(cfg, files).WithGitDiff([]string{"HEAD"}, list)
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	return a

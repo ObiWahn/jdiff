@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -385,22 +386,26 @@ type DiffSwitch struct {
 	// without auto reload, which is checked every auto_reload_interval and at once
 	// when repoWatch, if the system has one, reports a change of the files of
 	// repoPaths. statusRuns counts the checks under way; autoGen tells this
-	// run of auto reload from earlier ones.
-	repoStatus func() (string, error)
+	// run of auto reload from earlier ones; autoCtx ends its git commands,
+	// autoCancel ends autoCtx.
+	repoStatus func(ctx context.Context) (string, error)
 	repoPaths  func() ([]string, error)
 	repoWatch  *notify.Watcher
 	lastStatus string
 	lastActive time.Time
 	statusRuns int
 	autoGen    int
+	autoCtx    context.Context
+	autoCancel context.CancelFunc
 	input      *lineInput // while it asks
 	err        string     // why git failed, until the next key
 	// running is set while git diff runs for the request number diffGen of
-	// show.
-	running bool
-	diffGen int
-	width   int
-	height  int
+	// show; diffCancel ends it.
+	running    bool
+	diffGen    int
+	diffCancel context.CancelFunc
+	width      int
+	height     int
 }
 
 // WithDiffSwitch returns the switch for view, which wrap puts in its
@@ -411,7 +416,7 @@ func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea
 
 // WithAutoReload sets how auto reload gets the state of the repository and
 // the files to watch for changes of it, and returns s.
-func (s *DiffSwitch) WithAutoReload(status func() (string, error), paths func() ([]string, error)) *DiffSwitch {
+func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error)) *DiffSwitch {
 	s.repoStatus, s.repoPaths = status, paths
 	return s
 }
@@ -430,7 +435,8 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 	case askDiffMsg:
-		s.input, s.err, s.running = &lineInput{}, "", false
+		s.input, s.err = &lineInput{}, ""
+		s.endDiff()
 		return s, nil
 	case diffListedMsg:
 		return s, s.showDiff(msg)
@@ -477,7 +483,8 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
 	case k.String() == "ctrl+c":
 		return tea.Quit
 	case in.cancels(k):
-		s.input, s.running = nil, false
+		s.input = nil
+		s.endDiff()
 		return nil
 	}
 	switch k.String() {
@@ -554,6 +561,25 @@ func joinArgs(args []string) string {
 	return strings.Join(quoted, " ")
 }
 
+// endDiff ends the git diff of the popup, if one runs: its files are no
+// longer wanted.
+func (s *DiffSwitch) endDiff() {
+	s.running = false
+	if s.diffCancel != nil {
+		s.diffCancel()
+		s.diffCancel = nil
+	}
+}
+
+// stop ends all git commands of s and its view: the program ends.
+func (s *DiffSwitch) stop() {
+	s.endDiff()
+	s.stopAutoReload()
+	if v, ok := s.view.(interface{ stop() }); ok {
+		v.stop()
+	}
+}
+
 // diffListedMsg brings the files of git diff with args, run for the request
 // number gen of show, or why git failed.
 type diffListedMsg struct {
@@ -567,11 +593,14 @@ type diffListedMsg struct {
 // for showDiff. The popup stays open meanwhile and says so; esc closes it
 // and drops the files, as another request does.
 func (s *DiffSwitch) show(args []string) tea.Cmd {
+	s.endDiff()
 	s.diffGen++
 	s.running = true
+	ctx, cancel := context.WithCancel(context.Background())
+	s.diffCancel = cancel
 	gen, untracked, gitDiff := s.diffGen, s.cfg.Settings.Untracked, s.gitDiff
 	return func() tea.Msg {
-		files, err := gitDiff(args, untracked)
+		files, err := gitDiff(ctx, args, untracked)
 		return diffListedMsg{gen, args, files, err}
 	}
 }
@@ -584,7 +613,7 @@ func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
 	if msg.gen != s.diffGen || !s.running { // closed or opened again meanwhile
 		return nil
 	}
-	s.running = false
+	s.endDiff()
 	args, files := msg.args, msg.files
 	if msg.err != nil {
 		s.err = firstLine(msg.err)
@@ -736,6 +765,14 @@ type SizeGuard struct {
 
 // WithSizeGuard returns m guarded against too small terminals.
 func WithSizeGuard(cfg *config.Config, m tea.Model) *SizeGuard { return &SizeGuard{Model: m, cfg: cfg} }
+
+// Stop ends the git commands that run in the background, and the watching
+// of files, once the program ended: its git commands would else run on.
+func (g *SizeGuard) Stop() {
+	if m, ok := g.Model.(interface{ stop() }); ok {
+		m.stop()
+	}
+}
 
 func (g *SizeGuard) tooSmall() bool { return g.width < minWidth || g.height < minHeight }
 

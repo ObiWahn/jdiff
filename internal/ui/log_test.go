@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -42,7 +43,7 @@ func newTestLogOrder(oldestFirst bool) (*Log, map[string]int) {
 		"c2": {modified("a.go", []string{"0"}, []string{"1"})},
 		"c1": {modified("c.go", []string{"p"}, []string{"q", "r"})},
 	}
-	load := func(c gitsrc.Commit) ([]source.File, error) {
+	load := func(_ context.Context, c gitsrc.Commit) ([]source.File, error) {
 		loads[c.Hash]++
 		if f, ok := files[c.Hash]; ok {
 			return f, nil
@@ -221,7 +222,7 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 // counting the loads.
 func newNumberedLog(n int) (*Log, map[string]int) {
 	loads := map[string]int{}
-	load := func(c gitsrc.Commit) ([]source.File, error) {
+	load := func(_ context.Context, c gitsrc.Commit) ([]source.File, error) {
 		loads[c.Hash]++
 		return []source.File{modified(c.Hash+".go", []string{"1"}, []string{"2"})}, nil
 	}
@@ -410,9 +411,9 @@ func TestLogListWideAuthor(t *testing.T) {
 func TestLogErrorFirstLine(t *testing.T) {
 	fail := errors.New("x0\nx1")
 	commits := []gitsrc.Commit{{Hash: "c00", Short: "c00", Subject: "subject c00"}}
-	load := func(gitsrc.Commit) ([]source.File, error) { return nil, fail }
+	load := func(context.Context, gitsrc.Commit) ([]source.File, error) { return nil, fail }
 	l := NewLog(config.Default(), "main", commits, false, load, nil).
-		WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, fail })
+		WithRelist(func(context.Context) (string, []gitsrc.Commit, error) { return "", nil, fail })
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 
 	_, cmd := l.Update(refreshMsg{})
@@ -605,7 +606,7 @@ func TestFlowStayInCommit(t *testing.T) {
 func TestLogExpandsTabsInCommits(t *testing.T) {
 	commits := []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-22", Author: "A\tB",
 		Subject: "sub\tject\x01", Body: "body\tline\nsecond\t\tline"}}
-	load := func(gitsrc.Commit) ([]source.File, error) {
+	load := func(context.Context, gitsrc.Commit) ([]source.File, error) {
 		return []source.File{modified("a.go", []string{"1"}, []string{"2"})}, nil
 	}
 	l := NewLog(config.Default(), "main", commits, false, load, nil)
@@ -649,7 +650,7 @@ func newCountingLog(fail bool) (*Log, *[][]string) {
 		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
 	}
 	var asked [][]string
-	counts := func(hashes []string) (map[string]gitsrc.LineCounts, error) {
+	counts := func(_ context.Context, hashes []string) (map[string]gitsrc.LineCounts, error) {
 		asked = append(asked, hashes)
 		if fail {
 			return nil, errors.New("git broke")
@@ -738,7 +739,7 @@ func TestLogCountsFail(t *testing.T) {
 
 // relistTo makes r list the commits hashes of l, on branch, newest first.
 func relistTo(l *Log, branch string, hashes ...string) {
-	l.WithRelist(func() (string, []gitsrc.Commit, error) {
+	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) {
 		var commits []gitsrc.Commit
 		for _, h := range hashes {
 			commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "subject " + h})
@@ -796,7 +797,7 @@ func TestLogRelistFlowStaysOnCommit(t *testing.T) {
 
 func TestLogRelistFails(t *testing.T) {
 	l, _ := newTestLog()
-	l.WithRelist(func() (string, []gitsrc.Commit, error) { return "", nil, errors.New("git log: broken") })
+	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) { return "", nil, errors.New("git log: broken") })
 	pressLog(l, "r")
 	if l.msg != "git log: broken" || len(l.commits) != 4 || l.branch != "main" {
 		t.Errorf("msg %q, %d commits, branch %q", l.msg, len(l.commits), l.branch)

@@ -4,6 +4,7 @@ package gitsrc
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"jdiff/internal/source"
 )
@@ -35,22 +38,69 @@ type Commit struct {
 type LineCounts struct{ Added, Removed int }
 
 // Repo runs git in a directory; the empty Dir means the current directory.
-type Repo struct{ Dir string }
+type Repo struct {
+	Dir string
+	ctx context.Context // ends the git commands, see WithContext
+}
+
+// WithContext returns r running its git commands with ctx: when it is done,
+// they are killed and the methods return its error. Without, they run to
+// their end.
+func (r Repo) WithContext(ctx context.Context) Repo {
+	r.ctx = ctx
+	return r
+}
+
+// running counts the git commands that run, see Wait.
+var running sync.WaitGroup
+
+// Wait waits until the git commands that run have ended, at most d, and
+// reports whether they have. Killing the commands of a cancelled context
+// takes a moment, which a program that ends must wait for: else they run
+// on without it.
+func Wait(d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		running.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
+}
+
+// command returns the command running git with args in r.Dir.
+func (r Repo) command(args ...string) *exec.Cmd {
+	ctx := r.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = r.Dir
+	return cmd
+}
 
 func (r Repo) git(args ...string) ([]byte, error) { return r.run(nil, nil, args...) }
 
 // run runs git with env added to its environment and stdin as its input.
 func (r Repo) run(env []string, stdin []byte, args ...string) ([]byte, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = r.Dir
+	cmd := r.command(args...)
 	cmd.Env = append(cmd.Environ(), env...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	running.Add(1)
 	out, err := cmd.Output()
+	running.Done()
 	if err != nil {
+		if r.ctx != nil && r.ctx.Err() != nil {
+			return nil, r.ctx.Err() // killed: what git says is of no interest
+		}
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
 			return nil, fmt.Errorf("git %s: %s", args[0], msg)
 		}
@@ -330,7 +380,7 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	paths, err := Repo{Dir: top}.untracked()
+	paths, err := Repo{Dir: top, ctx: r.ctx}.untracked()
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +399,7 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
 	env := []string{"GIT_INDEX_FILE=" + index}
 	// One file may be named like a pathspec, say with a * in it.
 	list := []byte(strings.Join(paths, "\x00"))
-	if _, err := (Repo{Dir: top}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
+	if _, err := (Repo{Dir: top, ctx: r.ctx}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
 		"add", "-N", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 		return nil, err
 	}
@@ -560,8 +610,7 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
-	cmd := exec.Command("git", "cat-file", "--batch")
-	cmd.Dir = r.Dir
+	cmd := r.command("cat-file", "--batch")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdin, err := cmd.StdinPipe()
@@ -575,6 +624,8 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	running.Add(1)
+	defer running.Done()
 	go func() {
 		w := bufio.NewWriter(stdin)
 		for _, s := range specs {
@@ -615,6 +666,9 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}
 	}
 	if err := cmd.Wait(); err != nil {
+		if r.ctx != nil && r.ctx.Err() != nil {
+			return nil, r.ctx.Err()
+		}
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
 			return nil, fmt.Errorf("git cat-file: %s", msg)
 		}

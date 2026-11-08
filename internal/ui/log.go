@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,11 +15,13 @@ import (
 	"jdiff/internal/source"
 )
 
-// LoadFunc returns the files a commit changed.
-type LoadFunc func(gitsrc.Commit) ([]source.File, error)
+// LoadFunc returns the files a commit changed. It runs in the background,
+// and ends when ctx is done.
+type LoadFunc func(ctx context.Context, c gitsrc.Commit) ([]source.File, error)
 
-// CountFunc returns the line counts of the commits with the given hashes.
-type CountFunc func(hashes []string) (map[string]gitsrc.LineCounts, error)
+// CountFunc returns the line counts of the commits with the given hashes. It
+// runs in the background, and ends when ctx is done.
+type CountFunc func(ctx context.Context, hashes []string) (map[string]gitsrc.LineCounts, error)
 
 // countsMsg brings the line counts of the commits hashes, or why they could
 // not be counted.
@@ -60,6 +63,9 @@ type Log struct {
 	// background, again when they are to be listed once more after that,
 	// quietly with againQuiet (see relistCommits).
 	relisting, again, againQuiet bool
+	// ctx ends the git commands of the log, cancel ends ctx, see stop.
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	commits []*commitEntry
 	order   historyOrder // of commits
@@ -79,6 +85,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	load LoadFunc, counts CountFunc) *Log {
 	l := &Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1,
 		order: orderOf(oldestFirst)}
+	l.ctx, l.cancel = context.WithCancel(context.Background())
 	if counts != nil {
 		l.minCount = countWidth
 	}
@@ -93,7 +100,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 	l.measure()
 	l.flow = newFlow(cfg, parts, func(p int) tea.Cmd {
 		part := l.flow.parts[p]
-		return l.loadCmd(part.commit, 0, part)
+		return l.loadCmd(l.ctx, part.commit, 0, part)
 	})
 	l.flow.order = l.order
 	if len(commits) == 0 {
@@ -118,8 +125,9 @@ func newCommitEntry(c gitsrc.Commit, counted bool) *commitEntry {
 	return &commitEntry{Commit: c, counted: counted}
 }
 
-// CommitsFunc lists the commits of the log again, with the branch.
-type CommitsFunc func() (branch string, commits []gitsrc.Commit, err error)
+// CommitsFunc lists the commits of the log again, with the branch. It runs
+// in the background, and ends when ctx is done.
+type CommitsFunc func(ctx context.Context) (branch string, commits []gitsrc.Commit, err error)
 
 // WithRelist sets how r lists the commits again and returns l.
 func (l *Log) WithRelist(list CommitsFunc) *Log {
@@ -155,9 +163,9 @@ func (l *Log) countShown() tea.Cmd {
 		return nil
 	}
 	l.counting = true
-	counts := l.counts
+	ctx, counts := l.ctx, l.counts
 	return func() tea.Msg {
-		c, err := counts(hashes)
+		c, err := counts(ctx, hashes)
 		return countsMsg{hashes, c, err}
 	}
 }
@@ -357,7 +365,7 @@ func (l *Log) toggleFlow() tea.Cmd {
 func (l *Log) app(i int) (*App, error) {
 	e := l.commits[i]
 	if e.app == nil {
-		files, err := l.load(e.Commit)
+		files, err := l.load(l.ctx, e.Commit)
 		if err != nil {
 			return nil, err
 		}
@@ -427,13 +435,13 @@ type commitLoadedMsg struct {
 }
 
 // loadCmd returns the command loading the files of e in the background, for
-// request gen and the flow's part, see commitLoadedMsg. Only git runs there:
-// the views are made when the files come, on the keys' side, which owns the
-// settings.
-func (l *Log) loadCmd(e *commitEntry, gen int, part *flowPart) tea.Cmd {
+// request gen and the flow's part, see commitLoadedMsg; ctx ends it. Only git
+// runs there: the views are made when the files come, on the keys' side,
+// which owns the settings.
+func (l *Log) loadCmd(ctx context.Context, e *commitEntry, gen int, part *flowPart) tea.Cmd {
 	c, load := e.Commit, l.load
 	return func() tea.Msg {
-		files, err := load(c)
+		files, err := load(ctx, c)
 		return commitLoadedMsg{gen, c.Hash, files, err, part}
 	}
 }
@@ -441,23 +449,34 @@ func (l *Log) loadCmd(e *commitEntry, gen int, part *flowPart) tea.Cmd {
 // commitRequest is the commit requestCommit loads: shown with path open
 // when it arrives, if the view is still from, which it was asked from; with
 // files, as filesOfFlow asks, its file list when the flow view still shows
-// it. msg says that it loads.
+// it. msg says that it loads; cancel ends its git commands.
 type commitRequest struct {
 	gen       int
 	path, msg string
 	from      *commitEntry
 	files     bool
+	cancel    context.CancelFunc
 }
 
-// request starts loading the files of e for req, dropping any request
-// before, and returns the command; the status bar says that it loads.
+// request starts loading the files of e for req, ending any request before
+// and its git commands, and returns the command; the status bar says that
+// it loads.
 func (l *Log) request(e *commitEntry, req commitRequest) tea.Cmd {
+	if l.pending != nil {
+		l.pending.cancel()
+	}
 	l.loadGen++
 	req.gen, req.msg = l.loadGen, "loading "+e.Short+"…"
+	ctx, cancel := context.WithCancel(l.ctx)
+	req.cancel = cancel
 	l.pending = &req
 	l.setMsg(req.msg)
-	return l.loadCmd(e, req.gen, nil)
+	return l.loadCmd(ctx, e, req.gen, nil)
 }
+
+// stop ends the git commands the log runs in the background: the view is
+// replaced, or the program ends.
+func (l *Log) stop() { l.cancel() }
 
 // requestCommit shows commit i as openCommit does, at once when its files
 // are loaded, else it returns the command loading them, which runs git
@@ -498,6 +517,7 @@ func (l *Log) commitLoaded(msg commitLoadedMsg) tea.Cmd {
 		return cmd
 	}
 	l.pending = nil
+	req.cancel()
 	l.dropMsg(req.msg)
 	switch {
 	case e == nil:
@@ -541,9 +561,9 @@ func (l *Log) relistCommits(quiet bool) tea.Cmd {
 	if !quiet {
 		l.setMsg("loading again…")
 	}
-	list := l.relist
+	ctx, list := l.ctx, l.relist
 	return func() tea.Msg {
-		branch, commits, err := list()
+		branch, commits, err := list(ctx)
 		return commitsListedMsg{l, branch, commits, err, quiet}
 	}
 }

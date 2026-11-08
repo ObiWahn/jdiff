@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -341,7 +342,7 @@ func TestAppRelistSwitchesWatching(t *testing.T) {
 	for _, e := range a.files {
 		list = append(list, e.File)
 	}
-	a.WithRelist(func() ([]source.File, error) { return list, nil })
+	a.WithRelist(func(context.Context) ([]source.File, error) { return list, nil })
 
 	// Files in a third directory: over the limit of 2, so polling.
 	a.cfg.Settings.InotifyMaxDirs = 2
@@ -440,8 +441,8 @@ type fakeRepo struct {
 	paths  []string
 }
 
-func (r *fakeRepo) getStatus() (string, error)  { return r.status, r.err }
-func (r *fakeRepo) getPaths() ([]string, error) { return r.paths, nil }
+func (r *fakeRepo) getStatus(context.Context) (string, error) { return r.status, r.err }
+func (r *fakeRepo) getPaths() ([]string, error)               { return r.paths, nil }
 
 // newAutoReload returns the switch around a file selector of git diff, with
 // the repository of a watched file, and the file. The view and the switch share

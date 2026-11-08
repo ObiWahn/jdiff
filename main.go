@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -251,7 +253,7 @@ func start(o options, mode string, args []string) {
 	wrap := func(m tea.Model) tea.Model {
 		return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 	}
-	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))
+	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths)))
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -262,7 +264,14 @@ func run(page tea.Model) {
 	if colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ANSI {
 		opts = append(opts, tea.WithColorProfile(colorprofile.ANSI))
 	}
-	if _, err := tea.NewProgram(page, opts...).Run(); err != nil {
+	end, err := tea.NewProgram(page, opts...).Run()
+	// git commands still running in the background are of no use now: they
+	// are killed, which takes a moment.
+	if s, ok := end.(interface{ Stop() }); ok {
+		s.Stop()
+		gitsrc.Wait(time.Second)
+	}
+	if err != nil {
 		fatal(err)
 	}
 }
@@ -278,7 +287,7 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		relist := func() ([]source.File, error) { return source.LoadDirs(oldPath, newPath) }
+		relist := func(context.Context) ([]source.File, error) { return source.LoadDirs(oldPath, newPath) }
 		return ui.NewApp(cfg, files).WithRelist(relist), nil
 	}
 
@@ -304,17 +313,24 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	if len(commits) == 0 {
 		return nil, fmt.Errorf("no commits")
 	}
-	relist := func() (string, []gitsrc.Commit, error) {
-		commits, err := repo.Log(args)
-		return repo.Branch(), commits, err
+	relist := func(ctx context.Context) (string, []gitsrc.Commit, error) {
+		r := repo.WithContext(ctx)
+		commits, err := r.Log(args)
+		return r.Branch(), commits, err
 	}
-	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts).WithRelist(relist), nil
+	files := func(ctx context.Context, c gitsrc.Commit) ([]source.File, error) {
+		return repo.WithContext(ctx).Files(c)
+	}
+	counts := func(ctx context.Context, hashes []string) (map[string]gitsrc.LineCounts, error) {
+		return repo.WithContext(ctx).Counts(hashes)
+	}
+	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), files, counts).WithRelist(relist), nil
 }
 
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-	files, err := gitDiff(args, cfg.Settings.Untracked)
+	files, err := gitDiff(context.Background(), args, cfg.Settings.Untracked)
 	if err != nil {
 		return nil, err
 	}
@@ -323,12 +339,17 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
 
 // gitDiff runs git diff with args, with the untracked files when untracked
 // is set; see ui.DiffFunc.
-func gitDiff(args []string, untracked bool) ([]source.File, error) {
+func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+	repo := gitsrc.Repo{}.WithContext(ctx)
 	if untracked {
-		return gitsrc.Repo{}.DiffUntracked(args)
+		return repo.DiffUntracked(args)
 	}
-	return gitsrc.Repo{}.Diff(args)
+	return repo.Diff(args)
 }
+
+// gitStatus returns the state of the repository for auto reload, see
+// gitsrc.Repo.Status.
+func gitStatus(ctx context.Context) (string, error) { return gitsrc.Repo{}.WithContext(ctx).Status() }
 
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "jdiff:", err)
