@@ -195,6 +195,8 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
 			switch {
 			case !slices.ContainsFunc(*t.rows, func(b keyRow) bool { return b.Action == r.Action }):
 				problems = append(problems, "no action "+r.Action+" in "+t.name)
+			case len(r.Keys) == 0:
+				problems = append(problems, r.Action+" in "+t.name+" has no keys")
 			case slices.Contains(twoWay, r.Action) && len(r.Keys) != 2:
 				problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")
 			}
