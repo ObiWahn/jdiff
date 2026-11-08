@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -73,13 +74,41 @@ func Reversed(args []string) bool {
 	return rev
 }
 
+// logFormatFlags and diffFormatFlags are the flags of git log and git diff
+// that change the output jdiff reads, alone or with =value.
+var (
+	logFormatFlags  = []string{"--oneline", "--pretty", "--format", "--graph", "--show-signature"}
+	diffFormatFlags = []string{"-p", "-u", "--patch", "-s", "--no-patch", "--stat", "--numstat", "--shortstat",
+		"--dirstat", "--name-only", "--name-status", "--summary", "--compact-summary", "--check",
+		"--patch-with-raw", "--patch-with-stat", "--output"}
+)
+
+// checkFormat returns an error naming the first argument before a -- that
+// is one of flags: they change the output of git command, which jdiff reads.
+func checkFormat(command string, args, flags []string) error {
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		name, _, _ := strings.Cut(a, "=")
+		if slices.Contains(flags, name) {
+			return fmt.Errorf("git %s: %s changes the output jdiff reads, leave it out", command, name)
+		}
+	}
+	return nil
+}
+
 // Log returns the commits git log selects with args, in its order, without
 // their line counts: counting diffs every commit, which takes seconds in a
 // long history, so Counts does it for the commits shown. Records start with
 // RS, fields are separated by US and the body, which may span lines, ends
-// with GS.
+// with GS. Signatures are not shown, even with log.showSignature set: their
+// output would come between the records.
 func (r Repo) Log(args []string) ([]Commit, error) {
-	out, err := r.git(append([]string{"log",
+	if err := checkFormat("log", args, logFormatFlags); err != nil {
+		return nil, err
+	}
+	out, err := r.git(append([]string{"log", "--no-show-signature",
 		"--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s%x1f%b%x1d",
 		"--date=short"}, args...)...)
 	if err != nil {
@@ -111,7 +140,7 @@ func (r Repo) Counts(hashes []string) (map[string]LineCounts, error) {
 	if len(hashes) == 0 {
 		return counts, nil
 	}
-	out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--format=%x1e%H", "--numstat", "--no-relative",
+	out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--no-show-signature", "--format=%x1e%H", "--numstat", "--no-relative",
 		"--diff-merges=first-parent", "--end-of-options"}, hashes...)...)
 	if err != nil {
 		return nil, err
@@ -374,6 +403,9 @@ func (r Repo) copyIndex(dir string) (string, error) {
 
 // diff is Diff with env added to the environment of git diff.
 func (r Repo) diff(env, args []string) ([]source.File, error) {
+	if err := checkFormat("diff", args, diffFormatFlags); err != nil {
+		return nil, err
+	}
 	top, err := r.TopLevel()
 	if err != nil {
 		return nil, err
