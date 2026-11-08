@@ -560,11 +560,11 @@ type workingSide struct {
 
 // readWorking reads the side of a file in the working tree at path as git
 // compares it, so that one file cannot fail the whole list: a symlink by
-// the path it points to, as git stores it, and not watched, since watching
-// reads what it points to; a directory, as a file replaced by a symlink to
-// one, and a file that cannot be read as binary, not watched; binary content
-// as binary, watched; a file gone since git listed it as empty, watched so
-// that it shows when it is back.
+// the path it points to, as git stores it, also one to a directory, and not
+// watched, since watching reads what it points to; a directory, as of a
+// submodule, and a file that cannot be read as binary, not watched; binary
+// content as binary, watched; a file gone since git listed it as empty,
+// watched so that it shows when it is back.
 func readWorking(path string) workingSide {
 	info, err := os.Lstat(path)
 	switch {
