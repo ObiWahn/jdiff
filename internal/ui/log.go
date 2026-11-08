@@ -53,6 +53,7 @@ type Log struct {
 	counting bool                    // a count is running
 	byHash   map[string]*commitEntry // the commits by hash
 	minCount int                     // the least width of the count columns
+	cols     logColumns              // see measure
 
 	commits []*commitEntry
 	order   historyOrder // of commits
@@ -83,6 +84,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
 		parts = append(parts, newCommitPart(e))
 	}
 	l.list = list{n: len(l.commits), preview: &cfg.Settings.Preview}
+	l.measure()
 	l.flow = newFlow(cfg, parts, l.app)
 	l.flow.order = l.order
 	if len(commits) == 0 {
@@ -166,6 +168,7 @@ func (l *Log) addCounts(m countsMsg) {
 			e.Added, e.Removed, e.counted = c.Added, c.Removed, true
 		}
 	}
+	l.measure()
 }
 
 func (l *Log) update(msg tea.Msg) tea.Cmd {
@@ -440,6 +443,7 @@ func (l *Log) relistCommits(quiet bool) {
 		l.flow.parts = append(l.flow.parts, p)
 	}
 	l.list.n = len(l.commits)
+	l.measure()
 	if i := slices.Index(l.commits, cur); i >= 0 {
 		l.cursor = i
 	} else {
@@ -502,6 +506,25 @@ func (l *Log) setMsg(msg string) {
 // maxAuthorWidth caps the author column.
 const maxAuthorWidth = 16
 
+// logColumns are the widths the columns of the commit list need: the digits
+// of the counts, the author, the subject, and hash and date together.
+type logColumns struct{ added, removed, author, subject, fixed int }
+
+// measure computes the widths of the columns, after the commits or their
+// counts changed: measuring them on each frame takes too long in a long
+// history.
+func (l *Log) measure() {
+	c := logColumns{added: l.minCount, removed: l.minCount}
+	for _, e := range l.commits {
+		c.added = max(c.added, len(fmt.Sprint(e.Added)))
+		c.removed = max(c.removed, len(fmt.Sprint(e.Removed)))
+		c.author = max(c.author, min(ansi.StringWidth(e.Author), maxAuthorWidth))
+		c.subject = max(c.subject, ansi.StringWidth(e.Subject))
+		c.fixed = max(c.fixed, ansi.StringWidth(e.Short)+ansi.StringWidth(e.Date))
+	}
+	l.cols = c
+}
+
 func (l *Log) View() tea.View { return tea.NewView(l.frame()) }
 
 func (l *Log) frame() string {
@@ -515,18 +538,11 @@ func (l *Log) frame() string {
 		return ""
 	}
 	t := l.cfg.Theme
-	addW, remW, authW, subjW, fixedW := l.minCount, l.minCount, 0, 0, 0
-	for _, c := range l.commits {
-		addW = max(addW, len(fmt.Sprint(c.Added)))
-		remW = max(remW, len(fmt.Sprint(c.Removed)))
-		authW = max(authW, min(ansi.StringWidth(c.Author), maxAuthorWidth))
-		subjW = max(subjW, ansi.StringWidth(c.Subject))
-		fixedW = max(fixedW, ansi.StringWidth(c.Short)+ansi.StringWidth(c.Date))
-	}
+	addW, remW, authW := l.cols.added, l.cols.removed, l.cols.author
 	// The subject gets the room left by the other columns, so that author
 	// and date stay aligned and visible.
-	fixedW += 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
-	subjW = max(min(subjW, l.width-fixedW), 1)
+	fixedW := l.cols.fixed + 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
+	subjW := max(min(l.cols.subject, l.width-fixedW), 1)
 
 	head := " " + t.Branch.Render(l.branch) + " " +
 		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
