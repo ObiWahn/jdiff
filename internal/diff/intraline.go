@@ -9,6 +9,11 @@ import (
 // lines count as unrelated and get no emphasis (delta uses the same default).
 const maxLineDistance = 0.6
 
+// MaxEmphLine is the longest line, in bytes, whose changed words are
+// emphasized: comparing the words of longer ones, as of minified code, takes
+// tens of milliseconds a line.
+const MaxEmphLine = 4096
+
 type token struct {
 	text       string
 	start, end int
@@ -20,8 +25,11 @@ type token struct {
 // token, and runs of whitespace next to the same unchanged words keep what
 // they have in common, so only the added or removed part is emphasized. Both
 // results are nil when the lines are too different for emphasis to be
-// useful.
+// useful, or one of them is longer than MaxEmphLine.
 func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
+	if len(a) > MaxEmphLine || len(b) > MaxEmphLine {
+		return nil, nil
+	}
 	ta, tb := tokenize(a, splitIndent), tokenize(b, splitIndent)
 	ma := make([]bool, len(ta))
 	mb := make([]bool, len(tb))

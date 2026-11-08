@@ -108,7 +108,7 @@ func (e *entry) updateStats() {
 		e.added, e.removed = diff.Stats(e.diff.rows)
 		return
 	}
-	e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil, diff.Options{}))
+	e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil))
 }
 
 // fileListRows is the most rows the file list takes while the preview shows,

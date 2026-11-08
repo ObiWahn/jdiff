@@ -30,12 +30,22 @@ func lineOf(r diff.Row, s side) int {
 	return r.Right
 }
 
-// emphOf returns the emphasized parts of the line of side s in r.
-func emphOf(r diff.Row, s side) []diff.Span {
-	if s == left {
-		return r.LeftEmph
+// emphOf returns the emphasized parts of the line of side s in row i, none
+// unless it is a Change row. They are computed when the row is first drawn
+// and kept until the next alignment: computing them for all rows when a
+// large change is loaded took seconds.
+func (d *fileDiff) emphOf(i int, s side) []diff.Span {
+	r := d.rows[i]
+	if r.Kind != diff.Change {
+		return nil
 	}
-	return r.RightEmph
+	e, ok := d.emph[i]
+	if !ok {
+		e[left], e[right] = diff.Intraline(d.lines[left][r.Left], d.lines[right][r.Right],
+			d.cfg.Settings.OnlyChangedWhitespaces)
+		d.emph[i] = e
+	}
+	return e[s]
 }
 
 // anchorLine returns the line of side s that an anchors.
@@ -104,7 +114,8 @@ type fileDiff struct {
 
 	anchors []diff.Anchor // sorted by Left, never crossing
 	rows    []diff.Row
-	rowOf   [2][]int // line index -> row index, per side
+	rowOf   [2][]int               // line index -> row index, per side
+	emph    map[int][2][]diff.Span // emphasized parts by row, see emphOf
 
 	blocks   []block      // foldable blocks of unchanged rows
 	foldOpen map[int]bool // open state by the block's first left line
@@ -122,7 +133,7 @@ type fileDiff struct {
 	reloadSide side
 	moved      []int
 
-	widths [2][]int // the columns each line takes when drawn, per side
+	widths [2][]int // the columns each line takes when drawn, per side, -1 until measured
 	// highlighted is the line drawn last, per side, see content.
 	highlighted [2]highlightCache
 
@@ -157,13 +168,26 @@ func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDi
 	return d
 }
 
-// measure computes the widths of the lines of side s, without the \r of a
-// \r\n line end: see crShown.
+// measure forgets the widths of the lines of side s, after its lines were
+// set: see width.
 func (d *fileDiff) measure(s side) {
 	d.widths[s] = make([]int, len(d.lines[s]))
-	for i, l := range d.lines[s] {
-		d.widths[s][i] = ansi.StringWidth(printable(strings.TrimSuffix(l, "\r")))
+	for i := range d.widths[s] {
+		d.widths[s][i] = -1
 	}
+}
+
+// width returns the columns line of side s takes when drawn, without the \r
+// of a \r\n line end (see crShown). It is measured on first use: only
+// wrapping needs it, and measuring all lines took most of the time loading a
+// large change takes.
+func (d *fileDiff) width(s side, line int) int {
+	if w := d.widths[s][line]; w >= 0 {
+		return w
+	}
+	w := ansi.StringWidth(printable(strings.TrimSuffix(d.lines[s][line], "\r")))
+	d.widths[s][line] = w
+	return w
 }
 
 // crShown reports whether line of side s ends in a \r that is drawn in sh:
@@ -176,7 +200,7 @@ func (d *fileDiff) crShown(s side, line int, sh shape) bool {
 	if sh.cr {
 		return true
 	}
-	for _, sp := range emphOf(d.rows[d.rowOf[s][line]], s) {
+	for _, sp := range d.emphOf(d.rowOf[s][line], s) {
 		if sp.End == len(text) {
 			return true
 		}
@@ -259,7 +283,7 @@ func lineMap(old, new []string) []int {
 	for i := range moved {
 		moved[i] = -1
 	}
-	for _, r := range diff.Align(old, new, nil, diff.Options{}) {
+	for _, r := range diff.Align(old, new, nil) {
 		if r.Kind == diff.Equal {
 			moved[r.Left] = r.Right
 		}
@@ -404,8 +428,8 @@ func (d *fileDiff) anchorAt(s side, line int) (diff.Anchor, bool) {
 // align computes the rows from the lines and anchors, then the displayed
 // rows.
 func (d *fileDiff) align() {
-	d.rows = diff.Align(d.lines[left], d.lines[right], d.anchors,
-		diff.Options{SplitIndent: d.cfg.Settings.OnlyChangedWhitespaces})
+	d.rows = diff.Align(d.lines[left], d.lines[right], d.anchors)
+	d.emph = map[int][2][]diff.Span{}
 	for s := range d.rowOf {
 		d.rowOf[s] = make([]int, len(d.lines[s]))
 	}
@@ -496,7 +520,7 @@ func (d *fileDiff) pieces(s side, line int, sh shape) int {
 	if sh.wrap == 0 || line < 0 || cw == 0 {
 		return 1
 	}
-	w := d.widths[s][line]
+	w := d.width(s, line)
 	if sh.lineEnd {
 		w++
 	}

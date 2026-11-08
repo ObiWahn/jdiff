@@ -25,26 +25,19 @@ type Anchor struct{ Left, Right int }
 // Span is a byte range [Start, End) within a line.
 type Span struct{ Start, End int }
 
-// Row is one display row of the side-by-side view.
+// Row is one display row of the side-by-side view. The emphasized parts of
+// a Change row are not part of it: Intraline computes them for the rows
+// shown, as most rows of a large change never are.
 type Row struct {
 	Kind        Kind
 	Left, Right int  // 0-based line indices, -1 when absent
 	Anchored    bool // the row is a user anchor
-	// Emphasized parts of Change rows, as computed by Intraline.
-	LeftEmph, RightEmph []Span
-}
-
-// Options control how changed lines are compared.
-type Options struct {
-	// SplitIndent compares indentation character by character, so only its
-	// added or removed part is emphasized.
-	SplitIndent bool
 }
 
 // Align computes the display rows for old lines a and new lines b. anchors
 // must be sorted by Left and must not cross (see Conflicts).
-func Align(a, b []string, anchors []Anchor, opt Options) []Row {
-	al := aligner{a: a, b: b, ka: keys(a), kb: keys(b), opt: opt}
+func Align(a, b []string, anchors []Anchor) []Row {
+	al := aligner{a: a, b: b, ka: keys(a), kb: keys(b)}
 	pa, pb := 0, 0
 	for _, an := range anchors {
 		al.section(pa, an.Left, pb, an.Right)
@@ -58,7 +51,6 @@ func Align(a, b []string, anchors []Anchor, opt Options) []Row {
 // aligner accumulates the rows of one alignment.
 type aligner struct {
 	a, b, ka, kb []string
-	opt          Options
 	rows         []Row
 }
 
@@ -130,7 +122,6 @@ func (al *aligner) addPair(l, r int, anchored bool) {
 	row := Row{Kind: Equal, Left: l, Right: r, Anchored: anchored}
 	if al.a[l] != al.b[r] {
 		row.Kind = Change
-		row.LeftEmph, row.RightEmph = Intraline(al.a[l], al.b[r], al.opt.SplitIndent)
 	}
 	al.rows = append(al.rows, row)
 }

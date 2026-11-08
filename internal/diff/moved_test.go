@@ -8,7 +8,7 @@ import (
 
 // input returns the move input of a file changed from a to b.
 func input(a, b []string) MoveInput {
-	return MoveInput{Old: a, New: b, Rows: Align(a, b, nil, Options{})}
+	return MoveInput{Old: a, New: b, Rows: Align(a, b, nil)}
 }
 
 var block = []string{

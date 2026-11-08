@@ -338,7 +338,7 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	case moved:
 		st.base = d.movedStyle(s)
 	case row.Kind == diff.Change:
-		st.base, st.emph, st.space, spans = nonEmph, emph, indent, emphOf(row, s)
+		st.base, st.emph, st.space, spans = nonEmph, emph, indent, d.emphOf(d.rowOf[s][line], s)
 		if !d.cfg.Settings.BoldChanges {
 			st.emph, st.space = st.emph.UnsetBold(), st.space.UnsetBold()
 		}
