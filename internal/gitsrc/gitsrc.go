@@ -278,8 +278,9 @@ func parseRaw(out []byte) ([]rawEntry, error) {
 // Diff returns the files git diff compares with args, the arguments of git
 // diff: the working tree against the index without any, --cached for the
 // index against HEAD, commits and paths. Sides in the working tree, which
-// git names by the zero id, are read from disk and set OldFile or NewFile,
-// so that they can be watched. Unmerged files are left out.
+// git names by the zero id, are read from disk (see readWorking) and, but
+// symlinks, set OldFile or NewFile, so that they can be watched. Unmerged
+// files are left out.
 func (r Repo) Diff(args []string) ([]source.File, error) { return r.diff(nil, args) }
 
 // DiffUntracked returns what Diff does, and the untracked files as added
@@ -437,18 +438,14 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 				content, binary = lines(blobs[sd.blob], false)
 			} else {
 				path := filepath.Join(top, filepath.FromSlash(sd.path))
-				l, stamp, err := source.Read(path)
-				switch {
-				case errors.Is(err, source.ErrBinary):
-					binary = true
-				case err != nil:
-					return nil, err
-				}
-				content = l
-				if old {
-					f.OldFile, f.OldStamp = path, stamp
-				} else {
-					f.NewFile, f.NewStamp = path, stamp
+				w := readWorking(path)
+				content, binary = w.lines, w.binary
+				if w.watch {
+					if old {
+						f.OldFile, f.OldStamp = path, w.stamp
+					} else {
+						f.NewFile, f.NewStamp = path, w.stamp
+					}
 				}
 			}
 			f.Binary = f.Binary || binary
@@ -460,6 +457,46 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 		}
 	}
 	return files, nil
+}
+
+// workingSide is a side of a file read from the working tree, see
+// readWorking.
+type workingSide struct {
+	lines  []string
+	stamp  source.Stamp
+	binary bool
+	watch  bool // reloaded when it changes on disk
+}
+
+// readWorking reads the side of a file in the working tree at path as git
+// compares it, so that one file cannot fail the whole list: a symlink by
+// the path it points to, as git stores it, and not watched, since watching
+// reads what it points to; a directory, as a file replaced by a symlink to
+// one, and a file that cannot be read as binary, not watched; binary content
+// as binary, watched; a file gone since git listed it as empty, watched so
+// that it shows when it is back.
+func readWorking(path string) workingSide {
+	info, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return workingSide{watch: true}
+	case err != nil:
+		return workingSide{binary: true}
+	case info.Mode()&fs.ModeSymlink != 0:
+		target, err := os.Readlink(path)
+		if err != nil {
+			return workingSide{binary: true}
+		}
+		return workingSide{lines: []string{target}}
+	}
+	l, stamp, err := source.Read(path)
+	switch {
+	case errors.Is(err, source.ErrBinary):
+		return workingSide{stamp: stamp, binary: true, watch: true}
+	case err != nil:
+		return workingSide{binary: true}
+	}
+	return workingSide{lines: l, stamp: stamp, watch: true}
 }
 
 // lines splits a blob, reporting missing blobs (e.g. submodules) and
