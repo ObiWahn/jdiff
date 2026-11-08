@@ -2,11 +2,14 @@ package gitsrc
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -776,5 +779,150 @@ func TestStatus(t *testing.T) {
 	}
 	if _, err := (Repo{Dir: t.TempDir()}).Status(); err == nil {
 		t.Error("outside a repository: no error")
+	}
+}
+
+// symlink makes link point to target, or skips the test where the system
+// does not let it, as Windows without the right.
+func symlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("no symlinks: %v", err)
+	}
+}
+
+// A symlink shows the path it points to, as git compares it, and is not
+// watched, since watching would read what it points to: one that took the
+// place of a file and points to a directory, which failed the whole list,
+// and one pointed elsewhere.
+func TestDiffSymlinks(t *testing.T) {
+	r := newRepo(t)
+	symlink(t, "a.txt", filepath.Join(r.Dir, "link"))
+	gitIn(t, r.Dir, "add", "link")
+	gitIn(t, r.Dir, "commit", "-qm", "link")
+	if err := os.Mkdir(filepath.Join(r.Dir, "dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(r.Dir, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	symlink(t, "dir", filepath.Join(r.Dir, "a.txt"))
+	if err := os.Remove(filepath.Join(r.Dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	symlink(t, "c.txt", filepath.Join(r.Dir, "link"))
+
+	files, err := r.Diff(nil)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	byPath := map[string]source.File{}
+	for _, f := range files {
+		byPath[f.Path] = f
+	}
+	if f := byPath["a.txt"]; f.Binary || !slices.Equal(f.New, []string{"dir"}) || f.NewFile != "" {
+		t.Errorf("a.txt, now a link to a directory: %+v, want dir, not watched", f)
+	}
+	if f := byPath["link"]; !slices.Equal(f.Old, []string{"a.txt"}) || !slices.Equal(f.New, []string{"c.txt"}) || f.NewFile != "" {
+		t.Errorf("link pointed elsewhere: %+v, want a.txt then c.txt, not watched", f)
+	}
+}
+
+// readWorking: a file gone since git listed it is empty and watched, so that
+// it shows when it is back; one that is binary is watched too.
+func TestReadWorking(t *testing.T) {
+	dir := t.TempDir()
+	if w := readWorking(filepath.Join(dir, "gone")); w.binary || w.lines != nil || !w.watch {
+		t.Errorf("gone: %+v, want empty and watched", w)
+	}
+	bin := filepath.Join(dir, "bin")
+	if err := os.WriteFile(bin, []byte("x\x00"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w := readWorking(bin); !w.binary || !w.watch || w.stamp.Size != 2 {
+		t.Errorf("binary: %+v, want binary and watched", w)
+	}
+	if w := readWorking(dir); !w.binary || w.watch {
+		t.Errorf("a directory: %+v, want binary, not watched", w)
+	}
+}
+
+// Flags that change what git prints are refused with a message that names
+// them, also with a value; after --, they are paths.
+func TestFormatFlagsRefused(t *testing.T) {
+	r := newRepo(t)
+	for _, c := range []struct {
+		name string
+		run  func() error
+		flag string
+	}{
+		{"log --oneline", func() error { _, err := r.Log([]string{"--oneline"}); return err }, "--oneline"},
+		{"log --format", func() error { _, err := r.Log([]string{"--format=%H"}); return err }, "--format"},
+		{"log --graph", func() error { _, err := r.Log([]string{"-3", "--graph"}); return err }, "--graph"},
+		{"diff --stat=80", func() error { _, err := r.Diff([]string{"--stat=80"}); return err }, "--stat"},
+		{"diff -p", func() error { _, err := r.Diff([]string{"HEAD~1", "-p"}); return err }, "-p"},
+	} {
+		if err := c.run(); err == nil || !strings.Contains(err.Error(), c.flag+" changes the output jdiff reads") {
+			t.Errorf("%s: %v, want it refused", c.name, err)
+		}
+	}
+	if _, err := r.Diff([]string{"HEAD", "--", "--stat"}); err != nil {
+		t.Errorf("--stat after --, a path: %v", err)
+	}
+	if _, err := r.Log([]string{"--", "--oneline"}); err != nil {
+		t.Errorf("--oneline after --, a path: %v", err)
+	}
+}
+
+// A failing git cat-file reports what git says, not only its exit status.
+func TestCatFilesReportsGit(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "none"))
+	_, err := Repo{Dir: t.TempDir()}.catFiles([]string{"HEAD"})
+	if err == nil || strings.Contains(err.Error(), "exit status") || !strings.HasPrefix(err.Error(), "git cat-file: ") {
+		t.Errorf("err = %v, want git's own message", err)
+	}
+}
+
+// Files asks git cat-file only for the sides a file has: an added file has
+// no old side, a deleted one no new side.
+func TestFilesAddedAndDeletedSides(t *testing.T) {
+	r := newRepo(t)
+	if err := os.Remove(filepath.Join(r.Dir, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, r.Dir, "commit", "-qam", "drop a.txt")
+	commits, err := r.Log([]string{"-2", "--first-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.Files(commits[0])
+	if err != nil || len(files) != 1 || files[0].Path != "a.txt" || files[0].InNew || files[0].New != nil ||
+		!slices.Equal(files[0].Old, []string{"one", "2", "three"}) {
+		t.Errorf("deleted: %+v, %v", files, err)
+	}
+}
+
+// With a context that is done, git does not run on: the methods return the
+// context's error, and none of its commands are left running.
+func TestContextEndsGit(t *testing.T) {
+	r := newRepo(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	rc := r.WithContext(ctx)
+	if _, err := rc.Log(nil); !errors.Is(err, context.Canceled) {
+		t.Errorf("Log: %v, want context.Canceled", err)
+	}
+	if _, err := rc.Diff([]string{"HEAD~1"}); !errors.Is(err, context.Canceled) {
+		t.Errorf("Diff: %v, want context.Canceled", err)
+	}
+	if _, err := rc.catFiles([]string{"HEAD"}); !errors.Is(err, context.Canceled) {
+		t.Errorf("catFiles: %v, want context.Canceled", err)
+	}
+	if !Wait(time.Second) {
+		t.Error("git commands still running")
+	}
+	if _, err := r.Log(nil); err != nil {
+		t.Errorf("without the context: %v", err)
 	}
 }

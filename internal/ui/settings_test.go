@@ -823,6 +823,7 @@ func TestUserKeysProblems(t *testing.T) {
 		{`commit_list = [{ action = "anchor", keys = ["x"] }]`, "no action anchor in commit_list"},
 		{`commit_list = [{ action = "move", keys = ["x"] }]`, "move in commit_list takes two keys"},
 		{`diff_view = [{ action = "pane", keys = ["j"] }]`, "key j has two actions in diff_view"},
+		{`diff_view = [{ action = "pane", keys = [] }]`, "pane in diff_view has no keys"},
 	} {
 		p, problems := keyFile.userKeys(c.text)
 		if len(problems) == 0 || !strings.Contains(strings.Join(problems, "; "), c.want) {

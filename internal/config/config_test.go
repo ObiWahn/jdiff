@@ -442,3 +442,71 @@ func TestMarksBrokenFileAndNoDir(t *testing.T) {
 		t.Error("mark without a configuration directory is lost")
 	}
 }
+
+// Two jdiffs, started before either set a mark, keep each other's marks: a
+// change reads the file again. No temporary file is left behind.
+func TestMarksOfTwoRuns(t *testing.T) {
+	dir := t.TempDir()
+	load := func(repo string) *Config {
+		c, err := Load(dir, nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.LoadMarks(repo)
+		return c
+	}
+	one, two := load("/src/one"), load("/src/two")
+	if err := one.SetMark("a", Mark{Path: "x0.go", Line: 1, Text: "x0"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := two.SetMark("b", Mark{Path: "x1.go", Line: 2, Text: "x1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := two.DeleteMark("c"); err != nil {
+		t.Fatal(err)
+	}
+	if again := load("/src/one"); len(again.Marks()) != 1 || again.Marks()[0].Path != "x0.go" {
+		t.Errorf("marks of one after two saved: %+v", again.Marks())
+	}
+	if again := load("/src/two"); len(again.Marks()) != 1 || again.Marks()[0].Path != "x1.go" {
+		t.Errorf("marks of two: %+v", again.Marks())
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Errorf("temporary file left: %s", e.Name())
+		}
+	}
+}
+
+// Intervals below 0.1s keep a core busy, above a day overflow the duration
+// they become: they are bounded, with a warning.
+func TestIntervalBounds(t *testing.T) {
+	for _, c := range []struct {
+		main             string
+		watch            float64
+		autoReload       int
+		warningsContains string
+	}{
+		{"watch_interval = 0.001\n", 0.1, 10, "watch_interval 0.001 is below 0.1"},
+		{"watch_interval = 1e12\n", 86400, 10, "watch_interval 1e+12 is above 86400"},
+		{"auto_reload_interval = 999999999\n", 1, 86400, "auto_reload_interval 999999999 is above 86400"},
+		{"watch_interval = 0\n", 0, 10, ""},
+		{"watch_interval = 0.1\nauto_reload_interval = 86400\n", 0.1, 86400, ""},
+	} {
+		cfg, err := Load(writeFiles(t, map[string]string{"main.toml": c.main}), nil, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Settings.WatchInterval != c.watch || cfg.Settings.AutoReloadInterval != c.autoReload {
+			t.Errorf("%q: watch %v, auto reload %d; want %v, %d", c.main, cfg.Settings.WatchInterval,
+				cfg.Settings.AutoReloadInterval, c.watch, c.autoReload)
+		}
+		if w := cfg.Warning(); c.warningsContains == "" && w != "" || !strings.Contains(w, c.warningsContains) {
+			t.Errorf("%q: warning %q, want %q", c.main, w, c.warningsContains)
+		}
+	}
+}

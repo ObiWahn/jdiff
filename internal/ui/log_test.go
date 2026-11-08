@@ -1028,3 +1028,188 @@ func TestLogFlowFromFileList(t *testing.T) {
 		t.Errorf("f: flow %v on file %d, want the flow on b.go", l.flowShown(), file)
 	}
 }
+
+// newLoadingLog returns a log of commits c00 ... with two changed files each,
+// whose loads record their contexts, in the order they run.
+func newLoadingLog(n int) (*Log, *[]context.Context) {
+	ctxs := &[]context.Context{}
+	load := func(ctx context.Context, c gitsrc.Commit) ([]source.File, error) {
+		*ctxs = append(*ctxs, ctx)
+		return []source.File{modified(c.Hash+"a.go", []string{"1"}, []string{"2"}),
+			modified(c.Hash+"b.go", []string{"3"}, []string{"4"})}, nil
+	}
+	var commits []gitsrc.Commit
+	for i := range n {
+		h := fmt.Sprintf("c%02d", i)
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+	}
+	l := NewLog(config.Default(), "main", commits, false, load, nil)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	return l, ctxs
+}
+
+// drain runs cmd and the commands that follow, as the runtime does.
+func drain(m tea.Model, cmd tea.Cmd) {
+	for cmd != nil {
+		_, cmd = m.Update(cmd())
+	}
+}
+
+// A log that loading again emptied has no commit for f, or enter in the
+// flow view, to show.
+func TestLogEmptiedByReload(t *testing.T) {
+	l, _ := newTestLog()
+	relistTo(l, "main")
+	pressLog(l, "r")
+	pressLog(l, "f")
+	if l.flowShown() || l.msg != "no commits" {
+		t.Errorf("f: flow shown %v, msg %q", l.flowShown(), l.msg)
+	}
+	l.msg = ""
+	pressLog(l, "enter")
+	if l.flowShown() || l.msg != "no commits" {
+		t.Errorf("enter with flow on: flow shown %v, msg %q", l.flowShown(), l.msg)
+	}
+}
+
+// Of two commits asked for, the one asked for last opens: the files of the
+// other, which come late, are dropped, and its git commands were ended.
+func TestLogLatestRequestWins(t *testing.T) {
+	l, ctxs := newLoadingLog(4)
+	_, first := l.Update(keyMsg("enter"))
+	if !strings.HasPrefix(l.msg, "loading c00") {
+		t.Errorf("while loading: msg %q", l.msg)
+	}
+	l.Update(keyMsg("j"))
+	_, second := l.Update(keyMsg("enter"))
+	l.Update(second())
+	late := first()
+	if (*ctxs)[1].Err() == nil {
+		t.Error("the load replaced was not ended")
+	}
+	l.Update(late)
+	if l.open == nil || l.open.Hash != "c01" || l.msg != "" {
+		t.Errorf("open %v, msg %q; want c01, no message", l.open, l.msg)
+	}
+}
+
+// Commits not loaded yet show that they load; end stays on the last row as
+// they come.
+func TestLogFlowLoadsInTheBackground(t *testing.T) {
+	l, loads := newNumberedLog(30)
+	pressLog(l, "f")
+	_, cmd := l.Update(keyMsg("end"))
+	if !strings.Contains(ansi.Strip(l.frame()), "loading…") || cmd == nil {
+		t.Fatalf("end: load %v, frame:\n%s", cmd != nil, ansi.Strip(l.frame()))
+	}
+	for cmd != nil {
+		if l.flow.cursor != len(l.flow.rows)-1 {
+			t.Fatalf("row %d of %d, want the last", l.flow.cursor, len(l.flow.rows))
+		}
+		_, cmd = l.Update(cmd())
+	}
+	if l.flow.cursor != len(l.flow.rows)-1 || strings.Contains(ansi.Strip(l.frame()), "loading…") || loads["c29"] != 1 {
+		t.Errorf("loaded: row %d of %d, loads %v, frame:\n%s", l.flow.cursor, len(l.flow.rows), loads, ansi.Strip(l.frame()))
+	}
+}
+
+// next file waits for a commit not loaded yet on its way, saying so, and
+// goes on when it comes; another key ends the wait.
+func TestLogFlowSearchWaits(t *testing.T) {
+	// untilWaiting presses n, holding the loads back, until n waits.
+	untilWaiting := func(l *Log) tea.Cmd {
+		var held tea.Cmd
+		for range 60 {
+			cursor := l.flow.cursor
+			_, cmd := l.Update(keyMsg("n"))
+			if cmd != nil {
+				held = cmd
+			}
+			if l.flow.waiting != nil {
+				if l.flow.cursor != cursor || !strings.HasPrefix(l.flow.msg, "loading c") {
+					t.Fatalf("waiting: cursor moved %v, msg %q", l.flow.cursor != cursor, l.flow.msg)
+				}
+				return held
+			}
+		}
+		t.Fatal("n never waits")
+		return nil
+	}
+	l, _ := newNumberedLog(30)
+	pressLog(l, "f")
+	held := untilWaiting(l)
+	want := slices.Index(l.flow.parts, l.flow.waiting.part)
+	drain(l, held)
+	if r := l.flow.rows[l.flow.cursor]; l.flow.waiting != nil || r.kind != flowFile || r.part != want {
+		t.Errorf("loaded: waiting %v, at %+v; want the file of commit %d", l.flow.waiting != nil, r, want)
+	}
+
+	l, _ = newNumberedLog(30)
+	pressLog(l, "f")
+	held = untilWaiting(l)
+	l.Update(keyMsg("k"))
+	cursor := l.flow.cursor
+	drain(l, held)
+	if l.flow.waiting != nil || l.flow.cursor != cursor && l.flow.rows[l.flow.cursor] != l.flow.rows[cursor] {
+		t.Errorf("k ended the wait: waiting %v, cursor %d → %d", l.flow.waiting != nil, cursor, l.flow.cursor)
+	}
+}
+
+// backspace on a commit still loading shows its files once they come.
+func TestLogFlowBackWhileLoading(t *testing.T) {
+	l, _ := newLoadingLog(20)
+	pressLog(l, "f")
+	var held []tea.Cmd
+	for range 20 {
+		if p, _, _ := l.flow.position(); l.flow.unloaded(p) {
+			break
+		}
+		if _, cmd := l.Update(keyMsg("P")); cmd != nil {
+			held = append(held, cmd)
+		}
+	}
+	p, _, _ := l.flow.position()
+	if !l.flow.unloaded(p) {
+		t.Fatal("no commit left that is not loaded")
+	}
+	_, back := l.Update(keyMsg("backspace"))
+	_, load := l.Update(back())
+	if load == nil || l.files {
+		t.Fatalf("backspace: load %v, files shown %v", load != nil, l.files)
+	}
+	drain(l, load)
+	for _, cmd := range held {
+		drain(l, cmd)
+	}
+	if !l.files || l.open != l.commits[p] {
+		t.Errorf("files shown %v, open %v; want the list of commit %d", l.files, l.open, p)
+	}
+}
+
+// The flow view takes the files the list loaded; files that come twice are
+// made into views once.
+func TestLogFlowTakesLoadedFiles(t *testing.T) {
+	l, loads := newTestLog()
+	pressLog(l, "enter", "backspace", "f")
+	if loads["c3"] != 1 || l.flow.parts[0].app != l.commits[0].app {
+		t.Errorf("loads %v, the flow has the list's files %v", loads, l.flow.parts[0].app == l.commits[0].app)
+	}
+	once, twice := l.flow.load(1)(), l.flow.load(1)()
+	l.Update(once)
+	app := l.commits[1].app
+	l.Update(twice)
+	if app == nil || l.commits[1].app != app {
+		t.Error("the files that came again replaced the views")
+	}
+}
+
+// The end of the program ends the git commands still running.
+func TestStopEndsLoads(t *testing.T) {
+	l, ctxs := newLoadingLog(3)
+	cmd := l.flow.load(1)
+	WithSizeGuard(l.cfg, WithDiffSwitch(l.cfg, l, func(m tea.Model) tea.Model { return m }, nil)).Stop()
+	cmd()
+	if (*ctxs)[0].Err() == nil {
+		t.Error("the load of the flow view runs on")
+	}
+}

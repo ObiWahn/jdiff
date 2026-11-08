@@ -1412,3 +1412,30 @@ func TestQuitKeys(t *testing.T) {
 		}
 	}
 }
+
+// The emphasis of a changed row is computed when it is drawn; an anchor or a
+// reload, which align anew, do not leave that of the rows before.
+func TestEmphasisAfterAlign(t *testing.T) {
+	m := newTestModel([]string{"x0 a", "x1 b", "x2 c"}, []string{"x0 A", "x1 b", "x2 C"})
+	check := func(when string) {
+		t.Helper()
+		_ = m.frame()
+		for i, r := range m.rows {
+			if r.Kind != diff.Change {
+				continue
+			}
+			ea, eb := diff.Intraline(m.lines[left][r.Left], m.lines[right][r.Right], m.cfg.Settings.OnlyChangedWhitespaces)
+			if !slices.Equal(m.emphOf(i, left), ea) || !slices.Equal(m.emphOf(i, right), eb) {
+				t.Errorf("%s: row %d emphasis %v %v, want %v %v", when, i, m.emphOf(i, left), m.emphOf(i, right), ea, eb)
+			}
+		}
+	}
+	check("first")
+	moveTo(t, m, left, 0)
+	press(m, "enter")
+	moveTo(t, m, right, 2)
+	press(m, "enter")
+	check("anchor L1↔R3")
+	m.reload(right, []string{"x0 a", "x1 b", "x2 cc"})
+	check("reload")
+}

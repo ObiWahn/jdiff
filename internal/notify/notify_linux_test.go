@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func write(t *testing.T, path, text string) {
@@ -158,4 +160,80 @@ func TestWatcherClose(t *testing.T) {
 	if w.Close() == nil {
 		t.Error("second Close succeeded")
 	}
+}
+
+// collect returns the paths w reports until it closes Changes, failing after
+// a second.
+func collect(t *testing.T, w *Watcher) []string {
+	t.Helper()
+	var all []string
+	for {
+		select {
+		case paths, ok := <-w.Changes():
+			if !ok {
+				return all
+			}
+			all = append(all, paths...)
+		case <-time.After(time.Second):
+			t.Fatalf("Changes not closed; reported %v", all)
+			return nil
+		}
+	}
+}
+
+// A watched directory that is removed or moved away, and not there again,
+// cannot be watched any more: its files count as changed, and Changes is
+// closed, so that the caller checks the files itself.
+func TestWatcherDirectoryGone(t *testing.T) {
+	for _, gone := range []struct {
+		name string
+		do   func(dir string) error
+	}{
+		{"removed", os.RemoveAll},
+		{"moved", func(dir string) error { return os.Rename(dir, dir+".old") }},
+	} {
+		t.Run(gone.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "d")
+			if err := os.Mkdir(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			a := filepath.Join(dir, "a.txt")
+			write(t, a, "a")
+			w := start(t, []string{a}, 20)
+			if err := gone.do(dir); err != nil {
+				t.Fatal(err)
+			}
+			if got := collect(t, w); !slices.Contains(got, a) {
+				t.Errorf("reported %v, want %s", got, a)
+			}
+		})
+	}
+}
+
+// A watched directory replaced by another one at its path, as a checkout
+// may, is watched again: changes in the new one are reported.
+func TestWatcherDirectoryReplaced(t *testing.T) {
+	root := t.TempDir()
+	dir, other := filepath.Join(root, "d"), filepath.Join(root, "other")
+	for _, d := range []string{dir, other} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(d, "a.txt"), "a")
+	}
+	a := filepath.Join(dir, "a.txt")
+	w := start(t, []string{a}, 20)
+	// Swapped at once, so that the path is never missing.
+	if err := unix.Renameat2(unix.AT_FDCWD, dir, unix.AT_FDCWD, other, unix.RENAME_EXCHANGE); err != nil {
+		t.Skipf("no RENAME_EXCHANGE here: %v", err)
+	}
+	if got := next(t, w); !slices.Equal(got, []string{a}) {
+		t.Fatalf("swap: reported %v, want %s", got, a)
+	}
+	write(t, a, "a2")
+	if got := next(t, w); !slices.Equal(got, []string{a}) {
+		t.Errorf("write in the new directory: reported %v, want %s", got, a)
+	}
+	write(t, filepath.Join(other, "a.txt"), "a3")
+	quiet(t, w)
 }

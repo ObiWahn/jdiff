@@ -2,6 +2,7 @@ package diff
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -46,5 +47,25 @@ func TestIntraline(t *testing.T) {
 				t.Errorf("Intraline(%q, %q) = %v, %v, want %v, %v", tt.a, tt.b, ea, eb, tt.ea, tt.eb)
 			}
 		})
+	}
+}
+
+// Lines up to MaxEmphLine bytes get their changed words emphasized, longer
+// ones none: comparing their words takes too long.
+func TestIntralineLongLines(t *testing.T) {
+	// line returns n bytes of words that end in last.
+	line := func(n int, last string) string {
+		s := strings.Repeat("x0 ", n/3+1) + last
+		return s[len(s)-n:]
+	}
+	for _, c := range []struct {
+		n    int
+		emph bool
+	}{{100, true}, {MaxEmphLine, true}, {MaxEmphLine + 1, false}} {
+		a, b := line(c.n, "a"), line(c.n, "b")
+		ea, eb := Intraline(a, b, false)
+		if got := ea != nil && eb != nil; got != c.emph {
+			t.Errorf("%d bytes: emphasis %v, %v; want some %v", c.n, ea, eb, c.emph)
+		}
 	}
 }

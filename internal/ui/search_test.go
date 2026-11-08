@@ -470,3 +470,37 @@ func TestFlowSearchAgainWithoutQuery(t *testing.T) {
 		t.Errorf("%s: msg %q", ",", a.flow.msg)
 	}
 }
+
+// Upper case makes a search match case, but not the letters of the escapes
+// of a regular expression.
+func TestSmartCase(t *testing.T) {
+	for _, c := range []struct {
+		query string
+		regex bool
+		upper bool
+	}{
+		{"x0", false, false}, {"X0", false, true}, {`\S`, false, true},
+		{`\bx0\S+`, true, false}, {`\pL\p{Lu}\PN\x4A\x{1F600}\W\D`, true, false},
+		{`x\\X`, true, true}, {`\pLX`, true, true}, {`É`, true, true},
+	} {
+		if got := hasUpper(c.query, c.regex); got != c.upper {
+			t.Errorf("hasUpper(%q, %v) = %v", c.query, c.regex, got)
+		}
+	}
+	m, _ := compile(config.Query{Text: `\bx0\S+`, Regex: true})
+	if got := m.spans("X0a x0b"); !slices.Equal(got, []diff.Span{sp(0, 3), sp(4, 7)}) {
+		t.Errorf("regex with escapes: %v, want both, case ignored", got)
+	}
+}
+
+// Plain text ignores case rune by rune, also where the other case of a
+// letter takes more bytes.
+func TestFoldCase(t *testing.T) {
+	m, _ := compile(config.Query{Text: "kelvin"})
+	if got := m.spans("Kelvin x KELVIN"); !slices.Equal(got, []diff.Span{sp(0, 8), sp(11, 17)}) {
+		t.Errorf("spans %v, want the Kelvin sign's word and KELVIN", got)
+	}
+	if n := foldPrefix("ab", "abc"); n != -1 {
+		t.Errorf("foldPrefix past the end: %d", n)
+	}
+}

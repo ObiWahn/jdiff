@@ -16,6 +16,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/notify"
 	"jdiff/internal/settings"
 	"jdiff/internal/source"
 )
@@ -439,10 +440,14 @@ type fakeRepo struct {
 	status string
 	err    error
 	paths  []string
+	ctx    context.Context // of the last status
 }
 
-func (r *fakeRepo) getStatus(context.Context) (string, error) { return r.status, r.err }
-func (r *fakeRepo) getPaths() ([]string, error)               { return r.paths, nil }
+func (r *fakeRepo) getStatus(ctx context.Context) (string, error) {
+	r.ctx = ctx
+	return r.status, r.err
+}
+func (r *fakeRepo) getPaths() ([]string, error) { return r.paths, nil }
 
 // newAutoReload returns the switch around a file selector of git diff, with
 // the repository of a watched file, and the file. The view and the switch share
@@ -678,5 +683,35 @@ func TestAutoReloadNotSaved(t *testing.T) {
 	}
 	if again.AutoReload || again.Settings.AutoReloadTimeout != 7 {
 		t.Errorf("after a restart: on %v, timeout %d; want off, 7", again.AutoReload, again.Settings.AutoReloadTimeout)
+	}
+}
+
+// When its watcher ends by itself, as when a directory cannot be watched any
+// more, a view checks its files every watch_interval; the end of a watcher
+// it replaced changes nothing.
+func TestWatchEndedPolls(t *testing.T) {
+	a, _, _ := newInotifyApp(t)
+	old := a.notify
+	t.Cleanup(func() { a.notify = old }) // for newInotifyApp to close it
+	if _, cmd := a.Update(watchEndedMsg{&notify.Watcher{}}); cmd != nil || a.notify != old {
+		t.Fatalf("another watcher ended: command %v, watcher changed %v", cmd != nil, a.notify != old)
+	}
+	if _, cmd := a.Update(watchEndedMsg{old}); cmd == nil || a.notify != nil || !a.ticking {
+		t.Errorf("its watcher ended: command %v, watcher %v, ticking %v; want polling", cmd != nil, a.notify, a.ticking)
+	}
+}
+
+// Turning auto reload off ends its git status.
+func TestAutoReloadOffEndsStatus(t *testing.T) {
+	s, _, repo, _ := newAutoReload(t)
+	_, cmd := s.Update(askAutoReloadMsg{})
+	loadNow(t, s, cmd)
+	_, check := s.Update(autoTickMsg{s.autoGen})
+	s.Update(askAutoReloadMsg{})
+	if b, ok := check().(tea.BatchMsg); ok {
+		b[1]() // the git status; the first is the next tick
+	}
+	if repo.ctx == nil || repo.ctx.Err() == nil {
+		t.Error("git status runs on after auto reload ended")
 	}
 }

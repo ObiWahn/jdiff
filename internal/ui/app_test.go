@@ -354,10 +354,11 @@ func TestAppWithoutRelist(t *testing.T) {
 type fakeGitDiff struct {
 	runs [][]string
 	err  error
+	ctx  context.Context // of the last run
 }
 
-func (g *fakeGitDiff) diff(_ context.Context, args []string, untracked bool) ([]source.File, error) {
-	g.runs = append(g.runs, args)
+func (g *fakeGitDiff) diff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+	g.runs, g.ctx = append(g.runs, args), ctx
 	if g.err != nil {
 		return nil, g.err
 	}
@@ -1055,5 +1056,105 @@ func TestLineInputEdit(t *testing.T) {
 		if in.text != c.want {
 			t.Errorf("%s on %q: %q, want %q", c.key, c.text, in.text, c.want)
 		}
+	}
+}
+
+// r while the files are listed starts no second listing, but runs one once
+// the first is done: what to list may have changed meanwhile.
+func TestAppRelistWhileListing(t *testing.T) {
+	var files []source.File
+	var err error
+	a := newRelistApp(&files, &err)
+	runs := 0
+	list := a.relist
+	a.relist = func(ctx context.Context) ([]source.File, error) {
+		runs++
+		return list(ctx)
+	}
+	_, first := a.Update(refreshMsg{})
+	if _, again := a.Update(refreshMsg{}); again != nil || runs != 0 {
+		t.Fatalf("r during the listing: command %v, runs %d; want none", again != nil, runs)
+	}
+	_, next := a.Update(first())
+	if runs != 1 || next == nil {
+		t.Fatalf("after the first listing: runs %d, next %v; want the second listing", runs, next != nil)
+	}
+	if _, last := a.Update(next()); runs != 2 || last != nil {
+		t.Errorf("after the second listing: runs %d, more %v", runs, last != nil)
+	}
+}
+
+// esc while git diff runs, and a newer request, drop the files that come
+// late and end the git command.
+func TestDiffSwitchDropsLateDiff(t *testing.T) {
+	view := newTestApp()
+	s, g := newDiffSwitch(view)
+	ask := func(args string) tea.Cmd {
+		s.Update(askDiffMsg{})
+		pressRoot(s, args)
+		_, cmd := s.Update(keyMsg("enter"))
+		if cmd == nil || !strings.Contains(ansi.Strip(s.frame()), "running git diff…") {
+			t.Fatalf("%s: command %v, popup:\n%s", args, cmd != nil, ansi.Strip(s.frame()))
+		}
+		return cmd
+	}
+	cmd := ask("x0")
+	s.Update(keyMsg("esc"))
+	s.Update(cmd())
+	if s.view != view || g.ctx.Err() == nil {
+		t.Errorf("after esc: view replaced %v, git diff ended %v", s.view != view, g.ctx.Err() != nil)
+	}
+	older := ask("x1")
+	newer := ask("x2")
+	s.Update(newer())
+	s.Update(older())
+	if a := shownApp(t, s); a.diffArgs[0] != "x2" {
+		t.Errorf("shows git diff %v, want x2, the newer", a.diffArgs)
+	}
+}
+
+// The arguments of the git diff popup read quotes as a shell does, and
+// joinArgs writes them so that they read back the same.
+func TestSplitArgs(t *testing.T) {
+	for _, c := range []struct {
+		text string
+		want []string
+	}{
+		{"", nil},
+		{"  HEAD~1  HEAD ", []string{"HEAD~1", "HEAD"}},
+		{`-- 'a b.txt' "c d" e\ f`, []string{"--", "a b.txt", "c d", "e f"}},
+		{`'it'"'"'s' ""`, []string{"it's", ""}},
+		{`a"b c"d`, []string{"ab cd"}},
+	} {
+		got, err := splitArgs(c.text)
+		if err != nil || !slices.Equal(got, c.want) {
+			t.Errorf("%q: %q, %v; want %q", c.text, got, err, c.want)
+		}
+		if back, _ := splitArgs(joinArgs(got)); !slices.Equal(back, got) {
+			t.Errorf("%q: joined %q reads back as %q", c.text, joinArgs(got), back)
+		}
+	}
+	for _, open := range []string{`'a`, `"a`} {
+		if _, err := splitArgs(open); err == nil {
+			t.Errorf("%q: no error for the open quote", open)
+		}
+	}
+}
+
+// Pasted text goes on one line, without characters that are not visible,
+// and the heading shows the arguments of git diff drawn printable.
+func TestPasteAndHeading(t *testing.T) {
+	in := &lineInput{text: "x0 "}
+	in.paste("a\nb\r\x1b[2Jc\td‎")
+	if in.text != "x0 a b [2Jc d" {
+		t.Errorf("pasted: %q", in.text)
+	}
+	s, _ := newDiffSwitch(newTestApp())
+	s.Update(askDiffMsg{})
+	s.Update(tea.PasteMsg{Content: "x1\x1b[2J"})
+	cmd := s.key(keyMsg("enter"))
+	s.Update(cmd())
+	if view := shownApp(t, s).frame(); strings.Contains(view, "\x1b[2J") || !strings.Contains(ansi.Strip(view), "git diff x1[2J") {
+		t.Errorf("heading:\n%q", ansi.Strip(view))
 	}
 }

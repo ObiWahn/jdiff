@@ -3,6 +3,7 @@ package diff
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"testing"
 )
 
@@ -119,5 +120,32 @@ func BenchmarkFindMovesRewrite(b *testing.B) {
 	in := []MoveInput{input(old, new)}
 	for b.Loop() {
 		FindMoves(in)
+	}
+}
+
+// A block that starts with a closing brace and a blank line, found in many
+// places, starts in at most maxCommonStarts of them: within them the whole
+// block is found, beyond them only its part from the next line on, which is
+// found in one place.
+func TestFindMovesCommonStart(t *testing.T) {
+	moved := []string{"}", "", "func movedHelper(argument int) int {", "	return argument * 1234", "}"}
+	keep := []string{"keep one", "keep two", "keep three"}
+	for _, c := range []struct {
+		others int
+		from   []int // the lines of the block found moved
+	}{
+		{10, []int{0, 1, 2, 3, 4}},
+		{maxCommonStarts - 1, []int{0, 1, 2, 3, 4}},
+		{maxCommonStarts + 36, []int{1, 2, 3, 4}},
+	} {
+		b := slices.Clone(keep)
+		for i := range c.others {
+			b = append(b, fmt.Sprintf("x%d", i), "}", "")
+		}
+		b = append(b, moved...)
+		m := FindMoves([]MoveInput{input(append(slices.Clone(moved), keep...), b)})
+		if got := slices.Sorted(maps.Keys(m.From[0])); !slices.Equal(got, c.from) {
+			t.Errorf("%d others: lines %v moved, want %v", c.others, got, c.from)
+		}
 	}
 }
