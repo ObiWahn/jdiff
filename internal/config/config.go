@@ -87,6 +87,13 @@ func Dir() (string, error) {
 	return filepath.Join(home, ".config", "jdiff"), nil
 }
 
+// minInterval and maxInterval bound watch_interval and auto_reload_interval,
+// in seconds.
+const (
+	minInterval = 0.1
+	maxInterval = 86400
+)
+
 // mainFile is the content of main.toml.
 type mainFile struct {
 	settings.Settings
@@ -115,6 +122,20 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 		if iv := c.Settings.WatchInterval; iv < 0 {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
 			c.Settings.WatchInterval = 0
+		}
+		// Shorter checks keep a core busy; longer ones overflow the
+		// durations they become.
+		if iv := c.Settings.WatchInterval; iv > 0 && iv < minInterval {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is below %v, %v is used", iv, minInterval, minInterval))
+			c.Settings.WatchInterval = minInterval
+		}
+		if iv := c.Settings.WatchInterval; iv > maxInterval {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is above %d, %d is used", iv, maxInterval, maxInterval))
+			c.Settings.WatchInterval = maxInterval
+		}
+		if iv := c.Settings.AutoReloadInterval; iv > maxInterval {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
+			c.Settings.AutoReloadInterval = maxInterval
 		}
 		if n := c.Settings.InotifyMaxDirs; n < 0 {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: inotify_max_dirs %d is negative, inotify is off", n))

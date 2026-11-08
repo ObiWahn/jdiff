@@ -140,7 +140,8 @@ func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
 	if msg.gen != s.autoGen {
 		return nil
 	}
-	if m := s.cfg.Settings.AutoReloadTimeout; m > 0 && time.Since(s.lastActive) >= time.Duration(m)*time.Minute {
+	// In minutes as float: a large timeout overflows a time.Duration.
+	if m := s.cfg.Settings.AutoReloadTimeout; m > 0 && time.Since(s.lastActive).Minutes() >= float64(m) {
 		s.stopAutoReload()
 		return func() tea.Msg { return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }
 	}
