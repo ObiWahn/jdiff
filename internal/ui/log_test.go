@@ -111,15 +111,22 @@ func TestLogLevelsAndBackspace(t *testing.T) {
 		t.Fatalf("backspace from the file list should show the commits")
 	}
 
-	// A single-file commit opens its file directly, and backspace goes
-	// straight back to the commits.
+	// A single-file commit shows its file list as well, with its one file.
 	pressLog(l, "j", "enter")
+	if l.open == nil || shownFile(l) != "" || len(l.open.app.files) != 1 {
+		t.Fatalf("enter on c2: open %v, shown %q, want its file list", l.open, shownFile(l))
+	}
+	pressLog(l, "enter")
 	if shownFile(l) != "a.go" {
-		t.Fatalf("enter on c2: shown %q, want a.go directly", shownFile(l))
+		t.Fatalf("enter in c2's file list: shown %q, want a.go", shownFile(l))
+	}
+	pressLog(l, "backspace")
+	if l.open == nil || shownFile(l) != "" {
+		t.Fatalf("backspace from c2's diff should show its file list")
 	}
 	pressLog(l, "backspace")
 	if l.open != nil {
-		t.Fatalf("backspace from a single-file commit should show the commits")
+		t.Fatalf("backspace from c2's file list should show the commits")
 	}
 
 	// Reopening reuses the loaded files.
@@ -138,10 +145,14 @@ func TestLogNextPrevCommit(t *testing.T) {
 	if l.cursor != 1 || shownFile(l) != "a.go" {
 		t.Fatalf("P: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
 	}
-	// c1 did not change a.go, but it has a single file.
+	// c1 did not change a.go: its file list, even of a single file.
 	pressLog(l, "P")
-	if l.cursor != 2 || shownFile(l) != "c.go" {
-		t.Fatalf("P: commit %d shown %q, want c1 c.go", l.cursor, shownFile(l))
+	if l.cursor != 2 || l.open == nil || shownFile(l) != "" {
+		t.Fatalf("P: commit %d shown %q, want c1's file list", l.cursor, shownFile(l))
+	}
+	pressLog(l, "enter")
+	if shownFile(l) != "c.go" {
+		t.Fatalf("enter in c1's file list: shown %q, want c.go", shownFile(l))
 	}
 	// c0 cannot be loaded: stay and show the error.
 	pressLog(l, "P")
@@ -149,7 +160,7 @@ func TestLogNextPrevCommit(t *testing.T) {
 		t.Errorf("P onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
 	}
 	// Back via c2 (single file a.go) to c3, which changed a.go as well.
-	pressLog(l, "N", "N")
+	pressLog(l, "backspace", "N", "enter", "N")
 	if l.cursor != 0 || shownFile(l) != "a.go" {
 		t.Errorf("N N: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
 	}
@@ -157,15 +168,15 @@ func TestLogNextPrevCommit(t *testing.T) {
 	if !strings.Contains(l.open.app.open.view.msg, "last commit") {
 		t.Errorf("N on the newest commit: msg %q", l.open.app.open.view.msg)
 	}
-	// N/P also work from the file list.
+	// N/P also work from the file list, showing the list of the other
+	// commit, also of a single file.
 	pressLog(l, "backspace", "P")
-	if l.cursor != 1 || shownFile(l) != "a.go" {
-		t.Errorf("P from the file list: commit %d shown %q", l.cursor, shownFile(l))
+	if l.cursor != 1 || l.open == nil || shownFile(l) != "" {
+		t.Errorf("P from the file list: commit %d shown %q, want c2's file list", l.cursor, shownFile(l))
 	}
-	// The open file a.go is kept when going back to c3.
 	pressLog(l, "N")
-	if l.cursor != 0 || shownFile(l) != "a.go" {
-		t.Errorf("N back to c3 with a.go open: commit %d shown %q", l.cursor, shownFile(l))
+	if l.cursor != 0 || l.open == nil || shownFile(l) != "" {
+		t.Errorf("N from c2's file list: commit %d shown %q, want c3's file list", l.cursor, shownFile(l))
 	}
 }
 
@@ -283,10 +294,14 @@ func TestLogFlowEndStayingInCommitLoadsNoMore(t *testing.T) {
 
 func TestLogReversedNextPrevCommit(t *testing.T) {
 	l, _ := newTestLogOrder(true) // c0 c1 c2 c3
-	pressLog(l, "j", "enter")     // c1, c.go
+	pressLog(l, "j", "enter")     // c1's file list
 	pressLog(l, "N")
-	if l.cursor != 2 || shownFile(l) != "a.go" {
-		t.Fatalf("N: commit %d shown %q, want c2 a.go", l.cursor, shownFile(l))
+	if l.cursor != 2 || l.open == nil || shownFile(l) != "" {
+		t.Fatalf("N: commit %d shown %q, want c2's file list", l.cursor, shownFile(l))
+	}
+	pressLog(l, "enter")
+	if shownFile(l) != "a.go" {
+		t.Fatalf("enter in c2's file list: shown %q, want a.go", shownFile(l))
 	}
 	pressLog(l, "N")
 	if l.cursor != 3 || shownFile(l) != "a.go" {
@@ -330,18 +345,23 @@ func TestLogFlowCommitKeys(t *testing.T) {
 		t.Errorf("N: flow at %d, want c1", flowCommitAt(l))
 	}
 	pressLog(l, "backspace")
+	if l.open == nil || l.open.Hash != "c1" || l.open.app.open != nil {
+		t.Fatalf("backspace: open %v, want c1's file list", l.open)
+	}
+	pressLog(l, "backspace")
 	if l.open != nil || l.cursor != 2 {
-		t.Fatalf("backspace: open %v cursor %d, want the list on c1", l.open, l.cursor)
+		t.Fatalf("backspace twice: open %v cursor %d, want the commits on c1", l.open, l.cursor)
 	}
 	// Flow stays on: enter shows the flow again.
 	pressLog(l, "enter")
 	if flowCommitAt(l) != 2 {
 		t.Errorf("enter with flow on: flow at %d, want c1", flowCommitAt(l))
 	}
-	// Off again on c1, a single-file commit: its diff is shown.
+	// Off again on c1's message, a single-file commit: its file list is
+	// shown, as of any commit.
 	pressLog(l, "f")
-	if l.flowShown() || shownFile(l) != "c.go" {
-		t.Errorf("f on c1: shown %q, want c.go", shownFile(l))
+	if l.flowShown() || l.open == nil || l.open.Hash != "c1" || shownFile(l) != "" {
+		t.Errorf("f on c1: shown %q, want c1's file list", shownFile(l))
 	}
 }
 
@@ -864,10 +884,15 @@ func TestLogFlowBackToFiles(t *testing.T) {
 	if l.open != nil || l.cursor != 0 {
 		t.Errorf("backspace twice: open %v cursor %d, want the commits on c3", l.open, l.cursor)
 	}
-	// A commit of one file has no list: backspace goes to the commits.
+	// A commit of one file has its list too: backspace shows it, then the
+	// commits.
 	pressLog(l, "enter", "P", "backspace")
+	if l.open == nil || l.open.Hash != "c2" || l.open.app.open != nil {
+		t.Errorf("backspace from c2 in the flow: open %v, want c2's file list", l.open)
+	}
+	pressLog(l, "backspace")
 	if l.open != nil || l.cursor != 1 {
-		t.Errorf("backspace from c2 in the flow: open %v cursor %d, want the commits on c2", l.open, l.cursor)
+		t.Errorf("backspace from c2's file list: open %v cursor %d, want the commits on c2", l.open, l.cursor)
 	}
 	// f in the file list turns flow mode off and keeps the list.
 	pressLog(l, "k", "enter", "n", "backspace", "f")

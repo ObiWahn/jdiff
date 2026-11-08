@@ -50,7 +50,7 @@
 | `m<letter>` | set a jump mark on the line of the new file |
 | `'<letter>` | jump to a mark, when its file is in this diff |
 | `f` | flow view |
-| `backspace` | back to the file list, also from the flow view; a commit of one file goes back to the commits |
+| `backspace` | back to the file list, also from the flow view |
 
 ### Flow view
 

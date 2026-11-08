@@ -376,7 +376,7 @@ func (l *Log) app(i int) (*App, error) {
 }
 
 // openCommit shows the files of commit i, opening path directly when the
-// commit changed it, and the only file of a single-file commit.
+// commit changed it.
 func (l *Log) openCommit(i int, path string) bool {
 	if i < 0 || i >= len(l.commits) {
 		return false
@@ -387,12 +387,7 @@ func (l *Log) openCommit(i int, path string) bool {
 		return false
 	}
 	e.app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
-	switch {
-	case path != "" && e.app.openPath(path):
-	case e.app.single():
-		e.app.cursor = 0
-		e.app.openFile()
-	default:
+	if path == "" || !e.app.openPath(path) {
 		e.app.open = nil
 	}
 	l.open = e
@@ -644,9 +639,8 @@ func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
 }
 
 // filesOfFlow shows the file list of the commit under the flow view's
-// cursor, on its file, as backspace does from a diff view. A commit of one
-// file, or one that cannot be loaded, has no list to show: the commits are
-// shown, on it. A commit still loading shows its list when its files come;
+// cursor, on its file, as backspace does from a diff view. A commit that
+// cannot be loaded has no list to show: the commits are shown, on it. A commit still loading shows its list when its files come;
 // it returns the command loading them.
 func (l *Log) filesOfFlow() tea.Cmd {
 	p, file, _ := l.flow.position()
@@ -656,7 +650,7 @@ func (l *Log) filesOfFlow() tea.Cmd {
 	if e.app == nil && l.flow.parts[p].err == "" { // its list when it comes
 		return l.request(e, commitRequest{files: true})
 	}
-	if e.app == nil || e.app.single() {
+	if e.app == nil {
 		l.open, l.files = nil, false
 		return nil
 	}
