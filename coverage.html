@@ -55,23 +55,23 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (94.9%)</option>
+				<option value="file0">jdiff/internal/config/config.go (95.6%)</option>
 				
-				<option value="file1">jdiff/internal/config/marks.go (96.6%)</option>
+				<option value="file1">jdiff/internal/config/marks.go (97.2%)</option>
 				
 				<option value="file2">jdiff/internal/diff/align.go (100.0%)</option>
 				
-				<option value="file3">jdiff/internal/diff/intraline.go (100.0%)</option>
+				<option value="file3">jdiff/internal/diff/intraline.go (97.8%)</option>
 				
 				<option value="file4">jdiff/internal/diff/match.go (99.0%)</option>
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.2%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.4%)</option>
 				
 				<option value="file7">jdiff/internal/notify/notify.go (100.0%)</option>
 				
-				<option value="file8">jdiff/internal/notify/notify_linux.go (85.1%)</option>
+				<option value="file8">jdiff/internal/notify/notify_linux.go (90.6%)</option>
 				
 				<option value="file9">jdiff/internal/settings/settings.go (100.0%)</option>
 				
@@ -85,39 +85,39 @@
 				
 				<option value="file14">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file15">jdiff/internal/ui/app.go (95.6%)</option>
+				<option value="file15">jdiff/internal/ui/app.go (95.2%)</option>
 				
 				<option value="file16">jdiff/internal/ui/doc.go (96.4%)</option>
 				
-				<option value="file17">jdiff/internal/ui/filediff.go (95.5%)</option>
+				<option value="file17">jdiff/internal/ui/filediff.go (95.7%)</option>
 				
-				<option value="file18">jdiff/internal/ui/flow.go (95.0%)</option>
+				<option value="file18">jdiff/internal/ui/flow.go (93.6%)</option>
 				
-				<option value="file19">jdiff/internal/ui/help.go (95.7%)</option>
+				<option value="file19">jdiff/internal/ui/help.go (98.6%)</option>
 				
-				<option value="file20">jdiff/internal/ui/log.go (96.5%)</option>
+				<option value="file20">jdiff/internal/ui/log.go (94.3%)</option>
 				
 				<option value="file21">jdiff/internal/ui/markdown.go (96.5%)</option>
 				
-				<option value="file22">jdiff/internal/ui/marks.go (94.0%)</option>
+				<option value="file22">jdiff/internal/ui/marks.go (96.2%)</option>
 				
 				<option value="file23">jdiff/internal/ui/messages.go (100.0%)</option>
 				
-				<option value="file24">jdiff/internal/ui/model.go (94.8%)</option>
+				<option value="file24">jdiff/internal/ui/model.go (92.8%)</option>
 				
 				<option value="file25">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file26">jdiff/internal/ui/search.go (99.1%)</option>
+				<option value="file26">jdiff/internal/ui/search.go (98.0%)</option>
 				
-				<option value="file27">jdiff/internal/ui/settings.go (96.4%)</option>
+				<option value="file27">jdiff/internal/ui/settings.go (96.3%)</option>
 				
-				<option value="file28">jdiff/internal/ui/view.go (98.8%)</option>
+				<option value="file28">jdiff/internal/ui/view.go (99.3%)</option>
 				
-				<option value="file29">jdiff/internal/ui/watch.go (89.2%)</option>
+				<option value="file29">jdiff/internal/ui/watch.go (91.3%)</option>
 				
-				<option value="file30">jdiff/internal/ui/widgets.go (98.1%)</option>
+				<option value="file30">jdiff/internal/ui/widgets.go (97.0%)</option>
 				
-				<option value="file31">jdiff/main.go (82.6%)</option>
+				<option value="file31">jdiff/main.go (79.1%)</option>
 				
 				</select>
 			</div>
@@ -220,6 +220,13 @@ func Dir() (string, error) {
         <span class="cov8" title="1">return filepath.Join(home, ".config", "jdiff"), nil</span>
 }
 
+// minInterval and maxInterval bound watch_interval and auto_reload_interval,
+// in seconds.
+const (
+        minInterval = 0.1
+        maxInterval = 86400
+)
+
 // mainFile is the content of main.toml.
 type mainFile struct {
         settings.Settings
@@ -248,6 +255,20 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                 if iv := c.Settings.WatchInterval; iv &lt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
                         c.Settings.WatchInterval = 0
+</span>                }
+                // Shorter checks keep a core busy; longer ones overflow the
+                // durations they become.
+                <span class="cov8" title="1">if iv := c.Settings.WatchInterval; iv &gt; 0 &amp;&amp; iv &lt; minInterval </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is below %v, %v is used", iv, minInterval, minInterval))
+                        c.Settings.WatchInterval = minInterval
+</span>                }
+                <span class="cov8" title="1">if iv := c.Settings.WatchInterval; iv &gt; maxInterval </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is above %d, %d is used", iv, maxInterval, maxInterval))
+                        c.Settings.WatchInterval = maxInterval
+</span>                }
+                <span class="cov8" title="1">if iv := c.Settings.AutoReloadInterval; iv &gt; maxInterval </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
+                        c.Settings.AutoReloadInterval = maxInterval
 </span>                }
                 <span class="cov8" title="1">if n := c.Settings.InotifyMaxDirs; n &lt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: inotify_max_dirs %d is negative, inotify is off", n))
@@ -375,7 +396,9 @@ func (c *Config) SaveState() error {
 }
 
 // writeTOML writes header and v as TOML to path, through a temporary file
-// so that the file is never left half written.
+// so that the file is never left half written. Each write has a temporary
+// file of its own: jdiffs running at the same time must not rename each
+// other's.
 func writeTOML(path, header string, v any) error {
         <span class="cov8" title="1">var b bytes.Buffer
         b.WriteString(header)
@@ -385,11 +408,19 @@ func writeTOML(path, header string, v any) error {
         <span class="cov8" title="1">if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil </span>{
                 <span class="cov0" title="0">return err
 </span>        }
-        <span class="cov8" title="1">tmp := path + ".tmp"
-        if err := os.WriteFile(tmp, b.Bytes(), 0o644); err != nil </span>{
+        <span class="cov8" title="1">tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+        if err != nil </span>{
                 <span class="cov0" title="0">return err
 </span>        }
-        <span class="cov8" title="1">return os.Rename(tmp, path)</span>
+        <span class="cov8" title="1">_, err = tmp.Write(b.Bytes())
+        err = errors.Join(err, tmp.Close(), os.Chmod(tmp.Name(), 0o644))
+        if err == nil </span>{
+                <span class="cov8" title="1">err = os.Rename(tmp.Name(), path)
+</span>        }
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov8" title="1">os.Remove(tmp.Name())
+</span>        }
+        <span class="cov8" title="1">return err</span>
 }
 
 // Dir returns the configuration directory the files were read from, "" for
@@ -481,7 +512,8 @@ func (c *Config) Marks() []LetterMark {
 // SetMark sets the mark of letter in the current repository and saves the
 // marks.
 func (c *Config) SetMark(letter string, m Mark) error {
-        <span class="cov8" title="1">if c.marks.all == nil </span>{
+        <span class="cov8" title="1">c.reloadMarks()
+        if c.marks.all == nil </span>{
                 <span class="cov8" title="1">c.marks.all = map[string]map[string]Mark{}
 </span>        }
         <span class="cov8" title="1">if c.marks.all[c.marks.repo] == nil </span>{
@@ -494,11 +526,25 @@ func (c *Config) SetMark(letter string, m Mark) error {
 // DeleteMark deletes the mark of letter in the current repository and saves
 // the marks.
 func (c *Config) DeleteMark(letter string) error {
-        <span class="cov8" title="1">delete(c.marks.all[c.marks.repo], letter)
+        <span class="cov8" title="1">c.reloadMarks()
+        delete(c.marks.all[c.marks.repo], letter)
         if len(c.marks.all[c.marks.repo]) == 0 </span>{
                 <span class="cov0" title="0">delete(c.marks.all, c.marks.repo)
 </span>        }
         <span class="cov8" title="1">return c.saveMarks()</span>
+}
+
+// reloadMarks reads the marks of all repositories again before a change, so
+// that it keeps those another jdiff saved since this one read them. A file
+// that cannot be parsed leaves the marks as they are, see LoadMarks.
+func (c *Config) reloadMarks() {
+        <span class="cov8" title="1">if c.marks.path == "" </span>{
+                <span class="cov8" title="1">return
+</span>        }
+        <span class="cov8" title="1">all := map[string]map[string]Mark{}
+        if _, err := toml.DecodeFile(c.marks.path, &amp;all); err == nil || errors.Is(err, fs.ErrNotExist) </span>{
+                <span class="cov8" title="1">c.marks.all = all
+</span>        }
 }
 
 func (c *Config) saveMarks() error {
@@ -536,26 +582,19 @@ type Anchor struct{ Left, Right int }
 // Span is a byte range [Start, End) within a line.
 type Span struct{ Start, End int }
 
-// Row is one display row of the side-by-side view.
+// Row is one display row of the side-by-side view. The emphasized parts of
+// a Change row are not part of it: Intraline computes them for the rows
+// shown, as most rows of a large change never are.
 type Row struct {
         Kind        Kind
         Left, Right int  // 0-based line indices, -1 when absent
         Anchored    bool // the row is a user anchor
-        // Emphasized parts of Change rows, as computed by Intraline.
-        LeftEmph, RightEmph []Span
-}
-
-// Options control how changed lines are compared.
-type Options struct {
-        // SplitIndent compares indentation character by character, so only its
-        // added or removed part is emphasized.
-        SplitIndent bool
 }
 
 // Align computes the display rows for old lines a and new lines b. anchors
 // must be sorted by Left and must not cross (see Conflicts).
-func Align(a, b []string, anchors []Anchor, opt Options) []Row {
-        <span class="cov8" title="1">al := aligner{a: a, b: b, ka: keys(a), kb: keys(b), opt: opt}
+func Align(a, b []string, anchors []Anchor) []Row {
+        <span class="cov8" title="1">al := aligner{a: a, b: b, ka: keys(a), kb: keys(b)}
         pa, pb := 0, 0
         for _, an := range anchors </span>{
                 <span class="cov8" title="1">al.section(pa, an.Left, pb, an.Right)
@@ -569,7 +608,6 @@ func Align(a, b []string, anchors []Anchor, opt Options) []Row {
 // aligner accumulates the rows of one alignment.
 type aligner struct {
         a, b, ka, kb []string
-        opt          Options
         rows         []Row
 }
 
@@ -641,7 +679,6 @@ func (al *aligner) addPair(l, r int, anchored bool) {
         <span class="cov8" title="1">row := Row{Kind: Equal, Left: l, Right: r, Anchored: anchored}
         if al.a[l] != al.b[r] </span>{
                 <span class="cov8" title="1">row.Kind = Change
-                row.LeftEmph, row.RightEmph = Intraline(al.a[l], al.b[r], al.opt.SplitIndent)
 </span>        }
         <span class="cov8" title="1">al.rows = append(al.rows, row)</span>
 }
@@ -658,6 +695,11 @@ import (
 // lines count as unrelated and get no emphasis (delta uses the same default).
 const maxLineDistance = 0.6
 
+// MaxEmphLine is the longest line, in bytes, whose changed words are
+// emphasized: comparing the words of longer ones, as of minified code, takes
+// tens of milliseconds a line.
+const MaxEmphLine = 4096
+
 type token struct {
         text       string
         start, end int
@@ -669,8 +711,11 @@ type token struct {
 // token, and runs of whitespace next to the same unchanged words keep what
 // they have in common, so only the added or removed part is emphasized. Both
 // results are nil when the lines are too different for emphasis to be
-// useful.
+// useful, or one of them is longer than MaxEmphLine.
 func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
+        <span class="cov8" title="1">if len(a) &gt; MaxEmphLine || len(b) &gt; MaxEmphLine </span>{
+                <span class="cov8" title="1">return nil, nil
+</span>        }
         <span class="cov8" title="1">ta, tb := tokenize(a, splitIndent), tokenize(b, splitIndent)
         ma := make([]bool, len(ta))
         mb := make([]bool, len(tb))
@@ -741,7 +786,7 @@ func keepWhitespace(a, b []token, ka, kb []kept) {
 </span>        }
         <span class="cov8" title="1">switch </span>{
         case la &gt; 0 &amp;&amp; lb &gt; 0: // distinct first and last runs: both
-                <span class="cov8" title="1">ka[0].start, kb[0].start = first, first
+                <span class="cov0" title="0">ka[0].start, kb[0].start = first, first
                 ka[la].end, kb[lb].end = last, last</span>
         case last &gt; first:
                 <span class="cov8" title="1">ka[la].end, kb[lb].end = last, last</span>
@@ -1046,6 +1091,12 @@ type Moves struct {
 // as moved, as in git, so that lone braces and the like are not marked.
 const minMovedAlnum = 20
 
+// maxCommonStarts is how many places a block may start at among the added
+// lines when its first two lines have fewer than minMovedAlnum letters and
+// digits, as a closing brace and a blank line: found in thousands of places
+// in a large change, trying them all from each removed pair took seconds.
+const maxCommonStarts = 64
+
 // FindMoves finds blocks of consecutive removed lines that were added again
 // as consecutive lines, in the same file or another one. Lines are compared
 // without surrounding whitespace, as Align matches them. Lines of an Equal
@@ -1113,8 +1164,18 @@ func FindMoves(files []MoveInput) Moves {
 </span>        }
         // longest returns the longest block starting at removed line l of file
         // i among the added lines cands, the first one on a tie, and its length.
-        <span class="cov8" title="1">longest := func(i, l int, cands []Ref) (best Ref, n int) </span>{
-                <span class="cov8" title="1">for _, c := range cands </span>{
+        // With limit above 0 it tries only the first limit of them still free.
+        <span class="cov8" title="1">longest := func(i, l int, cands []Ref, limit int) (best Ref, n int) </span>{
+                <span class="cov8" title="1">tried := 0
+                for _, c := range cands </span>{
+                        <span class="cov8" title="1">if limit &gt; 0 </span>{
+                                <span class="cov8" title="1">if added[c.File].used[c.Line] </span>{
+                                        <span class="cov8" title="1">continue</span>
+                                }
+                                <span class="cov8" title="1">if tried++; tried &gt; limit </span>{
+                                        <span class="cov8" title="1">break</span>
+                                }
+                        }
                         <span class="cov8" title="1">k := 0
                         for matches(i, l+k, Ref{c.File, c.Line + k}) </span>{
                                 <span class="cov8" title="1">k++
@@ -1126,7 +1187,28 @@ func FindMoves(files []MoveInput) Moves {
                 <span class="cov8" title="1">return best, n</span>
         }
         <span class="cov8" title="1">for i, f := range files </span>{
+                // The letters and digits of each line, counted once: a block is
+                // counted again for each line it may start at.
+                <span class="cov8" title="1">counted := make([]int, len(f.Old))
+                for l := range counted </span>{
+                        <span class="cov8" title="1">counted[l] = -1
+</span>                }
+                <span class="cov8" title="1">letters := func(from, to int) int </span>{
+                        <span class="cov8" title="1">n := 0
+                        for l := from; l &lt; to; l++ </span>{
+                                <span class="cov8" title="1">if counted[l] &lt; 0 </span>{
+                                        <span class="cov8" title="1">counted[l] = alnum(f.Old[l : l+1])
+</span>                                }
+                                <span class="cov8" title="1">n += counted[l]</span>
+                        }
+                        <span class="cov8" title="1">return n</span>
+                }
                 <span class="cov8" title="1">for l := 0; l &lt; len(f.Old); l++ </span>{
+                        // Only a removed line not in a block yet starts one, see
+                        // matches.
+                        <span class="cov8" title="1">if _, ok := removed[i].row[l]; !ok || removed[i].used[l] </span>{
+                                <span class="cov8" title="1">continue</span>
+                        }
                         // Blocks of two lines or more start among the pairs, in the
                         // order of the candidates. A single line counts only with
                         // enough letters and digits of its own, rarely found in many
@@ -1134,12 +1216,16 @@ func FindMoves(files []MoveInput) Moves {
                         <span class="cov8" title="1">var best Ref
                         n := 0
                         if l+1 &lt; len(f.Old) </span>{
-                                <span class="cov8" title="1">best, n = longest(i, l, pairs[pairKey(f.Old, l)])
+                                <span class="cov8" title="1">limit := 0
+                                if letters(l, l+2) &lt; minMovedAlnum </span>{
+                                        <span class="cov8" title="1">limit = maxCommonStarts
+</span>                                }
+                                <span class="cov8" title="1">best, n = longest(i, l, pairs[pairKey(f.Old, l)], limit)</span>
+                        }
+                        <span class="cov8" title="1">if n &lt; 2 &amp;&amp; letters(l, l+1) &gt;= minMovedAlnum </span>{
+                                <span class="cov8" title="1">best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])], 0)
 </span>                        }
-                        <span class="cov8" title="1">if n &lt; 2 &amp;&amp; alnum(f.Old[l:l+1]) &gt;= minMovedAlnum </span>{
-                                <span class="cov8" title="1">best, n = longest(i, l, candidates[strings.TrimSpace(f.Old[l])])
-</span>                        }
-                        <span class="cov8" title="1">if n == 0 || alnum(f.Old[l:l+n]) &lt; minMovedAlnum </span>{
+                        <span class="cov8" title="1">if n == 0 || letters(l, l+n) &lt; minMovedAlnum </span>{
                                 <span class="cov8" title="1">continue</span>
                         }
                         <span class="cov8" title="1">for k := range n </span>{
@@ -1174,6 +1260,7 @@ package gitsrc
 import (
         "bufio"
         "bytes"
+        "context"
         "errors"
         "fmt"
         "io"
@@ -1181,8 +1268,11 @@ import (
         "os"
         "os/exec"
         "path/filepath"
+        "slices"
         "strconv"
         "strings"
+        "sync"
+        "time"
 
         "jdiff/internal/source"
 )
@@ -1204,22 +1294,69 @@ type Commit struct {
 type LineCounts struct{ Added, Removed int }
 
 // Repo runs git in a directory; the empty Dir means the current directory.
-type Repo struct{ Dir string }
+type Repo struct {
+        Dir string
+        ctx context.Context // ends the git commands, see WithContext
+}
+
+// WithContext returns r running its git commands with ctx: when it is done,
+// they are killed and the methods return its error. Without, they run to
+// their end.
+func (r Repo) WithContext(ctx context.Context) Repo {
+        <span class="cov8" title="1">r.ctx = ctx
+        return r
+</span>}
+
+// running counts the git commands that run, see Wait.
+var running sync.WaitGroup
+
+// Wait waits until the git commands that run have ended, at most d, and
+// reports whether they have. Killing the commands of a cancelled context
+// takes a moment, which a program that ends must wait for: else they run
+// on without it.
+func Wait(d time.Duration) bool {
+        <span class="cov8" title="1">done := make(chan struct{})
+        go func() </span>{
+                <span class="cov8" title="1">running.Wait()
+                close(done)
+</span>        }()
+        <span class="cov8" title="1">select </span>{
+        case &lt;-done:
+                <span class="cov8" title="1">return true</span>
+        case &lt;-time.After(d):
+                <span class="cov0" title="0">return false</span>
+        }
+}
+
+// command returns the command running git with args in r.Dir.
+func (r Repo) command(args ...string) *exec.Cmd {
+        <span class="cov8" title="1">ctx := r.ctx
+        if ctx == nil </span>{
+                <span class="cov8" title="1">ctx = context.Background()
+</span>        }
+        <span class="cov8" title="1">cmd := exec.CommandContext(ctx, "git", args...)
+        cmd.Dir = r.Dir
+        return cmd</span>
+}
 
 func (r Repo) git(args ...string) ([]byte, error) { <span class="cov8" title="1">return r.run(nil, nil, args...) }</span>
 
 // run runs git with env added to its environment and stdin as its input.
 func (r Repo) run(env []string, stdin []byte, args ...string) ([]byte, error) {
-        <span class="cov8" title="1">cmd := exec.Command("git", args...)
-        cmd.Dir = r.Dir
+        <span class="cov8" title="1">cmd := r.command(args...)
         cmd.Env = append(cmd.Environ(), env...)
         if stdin != nil </span>{
                 <span class="cov8" title="1">cmd.Stdin = bytes.NewReader(stdin)
 </span>        }
         <span class="cov8" title="1">var stderr bytes.Buffer
         cmd.Stderr = &amp;stderr
+        running.Add(1)
         out, err := cmd.Output()
+        running.Done()
         if err != nil </span>{
+                <span class="cov8" title="1">if r.ctx != nil &amp;&amp; r.ctx.Err() != nil </span>{
+                        <span class="cov8" title="1">return nil, r.ctx.Err() // killed: what git says is of no interest
+</span>                }
                 <span class="cov8" title="1">if msg := strings.TrimSpace(stderr.String()); msg != "" </span>{
                         <span class="cov8" title="1">return nil, fmt.Errorf("git %s: %s", args[0], msg)
 </span>                }
@@ -1243,13 +1380,41 @@ func Reversed(args []string) bool {
         <span class="cov8" title="1">return rev</span>
 }
 
+// logFormatFlags and diffFormatFlags are the flags of git log and git diff
+// that change the output jdiff reads, alone or with =value.
+var (
+        logFormatFlags  = []string{"--oneline", "--pretty", "--format", "--graph", "--show-signature"}
+        diffFormatFlags = []string{"-p", "-u", "--patch", "-s", "--no-patch", "--stat", "--numstat", "--shortstat",
+                "--dirstat", "--name-only", "--name-status", "--summary", "--compact-summary", "--check",
+                "--patch-with-raw", "--patch-with-stat", "--output"}
+)
+
+// checkFormat returns an error naming the first argument before a -- that
+// is one of flags: they change the output of git command, which jdiff reads.
+func checkFormat(command string, args, flags []string) error {
+        <span class="cov8" title="1">for _, a := range args </span>{
+                <span class="cov8" title="1">if a == "--" </span>{
+                        <span class="cov8" title="1">break</span>
+                }
+                <span class="cov8" title="1">name, _, _ := strings.Cut(a, "=")
+                if slices.Contains(flags, name) </span>{
+                        <span class="cov8" title="1">return fmt.Errorf("git %s: %s changes the output jdiff reads, leave it out", command, name)
+</span>                }
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
 // Log returns the commits git log selects with args, in its order, without
 // their line counts: counting diffs every commit, which takes seconds in a
 // long history, so Counts does it for the commits shown. Records start with
 // RS, fields are separated by US and the body, which may span lines, ends
-// with GS.
+// with GS. Signatures are not shown, even with log.showSignature set: their
+// output would come between the records.
 func (r Repo) Log(args []string) ([]Commit, error) {
-        <span class="cov8" title="1">out, err := r.git(append([]string{"log",
+        <span class="cov8" title="1">if err := checkFormat("log", args, logFormatFlags); err != nil </span>{
+                <span class="cov8" title="1">return nil, err
+</span>        }
+        <span class="cov8" title="1">out, err := r.git(append([]string{"log", "--no-show-signature",
                 "--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s%x1f%b%x1d",
                 "--date=short"}, args...)...)
         if err != nil </span>{
@@ -1281,7 +1446,7 @@ func (r Repo) Counts(hashes []string) (map[string]LineCounts, error) {
         if len(hashes) == 0 </span>{
                 <span class="cov8" title="1">return counts, nil
 </span>        }
-        <span class="cov8" title="1">out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--format=%x1e%H", "--numstat", "--no-relative",
+        <span class="cov8" title="1">out, err := r.git(append([]string{"log", "--no-walk=unsorted", "--no-show-signature", "--format=%x1e%H", "--numstat", "--no-relative",
                 "--diff-merges=first-parent", "--end-of-options"}, hashes...)...)
         if err != nil </span>{
                 <span class="cov8" title="1">return nil, err
@@ -1383,23 +1548,31 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
                 <span class="cov0" title="0">return nil, err
 </span>        }
         <span class="cov8" title="1">var files []source.File
-        var specs []string // blob requests for git cat-file, two per file
+        var specs []string // blob requests for git cat-file, of the sides there are
         for _, e := range entries </span>{
-                <span class="cov8" title="1">specs = append(specs, e.oldID, e.newID)
-                files = append(files, e.file)
-</span>        }
+                <span class="cov8" title="1">if e.file.InOld </span>{
+                        <span class="cov8" title="1">specs = append(specs, e.oldID)
+</span>                }
+                <span class="cov8" title="1">if e.file.InNew </span>{
+                        <span class="cov8" title="1">specs = append(specs, e.newID)
+</span>                }
+                <span class="cov8" title="1">files = append(files, e.file)</span>
+        }
 
         <span class="cov8" title="1">blobs, err := r.catFiles(specs)
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
-        <span class="cov8" title="1">for i := range files </span>{
+        <span class="cov8" title="1">n := 0
+        for i := range files </span>{
                 <span class="cov8" title="1">f := &amp;files[i]
                 if f.InOld </span>{
-                        <span class="cov8" title="1">f.Old, f.Binary = lines(blobs[2*i], f.Binary)
+                        <span class="cov8" title="1">f.Old, f.Binary = lines(blobs[n], f.Binary)
+                        n++
 </span>                }
                 <span class="cov8" title="1">if f.InNew </span>{
-                        <span class="cov8" title="1">f.New, f.Binary = lines(blobs[2*i+1], f.Binary)
+                        <span class="cov8" title="1">f.New, f.Binary = lines(blobs[n], f.Binary)
+                        n++
 </span>                }
         }
         <span class="cov8" title="1">return files, nil</span>
@@ -1448,8 +1621,9 @@ func parseRaw(out []byte) ([]rawEntry, error) {
 // Diff returns the files git diff compares with args, the arguments of git
 // diff: the working tree against the index without any, --cached for the
 // index against HEAD, commits and paths. Sides in the working tree, which
-// git names by the zero id, are read from disk and set OldFile or NewFile,
-// so that they can be watched. Unmerged files are left out.
+// git names by the zero id, are read from disk (see readWorking) and, but
+// symlinks, set OldFile or NewFile, so that they can be watched. Unmerged
+// files are left out.
 func (r Repo) Diff(args []string) ([]source.File, error) { <span class="cov8" title="1">return r.diff(nil, args) }</span>
 
 // DiffUntracked returns what Diff does, and the untracked files as added
@@ -1462,7 +1636,7 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
-        <span class="cov8" title="1">paths, err := Repo{Dir: top}.untracked()
+        <span class="cov8" title="1">paths, err := Repo{Dir: top, ctx: r.ctx}.untracked()
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
@@ -1481,7 +1655,7 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
         <span class="cov8" title="1">env := []string{"GIT_INDEX_FILE=" + index}
 </span>        // One file may be named like a pathspec, say with a * in it.
         <span class="cov8" title="1">list := []byte(strings.Join(paths, "\x00"))
-        if _, err := (Repo{Dir: top}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
+        if _, err := (Repo{Dir: top, ctx: r.ctx}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
                 "add", "-N", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
@@ -1543,9 +1717,12 @@ func (r Repo) copyIndex(dir string) (string, error) {
 
 // diff is Diff with env added to the environment of git diff.
 func (r Repo) diff(env, args []string) ([]source.File, error) {
+        <span class="cov8" title="1">if err := checkFormat("diff", args, diffFormatFlags); err != nil </span>{
+                <span class="cov8" title="1">return nil, err
+</span>        }
         <span class="cov8" title="1">top, err := r.TopLevel()
         if err != nil </span>{
-                <span class="cov0" title="0">return nil, err
+                <span class="cov8" title="1">return nil, err
 </span>        }
         // Paths relative to the top, also with diff.relative set.
         <span class="cov8" title="1">out, err := r.run(env, nil, append([]string{"diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M"},
@@ -1607,19 +1784,15 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
                                 <span class="cov8" title="1">content, binary = lines(blobs[sd.blob], false)
 </span>                        } else {
                                 <span class="cov8" title="1">path := filepath.Join(top, filepath.FromSlash(sd.path))
-                                l, stamp, err := source.Read(path)
-                                switch </span>{
-                                case errors.Is(err, source.ErrBinary):
-                                        <span class="cov8" title="1">binary = true</span>
-                                case err != nil:
-                                        <span class="cov0" title="0">return nil, err</span>
+                                w := readWorking(path)
+                                content, binary = w.lines, w.binary
+                                if w.watch </span>{
+                                        <span class="cov8" title="1">if old </span>{
+                                                <span class="cov8" title="1">f.OldFile, f.OldStamp = path, w.stamp
+</span>                                        } else {
+                                                <span class="cov8" title="1">f.NewFile, f.NewStamp = path, w.stamp
+</span>                                        }
                                 }
-                                <span class="cov8" title="1">content = l
-                                if old </span>{
-                                        <span class="cov8" title="1">f.OldFile, f.OldStamp = path, stamp
-</span>                                } else {
-                                        <span class="cov8" title="1">f.NewFile, f.NewStamp = path, stamp
-</span>                                }
                         }
                         <span class="cov8" title="1">f.Binary = f.Binary || binary
                         if old </span>{
@@ -1630,6 +1803,46 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
                 }
         }
         <span class="cov8" title="1">return files, nil</span>
+}
+
+// workingSide is a side of a file read from the working tree, see
+// readWorking.
+type workingSide struct {
+        lines  []string
+        stamp  source.Stamp
+        binary bool
+        watch  bool // reloaded when it changes on disk
+}
+
+// readWorking reads the side of a file in the working tree at path as git
+// compares it, so that one file cannot fail the whole list: a symlink by
+// the path it points to, as git stores it, also one to a directory, and not
+// watched, since watching reads what it points to; a directory, as of a
+// submodule, and a file that cannot be read as binary, not watched; binary
+// content as binary, watched; a file gone since git listed it as empty,
+// watched so that it shows when it is back.
+func readWorking(path string) workingSide {
+        <span class="cov8" title="1">info, err := os.Lstat(path)
+        switch </span>{
+        case errors.Is(err, fs.ErrNotExist):
+                <span class="cov8" title="1">return workingSide{watch: true}</span>
+        case err != nil:
+                <span class="cov0" title="0">return workingSide{binary: true}</span>
+        case info.Mode()&amp;fs.ModeSymlink != 0:
+                <span class="cov8" title="1">target, err := os.Readlink(path)
+                if err != nil </span>{
+                        <span class="cov0" title="0">return workingSide{binary: true}
+</span>                }
+                <span class="cov8" title="1">return workingSide{lines: []string{target}}</span>
+        }
+        <span class="cov8" title="1">l, stamp, err := source.Read(path)
+        switch </span>{
+        case errors.Is(err, source.ErrBinary):
+                <span class="cov8" title="1">return workingSide{stamp: stamp, binary: true, watch: true}</span>
+        case err != nil:
+                <span class="cov8" title="1">return workingSide{binary: true}</span>
+        }
+        <span class="cov8" title="1">return workingSide{lines: l, stamp: stamp, watch: true}</span>
 }
 
 // lines splits a blob, reporting missing blobs (e.g. submodules) and
@@ -1653,8 +1866,9 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
         <span class="cov8" title="1">if len(specs) == 0 </span>{
                 <span class="cov8" title="1">return nil, nil
 </span>        }
-        <span class="cov8" title="1">cmd := exec.Command("git", "cat-file", "--batch")
-        cmd.Dir = r.Dir
+        <span class="cov8" title="1">cmd := r.command("cat-file", "--batch")
+        var stderr bytes.Buffer
+        cmd.Stderr = &amp;stderr
         stdin, err := cmd.StdinPipe()
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
@@ -1664,9 +1878,11 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
                 <span class="cov0" title="0">return nil, err
 </span>        }
         <span class="cov8" title="1">if err := cmd.Start(); err != nil </span>{
-                <span class="cov0" title="0">return nil, err
+                <span class="cov8" title="1">return nil, err
 </span>        }
-        <span class="cov8" title="1">go func() </span>{
+        <span class="cov8" title="1">running.Add(1)
+        defer running.Done()
+        go func() </span>{
                 <span class="cov8" title="1">w := bufio.NewWriter(stdin)
                 for _, s := range specs </span>{
                         <span class="cov8" title="1">fmt.Fprintln(w, s)
@@ -1687,7 +1903,7 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
         for i := range specs </span>{
                 <span class="cov8" title="1">header, err := rd.ReadString('\n')
                 if err != nil </span>{
-                        <span class="cov0" title="0">return fail(fmt.Errorf("git cat-file: %w", err))
+                        <span class="cov8" title="1">return fail(fmt.Errorf("git cat-file: %w", err))
 </span>                }
                 // "&lt;oid&gt; &lt;type&gt; &lt;size&gt;" or "&lt;object&gt; missing"
                 <span class="cov8" title="1">f := strings.Fields(header)
@@ -1705,7 +1921,16 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 </span>                }
                 <span class="cov8" title="1">blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}</span>
         }
-        <span class="cov8" title="1">return blobs, cmd.Wait()</span>
+        <span class="cov8" title="1">if err := cmd.Wait(); err != nil </span>{
+                <span class="cov0" title="0">if r.ctx != nil &amp;&amp; r.ctx.Err() != nil </span>{
+                        <span class="cov0" title="0">return nil, r.ctx.Err()
+</span>                }
+                <span class="cov0" title="0">if msg := strings.TrimSpace(stderr.String()); msg != "" </span>{
+                        <span class="cov0" title="0">return nil, fmt.Errorf("git cat-file: %s", msg)
+</span>                }
+                <span class="cov0" title="0">return nil, fmt.Errorf("git cat-file: %w", err)</span>
+        }
+        <span class="cov8" title="1">return blobs, nil</span>
 }
 </pre>
 		
@@ -1783,9 +2008,10 @@ import (
 const settle = 50 * time.Millisecond
 
 // mask selects the events that change a file's content or replace or
-// remove it; touching its times or mode does not.
+// remove it, and the move of a watched directory; touching its times or mode
+// does not.
 const mask = unix.IN_MODIFY | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
-        unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
+        unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_MOVE_SELF | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
 
 // Watcher reports changes to files. All watches share one inotify instance,
 // which takes one file descriptor.
@@ -1834,7 +2060,8 @@ func New(paths []string, maxDirs int) (*Watcher, error) {
 }
 
 // Changes returns the channel of changed paths, as given to New, in sorted
-// batches. It is closed when the watcher is.
+// batches. It is closed when the watcher is, and when a directory cannot be
+// watched any more (see read).
 func (w *Watcher) Changes() &lt;-chan []string { <span class="cov8" title="1">return w.changes }</span>
 
 // Close stops watching.
@@ -1849,7 +2076,10 @@ func (w *Watcher) Close() error {
 
 // read sends the watched paths the kernel reports to raw, until the
 // watcher is closed. When the kernel's queue overflowed, events were lost:
-// all paths are sent.
+// all paths are sent. When a watched directory is gone or moved away, as
+// when a checkout removes and makes it again, its paths are sent and the
+// directory at its path is watched anew; when it cannot be, read ends, which
+// closes Changes, so that the caller checks the files itself.
 func (w *Watcher) read(raw chan&lt;- string) {
         <span class="cov8" title="1">defer close(raw)
         send := func(paths []string) bool </span>{
@@ -1875,25 +2105,59 @@ func (w *Watcher) read(raw chan&lt;- string) {
                         name := bytes.TrimRight(buf[off+unix.SizeofInotifyEvent:off+unix.SizeofInotifyEvent+nameLen], "\x00")
                         off += unix.SizeofInotifyEvent + nameLen
                         var paths []string
-                        if evMask&amp;unix.IN_Q_OVERFLOW != 0 </span>{
+                        lost := false
+                        dir, known := w.dirs[wd]
+                        switch </span>{
+                        case evMask&amp;unix.IN_Q_OVERFLOW != 0:
                                 <span class="cov0" title="0">for _, ps := range w.names </span>{
                                         <span class="cov0" title="0">paths = append(paths, ps...)
 </span>                                }
-                        } else <span class="cov8" title="1">if dir, ok := w.dirs[wd]; ok &amp;&amp; len(name) &gt; 0 </span>{
-                                <span class="cov8" title="1">paths = w.names[filepath.Join(dir, string(name))]
-</span>                        }
-                        <span class="cov8" title="1">if !send(paths) </span>{
-                                <span class="cov0" title="0">return
+                        case evMask&amp;(unix.IN_IGNORED|unix.IN_MOVE_SELF) != 0 &amp;&amp; known:
+                                <span class="cov8" title="1">delete(w.dirs, wd)
+                                for p, ps := range w.names </span>{
+                                        <span class="cov8" title="1">if filepath.Dir(p) == dir </span>{
+                                                <span class="cov8" title="1">paths = append(paths, ps...)
+</span>                                        }
+                                }
+                                <span class="cov8" title="1">lost = !w.rewatch(dir, wd, evMask&amp;unix.IN_MOVE_SELF != 0)</span>
+                        case known &amp;&amp; len(name) &gt; 0:
+                                <span class="cov8" title="1">paths = w.names[filepath.Join(dir, string(name))]</span>
+                        }
+                        <span class="cov8" title="1">if !send(paths) || lost </span>{
+                                <span class="cov8" title="1">return
 </span>                        }
                 }
         }
 }
 
+// rewatch watches the directory at dir again after its watch wd ended, or,
+// with moved, removes wd, which follows the directory moved away. It reports
+// whether it could. The file's descriptor is used through Control, so that
+// Close cannot close it meanwhile.
+func (w *Watcher) rewatch(dir string, wd int32, moved bool) bool {
+        <span class="cov8" title="1">conn, err := w.file.SyscallConn()
+        if err != nil </span>{
+                <span class="cov0" title="0">return false
+</span>        }
+        <span class="cov8" title="1">ok := false
+        conn.Control(func(fd uintptr) </span>{
+                <span class="cov8" title="1">if moved </span>{
+                        <span class="cov8" title="1">unix.InotifyRmWatch(int(fd), uint32(wd))
+</span>                }
+                <span class="cov8" title="1">if wd, err := unix.InotifyAddWatch(int(fd), dir, mask); err == nil </span>{
+                        <span class="cov8" title="1">w.dirs[int32(wd)] = dir
+                        ok = true
+</span>                }
+        })
+        <span class="cov8" title="1">return ok</span>
+}
+
 // batch collects the paths from raw for settle after the first one and
-// sends them on as one batch, until raw is closed.
+// sends them on as one batch, until raw is closed; the batch collected
+// then is still sent.
 func (w *Watcher) batch(raw &lt;-chan string) {
         <span class="cov8" title="1">defer close(w.changes)
-        for </span>{
+        for open := true; open; </span>{
                 <span class="cov8" title="1">p, ok := &lt;-raw
                 if !ok </span>{
                         <span class="cov8" title="1">return
@@ -1905,9 +2169,10 @@ func (w *Watcher) batch(raw &lt;-chan string) {
                         <span class="cov8" title="1">select </span>{
                         case p, ok := &lt;-raw:
                                 <span class="cov8" title="1">if !ok </span>{
-                                        <span class="cov0" title="0">timer.Stop()
-                                        return
-</span>                                }
+                                        <span class="cov8" title="1">timer.Stop()
+                                        open = false
+                                        break collect</span>
+                                }
                                 <span class="cov8" title="1">set[p] = true</span>
                         case &lt;-timer.C:
                                 <span class="cov8" title="1">break collect</span>
@@ -1967,64 +2232,60 @@ type Settings struct {
         Extends  string `toml:"extends"`
         Precedes string `toml:"precedes"`
         // Untracked (untracked) also shows the untracked files in jdiff diff,
-        // as added, where it compares with the working tree. u in the settings
-        // popup toggles it and --untracked turns it on, for the run only: it is
-        // the one toggle state.toml does not keep.
+        // as added, where it compares with the working tree. The key of action
+        // untracked toggles it and --untracked turns it on, for the run only: it
+        // is the one toggle state.toml does not keep.
         Untracked bool `toml:"untracked"`
         Toggles
 }
 
 // Toggles are the settings switched by keys, which state.toml keeps as last
-// set; their TOML keys are on the same level as the other settings.
+// set; their TOML keys are on the same level as the other settings. The keys
+// are those of the action named with each, in keybindings.toml of package ui,
+// which the user may change.
 type Toggles struct {
         // Flow (flow) shows all files one after the other instead of one file
-        // at a time; f toggles it.
+        // at a time; action flow.
         Flow bool `toml:"flow"`
         // SideBySide (side_by_side) shows the old and new file next to each
-        // other; off, they are shown in one column like git diff. s in the settings
-        // popup toggles it.
+        // other; off, they are shown in one column like git diff; action layout.
         SideBySide bool `toml:"side_by_side"`
         // Preview (preview) shows a box below the commit and file lists with
-        // the selected commit's message or file's diff; v in the settings popup
-        // toggles it.
+        // the selected commit's message or file's diff; action preview.
         Preview bool `toml:"preview"`
         // ShowWhitespaces (show_whitespaces) draws all whitespace as · and →,
-        // not only changed whitespace, and the end of lines as LineEnd; W
-        // in the settings popup toggles it.
+        // not only changed whitespace, and the end of lines as LineEnd; action
+        // whitespace.
         ShowWhitespaces bool `toml:"show_whitespaces"`
         // MarkWhitespace (mark_whitespace) draws changed whitespace as · and →
         // in the style of changed words: indentation, tabs and runs of spaces,
         // not a single space between changed words; off, all changed whitespace
-        // looks like unchanged whitespace. ctrl+w in the settings popup
-        // toggles it.
+        // looks like unchanged whitespace; action mark_whitespace.
         MarkWhitespace bool `toml:"mark_whitespace"`
         // ShowTrailing (show_trailing) draws whitespace at the end of lines as ·
-        // and → in the trailing whitespace style. t in the settings popup toggles
-        // it.
+        // and → in the trailing whitespace style; action trailing.
         ShowTrailing bool `toml:"show_trailing"`
         // ShowCR (show_cr) draws the \r of all \r\n line ends as CREnd, not
-        // only of changed ones. e in the settings popup toggles it.
+        // only of changed ones; action line_ends.
         ShowCR bool `toml:"show_cr"`
         // Wrap (wrap) wraps lines longer than their pane onto further screen
-        // lines; off, they are cut and h and l scroll them. w in the
-        // settings popup toggles it.
+        // lines; off, they are cut and scrolled sideways; action wrap.
         Wrap bool `toml:"wrap"`
         // BoldChanges (bold_changes) draws changed words and whitespace bold
         // where the theme says so; off, without bold, which terminals often
-        // draw brighter. b in the settings popup toggles it.
+        // draw brighter; action bold.
         BoldChanges bool `toml:"bold_changes"`
         // FullMessages (full_messages) shows the whole commit message in the
-        // flow view of the log; off, only the subject. c in the settings popup
-        // toggles it.
+        // flow view of the log; off, only the subject; action full_messages.
         FullMessages bool `toml:"full_messages"`
         // StayInCommit (stay_in_commit) keeps the cursor of the flow view of the
-        // log in the current commit: moves out of it stop with a warning, N and
-        // P still switch commits. C in the settings popup toggles it.
+        // log in the current commit: moves out of it stop with a warning, the keys
+        // of action history still switch commits; action stay_in_commit.
         StayInCommit bool `toml:"stay_in_commit"`
-        // SearchRegex (search_regex) searches with / for a regular expression;
+        // SearchRegex (search_regex) searches, action search, for a regular expression;
         // off, for plain text. shift+tab in the search bar toggles it.
         SearchRegex bool `toml:"search_regex"`
-        // SearchAll (search_all) searches with / in all lines; off, only in
+        // SearchAll (search_all) searches, action search, in all lines; off, only in
         // changed ones, added, removed and moved. tab in the search bar toggles
         // it.
         SearchAll bool `toml:"search_all"`
@@ -2785,6 +3046,7 @@ func Resolve(sp Spec) *Theme {
 		<pre class="file" id="file15" style="display: none">package ui
 
 import (
+        "context"
         "fmt"
         "slices"
         "strings"
@@ -2892,7 +3154,7 @@ func (e *entry) updateStats() {
                 <span class="cov8" title="1">e.added, e.removed = diff.Stats(e.diff.rows)
                 return
 </span>        }
-        <span class="cov0" title="0">e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil, diff.Options{}))</span>
+        <span class="cov0" title="0">e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil))</span>
 }
 
 // fileListRows is the most rows the file list takes while the preview shows,
@@ -2907,6 +3169,13 @@ type App struct {
         commit *gitsrc.Commit // whose files are shown, nil outside the log
         files  []*entry
         relist ListFunc // lists the files again, nil when they cannot be
+        // relisting is set while the files are listed again in the background,
+        // again when they are to be listed once more after that, quietly with
+        // againQuiet (see relistFiles).
+        relisting, again, againQuiet bool
+        // ctx ends the git commands of the view, cancel ends ctx, see stop.
+        ctx    context.Context
+        cancel context.CancelFunc
         // gitDiff runs git diff with arguments, nil outside jdiff diff; diffArgs
         // are those of the files shown.
         gitDiff  DiffFunc
@@ -2930,19 +3199,22 @@ type App struct {
 // NewApp returns the file selector for files.
 func NewApp(cfg *config.Config, files []source.File) *App { <span class="cov8" title="1">return newApp(cfg, files, nil) }</span>
 
-// ListFunc lists the files of a comparison again.
-type ListFunc func() ([]source.File, error)
+// ListFunc lists the files of a comparison again. It runs in the background,
+// and ends when ctx is done.
+type ListFunc func(ctx context.Context) ([]source.File, error)
 
-// DiffFunc returns the files git diff compares with args.
-type DiffFunc func(args []string) ([]source.File, error)
+// DiffFunc returns the files git diff compares with args, with the
+// untracked files as added when untracked is set. It runs in the background:
+// it must not read the settings, which the keys change meanwhile; it ends
+// when ctx is done.
+type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source.File, error)
 
 // WithGitDiff makes a the files of git diff with args, which r runs again,
 // and returns a.
 func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
         <span class="cov8" title="1">a.gitDiff, a.diffArgs = gitDiff, args
-        a.relist = func() ([]source.File, error) </span>{ <span class="cov8" title="1">return a.gitDiff(a.diffArgs) }</span>
-        <span class="cov8" title="1">return a</span>
-}
+        return a
+</span>}
 
 // WithRelist sets how r lists the files again and returns a.
 func (a *App) WithRelist(list ListFunc) *App {
@@ -2954,6 +3226,7 @@ func (a *App) WithRelist(list ListFunc) *App {
 // files of commit when it is set.
 func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
         <span class="cov8" title="1">a := &amp;App{cfg: cfg, commit: commit}
+        a.ctx, a.cancel = context.WithCancel(context.Background())
 </span>        // The files are searched for moved code together.
         <span class="cov8" title="1">group := &amp;moveGroup{}
         for _, f := range files </span>{
@@ -2982,16 +3255,19 @@ func (a *App) addEntry(group *moveGroup, e *entry) {
         a.files = append(a.files, e)</span>
 }
 
-// stop stops watching the files: the view is replaced.
+// stop stops watching the files and ends the git commands of the view: it
+// is replaced, or the program ends.
 func (a *App) stop() {
-        <span class="cov8" title="1">if a.notify != nil </span>{
+        <span class="cov8" title="1">a.cancel()
+        if a.notify != nil </span>{
                 <span class="cov8" title="1">a.notify.Close()
 </span>        }
 }
 
-// diffCommand returns the git diff command line of args.
+// diffCommand returns the git diff command line of args, quoted as the
+// popup of git diff reads them.
 func diffCommand(args []string) string {
-        <span class="cov8" title="1">return strings.TrimSpace("git diff " + strings.Join(args, " "))
+        <span class="cov8" title="1">return strings.TrimSpace("git diff " + joinArgs(args))
 </span>}
 
 // inLog reports whether a is part of the log: backspace and N/P go to the
@@ -3100,22 +3376,63 @@ func (a *App) refresh(which func(i int) bool) {
 </span>        }
 }
 
-// relistFiles lists the files again (r). New files are added and gone ones
-// dropped; a file still there keeps its entry, and so its diff with anchors
-// and folds, reloaded where its content changed. A file that became binary
-// or stopped being binary counts as gone and new. The cursor stays on its
-// file; when the file shown is gone, the list is shown. The files are
-// watched anew; it returns the command waiting for their changes. With quiet,
-// it does not say when nothing changed.
+// filesListedMsg brings the files app listed again, or why it could not.
+type filesListedMsg struct {
+        app   *App
+        files []source.File
+        err   error
+        quiet bool
+}
+
+// relistFiles returns the command listing the files again (r) in the
+// background: git diff, or the two directories. The files stay usable
+// meanwhile. While a listing runs, another one is not started, but run once
+// it is done, since what to list may have changed, as the untracked files.
+// With quiet, as auto reload asks, nothing is said unless something changed.
 func (a *App) relistFiles(quiet bool) tea.Cmd {
-        <span class="cov8" title="1">if a.relist == nil </span>{
+        <span class="cov8" title="1">list := a.relist
+        if a.gitDiff != nil </span>{
+                <span class="cov8" title="1">args, untracked, gitDiff := a.diffArgs, a.cfg.Settings.Untracked, a.gitDiff
+                list = func(ctx context.Context) ([]source.File, error) </span>{ <span class="cov8" title="1">return gitDiff(ctx, args, untracked) }</span>
+        }
+        <span class="cov8" title="1">if list == nil </span>{
                 <span class="cov8" title="1">a.setMsg("nothing to load again")
                 return nil
 </span>        }
-        <span class="cov8" title="1">files, err := a.relist()
-        if err != nil </span>{
-                <span class="cov8" title="1">a.setMsg(firstLine(err))
+        <span class="cov8" title="1">if a.relisting </span>{
+                <span class="cov8" title="1">a.againQuiet = quiet &amp;&amp; (!a.again || a.againQuiet)
+                a.again = true
                 return nil
+</span>        }
+        <span class="cov8" title="1">a.relisting = true
+        if !quiet </span>{
+                <span class="cov8" title="1">a.setMsg("loading again…")
+</span>        }
+        <span class="cov8" title="1">ctx := a.ctx
+        return func() tea.Msg </span>{
+                <span class="cov8" title="1">files, err := list(ctx)
+                return filesListedMsg{a, files, err, quiet}
+</span>        }
+}
+
+// filesListed takes the files listed again. New files are added and gone
+// ones dropped; a file still there keeps its entry, and so its diff with
+// anchors and folds, reloaded where its content changed. A file that became
+// binary or stopped being binary counts as gone and new. The cursor stays on
+// its file; when the file shown is gone, the list is shown. The files are
+// watched anew; it returns the command waiting for their changes, and the
+// one listing them once more when that was asked for meanwhile.
+func (a *App) filesListed(res filesListedMsg) tea.Cmd {
+        <span class="cov8" title="1">a.relisting = false
+        var next tea.Cmd
+        if a.again </span>{
+                <span class="cov8" title="1">a.again = false
+                next = a.relistFiles(a.againQuiet)
+</span>        }
+        <span class="cov8" title="1">files, quiet := res.files, res.quiet
+        if res.err != nil </span>{
+                <span class="cov8" title="1">a.setMsg(firstLine(res.err))
+                return next
 </span>        }
         <span class="cov8" title="1">kept := map[string]*entry{}
         for _, e := range a.files </span>{
@@ -3180,9 +3497,23 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
                 <span class="cov8" title="1">a.setMsg(msg)
 </span>        }
         <span class="cov8" title="1">if a.inLog() </span>{
-                <span class="cov0" title="0">return nil
+                <span class="cov0" title="0">return next
 </span>        }
-        <span class="cov8" title="1">return a.watch()</span>
+        <span class="cov8" title="1">return batch(a.watch(), next)</span>
+}
+
+// batch returns the commands that are not nil, as one: tea.Batch of them
+// when there are several, so that a single command stays plain, as the
+// tests run them.
+func batch(cmds ...tea.Cmd) tea.Cmd {
+        <span class="cov8" title="1">cmds = slices.DeleteFunc(cmds, func(c tea.Cmd) bool </span>{ <span class="cov8" title="1">return c == nil }</span>)
+        <span class="cov8" title="1">switch len(cmds) </span>{
+        case 0:
+                <span class="cov8" title="1">return nil</span>
+        case 1:
+                <span class="cov8" title="1">return cmds[0]</span>
+        }
+        <span class="cov0" title="0">return tea.Batch(cmds...)</span>
 }
 
 // flowShown reports whether the flow view is shown instead of a diff view.
@@ -3220,6 +3551,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 }
                 <span class="cov8" title="1">a.refresh(changed)
                 return a, waitChanges(a.notify)</span>
+        case watchEndedMsg:
+                <span class="cov8" title="1">if msg.w != a.notify </span>{
+                        <span class="cov8" title="1">return a, nil
+</span>                }
+                <span class="cov8" title="1">a.notify = nil
+                if a.ticking </span>{
+                        <span class="cov0" title="0">return a, nil
+</span>                }
+                <span class="cov8" title="1">a.ticking = true
+                return a, watchTick(a.cfg, a)</span>
         case jumpMsg:
                 <span class="cov8" title="1">a.jump(msg)
                 return a, nil</span>
@@ -3240,6 +3581,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 return a, nil</span>
         case refreshMsg:
                 <span class="cov8" title="1">return a, a.relistFiles(msg.quiet)</span>
+        case filesListedMsg:
+                <span class="cov8" title="1">if msg.app != a </span>{
+                        <span class="cov0" title="0">return a, nil
+</span>                }
+                <span class="cov8" title="1">return a, a.filesListed(msg)</span>
         case showMsg:
                 <span class="cov8" title="1">a.setMsg(string(msg))
                 return a, nil</span>
@@ -3559,7 +3905,7 @@ func (a *App) frame() string {
                 if a.cfg.Settings.Untracked </span>{
                         <span class="cov8" title="1">cmd += " + untracked"
 </span>                }
-                <span class="cov8" title="1">head += "  " + t.Hint.Render(cmd)</span>
+                <span class="cov8" title="1">head += "  " + t.Hint.Render(printable(cmd))</span>
         }
 
         <span class="cov8" title="1">item := func(i int, st func(lipgloss.Style) lipgloss.Style) string </span>{
@@ -4054,12 +4400,22 @@ func lineOf(r diff.Row, s side) int {
         <span class="cov8" title="1">return r.Right</span>
 }
 
-// emphOf returns the emphasized parts of the line of side s in r.
-func emphOf(r diff.Row, s side) []diff.Span {
-        <span class="cov8" title="1">if s == left </span>{
-                <span class="cov8" title="1">return r.LeftEmph
+// emphOf returns the emphasized parts of the line of side s in row i, none
+// unless it is a Change row. They are computed when the row is first drawn
+// and kept until the next alignment: computing them for all rows when a
+// large change is loaded took seconds.
+func (d *fileDiff) emphOf(i int, s side) []diff.Span {
+        <span class="cov8" title="1">r := d.rows[i]
+        if r.Kind != diff.Change </span>{
+                <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">return r.RightEmph</span>
+        <span class="cov8" title="1">e, ok := d.emph[i]
+        if !ok </span>{
+                <span class="cov8" title="1">e[left], e[right] = diff.Intraline(d.lines[left][r.Left], d.lines[right][r.Right],
+                        d.cfg.Settings.OnlyChangedWhitespaces)
+                d.emph[i] = e
+</span>        }
+        <span class="cov8" title="1">return e[s]</span>
 }
 
 // anchorLine returns the line of side s that an anchors.
@@ -4128,7 +4484,8 @@ type fileDiff struct {
 
         anchors []diff.Anchor // sorted by Left, never crossing
         rows    []diff.Row
-        rowOf   [2][]int // line index -&gt; row index, per side
+        rowOf   [2][]int               // line index -&gt; row index, per side
+        emph    map[int][2][]diff.Span // emphasized parts by row, see emphOf
 
         blocks   []block      // foldable blocks of unchanged rows
         foldOpen map[int]bool // open state by the block's first left line
@@ -4146,7 +4503,7 @@ type fileDiff struct {
         reloadSide side
         moved      []int
 
-        widths [2][]int // the columns each line takes when drawn, per side
+        widths [2][]int // the columns each line takes when drawn, per side, -1 until measured
         // highlighted is the line drawn last, per side, see content.
         highlighted [2]highlightCache
 
@@ -4181,13 +4538,26 @@ func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDi
         return d
 </span>}
 
-// measure computes the widths of the lines of side s, without the \r of a
-// \r\n line end: see crShown.
+// measure forgets the widths of the lines of side s, after its lines were
+// set: see width.
 func (d *fileDiff) measure(s side) {
         <span class="cov8" title="1">d.widths[s] = make([]int, len(d.lines[s]))
-        for i, l := range d.lines[s] </span>{
-                <span class="cov8" title="1">d.widths[s][i] = ansi.StringWidth(printable(strings.TrimSuffix(l, "\r")))
+        for i := range d.widths[s] </span>{
+                <span class="cov8" title="1">d.widths[s][i] = -1
 </span>        }
+}
+
+// width returns the columns line of side s takes when drawn, without the \r
+// of a \r\n line end (see crShown). It is measured on first use: only
+// wrapping needs it, and measuring all lines took most of the time loading a
+// large change takes.
+func (d *fileDiff) width(s side, line int) int {
+        <span class="cov8" title="1">if w := d.widths[s][line]; w &gt;= 0 </span>{
+                <span class="cov8" title="1">return w
+</span>        }
+        <span class="cov8" title="1">w := ansi.StringWidth(printable(strings.TrimSuffix(d.lines[s][line], "\r")))
+        d.widths[s][line] = w
+        return w</span>
 }
 
 // crShown reports whether line of side s ends in a \r that is drawn in sh:
@@ -4200,7 +4570,7 @@ func (d *fileDiff) crShown(s side, line int, sh shape) bool {
         <span class="cov8" title="1">if sh.cr </span>{
                 <span class="cov8" title="1">return true
 </span>        }
-        <span class="cov8" title="1">for _, sp := range emphOf(d.rows[d.rowOf[s][line]], s) </span>{
+        <span class="cov8" title="1">for _, sp := range d.emphOf(d.rowOf[s][line], s) </span>{
                 <span class="cov0" title="0">if sp.End == len(text) </span>{
                         <span class="cov0" title="0">return true
 </span>                }
@@ -4283,7 +4653,7 @@ func lineMap(old, new []string) []int {
         for i := range moved </span>{
                 <span class="cov8" title="1">moved[i] = -1
 </span>        }
-        <span class="cov8" title="1">for _, r := range diff.Align(old, new, nil, diff.Options{}) </span>{
+        <span class="cov8" title="1">for _, r := range diff.Align(old, new, nil) </span>{
                 <span class="cov8" title="1">if r.Kind == diff.Equal </span>{
                         <span class="cov8" title="1">moved[r.Left] = r.Right
 </span>                }
@@ -4428,8 +4798,8 @@ func (d *fileDiff) anchorAt(s side, line int) (diff.Anchor, bool) {
 // align computes the rows from the lines and anchors, then the displayed
 // rows.
 func (d *fileDiff) align() {
-        <span class="cov8" title="1">d.rows = diff.Align(d.lines[left], d.lines[right], d.anchors,
-                diff.Options{SplitIndent: d.cfg.Settings.OnlyChangedWhitespaces})
+        <span class="cov8" title="1">d.rows = diff.Align(d.lines[left], d.lines[right], d.anchors)
+        d.emph = map[int][2][]diff.Span{}
         for s := range d.rowOf </span>{
                 <span class="cov8" title="1">d.rowOf[s] = make([]int, len(d.lines[s]))
 </span>        }
@@ -4520,7 +4890,7 @@ func (d *fileDiff) pieces(s side, line int, sh shape) int {
         if sh.wrap == 0 || line &lt; 0 || cw == 0 </span>{
                 <span class="cov8" title="1">return 1
 </span>        }
-        <span class="cov8" title="1">w := d.widths[s][line]
+        <span class="cov8" title="1">w := d.width(s, line)
         if sh.lineEnd </span>{
                 <span class="cov8" title="1">w++
 </span>        }
@@ -4793,15 +5163,25 @@ const far = 1 &lt;&lt; 30
 // after the other, each starting with a bar, and in the log each commit
 // starting with its message. Files share their diffs with the single file
 // view, so anchors and folds carry over; cursor and scrolling are the
-// flow's own. Commits are loaded once they come near the cursor.
+// flow's own. In the log, commits load in the background once they are on
+// the screen, one at a time; until then a note says that they load.
 type Flow struct {
         cfg   *config.Config
         parts []*flowPart
-        load  func(part int) (*App, error) // loads the files of a commit, nil outside the log
-        order historyOrder                 // of the commits, the parts in the log
+        // load returns the command loading the files of the commit of part,
+        // whose result the log gives back to partLoaded; nil outside the log.
+        load  func(part int) tea.Cmd
+        order historyOrder // of the commits, the parts in the log
+
+        loading *flowPart // the commit loading, nil for none
+        ahead   int       // the way of the last move, whose commits a screen beyond load too
+        atEnd   bool      // end was pressed last: the cursor stays on the last row
+        waiting *flowWait // a search waiting for a commit to load
 
         rows      []flowRow
-        built     shape // what the rows of the diffs were built for
+        rowAt     map[flowRow]int // index of each row, see find
+        stale     bool            // a row changed since rowAt was built
+        built     shape           // what the rows of the diffs were built for
         cursor    int
         top       int
         xoff      int
@@ -4814,7 +5194,14 @@ type Flow struct {
         msg           string
 }
 
-func newFlow(cfg *config.Config, parts []*flowPart, load func(int) (*App, error)) *Flow {
+// flowWait is a search that reached a commit not loaded yet: redo runs it
+// again once part is loaded.
+type flowWait struct {
+        part *flowPart
+        redo func()
+}
+
+func newFlow(cfg *config.Config, parts []*flowPart, load func(int) tea.Cmd) *Flow {
         <span class="cov8" title="1">f := &amp;Flow{cfg: cfg, parts: parts, load: load}
         f.build()
         return f
@@ -4874,8 +5261,12 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">f.msg = msg.problem
 </span>                }
         }
-        <span class="cov8" title="1">f.loadVisible()
-        return f, cmd</span>
+        // A key's own command comes first, alone, as the tests run commands one
+        // at a time; the next message starts the load.
+        <span class="cov8" title="1">if cmd == nil </span>{
+                <span class="cov8" title="1">cmd = f.nextLoad()
+</span>        }
+        <span class="cov8" title="1">return f, cmd</span>
 }
 
 func (f *Flow) key(k string) tea.Cmd {
@@ -4885,6 +5276,7 @@ func (f *Flow) key(k string) tea.Cmd {
                 f.replacing = nil
 </span>        }
         <span class="cov8" title="1">f.msg = ""
+        f.atEnd, f.waiting = false, nil // another key: end and searches let go
         if p := f.prefix; p != "" </span>{
                 <span class="cov8" title="1">f.prefix = ""
                 switch </span>{
@@ -4923,23 +5315,19 @@ func (f *Flow) key(k string) tea.Cmd {
                         <span class="cov8" title="1">f.xoff += 8
 </span>                }
         case "change":
-                <span class="cov8" title="1">if !f.search(direction(h.i == 0), f.changeStart, true) &amp;&amp; f.msg == "" </span>{
-                        <span class="cov8" title="1">f.msg = "no more changes"
-</span>                }
+                <span class="cov8" title="1">f.nextChange(direction(h.i == 0))</span>
         case "next_file":
-                <span class="cov8" title="1">if f.search(direction(h.i == 0), f.isKind(flowFile, 0), true) </span>{
-                        <span class="cov8" title="1">f.barToTop()
-</span>                } else <span class="cov8" title="1">if f.msg == "" </span>{
-                        <span class="cov8" title="1">f.msg = ends(h.i == 0, "last file", "first file")
-</span>                }
+                <span class="cov8" title="1">f.nextFile(direction(h.i == 0))</span>
         case "history":
-                <span class="cov8" title="1">switch </span>{
-                case !f.inLog():<span class="cov0" title="0"></span>
-                case f.search(f.order.step(historyDir(h)), f.isKind(flowCommit, 0), false):
-                        <span class="cov8" title="1">f.barToTop()</span>
-                default:
-                        <span class="cov8" title="1">f.msg = ends(historyDir(h) &gt; 0, "last commit", "first commit")</span>
+                <span class="cov8" title="1">if !f.inLog() </span>{
+                        <span class="cov0" title="0">break</span>
                 }
+                // The bars of all commits are there, loaded or not: no waiting.
+                <span class="cov8" title="1">if r, _ := f.search(f.order.step(historyDir(h)), f.isKind(flowCommit, 0), false, false); r == found </span>{
+                        <span class="cov8" title="1">f.barToTop()
+</span>                } else {
+                        <span class="cov8" title="1">f.msg = ends(historyDir(h) &gt; 0, "last commit", "first commit")
+</span>                }
         case "anchor", "cancel_mark", "fold", "fold_all":
                 <span class="cov8" title="1">f.delegate(h.action)</span>
         case "search":
@@ -5097,11 +5485,14 @@ func (f *Flow) build() {
                 <span class="cov8" title="1">f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 </span>        }
         <span class="cov8" title="1">for p, part := range f.parts </span>{
+                <span class="cov8" title="1">if part.app == nil &amp;&amp; part.commit != nil </span>{
+                        <span class="cov8" title="1">part.app = part.commit.app // loaded for the list meanwhile
+</span>                }
                 <span class="cov8" title="1">for i := range f.commitLines(part) </span>{
                         <span class="cov8" title="1">add(flowCommit, p, -1, i)
 </span>                }
-                <span class="cov8" title="1">if part.err != "" || (part.app != nil &amp;&amp; len(part.app.files) == 0) </span>{
-                        <span class="cov8" title="1">add(flowNote, p, -1, 0)
+                <span class="cov8" title="1">if part.app == nil || len(part.app.files) == 0 </span>{
+                        <span class="cov8" title="1">add(flowNote, p, -1, 0) // loading, why it cannot, or no files
 </span>                }
                 <span class="cov8" title="1">if part.app == nil </span>{
                         <span class="cov8" title="1">continue</span>
@@ -5118,6 +5509,10 @@ func (f *Flow) build() {
 </span>                        }
                 }
         }
+        <span class="cov8" title="1">f.rowAt, f.stale = make(map[flowRow]int, len(f.rows)), false
+        for i, r := range slices.Backward(f.rows) </span>{
+                <span class="cov8" title="1">f.rowAt[r] = i // the first of equal rows, as a search finds
+</span>        }
         <span class="cov8" title="1">f.cursor = max(min(f.cursor, len(f.rows)-1), 0)</span>
 }
 
@@ -5175,7 +5570,8 @@ func (f *Flow) followFiles(part int, old, new []*entry) {
         if r.part != part || r.file &lt; 0 </span>{
                 <span class="cov0" title="0">return
 </span>        }
-        <span class="cov8" title="1">for i := r.file; i &lt; len(old); i++ </span>{
+        <span class="cov8" title="1">f.stale = true
+        for i := r.file; i &lt; len(old); i++ </span>{
                 <span class="cov8" title="1">if j := slices.Index(new, old[i]); j &gt;= 0 </span>{
                         <span class="cov8" title="1">if i == r.file </span>{
                                 <span class="cov8" title="1">r.file = j
@@ -5195,6 +5591,7 @@ func (f *Flow) followParts(old []*flowPart) {
         <span class="cov8" title="1">if f.cursor &lt; len(f.rows) </span>{
                 <span class="cov8" title="1">r := &amp;f.rows[f.cursor]
                 r.part = slices.Index(f.parts, old[r.part])
+                f.stale = true
 </span>        }
 }
 
@@ -5235,95 +5632,107 @@ func (f *Flow) findDiff(part, file, line, sub int) int {
         <span class="cov8" title="1">return f.find(flowRow{flowDiff, part, file, line, 0})</span>
 }
 
+// find returns the index of row r, or -1. The rows are indexed by build: a
+// long log has many, and each move looks for rows. After a row changed in
+// place, as followFiles and followParts do before the rows are rebuilt, they
+// are searched.
 func (f *Flow) find(r flowRow) int {
-        <span class="cov8" title="1">for i, x := range f.rows </span>{
-                <span class="cov8" title="1">if x == r </span>{
+        <span class="cov8" title="1">if !f.stale </span>{
+                <span class="cov8" title="1">if i, ok := f.rowAt[r]; ok </span>{
                         <span class="cov8" title="1">return i
 </span>                }
+                <span class="cov8" title="1">return -1</span>
         }
-        <span class="cov8" title="1">return -1</span>
+        <span class="cov0" title="0">for i, x := range f.rows </span>{
+                <span class="cov0" title="0">if x == r </span>{
+                        <span class="cov0" title="0">return i
+</span>                }
+        }
+        <span class="cov0" title="0">return -1</span>
 }
 
 // inLog reports whether f shows the commits of the log, rather than the
 // files outside it.
 func (f *Flow) inLog() bool { <span class="cov8" title="1">return f.load != nil }</span>
 
+// unloaded reports whether the files of part are not loaded yet, neither
+// for the flow nor for the list.
 func (f *Flow) unloaded(part int) bool {
         <span class="cov8" title="1">p := f.parts[part]
-        return p.app == nil &amp;&amp; p.err == ""
+        return p.app == nil &amp;&amp; p.err == "" &amp;&amp; (p.commit == nil || p.commit.app == nil)
 </span>}
 
-// unloadedIn returns a commit with rows in [a, b] that is not loaded yet, or
-// -1.
-func (f *Flow) unloadedIn(a, b int) int {
-        <span class="cov8" title="1">if !f.inLog() </span>{
-                <span class="cov8" title="1">return -1
+// nextLoad returns the command loading the next commit, nil while one loads
+// or none is to: the one a search waits for, else the first on the screen
+// not loaded yet, else the first within a screen from the cursor on the way
+// of the last move, so that it is there when the cursor comes.
+func (f *Flow) nextLoad() tea.Cmd {
+        <span class="cov8" title="1">if !f.inLog() || f.loading != nil </span>{
+                <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">for i := max(a, 0); i &lt;= min(b, len(f.rows)-1); i++ </span>{
-                <span class="cov8" title="1">if p := f.rows[i].part; f.unloaded(p) </span>{
-                        <span class="cov8" title="1">return p
-</span>                }
-        }
-        <span class="cov8" title="1">return -1</span>
-}
-
-// loadPart loads the files of commit p; the cursor stays on its row and its
-// screen row.
-func (f *Flow) loadPart(p int) {
-        <span class="cov8" title="1">part := f.parts[p]
-        app, err := f.load(p)
-        if err != nil </span>{
-                <span class="cov8" title="1">part.err = firstLine(err)
-</span>        } else {
-                <span class="cov8" title="1">part.app = app
+        <span class="cov8" title="1">p := -1
+        if w := f.waiting; w != nil </span>{
+                <span class="cov0" title="0">p = slices.Index(f.parts, w.part)
 </span>        }
-        <span class="cov8" title="1">f.keepScreenRow(f.relocate)</span>
-}
-
-// loadVisible loads the commits shown on screen.
-func (f *Flow) loadVisible() {
-        <span class="cov8" title="1">for </span>{
-                <span class="cov8" title="1">p := f.unloadedIn(f.top, f.top+f.bodyHeight()-1)
-                if p &lt; 0 </span>{
-                        <span class="cov8" title="1">return
-</span>                }
-                <span class="cov8" title="1">f.loadPart(p)</span>
-        }
-}
-
-// moveCursor moves the cursor by delta rows. Commits on the way and a
-// screen beyond are loaded first, so it lands where it would with all
-// commits loaded; for far only those around where it lands, the others load
-// as they come near.
-func (f *Flow) moveCursor(delta int) {
-        <span class="cov8" title="1">if max(delta, -delta) &gt;= far </span>{
-                <span class="cov8" title="1">f.loadAroundEnd(delta)
-</span>        } else {
-                <span class="cov8" title="1">f.loadAhead(delta)
-</span>        }
-        <span class="cov8" title="1">f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
-        f.scrollToCursor()</span>
-}
-
-// loadAroundEnd loads the commits within a screen of the first row the cursor
-// may go to, for delta below 0, else of the last. Only home and end need it:
-// should those keys go, as they may, this and the far branch of moveCursor go
-// with their cases in motion.
-func (f *Flow) loadAroundEnd(delta int) {
         <span class="cov8" title="1">h := f.bodyHeight()
-        for </span>{
-                <span class="cov8" title="1">lo, hi := f.bounds()
-                end := hi
-                if delta &lt; 0 </span>{
-                        <span class="cov8" title="1">end = lo
-</span>                }
-                <span class="cov8" title="1">p := f.unloadedIn(end-h, end+h)
-                if p &lt; 0 </span>{
-                        <span class="cov8" title="1">return
-</span>                }
-                <span class="cov8" title="1">f.loadPart(p)</span>
+        first := func(from, to int) </span>{
+                <span class="cov8" title="1">for i := max(from, 0); p &lt; 0 &amp;&amp; i &lt; min(to, len(f.rows)); i++ </span>{
+                        <span class="cov8" title="1">if q := f.rows[i].part; f.unloaded(q) </span>{
+                                <span class="cov8" title="1">p = q
+</span>                        }
+                }
         }
+        <span class="cov8" title="1">first(f.top, f.top+h)
+        switch </span>{
+        case f.ahead &gt; 0:
+                <span class="cov8" title="1">first(f.cursor, f.cursor+h+1)</span>
+        case f.ahead &lt; 0:
+                <span class="cov8" title="1">first(f.cursor-h, f.cursor+1)</span>
+        }
+        <span class="cov8" title="1">if p &lt; 0 || !f.unloaded(p) </span>{
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">f.loading = f.parts[p]
+        return f.load(p)</span>
 }
+
+// partLoaded takes the files of the commit of part, which the log loaded,
+// or why they could not be. The cursor stays on its row and screen row, or
+// after end on the last row; a search waiting for the commit goes on. It
+// returns the command loading the next commit.
+func (f *Flow) partLoaded(part *flowPart, err error) tea.Cmd {
+        <span class="cov8" title="1">if f.loading == part </span>{
+                <span class="cov8" title="1">f.loading = nil
+</span>        }
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov8" title="1">part.err = firstLine(err)
+</span>        }
+        <span class="cov8" title="1">f.keepScreenRow(f.relocate) // build takes the files from the commit
+        if f.atEnd </span>{
+                <span class="cov8" title="1">_, f.cursor = f.bounds()
+                f.scrollToCursor()
+</span>        }
+        <span class="cov8" title="1">if w := f.waiting; w != nil &amp;&amp; !f.unloaded(slices.Index(f.parts, w.part)) </span>{
+                <span class="cov8" title="1">f.waiting = nil
+                w.redo()
+</span>        }
+        <span class="cov8" title="1">return f.nextLoad()</span>
+}
+
+// await makes the search redo wait for commit p to load, saying so.
+func (f *Flow) await(p int, redo func()) {
+        <span class="cov8" title="1">f.waiting = &amp;flowWait{f.parts[p], redo}
+        f.msg = "loading " + f.parts[p].commit.Short + "…"
+</span>}
+
+// moveCursor moves the cursor by delta rows, over the rows there are: the
+// commits on the way load as they come on the screen. For far, end, the
+// cursor stays on the last row as they load, until another key.
+func (f *Flow) moveCursor(delta int) {
+        <span class="cov8" title="1">f.cursor = f.confine(max(min(f.cursor+delta, len(f.rows)-1), 0))
+        f.atEnd, f.ahead = delta &gt;= far, direction(delta &gt; 0)
+        f.scrollToCursor()
+</span>}
 
 // bounds returns the first and last row the cursor may go to: those of its
 // commit while stay_in_commit is set, else all.
@@ -5352,58 +5761,69 @@ func (f *Flow) confine(i int) int {
 }
 
 // scroll moves the window by delta rows, as far as it can, and the cursor
-// along, so that the cursor keeps its screen row. Commits are loaded first,
-// as for moveCursor.
+// along, so that the cursor keeps its screen row.
 func (f *Flow) scroll(delta int) {
-        <span class="cov8" title="1">f.loadAhead(delta)
+        <span class="cov8" title="1">f.ahead = direction(delta &gt; 0)
         top := f.top
         f.top = max(min(f.top+delta, len(f.rows)-f.bodyHeight()), 0)
         f.cursor = f.confine(max(min(f.cursor+f.top-top, len(f.rows)-1), 0))
         f.scrollToCursor()
 </span>}
 
-// loadAhead loads the commits on the way of a cursor move by delta rows and
-// a screen beyond.
-func (f *Flow) loadAhead(delta int) {
-        <span class="cov8" title="1">h := f.bodyHeight()
-        for </span>{
-                <span class="cov8" title="1">lo, hi := f.cursor, f.cursor+delta+h
-                if delta &lt; 0 </span>{
-                        <span class="cov8" title="1">lo, hi = f.cursor+delta-h, f.cursor
+// searchResult is how a search ended.
+type searchResult int
+
+const (
+        notFound searchResult = iota
+        found
+        unloadedOnTheWay // a commit on the way is not loaded yet, see search
+)
+
+// search moves the cursor to the next row in direction dir for which ok
+// holds. With stay set it does not leave the bounds; reaching them sets a
+// warning. With wait, a commit on the way that is not loaded yet ends it,
+// at the first of its rows that are there that ok does not take: its part
+// is returned, for the caller to wait for it (see await), else -1.
+func (f *Flow) search(dir int, ok func(int) bool, stay, wait bool) (searchResult, int) {
+        <span class="cov8" title="1">for i := f.cursor + dir; i &gt;= 0 &amp;&amp; i &lt; len(f.rows); i += dir </span>{
+                <span class="cov8" title="1">if lo, hi := f.bounds(); stay &amp;&amp; (i &lt; lo || i &gt; hi) </span>{
+                        <span class="cov8" title="1">f.confine(i)
+                        return notFound, -1
 </span>                }
-                <span class="cov8" title="1">p := f.unloadedIn(lo, hi)
-                if p &lt; 0 </span>{
-                        <span class="cov8" title="1">break</span>
-                }
-                <span class="cov8" title="1">f.loadPart(p)</span>
+                <span class="cov8" title="1">if ok(i) </span>{
+                        <span class="cov8" title="1">f.cursor = i
+                        f.scrollToCursor()
+                        return found, -1
+</span>                }
+                <span class="cov8" title="1">if p := f.rows[i].part; wait &amp;&amp; f.inLog() &amp;&amp; f.unloaded(p) </span>{
+                        <span class="cov8" title="1">return unloadedOnTheWay, p
+</span>                }
+        }
+        <span class="cov8" title="1">return notFound, -1</span>
+}
+
+// nextChange moves the cursor to the start of the next (dir &gt; 0) or previous
+// block of changed rows, waiting for the commits on the way to load.
+func (f *Flow) nextChange(dir int) {
+        <span class="cov8" title="1">switch r, p := f.search(dir, f.changeStart, true, true); </span>{
+        case r == unloadedOnTheWay:
+                <span class="cov0" title="0">f.await(p, func() </span>{ <span class="cov0" title="0">f.nextChange(dir) }</span>)
+        case r == notFound &amp;&amp; f.msg == "":
+                <span class="cov8" title="1">f.msg = "no more changes"</span>
         }
 }
 
-// search moves the cursor to the next row in direction dir for which ok
-// holds, loading commits on the way, and reports whether there is one. With
-// stay set it does not leave the bounds; reaching them sets a warning.
-func (f *Flow) search(dir int, ok func(int) bool, stay bool) bool {
-        <span class="cov8" title="1">for </span>{
-                <span class="cov8" title="1">loaded := false
-                for i := f.cursor + dir; i &gt;= 0 &amp;&amp; i &lt; len(f.rows); i += dir </span>{
-                        <span class="cov8" title="1">if lo, hi := f.bounds(); stay &amp;&amp; (i &lt; lo || i &gt; hi) </span>{
-                                <span class="cov8" title="1">f.confine(i)
-                                return false
-</span>                        }
-                        <span class="cov8" title="1">if p := f.rows[i].part; f.inLog() &amp;&amp; f.unloaded(p) </span>{
-                                <span class="cov8" title="1">f.loadPart(p)
-                                loaded = true
-                                break</span>
-                        }
-                        <span class="cov8" title="1">if ok(i) </span>{
-                                <span class="cov8" title="1">f.cursor = i
-                                f.scrollToCursor()
-                                return true
-</span>                        }
-                }
-                <span class="cov8" title="1">if !loaded </span>{
-                        <span class="cov8" title="1">return false
-</span>                }
+// nextFile moves the cursor to the bar of the next (dir &gt; 0) or previous
+// file, at the top of the screen, waiting for the commits on the way to
+// load.
+func (f *Flow) nextFile(dir int) {
+        <span class="cov8" title="1">switch r, p := f.search(dir, f.isKind(flowFile, 0), true, true); </span>{
+        case r == found:
+                <span class="cov8" title="1">f.barToTop()</span>
+        case r == unloadedOnTheWay:
+                <span class="cov8" title="1">f.await(p, func() </span>{ <span class="cov8" title="1">f.nextFile(dir) }</span>)
+        case f.msg == "":
+                <span class="cov8" title="1">f.msg = ends(dir &gt; 0, "last file", "first file")</span>
         }
 }
 
@@ -5431,15 +5851,13 @@ func (f *Flow) changeStart(i int) bool {
 // the file bar for line -1 and on the commit bar for file -1, at screen row
 // screenRow.
 func (f *Flow) show(part, file, line, sub, screenRow int) {
-        <span class="cov8" title="1">if f.inLog() &amp;&amp; f.unloaded(part) </span>{
-                <span class="cov8" title="1">f.loadPart(part)
-</span>        }
-        // While hidden, diff views may have changed the diffs or the layout.
+        <span class="cov8" title="1">f.ahead, f.atEnd, f.waiting = 0, false, nil
+</span>        // While hidden, diff views may have changed the diffs or the layout.
         <span class="cov8" title="1">f.build()
         f.adopt(part, file)
         i := f.find(flowRow{flowCommit, part, -1, 0, 0})
         switch </span>{
-        case f.parts[part].app == nil:<span class="cov0" title="0"></span>
+        case f.parts[part].app == nil:<span class="cov8" title="1"></span>
         case file &gt;= 0 &amp;&amp; line &gt;= 0:
                 <span class="cov8" title="1">i = f.findDiff(part, file, line, sub)</span>
         case file &gt;= 0:
@@ -5447,8 +5865,7 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
         }
         <span class="cov8" title="1">f.cursor = max(i, 0)
         f.top = f.cursor - screenRow
-        f.scrollToCursor()
-        f.loadVisible()</span>
+        f.scrollToCursor()</span>
 }
 
 // showFrom shows file of part where its diff view from leaves it: on the
@@ -5473,7 +5890,7 @@ func (f *Flow) adopt(part, file int) {
         <span class="cov8" title="1">f.marked, f.replacing = nil, nil
         app := f.parts[part].app
         if app == nil </span>{
-                <span class="cov0" title="0">return
+                <span class="cov8" title="1">return
 </span>        }
         <span class="cov8" title="1">var marked []*fileDiff
         for i, e := range app.files </span>{
@@ -5578,7 +5995,7 @@ func (f *Flow) header() string {
         <span class="cov8" title="1">t := f.cfg.Theme
         p, file, _ := f.position()
         var b strings.Builder
-        if f.inLog() </span>{
+        if f.inLog() &amp;&amp; p &lt; len(f.parts) </span>{
                 <span class="cov8" title="1">c := f.parts[p].commit
                 line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
                 b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
@@ -5675,6 +6092,8 @@ func (f *Flow) row(i int) string {
                         <span class="cov8" title="1">note = "binary file"</span>
                 case part.err != "":
                         <span class="cov8" title="1">note = printable(part.err)</span>
+                case part.app == nil:
+                        <span class="cov8" title="1">note = "loading…"</span>
                 }
                 <span class="cov8" title="1">return mark + text("  "+note, t.Hint)</span>
         }
@@ -5763,21 +6182,32 @@ func (h *Help) key(k string) tea.Cmd {
                 <span class="cov8" title="1">h.open, h.top = true, 0
                 return nil
 </span>        }
-        <span class="cov8" title="1">if isAction(k, "help") </span>{
-                <span class="cov0" title="0">h.open = false
-                return nil
+        <span class="cov8" title="1">cmd, _ := popupNav(k, "help", &amp;h.open, h.scroll)
+        return cmd</span>
+}
+
+// popupNav handles the keys that all popups share, so that they close and
+// move alike: a key of opener, esc and q close the popup, ctrl+c quits, down
+// and j move by one, up and k back. It reports whether k was one of them;
+// the popup handles the others.
+func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
+        <span class="cov8" title="1">if isAction(k, opener) </span>{
+                <span class="cov8" title="1">*open = false
+                return nil, true
 </span>        }
         <span class="cov8" title="1">switch k </span>{
         case "esc", "q":
-                <span class="cov8" title="1">h.open = false</span>
+                <span class="cov8" title="1">*open = false</span>
         case "ctrl+c":
-                <span class="cov8" title="1">return tea.Quit</span>
+                <span class="cov8" title="1">return tea.Quit, true</span>
         case "down", "j":
-                <span class="cov8" title="1">h.scroll(1)</span>
+                <span class="cov8" title="1">move(1)</span>
         case "up", "k":
-                <span class="cov8" title="1">h.scroll(-1)</span>
+                <span class="cov8" title="1">move(-1)</span>
+        default:
+                <span class="cov8" title="1">return nil, false</span>
         }
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov8" title="1">return nil, true</span>
 }
 
 // boxHeight is the height of the popup.
@@ -5853,6 +6283,7 @@ func overlayAt(base, pop string, x, y, w, width int) string {
 		<pre class="file" id="file20" style="display: none">package ui
 
 import (
+        "context"
         "fmt"
         "slices"
         "strings"
@@ -5866,11 +6297,13 @@ import (
         "jdiff/internal/source"
 )
 
-// LoadFunc returns the files a commit changed.
-type LoadFunc func(gitsrc.Commit) ([]source.File, error)
+// LoadFunc returns the files a commit changed. It runs in the background,
+// and ends when ctx is done.
+type LoadFunc func(ctx context.Context, c gitsrc.Commit) ([]source.File, error)
 
-// CountFunc returns the line counts of the commits with the given hashes.
-type CountFunc func(hashes []string) (map[string]gitsrc.LineCounts, error)
+// CountFunc returns the line counts of the commits with the given hashes. It
+// runs in the background, and ends when ctx is done.
+type CountFunc func(ctx context.Context, hashes []string) (map[string]gitsrc.LineCounts, error)
 
 // countsMsg brings the line counts of the commits hashes, or why they could
 // not be counted.
@@ -5905,6 +6338,16 @@ type Log struct {
         counting bool                    // a count is running
         byHash   map[string]*commitEntry // the commits by hash
         minCount int                     // the least width of the count columns
+        cols     logColumns              // see measure
+        loadGen  int                     // counts the requests of requestCommit
+        pending  *commitRequest          // the commit loading, nil for none
+        // relisting is set while the commits are listed again in the
+        // background, again when they are to be listed once more after that,
+        // quietly with againQuiet (see relistCommits).
+        relisting, again, againQuiet bool
+        // ctx ends the git commands of the log, cancel ends ctx, see stop.
+        ctx    context.Context
+        cancel context.CancelFunc
 
         commits []*commitEntry
         order   historyOrder // of commits
@@ -5924,6 +6367,7 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
         load LoadFunc, counts CountFunc) *Log {
         <span class="cov8" title="1">l := &amp;Log{cfg: cfg, branch: branch, load: load, counts: counts, byHash: map[string]*commitEntry{}, minCount: 1,
                 order: orderOf(oldestFirst)}
+        l.ctx, l.cancel = context.WithCancel(context.Background())
         if counts != nil </span>{
                 <span class="cov8" title="1">l.minCount = countWidth
 </span>        }
@@ -5935,8 +6379,12 @@ func NewLog(cfg *config.Config, branch string, commits []gitsrc.Commit, oldestFi
                 parts = append(parts, newCommitPart(e))
 </span>        }
         <span class="cov8" title="1">l.list = list{n: len(l.commits), preview: &amp;cfg.Settings.Preview}
-        l.flow = newFlow(cfg, parts, l.app)
-        l.flow.order = l.order
+        l.measure()
+        l.flow = newFlow(cfg, parts, func(p int) tea.Cmd </span>{
+                <span class="cov8" title="1">part := l.flow.parts[p]
+                return l.loadCmd(l.ctx, part.commit, 0, part)
+</span>        })
+        <span class="cov8" title="1">l.flow.order = l.order
         if len(commits) == 0 </span>{
                 <span class="cov8" title="1">l.msg = "no commits"
 </span>        }
@@ -5959,8 +6407,9 @@ func newCommitEntry(c gitsrc.Commit, counted bool) *commitEntry {
         return &amp;commitEntry{Commit: c, counted: counted}</span>
 }
 
-// CommitsFunc lists the commits of the log again, with the branch.
-type CommitsFunc func() (branch string, commits []gitsrc.Commit, err error)
+// CommitsFunc lists the commits of the log again, with the branch. It runs
+// in the background, and ends when ctx is done.
+type CommitsFunc func(ctx context.Context) (branch string, commits []gitsrc.Commit, err error)
 
 // WithRelist sets how r lists the commits again and returns l.
 func (l *Log) WithRelist(list CommitsFunc) *Log {
@@ -5996,9 +6445,9 @@ func (l *Log) countShown() tea.Cmd {
                 <span class="cov8" title="1">return nil
 </span>        }
         <span class="cov8" title="1">l.counting = true
-        counts := l.counts
+        ctx, counts := l.ctx, l.counts
         return func() tea.Msg </span>{
-                <span class="cov8" title="1">c, err := counts(hashes)
+                <span class="cov8" title="1">c, err := counts(ctx, hashes)
                 return countsMsg{hashes, c, err}
 </span>        }
 }
@@ -6018,6 +6467,7 @@ func (l *Log) addCounts(m countsMsg) {
                         e.Added, e.Removed, e.counted = c.Added, c.Removed, true
 </span>                }
         }
+        <span class="cov8" title="1">l.measure()</span>
 }
 
 func (l *Log) update(msg tea.Msg) tea.Cmd {
@@ -6026,8 +6476,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
                 <span class="cov8" title="1">l.width, l.height = msg.Width, msg.Height
                 l.scrollToCursor()
                 if l.flowShown() </span>{
-                        <span class="cov8" title="1">l.flow.Update(msg)
-                        return nil
+                        <span class="cov8" title="1">_, cmd := l.flow.Update(msg)
+                        return cmd
 </span>                }
         case settingChangedMsg:
                 <span class="cov8" title="1">l.scrollToCursor() // the message box takes room from the list
@@ -6036,20 +6486,23 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 </span>                }
         case backMsg:
                 <span class="cov8" title="1">if l.flowShown() </span>{
-                        <span class="cov8" title="1">l.filesOfFlow()
-</span>                } else {
-                        <span class="cov8" title="1">l.open, l.files = nil, false
+                        <span class="cov8" title="1">return l.filesOfFlow()
 </span>                }
-                <span class="cov8" title="1">return nil</span>
+                <span class="cov8" title="1">l.open, l.files = nil, false
+                return nil</span>
         case flowAtMsg:
-                <span class="cov8" title="1">l.showFlow(int(msg), nil)
-                return nil</span>
+                <span class="cov8" title="1">return l.showFlow(int(msg), nil)</span>
         case switchCommitMsg:
-                <span class="cov8" title="1">l.switchCommit(int(msg))
-                return nil</span>
+                <span class="cov8" title="1">return l.switchCommit(int(msg))</span>
+        case commitLoadedMsg:
+                <span class="cov8" title="1">return l.commitLoaded(msg)</span>
         case refreshMsg:
-                <span class="cov8" title="1">l.relistCommits(msg.quiet)
-                return nil</span>
+                <span class="cov8" title="1">return l.relistCommits(msg.quiet)</span>
+        case commitsListedMsg:
+                <span class="cov8" title="1">if msg.log == l </span>{
+                        <span class="cov8" title="1">return l.commitsListed(msg)
+</span>                }
+                <span class="cov0" title="0">return nil</span>
         case showMsg:
                 <span class="cov0" title="0">l.setMsg(string(msg))
                 return nil</span>
@@ -6057,11 +6510,11 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
                 <span class="cov8" title="1">l.setMsg(untrackedOnlyInDiff)
                 return nil</span>
         case toggleFlowMsg:
-                <span class="cov8" title="1">l.toggleFlow()
+                <span class="cov8" title="1">cmd := l.toggleFlow()
                 if w := saveState(l.cfg); w != "" </span>{
                         <span class="cov0" title="0">l.setMsg(w)
 </span>                }
-                <span class="cov8" title="1">return nil</span>
+                <span class="cov8" title="1">return cmd</span>
         }
         <span class="cov8" title="1">if l.flowShown() </span>{
                 <span class="cov8" title="1">_, cmd := l.flow.Update(msg)
@@ -6100,9 +6553,9 @@ func (l *Log) key(k string) tea.Cmd {
                 <span class="cov8" title="1">return tea.Quit</span>
         case "open":
                 <span class="cov8" title="1">if l.cfg.Settings.Flow </span>{
-                        <span class="cov8" title="1">l.showFlow(-1, nil)
+                        <span class="cov8" title="1">return l.showFlow(-1, nil)
 </span>                } else {
-                        <span class="cov8" title="1">l.openCommit(l.cursor, "")
+                        <span class="cov8" title="1">return l.requestCommit(l.cursor, "")
 </span>                }
         case "flow":
                 <span class="cov8" title="1">return toggleFlow</span>
@@ -6127,36 +6580,43 @@ func (l *Log) flowShown() bool { <span class="cov8" title="1">return l.open != n
 
 // showFlow shows the flow view on file of the commit under the cursor,
 // where its diff view from leaves it, or on its bar for from nil and on the
-// commit's bar for file -1 (see Flow.showFrom).
-func (l *Log) showFlow(file int, from *Model) {
+// commit's bar for file -1 (see Flow.showFrom), and returns the command
+// loading the commits on the screen. A list that loading again emptied has
+// no commit to show.
+func (l *Log) showFlow(file int, from *Model) tea.Cmd {
+        <span class="cov8" title="1">if len(l.commits) == 0 </span>{
+                <span class="cov8" title="1">l.msg = "no commits"
+                return nil
+</span>        }
         <span class="cov8" title="1">l.open, l.files = l.commits[l.cursor], false
         l.flow.width, l.flow.height = l.width, l.height
         l.flow.showFrom(l.cursor, file, from)
-</span>}
+        return l.flow.nextLoad()</span>
+}
 
 // toggleFlow switches between the flow view and the files of the commit
-// under the cursor, keeping the cursor on its line and screen row.
-func (l *Log) toggleFlow() {
+// under the cursor, keeping the cursor on its line and screen row, and
+// returns the command loading the commits on the screen of the flow view.
+func (l *Log) toggleFlow() tea.Cmd {
         <span class="cov8" title="1">st := &amp;l.cfg.Settings
         if !st.Flow </span>{
                 <span class="cov8" title="1">st.Flow = true
                 switch </span>{
                 case l.open == nil:
-                        <span class="cov8" title="1">l.showFlow(-1, nil)</span>
+                        <span class="cov8" title="1">return l.showFlow(-1, nil)</span>
                 case l.open.app.open == nil:
-                        <span class="cov8" title="1">l.showFlow(l.open.app.cursor, nil)</span>
+                        <span class="cov8" title="1">return l.showFlow(l.open.app.cursor, nil)</span>
                 default:
-                        <span class="cov8" title="1">l.showFlow(l.open.app.cursor, l.open.app.open.view)</span>
+                        <span class="cov8" title="1">return l.showFlow(l.open.app.cursor, l.open.app.open.view)</span>
                 }
-                <span class="cov8" title="1">return</span>
         }
         <span class="cov8" title="1">st.Flow = false
         if l.open == nil </span>{
-                <span class="cov8" title="1">return
+                <span class="cov8" title="1">return nil
 </span>        }
         <span class="cov8" title="1">if l.files </span>{ // the file list stays
                 <span class="cov8" title="1">l.files = false
-                return
+                return nil
 </span>        }
         <span class="cov8" title="1">p, file, line := l.flow.position()
         screenRow := l.flow.cursor - l.flow.top
@@ -6165,8 +6625,11 @@ func (l *Log) toggleFlow() {
                 <span class="cov8" title="1">path = e.app.files[file].Path
 </span>        }
         <span class="cov8" title="1">l.open = nil
-        if !l.openCommit(p, path) </span>{
-                <span class="cov0" title="0">return
+        if l.commits[p].app == nil </span>{ // still loading: its files when they come
+                <span class="cov0" title="0">return l.requestCommit(p, "")
+</span>        }
+        <span class="cov8" title="1">if !l.openCommit(p, path) </span>{
+                <span class="cov0" title="0">return nil
 </span>        }
         <span class="cov8" title="1">app := l.open.app
         if app.open == nil &amp;&amp; file &gt;= 0 </span>{
@@ -6176,6 +6639,7 @@ func (l *Log) toggleFlow() {
         <span class="cov8" title="1">if app.open != nil &amp;&amp; app.open.Path == path </span>{
                 <span class="cov8" title="1">app.open.view.takeOver(l.flow, line, screenRow)
 </span>        }
+        <span class="cov8" title="1">return nil</span>
 }
 
 // app returns the file selector of commit i, loading its files on first
@@ -6183,11 +6647,11 @@ func (l *Log) toggleFlow() {
 func (l *Log) app(i int) (*App, error) {
         <span class="cov8" title="1">e := l.commits[i]
         if e.app == nil </span>{
-                <span class="cov8" title="1">files, err := l.load(e.Commit)
+                <span class="cov8" title="1">files, err := l.load(l.ctx, e.Commit)
                 if err != nil </span>{
                         <span class="cov8" title="1">return nil, err
 </span>                }
-                <span class="cov8" title="1">e.app = newApp(l.cfg, files, &amp;e.Commit)</span>
+                <span class="cov0" title="0">e.app = newApp(l.cfg, files, &amp;e.Commit)</span>
         }
         <span class="cov8" title="1">return e.app, nil</span>
 }
@@ -6219,10 +6683,11 @@ func (l *Log) openCommit(i int, path string) bool {
 }
 
 // switchCommit shows the next (dir &gt; 0) or previous commit in history,
-// keeping the open file when the other commit changed it too.
-func (l *Log) switchCommit(dir int) {
+// keeping the open file when the other commit changed it too, and returns
+// the command loading it, see requestCommit.
+func (l *Log) switchCommit(dir int) tea.Cmd {
         <span class="cov8" title="1">if l.open == nil </span>{
-                <span class="cov0" title="0">return
+                <span class="cov0" title="0">return nil
 </span>        }
         <span class="cov8" title="1">app := l.open.app
         path := ""
@@ -6232,30 +6697,175 @@ func (l *Log) switchCommit(dir int) {
         <span class="cov8" title="1">i := l.cursor + l.order.step(dir)
         if i &lt; 0 || i &gt;= len(l.commits) </span>{
                 <span class="cov8" title="1">app.setMsg(ends(dir &gt; 0, "last commit", "first commit"))
-                return
+                return nil
 </span>        }
         <span class="cov8" title="1">if app.open != nil </span>{
                 <span class="cov8" title="1">app.open.updateStats()
 </span>        }
-        <span class="cov8" title="1">if !l.openCommit(i, path) </span>{
-                <span class="cov8" title="1">app.setMsg(l.msg)
+        <span class="cov8" title="1">return l.requestCommit(i, path)</span>
+}
+
+// commitLoadedMsg brings the files of the commit with hash, or why they
+// could not be loaded: for the request number gen of requestCommit or
+// filesOfFlow, 0 for none, and for part of the flow view, nil for none.
+type commitLoadedMsg struct {
+        gen   int
+        hash  string
+        files []source.File
+        err   error
+        part  *flowPart
+}
+
+// loadCmd returns the command loading the files of e in the background, for
+// request gen and the flow's part, see commitLoadedMsg; ctx ends it. Only git
+// runs there: the views are made when the files come, on the keys' side,
+// which owns the settings.
+func (l *Log) loadCmd(ctx context.Context, e *commitEntry, gen int, part *flowPart) tea.Cmd {
+        <span class="cov8" title="1">c, load := e.Commit, l.load
+        return func() tea.Msg </span>{
+                <span class="cov8" title="1">files, err := load(ctx, c)
+                return commitLoadedMsg{gen, c.Hash, files, err, part}
 </span>        }
 }
 
-// relistCommits lists the commits again (r). New commits are added and gone
-// ones dropped; a commit still there keeps its entry, and so its files with
-// their anchors and folds: its content cannot change. The cursor stays on
-// its commit; when the commit shown is gone, the list is shown. With quiet, it
-// does not say when nothing changed.
-func (l *Log) relistCommits(quiet bool) {
+// commitRequest is the commit requestCommit loads: shown with path open
+// when it arrives, if the view is still from, which it was asked from; with
+// files, as filesOfFlow asks, its file list when the flow view still shows
+// it. msg says that it loads; cancel ends its git commands.
+type commitRequest struct {
+        gen       int
+        path, msg string
+        from      *commitEntry
+        files     bool
+        cancel    context.CancelFunc
+}
+
+// request starts loading the files of e for req, ending any request before
+// and its git commands, and returns the command; the status bar says that
+// it loads.
+func (l *Log) request(e *commitEntry, req commitRequest) tea.Cmd {
+        <span class="cov8" title="1">if l.pending != nil </span>{
+                <span class="cov8" title="1">l.pending.cancel()
+</span>        }
+        <span class="cov8" title="1">l.loadGen++
+        req.gen, req.msg = l.loadGen, "loading "+e.Short+"…"
+        ctx, cancel := context.WithCancel(l.ctx)
+        req.cancel = cancel
+        l.pending = &amp;req
+        l.setMsg(req.msg)
+        return l.loadCmd(ctx, e, req.gen, nil)</span>
+}
+
+// stop ends the git commands the log runs in the background: the view is
+// replaced, or the program ends.
+func (l *Log) stop() { <span class="cov8" title="1">l.cancel() }</span>
+
+// requestCommit shows commit i as openCommit does, at once when its files
+// are loaded, else it returns the command loading them, which runs git
+// without blocking the keys. The status bar says what loads meanwhile, and
+// the view stays usable; moving to another view, or another request, drops
+// the files when they come.
+func (l *Log) requestCommit(i int, path string) tea.Cmd {
+        <span class="cov8" title="1">if i &lt; 0 || i &gt;= len(l.commits) </span>{
+                <span class="cov0" title="0">return nil
+</span>        }
+        <span class="cov8" title="1">e := l.commits[i]
+        if e.app != nil </span>{
+                <span class="cov8" title="1">if !l.openCommit(i, path) &amp;&amp; l.open != nil </span>{
+                        <span class="cov0" title="0">l.open.app.setMsg(l.msg)
+</span>                }
+                <span class="cov8" title="1">return nil</span>
+        }
+        <span class="cov8" title="1">return l.request(e, commitRequest{path: path, from: l.open})</span>
+}
+
+// commitLoaded takes the files msg brings: they become the commit's, unless
+// it has some already, loaded for the list or the flow view meanwhile. The
+// flow view, when it loaded them, shows them; a request shows the commit,
+// when it is still the one asked for last and the view is the one it was
+// asked from. It returns the command loading the next commit of the flow
+// view.
+func (l *Log) commitLoaded(msg commitLoadedMsg) tea.Cmd {
+        <span class="cov8" title="1">e := l.byHash[msg.hash]
+        if e != nil &amp;&amp; e.app == nil &amp;&amp; msg.err == nil </span>{
+                <span class="cov8" title="1">e.app = newApp(l.cfg, msg.files, &amp;e.Commit)
+</span>        }
+        <span class="cov8" title="1">var cmd tea.Cmd
+        if msg.part != nil </span>{
+                <span class="cov8" title="1">cmd = l.flow.partLoaded(msg.part, msg.err)
+</span>        }
+        <span class="cov8" title="1">req := l.pending
+        if req == nil || msg.gen != req.gen </span>{
+                <span class="cov8" title="1">return cmd
+</span>        }
+        <span class="cov8" title="1">l.pending = nil
+        req.cancel()
+        l.dropMsg(req.msg)
+        switch </span>{
+        case e == nil:<span class="cov0" title="0"></span>
+        case req.files:
+                <span class="cov8" title="1">if p, _, _ := l.flow.position(); l.flowShown() &amp;&amp; l.commits[p] == e </span>{
+                        <span class="cov8" title="1">cmd = batch(cmd, l.filesOfFlow())
+</span>                }
+        case l.open != req.from || l.flowShown():<span class="cov0" title="0"></span>
+        case msg.err != nil:
+                <span class="cov8" title="1">l.setMsg(firstLine(msg.err))</span>
+        default:
+                <span class="cov8" title="1">l.openCommit(slices.Index(l.commits, e), req.path)</span>
+        }
+        <span class="cov8" title="1">return cmd</span>
+}
+
+// commitsListedMsg brings the commits log listed again, with the branch, or
+// why it could not.
+type commitsListedMsg struct {
+        log     *Log
+        branch  string
+        commits []gitsrc.Commit
+        err     error
+        quiet   bool
+}
+
+// relistCommits returns the command listing the commits again (r) in the
+// background, as App.relistFiles does the files: the commits stay usable
+// meanwhile, and a listing asked for while one runs runs after it.
+func (l *Log) relistCommits(quiet bool) tea.Cmd {
         <span class="cov8" title="1">if l.relist == nil </span>{
                 <span class="cov8" title="1">l.setMsg("nothing to load again")
-                return
+                return nil
 </span>        }
-        <span class="cov8" title="1">branch, commits, err := l.relist()
-        if err != nil </span>{
-                <span class="cov8" title="1">l.setMsg(firstLine(err))
-                return
+        <span class="cov8" title="1">if l.relisting </span>{
+                <span class="cov0" title="0">l.againQuiet = quiet &amp;&amp; (!l.again || l.againQuiet)
+                l.again = true
+                return nil
+</span>        }
+        <span class="cov8" title="1">l.relisting = true
+        if !quiet </span>{
+                <span class="cov8" title="1">l.setMsg("loading again…")
+</span>        }
+        <span class="cov8" title="1">ctx, list := l.ctx, l.relist
+        return func() tea.Msg </span>{
+                <span class="cov8" title="1">branch, commits, err := list(ctx)
+                return commitsListedMsg{l, branch, commits, err, quiet}
+</span>        }
+}
+
+// commitsListed takes the commits listed again. New commits are added and
+// gone ones dropped; a commit still there keeps its entry, and so its files
+// with their anchors and folds: its content cannot change. The cursor stays
+// on its commit; when the commit shown is gone, the list is shown. It returns
+// the command listing them once more when that was asked for meanwhile.
+func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
+        <span class="cov8" title="1">l.relisting = false
+        var next tea.Cmd
+        if l.again </span>{
+                <span class="cov0" title="0">l.again = false
+                next = l.relistCommits(l.againQuiet)
+</span>        }
+        <span class="cov8" title="1">branch, commits, quiet := res.branch, res.commits, res.quiet
+        if res.err != nil </span>{
+                <span class="cov8" title="1">l.setMsg(firstLine(res.err))
+                return next
 </span>        }
         <span class="cov8" title="1">parts := map[*commitEntry]*flowPart{}
         for _, p := range l.flow.parts </span>{
@@ -6287,6 +6897,7 @@ func (l *Log) relistCommits(quiet bool) {
                 l.flow.parts = append(l.flow.parts, p)</span>
         }
         <span class="cov8" title="1">l.list.n = len(l.commits)
+        l.measure()
         if i := slices.Index(l.commits, cur); i &gt;= 0 </span>{
                 <span class="cov8" title="1">l.cursor = i
 </span>        } else {
@@ -6300,7 +6911,7 @@ func (l *Log) relistCommits(quiet bool) {
         case shown:
                 <span class="cov8" title="1">l.flow.followParts(oldParts)
                 l.flow.keepScreenRow(l.flow.relocate)
-                l.flow.loadVisible()
+                next = batch(next, l.flow.nextLoad())
                 l.cursor, _, _ = l.flow.position()
                 l.open = l.commits[l.cursor]</span>
         case open != nil:
@@ -6310,28 +6921,56 @@ func (l *Log) relistCommits(quiet bool) {
         if !quiet || msg != nothingChanged </span>{
                 <span class="cov8" title="1">l.setMsg(msg)
 </span>        }
+        <span class="cov8" title="1">return next</span>
 }
 
 // filesOfFlow shows the file list of the commit under the flow view's
 // cursor, on its file, as backspace does from a diff view. A commit of one
 // file, or one that cannot be loaded, has no list to show: the commits are
-// shown, on it.
-func (l *Log) filesOfFlow() {
+// shown, on it. A commit still loading shows its list when its files come;
+// it returns the command loading them.
+func (l *Log) filesOfFlow() tea.Cmd {
         <span class="cov8" title="1">p, file, _ := l.flow.position()
         l.cursor = p
         l.scrollToCursor()
-        app, err := l.app(p)
-        if err != nil || app.single() </span>{
-                <span class="cov8" title="1">l.open, l.files = nil, false
-                return
+        e := l.commits[p]
+        if e.app == nil &amp;&amp; l.flow.parts[p].err == "" </span>{ // its list when it comes
+                <span class="cov8" title="1">return l.request(e, commitRequest{files: true})
 </span>        }
-        <span class="cov8" title="1">app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
+        <span class="cov8" title="1">if e.app == nil || e.app.single() </span>{
+                <span class="cov8" title="1">l.open, l.files = nil, false
+                return nil
+</span>        }
+        <span class="cov8" title="1">app := e.app
+        app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
         app.open = nil
         if file &gt;= 0 </span>{
                 <span class="cov8" title="1">app.cursor = file
                 app.scrollToCursor()
 </span>        }
-        <span class="cov8" title="1">l.open, l.files = l.commits[p], true</span>
+        <span class="cov8" title="1">l.open, l.files = l.commits[p], true
+        return nil</span>
+}
+
+// dropMsg clears msg where setMsg may have put it, unless another message
+// took its place.
+func (l *Log) dropMsg(msg string) {
+        <span class="cov8" title="1">if l.msg == msg </span>{
+                <span class="cov8" title="1">l.msg = ""
+</span>        }
+        <span class="cov8" title="1">if l.flow.msg == msg </span>{
+                <span class="cov8" title="1">l.flow.msg = ""
+</span>        }
+        <span class="cov8" title="1">for _, e := range l.commits </span>{
+                <span class="cov8" title="1">if a := e.app; a != nil </span>{
+                        <span class="cov8" title="1">if a.msg == msg </span>{
+                                <span class="cov0" title="0">a.msg = ""
+</span>                        }
+                        <span class="cov8" title="1">if a.open != nil &amp;&amp; a.open.view != nil &amp;&amp; a.open.view.msg == msg </span>{
+                                <span class="cov8" title="1">a.open.view.msg = ""
+</span>                        }
+                }
+        }
 }
 
 // setMsg shows msg in the status bar of whatever is displayed.
@@ -6349,6 +6988,25 @@ func (l *Log) setMsg(msg string) {
 // maxAuthorWidth caps the author column.
 const maxAuthorWidth = 16
 
+// logColumns are the widths the columns of the commit list need: the digits
+// of the counts, the author, the subject, and hash and date together.
+type logColumns struct{ added, removed, author, subject, fixed int }
+
+// measure computes the widths of the columns, after the commits or their
+// counts changed: measuring them on each frame takes too long in a long
+// history.
+func (l *Log) measure() {
+        <span class="cov8" title="1">c := logColumns{added: l.minCount, removed: l.minCount}
+        for _, e := range l.commits </span>{
+                <span class="cov8" title="1">c.added = max(c.added, len(fmt.Sprint(e.Added)))
+                c.removed = max(c.removed, len(fmt.Sprint(e.Removed)))
+                c.author = max(c.author, min(ansi.StringWidth(e.Author), maxAuthorWidth))
+                c.subject = max(c.subject, ansi.StringWidth(e.Subject))
+                c.fixed = max(c.fixed, ansi.StringWidth(e.Short)+ansi.StringWidth(e.Date))
+</span>        }
+        <span class="cov8" title="1">l.cols = c</span>
+}
+
 func (l *Log) View() tea.View { <span class="cov8" title="1">return tea.NewView(l.frame()) }</span>
 
 func (l *Log) frame() string {
@@ -6362,18 +7020,11 @@ func (l *Log) frame() string {
                 <span class="cov0" title="0">return ""
 </span>        }
         <span class="cov8" title="1">t := l.cfg.Theme
-        addW, remW, authW, subjW, fixedW := l.minCount, l.minCount, 0, 0, 0
-        for _, c := range l.commits </span>{
-                <span class="cov8" title="1">addW = max(addW, len(fmt.Sprint(c.Added)))
-                remW = max(remW, len(fmt.Sprint(c.Removed)))
-                authW = max(authW, min(ansi.StringWidth(c.Author), maxAuthorWidth))
-                subjW = max(subjW, ansi.StringWidth(c.Subject))
-                fixedW = max(fixedW, ansi.StringWidth(c.Short)+ansi.StringWidth(c.Date))
-</span>        }
-        // The subject gets the room left by the other columns, so that author
+        addW, remW, authW := l.cols.added, l.cols.removed, l.cols.author
+</span>        // The subject gets the room left by the other columns, so that author
         // and date stay aligned and visible.
-        <span class="cov8" title="1">fixedW += 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
-        subjW = max(min(subjW, l.width-fixedW), 1)
+        <span class="cov8" title="1">fixedW := l.cols.fixed + 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
+        subjW := max(min(l.cols.subject, l.width-fixedW), 1)
 </span>
         <span class="cov8" title="1">head := " " + t.Branch.Render(l.branch) + " " +
                 lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
@@ -7122,20 +7773,11 @@ func (p *MarksPopup) key(k string) tea.Cmd {
                 <span class="cov8" title="1">p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
                 return nil
 </span>        }
-        <span class="cov8" title="1">if isAction(k, "marks") </span>{
-                <span class="cov0" title="0">p.open = false
-                return nil
+        <span class="cov8" title="1">if cmd, ok := popupNav(k, "marks", &amp;p.open, p.move); ok </span>{
+                <span class="cov8" title="1">return cmd
 </span>        }
         <span class="cov8" title="1">marks := p.cfg.Marks()
         switch k </span>{
-        case "esc", "q":
-                <span class="cov8" title="1">p.open = false</span>
-        case "ctrl+c":
-                <span class="cov8" title="1">return tea.Quit</span>
-        case "down", "j":
-                <span class="cov8" title="1">p.move(1)</span>
-        case "up", "k":
-                <span class="cov8" title="1">p.move(-1)</span>
         case "d", "delete":
                 <span class="cov8" title="1">if p.cursor &lt; len(marks) </span>{
                         <span class="cov8" title="1">if err := p.cfg.DeleteMark(marks[p.cursor].Letter); err != nil </span>{
@@ -7531,6 +8173,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">m.msg = msg
 </span>                }
                 <span class="cov8" title="1">return m, waitChanges(m.notify)</span>
+        case watchEndedMsg:
+                <span class="cov0" title="0">if msg.w != m.notify </span>{
+                        <span class="cov0" title="0">return m, nil
+</span>                }
+                <span class="cov0" title="0">m.notify = nil
+                return m, watchTick(m.cfg, m)</span>
         case refreshMsg:
                 <span class="cov8" title="1">m.refresh(msg.quiet)</span>
         case showMsg:
@@ -7631,8 +8279,6 @@ func (m *Model) key(k string) tea.Cmd {
                 <span class="cov8" title="1">if m.canBack </span>{
                         <span class="cov8" title="1">return toggleFlow
 </span>                }
-        default:
-                <span class="cov8" title="1">return pageKey(h, false)</span>
         case "anchor", "cancel_mark", "fold", "fold_all":
                 <span class="cov8" title="1">m.act(h.action)</span>
         case "moved":
@@ -7641,6 +8287,8 @@ func (m *Model) key(k string) tea.Cmd {
                 <span class="cov8" title="1">m.prefix, m.msg = h.action, "set mark: press a letter"</span>
         case "jump":
                 <span class="cov8" title="1">m.prefix, m.msg = h.action, "jump to mark: press its letter"</span>
+        default:
+                <span class="cov8" title="1">return pageKey(h, false)</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -8007,7 +8655,7 @@ func compile(q config.Query) (*matcher, error) {
         <span class="cov8" title="1">m := &amp;matcher{q: q}
         if q.Regex </span>{
                 <span class="cov8" title="1">src := q.Text
-                if !strings.ContainsFunc(src, unicode.IsUpper) </span>{
+                if !hasUpper(src, true) </span>{
                         <span class="cov8" title="1">src = "(?i)" + src
 </span>                }
                 <span class="cov8" title="1">re, err := regexp.Compile(src)
@@ -8055,18 +8703,78 @@ func (m *matcher) spans(text string) []diff.Span {
                 <span class="cov8" title="1">return out</span>
         }
         <span class="cov8" title="1">q := m.q.Text
-        exact := strings.ContainsFunc(q, unicode.IsUpper)
-        for i := 0; i+len(q) &lt;= len(text); </span>{
-                <span class="cov8" title="1">part := text[i : i+len(q)]
-                if exact &amp;&amp; part == q || !exact &amp;&amp; strings.EqualFold(part, q) </span>{
-                        <span class="cov8" title="1">out = append(out, diff.Span{Start: i, End: i + len(q)})
-                        i += len(q)
+        exact := hasUpper(q, false)
+        for i := 0; i &lt; len(text); </span>{
+                <span class="cov8" title="1">end := -1
+                switch </span>{
+                case exact &amp;&amp; strings.HasPrefix(text[i:], q):
+                        <span class="cov8" title="1">end = i + len(q)</span>
+                case !exact:
+                        <span class="cov8" title="1">if n := foldPrefix(text[i:], q); n &gt;= 0 </span>{
+                                <span class="cov8" title="1">end = i + n
+</span>                        }
+                }
+                <span class="cov8" title="1">if end &gt; i </span>{
+                        <span class="cov8" title="1">out = append(out, diff.Span{Start: i, End: end})
+                        i = end
                         continue</span>
                 }
                 <span class="cov8" title="1">_, n := utf8.DecodeRuneInString(text[i:])
                 i += n</span>
         }
         <span class="cov8" title="1">return out</span>
+}
+
+// foldPrefix returns the length in bytes of the start of s that is q with
+// case ignored, rune by rune, or -1. The lengths may differ, as of K and the
+// Kelvin sign.
+func foldPrefix(s, q string) int {
+        <span class="cov8" title="1">j := 0
+        for _, qr := range q </span>{
+                <span class="cov8" title="1">if j &gt;= len(s) </span>{
+                        <span class="cov8" title="1">return -1
+</span>                }
+                <span class="cov8" title="1">r, n := utf8.DecodeRuneInString(s[j:])
+                if r != qr &amp;&amp; !strings.EqualFold(string(r), string(qr)) </span>{
+                        <span class="cov8" title="1">return -1
+</span>                }
+                <span class="cov8" title="1">j += n</span>
+        }
+        <span class="cov8" title="1">return j</span>
+}
+
+// hasUpper reports whether query holds an upper case letter, which makes the
+// search match case. In a regular expression the letters of escapes, as \S,
+// \pL, \p{Lu} or \x4A, do not count.
+func hasUpper(query string, regex bool) bool {
+        <span class="cov8" title="1">if !regex </span>{
+                <span class="cov8" title="1">return strings.ContainsFunc(query, unicode.IsUpper)
+</span>        }
+        <span class="cov8" title="1">for i := 0; i &lt; len(query); </span>{
+                <span class="cov8" title="1">r, n := utf8.DecodeRuneInString(query[i:])
+                i += n
+                switch </span>{
+                case r == '\\' &amp;&amp; i &lt; len(query):
+                        <span class="cov8" title="1">e, m := utf8.DecodeRuneInString(query[i:])
+                        i += m
+                        if e == 'p' || e == 'P' || e == 'x' </span>{
+                                <span class="cov8" title="1">switch </span>{
+                                case i &lt; len(query) &amp;&amp; query[i] == '{':
+                                        <span class="cov8" title="1">if j := strings.IndexByte(query[i:], '}'); j &gt;= 0 </span>{
+                                                <span class="cov8" title="1">i += j + 1
+</span>                                        }
+                                case e == 'x':
+                                        <span class="cov8" title="1">i = min(i+2, len(query))</span>
+                                case i &lt; len(query):
+                                        <span class="cov8" title="1">_, m := utf8.DecodeRuneInString(query[i:])
+                                        i += m</span>
+                                }
+                        }
+                case unicode.IsUpper(r):
+                        <span class="cov8" title="1">return true</span>
+                }
+        }
+        <span class="cov8" title="1">return false</span>
 }
 
 // hit is a line found by /: side's line of diff row row.
@@ -8222,6 +8930,10 @@ func (f *Flow) findText(dir int) {
         if f.cursor &lt; len(f.rows) </span>{
                 <span class="cov8" title="1">cur = f.rows[f.cursor].part
 </span>        }
+        <span class="cov8" title="1">if f.inLog() &amp;&amp; f.unloaded(cur) </span>{
+                <span class="cov0" title="0">f.await(cur, func() </span>{ <span class="cov0" title="0">f.findText(dir) }</span>)
+                <span class="cov0" title="0">return</span>
+        }
         <span class="cov8" title="1">where := ""
         if f.inLog() </span>{
                 <span class="cov8" title="1">where = " of this commit"
@@ -8310,7 +9022,7 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case tea.PasteMsg:
                 <span class="cov8" title="1">if s.input != nil </span>{
                         <span class="cov8" title="1">s.err = ""
-                        s.input.text += msg.Content
+                        s.input.paste(msg.Content)
                         return s, nil
 </span>                }
         }
@@ -8611,6 +9323,8 @@ func (p keyPages) userKeys(text string) (keyPages, []string) {
                         <span class="cov8" title="1">switch </span>{
                         case !slices.ContainsFunc(*t.rows, func(b keyRow) bool { <span class="cov8" title="1">return b.Action == r.Action }</span>):
                                 <span class="cov8" title="1">problems = append(problems, "no action "+r.Action+" in "+t.name)</span>
+                        case len(r.Keys) == 0:
+                                <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" has no keys")</span>
                         case slices.Contains(twoWay, r.Action) &amp;&amp; len(r.Keys) != 2:
                                 <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")</span>
                         }
@@ -8936,7 +9650,7 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case tea.PasteMsg:
                 <span class="cov8" title="1">if p.input != nil </span>{
                         <span class="cov8" title="1">p.inputErr = ""
-                        p.input.text += msg.Content
+                        p.input.paste(msg.Content)
                         return p, nil
 </span>                }
         }
@@ -8946,19 +9660,10 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key handles k in the open popup.
 func (p *SettingsPopup) key(k string) tea.Cmd {
-        <span class="cov8" title="1">if isAction(k, "settings") </span>{
-                <span class="cov8" title="1">p.open = false
-                return nil
+        <span class="cov8" title="1">if cmd, ok := popupNav(k, "settings", &amp;p.open, p.move); ok </span>{
+                <span class="cov8" title="1">return cmd
 </span>        }
         <span class="cov8" title="1">switch k </span>{
-        case "esc", "q":
-                <span class="cov8" title="1">p.open = false</span>
-        case "ctrl+c":
-                <span class="cov8" title="1">return tea.Quit</span>
-        case "down", "j":
-                <span class="cov8" title="1">p.move(1)</span>
-        case "up", "k":
-                <span class="cov8" title="1">p.move(-1)</span>
         case "enter", "space":
                 <span class="cov8" title="1">return p.flip(settingOptions[p.cursor])</span>
         default:
@@ -9119,14 +9824,16 @@ func newPainter(st lipgloss.Style) painter {
 
 func (p painter) paint(s string) string {
         <span class="cov8" title="1">if p.slow </span>{
-                <span class="cov0" title="0">return p.style.Render(s)
+                <span class="cov8" title="1">return p.style.Render(s)
 </span>        }
         <span class="cov8" title="1">return p.open + s + p.close</span>
 }
 
-// hiddenSymbol stands for characters that are not visible text, a space or
-// a tab: control and format characters, among them those that change the
-// direction of text and could reorder what is shown, and unusual spaces.
+// hiddenSymbol stands for characters that are not visible: control and
+// format characters, among them those that change the direction of text and
+// could reorder what is shown, zero-width spaces and joiners, and the line
+// and paragraph separators. Spaces that take room, as the no-break space,
+// are visible: they are drawn as they are.
 const hiddenSymbol = "☠"
 
 // hiddenChar reports whether r is drawn as hiddenSymbol.
@@ -9134,7 +9841,69 @@ func hiddenChar(r rune) bool {
         <span class="cov8" title="1">if r &lt; utf8.RuneSelf </span>{ // ASCII: only control characters
                 <span class="cov8" title="1">return r != '\t' &amp;&amp; (r &lt; 0x20 || r == 0x7f)
 </span>        }
-        <span class="cov8" title="1">return r != '\t' &amp;&amp; (unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) || unicode.IsSpace(r) &amp;&amp; r != ' ')</span>
+        <span class="cov8" title="1">return unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)</span>
+}
+
+// zwj is the zero-width joiner, which joins emoji into one sign, as the man,
+// woman and girl of a family.
+const zwj = '\u200d'
+
+// emojiJoiners returns the byte offsets of the joiners in s that join two
+// emoji into one sign. They are not drawn, so that the sign shows as its
+// emoji: terminals that cannot join emoji draw it so, wider than one sign,
+// and the panes would not line up. A joiner elsewhere, as between letters,
+// is invisible, a hidden character.
+func emojiJoiners(s string) []int {
+        <span class="cov8" title="1">var out []int
+        for i, r := range s </span>{
+                <span class="cov8" title="1">if r != zwj || i == 0 </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">prev, _ := utf8.DecodeLastRuneInString(s[:i])
+                next, _ := utf8.DecodeRuneInString(s[i+utf8.RuneLen(zwj):])
+</span>                // Emoji are symbols; the one before may end in the selector of its
+                // emoji form or a skin tone.
+                <span class="cov8" title="1">if (unicode.Is(unicode.So, prev) || prev == '\ufe0f' || prev &gt;= 0x1f3fb &amp;&amp; prev &lt;= 0x1f3ff) &amp;&amp;
+                        unicode.Is(unicode.So, next) </span>{
+                        <span class="cov8" title="1">out = append(out, i)
+</span>                }
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// dropJoiners returns text without its emoji joiners (see emojiJoiners), and
+// the byte ranges spans and matches of text as ranges of the text left.
+func dropJoiners(text string, spans, matches []diff.Span) (string, []diff.Span, []diff.Span) {
+        <span class="cov8" title="1">at := emojiJoiners(text)
+        if len(at) == 0 </span>{
+                <span class="cov8" title="1">return text, spans, matches
+</span>        }
+        <span class="cov8" title="1">n := utf8.RuneLen(zwj)
+        var b strings.Builder
+        from := 0
+        for _, i := range at </span>{
+                <span class="cov8" title="1">b.WriteString(text[from:i])
+                from = i + n
+</span>        }
+        <span class="cov8" title="1">b.WriteString(text[from:])
+</span>        // shift moves an offset back by the joiners before it.
+        <span class="cov8" title="1">shift := func(p int) int </span>{
+                <span class="cov8" title="1">before := 0
+                for _, i := range at </span>{
+                        <span class="cov8" title="1">if i &lt; p </span>{
+                                <span class="cov8" title="1">before++
+</span>                        }
+                }
+                <span class="cov8" title="1">return p - before*n</span>
+        }
+        <span class="cov8" title="1">moved := func(in []diff.Span) []diff.Span </span>{
+                <span class="cov8" title="1">var out []diff.Span
+                for _, sp := range in </span>{
+                        <span class="cov8" title="1">out = append(out, diff.Span{Start: shift(sp.Start), End: shift(sp.End)})
+</span>                }
+                <span class="cov8" title="1">return out</span>
+        }
+        <span class="cov8" title="1">return b.String(), moved(spans), moved(matches)</span>
 }
 
 // sideStyles returns the styles of side s for whole-line changes, the
@@ -9391,7 +10160,7 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
         case moved:
                 <span class="cov8" title="1">st.base = d.movedStyle(s)</span>
         case row.Kind == diff.Change:
-                <span class="cov8" title="1">st.base, st.emph, st.space, spans = nonEmph, emph, indent, emphOf(row, s)
+                <span class="cov8" title="1">st.base, st.emph, st.space, spans = nonEmph, emph, indent, d.emphOf(d.rowOf[s][line], s)
                 if !d.cfg.Settings.BoldChanges </span>{
                         <span class="cov8" title="1">st.emph, st.space = st.emph.UnsetBold(), st.space.UnsetBold()
 </span>                }
@@ -9454,7 +10223,8 @@ func highlight(text string, spans []diff.Span, st lineStyles) string {
         if cr </span>{
                 <span class="cov8" title="1">text = text[:len(text)-1]
 </span>        }
-        <span class="cov8" title="1">var b strings.Builder
+        <span class="cov8" title="1">text, spans, st.matches = dropJoiners(text, spans, st.matches)
+        var b strings.Builder
         col := 0
         pBase, pEmph, pSpace, pWS := newPainter(st.base), newPainter(st.emph), newPainter(st.space), newPainter(st.ws)
         pTrailing, pHidden, pMatch := newPainter(st.trailing), newPainter(st.hidden), newPainter(st.match)
@@ -9569,6 +10339,12 @@ func expand(b *strings.Builder, text string, col *int, visible bool) {
                 case r == ' ' &amp;&amp; visible:
                         <span class="cov8" title="1">b.WriteRune('·')
                         *col++</span>
+                case unicode.IsSpace(r) &amp;&amp; !hiddenChar(r) &amp;&amp; visible:
+                        // A space of another width, as the ideographic space: · in
+                        // its room.
+                        <span class="cov8" title="1">w := max(ansi.StringWidth(string(r)), 1)
+                        b.WriteString("·" + strings.Repeat(" ", w-1))
+                        *col += w</span>
                 case hiddenChar(r):
                         <span class="cov8" title="1">b.WriteString(hiddenSymbol)
                         *col++</span>
@@ -9580,10 +10356,12 @@ func expand(b *strings.Builder, text string, col *int, visible bool) {
 }
 
 // printable returns line as drawn, see expand, so that its width is known:
-// text from files, git or marks may hold tabs and control characters.
+// text from files, git or marks may hold tabs and control characters. The
+// joiners of emoji are left out, see emojiJoiners.
 func printable(line string) string {
         <span class="cov8" title="1">var b strings.Builder
         col := 0
+        line, _, _ = dropJoiners(line, nil, nil)
         expand(&amp;b, line, &amp;col, false)
         return b.String()
 </span>}
@@ -9592,6 +10370,7 @@ func printable(line string) string {
 		<pre class="file" id="file29" style="display: none">package ui
 
 import (
+        "context"
         "errors"
         "fmt"
         "path/filepath"
@@ -9623,12 +10402,17 @@ type changedMsg struct {
         paths []string
 }
 
+// watchEndedMsg reports that inotify watcher w stopped reporting changes: it
+// was closed, or a directory could not be watched any more. The view whose
+// watcher it still is checks its files itself from now on.
+type watchEndedMsg struct{ w *notify.Watcher }
+
 // waitChanges returns the command waiting for the next changes w reports.
 func waitChanges(w *notify.Watcher) tea.Cmd {
         <span class="cov8" title="1">return func() tea.Msg </span>{
                 <span class="cov8" title="1">paths, ok := &lt;-w.Changes()
                 if !ok </span>{
-                        <span class="cov0" title="0">return nil
+                        <span class="cov0" title="0">return watchEndedMsg{w}
 </span>                }
                 <span class="cov8" title="1">return changedMsg{w, paths}</span>
         }
@@ -9681,11 +10465,14 @@ func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
         <span class="cov8" title="1">if s.cfg.Settings.AutoReloadInterval &lt;= 0 </span>{
                 <span class="cov8" title="1">return showAutoReloadError(errors.New("auto_reload_interval is 0"))
 </span>        }
-        <span class="cov8" title="1">status, err := s.repoStatus()
+        <span class="cov8" title="1">ctx, cancel := context.WithCancel(context.Background())
+        status, err := s.repoStatus(ctx)
         if err != nil </span>{
-                <span class="cov8" title="1">return showAutoReloadError(err)
+                <span class="cov8" title="1">cancel()
+                return showAutoReloadError(err)
 </span>        }
-        <span class="cov8" title="1">s.cfg.AutoReload, s.lastStatus, s.lastActive = true, status, time.Now()
+        <span class="cov8" title="1">s.autoCtx, s.autoCancel = ctx, cancel
+        s.cfg.AutoReload, s.lastStatus, s.lastActive = true, status, time.Now()
         s.autoGen++
         s.watchRepo()
         var cmd tea.Cmd
@@ -9693,11 +10480,16 @@ func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
         return tea.Batch(cmd, s.autoTick(), s.waitRepo())</span>
 }
 
-// stopAutoReload ends auto reload: no git commands run for it from now on.
+// stopAutoReload ends auto reload: its git commands are killed, and none
+// run for it from now on.
 func (s *DiffSwitch) stopAutoReload() {
         <span class="cov8" title="1">s.cfg.AutoReload = false
         s.autoGen++
-        if s.repoWatch != nil </span>{
+        if s.autoCancel != nil </span>{
+                <span class="cov8" title="1">s.autoCancel()
+                s.autoCancel = nil
+</span>        }
+        <span class="cov8" title="1">if s.repoWatch != nil </span>{
                 <span class="cov8" title="1">s.repoWatch.Close()
                 s.repoWatch = nil
 </span>        }
@@ -9713,9 +10505,9 @@ func (s *DiffSwitch) autoTick() tea.Cmd {
 // checkStatus returns the command running git status.
 func (s *DiffSwitch) checkStatus() tea.Cmd {
         <span class="cov8" title="1">s.statusRuns++
-        gen, status := s.autoGen, s.repoStatus
+        gen, status, ctx := s.autoGen, s.repoStatus, s.autoCtx
         return func() tea.Msg </span>{
-                <span class="cov0" title="0">st, err := status()
+                <span class="cov8" title="1">st, err := status(ctx)
                 return autoStatusMsg{gen, st, err}
 </span>        }
 }
@@ -9726,7 +10518,8 @@ func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
         <span class="cov8" title="1">if msg.gen != s.autoGen </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">if m := s.cfg.Settings.AutoReloadTimeout; m &gt; 0 &amp;&amp; time.Since(s.lastActive) &gt;= time.Duration(m)*time.Minute </span>{
+        // In minutes as float: a large timeout overflows a time.Duration.
+        <span class="cov8" title="1">if m := s.cfg.Settings.AutoReloadTimeout; m &gt; 0 &amp;&amp; time.Since(s.lastActive).Minutes() &gt;= float64(m) </span>{
                 <span class="cov8" title="1">s.stopAutoReload()
                 return func() tea.Msg </span>{ <span class="cov8" title="1">return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }</span>
         }
@@ -9881,6 +10674,7 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
 		<pre class="file" id="file30" style="display: none">package ui
 
 import (
+        "context"
         "fmt"
         "strings"
         "time"
@@ -9891,6 +10685,7 @@ import (
 
         "jdiff/internal/config"
         "jdiff/internal/notify"
+        "jdiff/internal/source"
         "jdiff/internal/theme"
 )
 
@@ -10264,16 +11059,24 @@ type DiffSwitch struct {
         // without auto reload, which is checked every auto_reload_interval and at once
         // when repoWatch, if the system has one, reports a change of the files of
         // repoPaths. statusRuns counts the checks under way; autoGen tells this
-        // run of auto reload from earlier ones.
-        repoStatus func() (string, error)
+        // run of auto reload from earlier ones; autoCtx ends its git commands,
+        // autoCancel ends autoCtx.
+        repoStatus func(ctx context.Context) (string, error)
         repoPaths  func() ([]string, error)
         repoWatch  *notify.Watcher
         lastStatus string
         lastActive time.Time
         statusRuns int
         autoGen    int
+        autoCtx    context.Context
+        autoCancel context.CancelFunc
         input      *lineInput // while it asks
         err        string     // why git failed, until the next key
+        // running is set while git diff runs for the request number diffGen of
+        // show; diffCancel ends it.
+        running    bool
+        diffGen    int
+        diffCancel context.CancelFunc
         width      int
         height     int
 }
@@ -10286,7 +11089,7 @@ func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea
 
 // WithAutoReload sets how auto reload gets the state of the repository and
 // the files to watch for changes of it, and returns s.
-func (s *DiffSwitch) WithAutoReload(status func() (string, error), paths func() ([]string, error)) *DiffSwitch {
+func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error)) *DiffSwitch {
         <span class="cov8" title="1">s.repoStatus, s.repoPaths = status, paths
         return s
 </span>}
@@ -10306,7 +11109,10 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">s.width, s.height = msg.Width, msg.Height</span>
         case askDiffMsg:
                 <span class="cov8" title="1">s.input, s.err = &amp;lineInput{}, ""
+                s.endDiff()
                 return s, nil</span>
+        case diffListedMsg:
+                <span class="cov8" title="1">return s, s.showDiff(msg)</span>
         case askAutoReloadMsg:
                 <span class="cov8" title="1">return s, s.toggleAutoReload()</span>
         case autoTickMsg:
@@ -10317,6 +11123,11 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">if s.repoWatch != nil &amp;&amp; msg.w == s.repoWatch </span>{
                         <span class="cov8" title="1">return s, s.onRepoChanged()
 </span>                }
+        case watchEndedMsg:
+                <span class="cov0" title="0">if s.repoWatch != nil &amp;&amp; msg.w == s.repoWatch </span>{
+                        <span class="cov0" title="0">s.repoWatch = nil // the regular checks still see all changes
+                        return s, nil
+</span>                }
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">s.lastActive = time.Now()
                 if s.input != nil </span>{
@@ -10326,7 +11137,7 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case tea.PasteMsg:
                 <span class="cov8" title="1">if s.input != nil </span>{
                         <span class="cov8" title="1">s.err = ""
-                        s.input.text += msg.Content
+                        s.input.paste(msg.Content)
                         return s, nil
 </span>                }
         }
@@ -10346,19 +11157,24 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
                 <span class="cov8" title="1">return tea.Quit</span>
         case in.cancels(k):
                 <span class="cov8" title="1">s.input = nil
+                s.endDiff()
                 return nil</span>
         }
         <span class="cov8" title="1">switch k.String() </span>{
         case "enter":
-                <span class="cov8" title="1">args := strings.Fields(in.text)
-                if len(args) == 0 </span>{
+                <span class="cov8" title="1">args, err := splitArgs(in.text)
+                if err != nil </span>{
+                        <span class="cov0" title="0">s.err = err.Error()
+                        return nil
+</span>                }
+                <span class="cov8" title="1">if len(args) == 0 </span>{
                         <span class="cov8" title="1">s.input = nil
                         return nil
 </span>                }
                 <span class="cov8" title="1">return s.show(args)</span>
         case "up":
                 <span class="cov8" title="1">if args, ok := s.current(); ok </span>{
-                        <span class="cov8" title="1">in.text = strings.Join(args, " ")
+                        <span class="cov8" title="1">in.text = joinArgs(args)
 </span>                }
         default:
                 <span class="cov8" title="1">in.edit(k)</span>
@@ -10366,14 +11182,114 @@ func (s *DiffSwitch) key(k tea.KeyPressMsg) tea.Cmd {
         <span class="cov8" title="1">return nil</span>
 }
 
-// show replaces the view by the files of git diff with args, from scratch,
-// closes the popup and returns the command starting the new view. When git
-// fails, the view and the popup stay, which shows the first line of git's
-// message.
+// splitArgs splits text into arguments at spaces, as a shell does for
+// quotes: 'single' and "double" quotes keep spaces, a backslash outside
+// single quotes the character after it.
+func splitArgs(text string) ([]string, error) {
+        <span class="cov8" title="1">var args []string
+        var cur strings.Builder
+        inArg, quote, escaped := false, rune(0), false
+        for _, r := range text </span>{
+                <span class="cov8" title="1">switch </span>{
+                case escaped:
+                        <span class="cov8" title="1">cur.WriteRune(r)
+                        escaped = false</span>
+                case r == '\\' &amp;&amp; quote != '\'':
+                        <span class="cov8" title="1">escaped, inArg = true, true</span>
+                case quote != 0 &amp;&amp; r == quote:
+                        <span class="cov8" title="1">quote = 0</span>
+                case quote != 0:
+                        <span class="cov8" title="1">cur.WriteRune(r)</span>
+                case r == '\'' || r == '"':
+                        <span class="cov8" title="1">quote, inArg = r, true</span>
+                case r == ' ':
+                        <span class="cov8" title="1">if inArg </span>{
+                                <span class="cov8" title="1">args, inArg = append(args, cur.String()), false
+                                cur.Reset()
+</span>                        }
+                default:
+                        <span class="cov8" title="1">cur.WriteRune(r)
+                        inArg = true</span>
+                }
+        }
+        <span class="cov8" title="1">if quote != 0 </span>{
+                <span class="cov8" title="1">return nil, fmt.Errorf("missing closing %c", quote)
+</span>        }
+        <span class="cov8" title="1">if inArg </span>{
+                <span class="cov8" title="1">args = append(args, cur.String())
+</span>        }
+        <span class="cov8" title="1">return args, nil</span>
+}
+
+// joinArgs returns args as splitArgs reads them back: quoted where they hold
+// spaces, quotes or backslashes, or are empty.
+func joinArgs(args []string) string {
+        <span class="cov8" title="1">quoted := make([]string, len(args))
+        for i, a := range args </span>{
+                <span class="cov8" title="1">quoted[i] = a
+                if a == "" || strings.ContainsAny(a, " '\"\\") </span>{
+                        <span class="cov8" title="1">quoted[i] = "'" + strings.ReplaceAll(a, "'", `'"'"'`) + "'"
+</span>                }
+        }
+        <span class="cov8" title="1">return strings.Join(quoted, " ")</span>
+}
+
+// endDiff ends the git diff of the popup, if one runs: its files are no
+// longer wanted.
+func (s *DiffSwitch) endDiff() {
+        <span class="cov8" title="1">s.running = false
+        if s.diffCancel != nil </span>{
+                <span class="cov8" title="1">s.diffCancel()
+                s.diffCancel = nil
+</span>        }
+}
+
+// stop ends all git commands of s and its view: the program ends.
+func (s *DiffSwitch) stop() {
+        <span class="cov8" title="1">s.endDiff()
+        s.stopAutoReload()
+        if v, ok := s.view.(interface{ stop() }); ok </span>{
+                <span class="cov8" title="1">v.stop()
+</span>        }
+}
+
+// diffListedMsg brings the files of git diff with args, run for the request
+// number gen of show, or why git failed.
+type diffListedMsg struct {
+        gen   int
+        args  []string
+        files []source.File
+        err   error
+}
+
+// show returns the command running git diff with args in the background,
+// for showDiff. The popup stays open meanwhile and says so; esc closes it
+// and drops the files, as another request does.
 func (s *DiffSwitch) show(args []string) tea.Cmd {
-        <span class="cov8" title="1">files, err := s.gitDiff(args)
-        if err != nil </span>{
-                <span class="cov8" title="1">s.err = firstLine(err)
+        <span class="cov8" title="1">s.endDiff()
+        s.diffGen++
+        s.running = true
+        ctx, cancel := context.WithCancel(context.Background())
+        s.diffCancel = cancel
+        gen, untracked, gitDiff := s.diffGen, s.cfg.Settings.Untracked, s.gitDiff
+        return func() tea.Msg </span>{
+                <span class="cov8" title="1">files, err := gitDiff(ctx, args, untracked)
+                return diffListedMsg{gen, args, files, err}
+</span>        }
+}
+
+// showDiff replaces the view by the files msg brings, from scratch, closes
+// the popup and returns the command starting the new view; when the popup was
+// closed or asked again meanwhile, it drops them. When git failed, the view
+// and the popup stay, which shows the first line of git's message.
+func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
+        <span class="cov8" title="1">if msg.gen != s.diffGen || !s.running </span>{ // closed or opened again meanwhile
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">s.endDiff()
+        args, files := msg.args, msg.files
+        if msg.err != nil </span>{
+                <span class="cov8" title="1">s.err = firstLine(msg.err)
                 return nil
 </span>        }
         <span class="cov8" title="1">s.input = nil
@@ -10408,7 +11324,11 @@ func (s *DiffSwitch) frame() string {
         if _, ok := s.current(); ok </span>{
                 <span class="cov8" title="1">keys = "enter show · ↑ current · esc cancel"
 </span>        }
-        <span class="cov8" title="1">pop, w := inputBox(t, s.width, popupTitle(t, "git diff", "", keys), printable(s.input.text), s.err, true)
+        <span class="cov8" title="1">msg := ""
+        if s.running </span>{
+                <span class="cov8" title="1">msg = "running git diff…"
+</span>        }
+        <span class="cov8" title="1">pop, w := inputBox(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.input.text), s.err, true)
         return overlay(base, pop, w, s.width)</span>
 }
 
@@ -10443,9 +11363,24 @@ func (in *lineInput) cancels(k tea.KeyPressMsg) bool {
         <span class="cov8" title="1">return k.String() == "esc" || k.String() == "backspace" &amp;&amp; in.text == ""
 </span>}
 
+// paste adds pasted text, which comes as a tea.PasteMsg: on one line, line
+// breaks and tabs as spaces, without characters that are not visible, which
+// could reach the terminal.
+func (in *lineInput) paste(text string) {
+        <span class="cov8" title="1">in.text += strings.Map(func(r rune) rune </span>{
+                <span class="cov8" title="1">switch </span>{
+                case r == '\n' || r == '\r' || r == '\t':
+                        <span class="cov8" title="1">return ' '</span>
+                case hiddenChar(r):
+                        <span class="cov8" title="1">return -1</span>
+                }
+                <span class="cov8" title="1">return r</span>
+        }, text)
+}
+
 // edit applies k to the text: typed text is added, backspace deletes a
 // character, ctrl+w a word and ctrl+u the line. Pasted text comes as a
-// tea.PasteMsg, which the owner adds.
+// tea.PasteMsg, which the owner adds with paste.
 func (in *lineInput) edit(k tea.KeyPressMsg) {
         <span class="cov8" title="1">switch k.String() </span>{
         case "backspace":
@@ -10504,6 +11439,14 @@ type SizeGuard struct {
 // WithSizeGuard returns m guarded against too small terminals.
 func WithSizeGuard(cfg *config.Config, m tea.Model) *SizeGuard { <span class="cov8" title="1">return &amp;SizeGuard{Model: m, cfg: cfg} }</span>
 
+// Stop ends the git commands that run in the background, and the watching
+// of files, once the program ended: its git commands would else run on.
+func (g *SizeGuard) Stop() {
+        <span class="cov8" title="1">if m, ok := g.Model.(interface{ stop() }); ok </span>{
+                <span class="cov8" title="1">m.stop()
+</span>        }
+}
+
 func (g *SizeGuard) tooSmall() bool { <span class="cov8" title="1">return g.width &lt; minWidth || g.height &lt; minHeight }</span>
 
 func (g *SizeGuard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -10561,6 +11504,7 @@ package main
 
 import (
         "bytes"
+        "context"
         "embed"
         "fmt"
         "io"
@@ -10568,6 +11512,7 @@ import (
         "path/filepath"
         "runtime/debug"
         "strings"
+        "time"
 
         tea "charm.land/bubbletea/v2"
         "github.com/charmbracelet/colorprofile"
@@ -10808,7 +11753,7 @@ func start(o options, mode string, args []string) {
         <span class="cov0" title="0">wrap := func(m tea.Model) tea.Model </span>{
                 <span class="cov0" title="0">return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 </span>        }
-        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff(cfg)).WithAutoReload(gitsrc.Repo{}.Status, gitsrc.Repo{}.WatchPaths)))</span>
+        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths)))</span>
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -10819,7 +11764,14 @@ func run(page tea.Model) {
         if colorprofile.Detect(os.Stdout, os.Environ()) &gt; colorprofile.ANSI </span>{
                 <span class="cov0" title="0">opts = append(opts, tea.WithColorProfile(colorprofile.ANSI))
 </span>        }
-        <span class="cov0" title="0">if _, err := tea.NewProgram(page, opts...).Run(); err != nil </span>{
+        <span class="cov0" title="0">end, err := tea.NewProgram(page, opts...).Run()
+</span>        // git commands still running in the background are of no use now: they
+        // are killed, which takes a moment.
+        <span class="cov0" title="0">if s, ok := end.(interface{ Stop() }); ok </span>{
+                <span class="cov0" title="0">s.Stop()
+                gitsrc.Wait(time.Second)
+</span>        }
+        <span class="cov0" title="0">if err != nil </span>{
                 <span class="cov0" title="0">fatal(err)
 </span>        }
 }
@@ -10835,7 +11787,7 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
                 if err != nil </span>{
                         <span class="cov0" title="0">return nil, err
 </span>                }
-                <span class="cov8" title="1">relist := func() ([]source.File, error) </span>{ <span class="cov8" title="1">return source.LoadDirs(oldPath, newPath) }</span>
+                <span class="cov8" title="1">relist := func(context.Context) ([]source.File, error) </span>{ <span class="cov8" title="1">return source.LoadDirs(oldPath, newPath) }</span>
                 <span class="cov8" title="1">return ui.NewApp(cfg, files).WithRelist(relist), nil</span>
         }
 
@@ -10861,35 +11813,43 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
         <span class="cov8" title="1">if len(commits) == 0 </span>{
                 <span class="cov8" title="1">return nil, fmt.Errorf("no commits")
 </span>        }
-        <span class="cov8" title="1">relist := func() (string, []gitsrc.Commit, error) </span>{
-                <span class="cov8" title="1">commits, err := repo.Log(args)
-                return repo.Branch(), commits, err
+        <span class="cov8" title="1">relist := func(ctx context.Context) (string, []gitsrc.Commit, error) </span>{
+                <span class="cov8" title="1">r := repo.WithContext(ctx)
+                commits, err := r.Log(args)
+                return r.Branch(), commits, err
 </span>        }
-        <span class="cov8" title="1">return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), repo.Files, repo.Counts).WithRelist(relist), nil</span>
+        <span class="cov8" title="1">files := func(ctx context.Context, c gitsrc.Commit) ([]source.File, error) </span>{
+                <span class="cov0" title="0">return repo.WithContext(ctx).Files(c)
+</span>        }
+        <span class="cov8" title="1">counts := func(ctx context.Context, hashes []string) (map[string]gitsrc.LineCounts, error) </span>{
+                <span class="cov0" title="0">return repo.WithContext(ctx).Counts(hashes)
+</span>        }
+        <span class="cov8" title="1">return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), files, counts).WithRelist(relist), nil</span>
 }
 
 // loadDiff opens the file selector for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-        <span class="cov8" title="1">diff := gitDiff(cfg)
-        files, err := diff(args)
+        <span class="cov8" title="1">files, err := gitDiff(context.Background(), args, cfg.Settings.Untracked)
         if err != nil </span>{
                 <span class="cov8" title="1">return nil, err
 </span>        }
-        <span class="cov8" title="1">return ui.NewApp(cfg, files).WithGitDiff(args, diff), nil</span>
+        <span class="cov8" title="1">return ui.NewApp(cfg, files).WithGitDiff(args, gitDiff), nil</span>
 }
 
-// gitDiff returns the function running git diff, which follows the toggle of
-// the untracked files.
-func gitDiff(cfg *config.Config) ui.DiffFunc {
-        <span class="cov8" title="1">repo := gitsrc.Repo{}
-        return func(args []string) ([]source.File, error) </span>{
-                <span class="cov8" title="1">if cfg.Settings.Untracked </span>{
-                        <span class="cov8" title="1">return repo.DiffUntracked(args)
-</span>                }
-                <span class="cov8" title="1">return repo.Diff(args)</span>
-        }
+// gitDiff runs git diff with args, with the untracked files when untracked
+// is set; see ui.DiffFunc.
+func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+        <span class="cov8" title="1">repo := gitsrc.Repo{}.WithContext(ctx)
+        if untracked </span>{
+                <span class="cov8" title="1">return repo.DiffUntracked(args)
+</span>        }
+        <span class="cov8" title="1">return repo.Diff(args)</span>
 }
+
+// gitStatus returns the state of the repository for auto reload, see
+// gitsrc.Repo.Status.
+func gitStatus(ctx context.Context) (string, error) { <span class="cov0" title="0">return gitsrc.Repo{}.WithContext(ctx).Status() }</span>
 
 func fatal(err error) {
         <span class="cov8" title="1">fmt.Fprintln(os.Stderr, "jdiff:", err)
