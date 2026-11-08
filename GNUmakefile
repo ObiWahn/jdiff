@@ -5,6 +5,9 @@ BUILD_DIR    ?= bin
 BIN          := $(BUILD_DIR)/jdiff
 TEST_TIMEOUT ?= 15s
 RACE_TIMEOUT ?= 40s
+# Compiling the tests, with -race too, before the timed runs: a cold build
+# cache takes longer than the runs themselves.
+COMPILE_TIMEOUT ?= 300s
 # Installed, not run with go run: that may switch to a newer Go, whose
 # standard library it would check instead of the one jdiff is built with.
 # go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -20,12 +23,15 @@ build: | $(BUILD_DIR)/
 # Sweeps, tests named ...Sweep, draw thousands of frames in one goroutine:
 # the race detector finds nothing there but makes them ten times slower.
 test: | $(BUILD_DIR)/
-	timeout $(TEST_TIMEOUT) go test -race -count=1 -skip 'Sweep$$' ./... 2>&1 | tee $(BUILD_DIR)/test.log
+	timeout $(COMPILE_TIMEOUT) go test -race -count=1 -run '^$$' ./... 2>&1 | tee $(BUILD_DIR)/test.log
+	timeout $(COMPILE_TIMEOUT) go test -count=1 -run '^$$' ./... 2>&1 | tee -a $(BUILD_DIR)/test.log
+	timeout $(TEST_TIMEOUT) go test -race -count=1 -skip 'Sweep$$' ./... 2>&1 | tee -a $(BUILD_DIR)/test.log
 	timeout $(TEST_TIMEOUT) go test -count=1 -run 'Sweep$$' ./... 2>&1 | tee -a $(BUILD_DIR)/test.log
 
 # All tests with the race detector, the sweeps too: before a release.
 test-race: | $(BUILD_DIR)/
-	timeout $(RACE_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee $(BUILD_DIR)/test-race.log
+	timeout $(COMPILE_TIMEOUT) go test -race -count=1 -run '^$$' ./... 2>&1 | tee $(BUILD_DIR)/test-race.log
+	timeout $(RACE_TIMEOUT) go test -race -count=1 ./... 2>&1 | tee -a $(BUILD_DIR)/test-race.log
 
 # Coverage over all packages: settings has no tests of its own, ui tests it.
 # The profile has each block once per package tested: count it once, as run
