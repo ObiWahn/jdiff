@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (95.6%)</option>
+				<option value="file0">jdiff/internal/config/config.go (94.0%)</option>
 				
 				<option value="file1">jdiff/internal/config/marks.go (97.2%)</option>
 				
@@ -69,55 +69,57 @@
 				
 				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.4%)</option>
 				
-				<option value="file7">jdiff/internal/notify/notify.go (100.0%)</option>
+				<option value="file7">jdiff/internal/keys/keys.go (97.7%)</option>
 				
-				<option value="file8">jdiff/internal/notify/notify_linux.go (90.6%)</option>
+				<option value="file8">jdiff/internal/notify/notify.go (100.0%)</option>
 				
-				<option value="file9">jdiff/internal/settings/settings.go (100.0%)</option>
+				<option value="file9">jdiff/internal/notify/notify_linux.go (90.6%)</option>
 				
-				<option value="file10">jdiff/internal/source/source.go (89.7%)</option>
+				<option value="file10">jdiff/internal/settings/settings.go (100.0%)</option>
 				
-				<option value="file11">jdiff/internal/theme/config.go (100.0%)</option>
+				<option value="file11">jdiff/internal/source/source.go (89.7%)</option>
 				
-				<option value="file12">jdiff/internal/theme/spec.go (100.0%)</option>
+				<option value="file12">jdiff/internal/theme/config.go (100.0%)</option>
 				
-				<option value="file13">jdiff/internal/theme/style.go (100.0%)</option>
+				<option value="file13">jdiff/internal/theme/spec.go (100.0%)</option>
 				
-				<option value="file14">jdiff/internal/theme/theme.go (100.0%)</option>
+				<option value="file14">jdiff/internal/theme/style.go (100.0%)</option>
 				
-				<option value="file15">jdiff/internal/ui/app.go (95.2%)</option>
+				<option value="file15">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file16">jdiff/internal/ui/doc.go (96.4%)</option>
+				<option value="file16">jdiff/internal/ui/app.go (95.2%)</option>
 				
-				<option value="file17">jdiff/internal/ui/filediff.go (95.7%)</option>
+				<option value="file17">jdiff/internal/ui/doc.go (96.4%)</option>
 				
-				<option value="file18">jdiff/internal/ui/flow.go (93.6%)</option>
+				<option value="file18">jdiff/internal/ui/filediff.go (95.7%)</option>
 				
-				<option value="file19">jdiff/internal/ui/help.go (98.6%)</option>
+				<option value="file19">jdiff/internal/ui/flow.go (93.6%)</option>
 				
-				<option value="file20">jdiff/internal/ui/log.go (94.3%)</option>
+				<option value="file20">jdiff/internal/ui/help.go (98.9%)</option>
 				
-				<option value="file21">jdiff/internal/ui/markdown.go (96.5%)</option>
+				<option value="file21">jdiff/internal/ui/log.go (94.0%)</option>
 				
-				<option value="file22">jdiff/internal/ui/marks.go (96.2%)</option>
+				<option value="file22">jdiff/internal/ui/markdown.go (96.5%)</option>
 				
-				<option value="file23">jdiff/internal/ui/messages.go (100.0%)</option>
+				<option value="file23">jdiff/internal/ui/marks.go (96.2%)</option>
 				
-				<option value="file24">jdiff/internal/ui/model.go (92.8%)</option>
+				<option value="file24">jdiff/internal/ui/messages.go (100.0%)</option>
 				
-				<option value="file25">jdiff/internal/ui/moved.go (100.0%)</option>
+				<option value="file25">jdiff/internal/ui/model.go (92.8%)</option>
 				
-				<option value="file26">jdiff/internal/ui/search.go (98.0%)</option>
+				<option value="file26">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file27">jdiff/internal/ui/settings.go (96.3%)</option>
+				<option value="file27">jdiff/internal/ui/search.go (98.0%)</option>
 				
-				<option value="file28">jdiff/internal/ui/view.go (99.3%)</option>
+				<option value="file28">jdiff/internal/ui/settings.go (99.3%)</option>
 				
-				<option value="file29">jdiff/internal/ui/watch.go (91.3%)</option>
+				<option value="file29">jdiff/internal/ui/view.go (99.3%)</option>
 				
-				<option value="file30">jdiff/internal/ui/widgets.go (97.0%)</option>
+				<option value="file30">jdiff/internal/ui/watch.go (91.3%)</option>
 				
-				<option value="file31">jdiff/main.go (79.1%)</option>
+				<option value="file31">jdiff/internal/ui/widgets.go (97.0%)</option>
+				
+				<option value="file32">jdiff/main.go (79.5%)</option>
 				
 				</select>
 			</div>
@@ -156,6 +158,7 @@ import (
         "github.com/BurntSushi/toml"
         "github.com/charmbracelet/x/ansi"
 
+        "jdiff/internal/keys"
         "jdiff/internal/settings"
         "jdiff/internal/theme"
 )
@@ -164,6 +167,7 @@ import (
 // all of them.
 type Config struct {
         Theme    *theme.Theme
+        Keys     *keys.Map // the keys of all pages, the built-in ones with the user's
         Settings settings.Settings
         Themes   []theme.Spec // all themes found; Theme is the selected one
 
@@ -204,7 +208,7 @@ func (s *Search) Add(q Query) {
 
 // Default returns the default theme and settings, without files.
 func Default() *Config {
-        <span class="cov8" title="1">return &amp;Config{Theme: theme.Default(), Settings: settings.Default()}
+        <span class="cov8" title="1">return &amp;Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
 </span>}
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
@@ -241,7 +245,7 @@ type mainFile struct {
 // files that cannot be parsed are an error, unless they are theme files not
 // selected. An empty dir reads no files.
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
-        <span class="cov8" title="1">c := &amp;Config{Settings: settings.Default()}
+        <span class="cov8" title="1">c := &amp;Config{Keys: keys.Builtin(), Settings: settings.Default()}
         c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
         name := ""
         if dir != "" </span>{
@@ -300,7 +304,11 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                         <span class="cov0" title="0">return nil, err
 </span>                }
                 <span class="cov8" title="1">c.Settings.Toggles = state.Toggles
-                name = m.Theme
+                var problems []string
+                if c.Keys, problems = keys.Load(dir); len(problems) &gt; 0 </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, keys.FileName+": "+strings.Join(problems, "; ")+"; the built-in keys are used")
+</span>                }
+                <span class="cov8" title="1">name = m.Theme
                 if err := c.readThemes(filepath.Join(dir, "themes"), name); err != nil </span>{
                         <span class="cov8" title="1">return nil, err
 </span>                }
@@ -425,11 +433,11 @@ func writeTOML(path, header string, v any) error {
 
 // Dir returns the configuration directory the files were read from, "" for
 // none.
-func (c *Config) Dir() string { <span class="cov8" title="1">return c.dir }</span>
+func (c *Config) Dir() string { <span class="cov0" title="0">return c.dir }</span>
 
 // AddWarning adds a problem with a file that another package reads from the
 // configuration directory, for Warning.
-func (c *Config) AddWarning(w string) { <span class="cov8" title="1">c.warnings = append(c.warnings, w) }</span>
+func (c *Config) AddWarning(w string) { <span class="cov0" title="0">c.warnings = append(c.warnings, w) }</span>
 
 // Warning returns the problems with the theme and the files, or "".
 func (c *Config) Warning() string {
@@ -1934,7 +1942,373 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 }
 </pre>
 		
-		<pre class="file" id="file7" style="display: none">// Package notify reports changes to files as the kernel sees them, instead
+		<pre class="file" id="file7" style="display: none">// Package keys holds the keymap of jdiff: keybindings.toml, which binds the
+// keys of all pages to actions, gives their words and decides the order of
+// the settings, with the keys of the user's keybindings.toml over it. A Map
+// is built once, with the configuration, and not changed after.
+package keys
+
+import (
+        _ "embed"
+        "errors"
+        "io/fs"
+        "os"
+        "path/filepath"
+        "regexp"
+        "slices"
+        "strconv"
+        "strings"
+
+        "github.com/BurntSushi/toml"
+)
+
+// BuiltinText is the built-in keybindings.toml.
+//
+//go:embed keybindings.toml
+var BuiltinText string
+
+// Row is a row of keybindings.toml.
+type Row struct {
+        Action  string
+        Keys    []string
+        Label   []string
+        Help    string
+        Setting string
+}
+
+// HelpRow is a line of the help popup in keybindings.toml.
+type HelpRow struct{ Heading, Note, Action string }
+
+// Map holds keybindings.toml: the rows of each page and the help's lines.
+type Map struct {
+        CommitList []Row     `toml:"commit_list"`
+        FileList   []Row     `toml:"file_list"`
+        DiffView   []Row     `toml:"diff_view"`
+        FlowView   []Row     `toml:"flow_view"`
+        Everywhere []Row     `toml:"everywhere"`
+        DocView    []Row     `toml:"doc_view"`
+        Help       []HelpRow `toml:"help"`
+}
+
+// Read returns the keybindings.toml text.
+func Read(text string) (Map, error) {
+        <span class="cov8" title="1">var p Map
+        _, err := toml.Decode(text, &amp;p)
+        return p, err
+</span>}
+
+// builtin is BuiltinText, read. It is part of the program, so that failing to
+// read it is a bug, which TestKeybindingsFile finds.
+var builtin = func() Map {
+        <span class="cov8" title="1">p, err := Read(BuiltinText)
+        if err != nil </span>{
+                <span class="cov0" title="0">panic(err)</span>
+        }
+        <span class="cov8" title="1">return p</span>
+}()
+
+// Builtin returns the built-in keys. They are shared: do not change them.
+func Builtin() *Map { <span class="cov8" title="1">return &amp;builtin }</span>
+
+// Row returns the row that gives the keys and words of action; see
+// keybindings.toml for the order. Without one, it has no keys.
+func (p Map) Row(action string) Row {
+        <span class="cov8" title="1">if rows := p.RowsOf(action); len(rows) &gt; 0 </span>{
+                <span class="cov8" title="1">return rows[0]
+</span>        }
+        <span class="cov8" title="1">return Row{}</span>
+}
+
+// RowsOf returns the rows of action in the first page that has it, in the
+// order of Row.
+func (p Map) RowsOf(action string) []Row {
+        <span class="cov8" title="1">for _, rows := range [][]Row{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
+                <span class="cov8" title="1">var of []Row
+                for _, r := range rows </span>{
+                        <span class="cov8" title="1">if r.Action == action </span>{
+                                <span class="cov8" title="1">of = append(of, r)
+</span>                        }
+                }
+                <span class="cov8" title="1">if len(of) &gt; 0 </span>{
+                        <span class="cov8" title="1">return of
+</span>                }
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// placeholder matches {action} and {action:n} in the words of keybindings.toml.
+var placeholder = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
+
+// Text returns s with each placeholder replaced by the keys of its row, ""
+// for a row that does not exist.
+func (p Map) Text(s string) string {
+        <span class="cov8" title="1">return placeholder.ReplaceAllStringFunc(s, func(m string) string </span>{
+                <span class="cov8" title="1">sub := placeholder.FindStringSubmatch(m)
+                n, _ := strconv.Atoi(sub[2])
+                if rows := p.RowsOf(sub[1]); n &lt; len(rows) </span>{
+                        <span class="cov8" title="1">return strings.Join(rows[n].Keys, " ")
+</span>                }
+                <span class="cov8" title="1">return ""</span>
+        })
+}
+
+// twoWay lists the actions whose rows take two keys, one for each way.
+var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
+
+// userRow is a row of the user's keybindings.toml, which changes only keys.
+type userRow struct {
+        Action string
+        Keys   []string
+}
+
+// User returns p with the keys of text, the user's keybindings.toml, and
+// what is wrong with it. The rows of an action on a page replace all its rows
+// there, keeping their words; a file with a problem changes nothing, so that
+// a mistake cannot take away the keys to quit or get help.
+func (p Map) User(text string) (Map, []string) {
+        <span class="cov8" title="1">var u struct {
+                CommitList []userRow `toml:"commit_list"`
+                FileList   []userRow `toml:"file_list"`
+                DiffView   []userRow `toml:"diff_view"`
+                FlowView   []userRow `toml:"flow_view"`
+                Everywhere []userRow `toml:"everywhere"`
+                DocView    []userRow `toml:"doc_view"`
+</span>        }
+        <span class="cov8" title="1">md, err := toml.Decode(text, &amp;u)
+        if err != nil </span>{
+                <span class="cov8" title="1">return p, []string{err.Error()}
+</span>        }
+        <span class="cov8" title="1">var problems []string
+        for _, k := range md.Undecoded() </span>{
+                <span class="cov8" title="1">problems = append(problems, "unknown "+k.String())
+</span>        }
+        <span class="cov8" title="1">merged := p
+        for _, t := range []struct {
+                name string
+                rows *[]Row
+                user []userRow
+        }{
+                {"everywhere", &amp;merged.Everywhere, u.Everywhere}, {"diff_view", &amp;merged.DiffView, u.DiffView},
+                {"flow_view", &amp;merged.FlowView, u.FlowView}, {"commit_list", &amp;merged.CommitList, u.CommitList},
+                {"file_list", &amp;merged.FileList, u.FileList}, {"doc_view", &amp;merged.DocView, u.DocView},
+</span>        } {
+                <span class="cov8" title="1">for _, r := range t.user </span>{
+                        <span class="cov8" title="1">switch </span>{
+                        case !slices.ContainsFunc(*t.rows, func(b Row) bool { <span class="cov8" title="1">return b.Action == r.Action }</span>):
+                                <span class="cov8" title="1">problems = append(problems, "no action "+r.Action+" in "+t.name)</span>
+                        case len(r.Keys) == 0:
+                                <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" has no keys")</span>
+                        case slices.Contains(twoWay, r.Action) &amp;&amp; len(r.Keys) != 2:
+                                <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")</span>
+                        }
+                }
+                <span class="cov8" title="1">*t.rows = replaceKeys(*t.rows, t.user)</span>
+        }
+        <span class="cov8" title="1">problems = append(problems, merged.conflicts()...)
+        if len(problems) &gt; 0 </span>{
+                <span class="cov8" title="1">return p, problems
+</span>        }
+        <span class="cov8" title="1">return merged, nil</span>
+}
+
+// replaceKeys returns rows with the rows of each action of user in place of
+// its rows: the first where the first was, with the words of the row it
+// replaces; rows of user beyond them have none.
+func replaceKeys(rows []Row, user []userRow) []Row {
+        <span class="cov8" title="1">var out []Row
+        done := map[string]bool{}
+        for _, r := range rows </span>{
+                <span class="cov8" title="1">if !slices.ContainsFunc(user, func(u userRow) bool </span>{ <span class="cov8" title="1">return u.Action == r.Action }</span>) {
+                        <span class="cov8" title="1">out = append(out, r)
+                        continue</span>
+                }
+                <span class="cov8" title="1">if done[r.Action] </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">done[r.Action] = true
+                var old []Row
+                for _, o := range rows </span>{
+                        <span class="cov8" title="1">if o.Action == r.Action </span>{
+                                <span class="cov8" title="1">old = append(old, o)
+</span>                        }
+                }
+                <span class="cov8" title="1">i := 0
+                for _, u := range user </span>{
+                        <span class="cov8" title="1">if u.Action != r.Action </span>{
+                                <span class="cov8" title="1">continue</span>
+                        }
+                        <span class="cov8" title="1">row := Row{Action: u.Action}
+                        if i &lt; len(old) </span>{
+                                <span class="cov8" title="1">row = old[i]
+</span>                        }
+                        <span class="cov8" title="1">row.Keys = u.Keys
+                        out = append(out, row)
+                        i++</span>
+                }
+        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// FileName is the user's keybindings.toml in the configuration directory.
+const FileName = "keybindings.toml"
+
+// Load returns the built-in keys with those of the user's keybindings.toml in
+// the configuration directory dir, if there is one, and what is wrong with
+// it; with a problem, the built-in keys.
+func Load(dir string) (*Map, []string) {
+        <span class="cov8" title="1">data, err := os.ReadFile(filepath.Join(dir, FileName))
+        if errors.Is(err, fs.ErrNotExist) </span>{
+                <span class="cov8" title="1">return Builtin(), nil
+</span>        }
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov0" title="0">return Builtin(), []string{err.Error()}
+</span>        }
+        <span class="cov8" title="1">p, problems := Builtin().User(string(data))
+        if len(problems) &gt; 0 </span>{
+                <span class="cov8" title="1">return Builtin(), problems
+</span>        }
+        <span class="cov8" title="1">return &amp;p, nil</span>
+}
+
+// Page is a page whose keys are looked up in keybindings.toml.
+type Page int
+
+const (
+        CommitList Page = iota
+        FileList
+        DiffView
+        FlowView
+        DocView
+        Everywhere // the popups over all pages
+)
+
+// Hit is what a key does: the action of its row, "" for none, and its index
+// in the row, which gives the way of actions that go two ways (see
+// keybindings.toml).
+type Hit struct {
+        Action string
+        Index  int
+}
+
+// tables returns the rows the keys of page pg are looked up in, in order.
+func (p Map) tables(pg Page) [][]Row {
+        <span class="cov8" title="1">switch pg </span>{
+        case CommitList:
+                <span class="cov8" title="1">return [][]Row{p.CommitList, p.Everywhere}</span>
+        case FileList:
+                <span class="cov8" title="1">return [][]Row{p.FileList, p.Everywhere}</span>
+        case DiffView:
+                <span class="cov8" title="1">return [][]Row{p.DiffView, p.Everywhere}</span>
+        case FlowView:
+                <span class="cov8" title="1">return [][]Row{p.FlowView, p.DiffView, p.Everywhere}</span>
+        case DocView:
+                <span class="cov8" title="1">return [][]Row{p.DocView, p.Everywhere}</span>
+        }
+        <span class="cov8" title="1">return [][]Row{p.Everywhere}</span>
+}
+
+// Key returns what key k, as Bubble Tea names it, does on page pg.
+func (p Map) Key(pg Page, k string) Hit {
+        <span class="cov8" title="1">for _, rows := range p.tables(pg) </span>{
+                <span class="cov8" title="1">for _, r := range rows </span>{
+                        <span class="cov8" title="1">for i, name := range r.Keys </span>{
+                                <span class="cov8" title="1">if Name(name) == k </span>{
+                                        <span class="cov8" title="1">return Hit{r.Action, i}
+</span>                                }
+                        }
+                }
+        }
+        <span class="cov8" title="1">return Hit{}</span>
+}
+
+// Name returns Bubble Tea's name of the key written as name in
+// keybindings.toml, which writes pgdn and F5 as the help shows them, and
+// &lt;letter&gt; for the letter that follows.
+func Name(name string) string {
+        <span class="cov8" title="1">name = strings.TrimSuffix(name, "&lt;letter&gt;")
+        if name == "pgdn" </span>{
+                <span class="cov8" title="1">return "pgdown"
+</span>        }
+        <span class="cov8" title="1">if n, ok := strings.CutPrefix(name, "F"); ok &amp;&amp; n != "" &amp;&amp; strings.Trim(n, "0123456789") == "" </span>{
+                <span class="cov8" title="1">return "f" + n
+</span>        }
+        <span class="cov8" title="1">return name</span>
+}
+
+// LabelIn returns the word of the status bar in state, "" when there is none.
+func (r Row) LabelIn(state int) string {
+        <span class="cov8" title="1">if state &lt; len(r.Label) </span>{
+                <span class="cov8" title="1">return r.Label[state]
+</span>        }
+        <span class="cov8" title="1">return ""</span>
+}
+
+// Order returns the first key of each row of everywhere, which decides the
+// order of the settings.
+func (p Map) Order() []string {
+        <span class="cov8" title="1">var keys []string
+        for _, r := range p.Everywhere </span>{
+                <span class="cov8" title="1">if len(r.Keys) &gt; 0 </span>{
+                        <span class="cov8" title="1">keys = append(keys, r.Keys[0])
+</span>                }
+        }
+        <span class="cov8" title="1">return keys</span>
+}
+
+// Problems returns what is wrong with p by itself: a key with two actions on
+// one page, a line of the help with an action that has no help, a placeholder
+// without its row. What the settings and the help need of it is checked by
+// the package ui.
+func (p Map) Problems() []string {
+        <span class="cov8" title="1">problems := p.conflicts()
+        for _, r := range p.Help </span>{
+                <span class="cov8" title="1">if r.Action != "" &amp;&amp; p.Row(r.Action).Help == "" </span>{
+                        <span class="cov8" title="1">problems = append(problems, "the help's action "+r.Action+" has no help")
+</span>                }
+        }
+        <span class="cov8" title="1">var words []string
+        for _, rows := range [][]Row{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
+                <span class="cov8" title="1">for _, r := range rows </span>{
+                        <span class="cov8" title="1">words = append(words, r.Help, r.Setting)
+</span>                }
+        }
+        <span class="cov8" title="1">for _, r := range p.Help </span>{
+                <span class="cov8" title="1">words = append(words, r.Note)
+</span>        }
+        <span class="cov8" title="1">for _, w := range words </span>{
+                <span class="cov8" title="1">for _, m := range placeholder.FindAllStringSubmatch(w, -1) </span>{
+                        <span class="cov8" title="1">n, _ := strconv.Atoi(m[2])
+                        if n &gt;= len(p.RowsOf(m[1])) </span>{
+                                <span class="cov0" title="0">problems = append(problems, "placeholder "+m[0]+" has no row")
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">return problems</span>
+}
+
+// conflicts returns the keys with two actions on one page.
+func (p Map) conflicts() []string {
+        <span class="cov8" title="1">var problems []string
+        for _, t := range []struct {
+                name string
+                rows []Row
+        }{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList},
+                {"doc_view", p.DocView}} </span>{
+                <span class="cov8" title="1">actions := map[string]string{}
+                for _, r := range t.rows </span>{
+                        <span class="cov8" title="1">for _, name := range r.Keys </span>{
+                                <span class="cov8" title="1">if a, ok := actions[Name(name)]; ok &amp;&amp; a != r.Action </span>{
+                                        <span class="cov8" title="1">problems = append(problems, "key "+name+" has two actions in "+t.name+": "+a+", "+r.Action)
+</span>                                }
+                                <span class="cov8" title="1">actions[Name(name)] = r.Action</span>
+                        }
+                }
+        }
+        <span class="cov8" title="1">return problems</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">// Package notify reports changes to files as the kernel sees them, instead
 // of checking them over and over. It watches the directories the files are
 // in, not the files: editors often save by writing a new file and renaming
 // it over the old one, which a watch on the old file would not see. Only
@@ -1984,7 +2358,7 @@ func dirs(names map[string][]string) []string {
 }
 </pre>
 		
-		<pre class="file" id="file8" style="display: none">//go:build linux
+		<pre class="file" id="file9" style="display: none">//go:build linux
 
 package notify
 
@@ -2187,7 +2561,7 @@ func (w *Watcher) batch(raw &lt;-chan string) {
 }
 </pre>
 		
-		<pre class="file" id="file9" style="display: none">// Package settings holds jdiff's user settings.
+		<pre class="file" id="file10" style="display: none">// Package settings holds jdiff's user settings.
 package settings
 
 // Settings are the user-configurable options, read from main.toml and,
@@ -2322,7 +2696,7 @@ func Default() Settings {
 }
 </pre>
 		
-		<pre class="file" id="file10" style="display: none">// Package source loads the files to compare from disk.
+		<pre class="file" id="file11" style="display: none">// Package source loads the files to compare from disk.
 package source
 
 import (
@@ -2486,7 +2860,7 @@ func listFiles(dir string) ([]string, error) {
 }
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">package theme
+		<pre class="file" id="file12" style="display: none">package theme
 
 import (
         "bytes"
@@ -2579,7 +2953,7 @@ func lookup(cfg Config, features []string, key string) (string, bool) {
 }
 </pre>
 		
-		<pre class="file" id="file12" style="display: none">package theme
+		<pre class="file" id="file13" style="display: none">package theme
 
 import (
         "path/filepath"
@@ -2773,7 +3147,7 @@ func FromFile(path string) (Spec, []string, error) {
 }
 </pre>
 		
-		<pre class="file" id="file13" style="display: none">package theme
+		<pre class="file" id="file14" style="display: none">package theme
 
 import (
         "fmt"
@@ -2876,7 +3250,7 @@ func isHexColor(s string) bool {
 }
 </pre>
 		
-		<pre class="file" id="file14" style="display: none">// Package theme builds jdiff's styles. A theme comes from a source, as a
+		<pre class="file" id="file15" style="display: none">// Package theme builds jdiff's styles. A theme comes from a source, as a
 // Spec: jdiff's defaults, delta's git config settings or a theme file;
 // Resolve turns it into the styles, with the defaults for what it leaves
 // unset.
@@ -3043,7 +3417,7 @@ func Resolve(sp Spec) *Theme {
 }
 </pre>
 		
-		<pre class="file" id="file15" style="display: none">package ui
+		<pre class="file" id="file16" style="display: none">package ui
 
 import (
         "context"
@@ -3058,6 +3432,7 @@ import (
         "jdiff/internal/config"
         "jdiff/internal/diff"
         "jdiff/internal/gitsrc"
+        "jdiff/internal/keys"
         "jdiff/internal/notify"
         "jdiff/internal/source"
         "jdiff/internal/theme"
@@ -3163,7 +3538,7 @@ const fileListRows = 15
 
 // App is the Bubble Tea model of the file selector. It shows the diff view
 // of the selected file and returns to the list on backspace. A single file
-// is opened directly.
+// is opened directly, except in the log, where a commit shows its list.
 type App struct {
         cfg    *config.Config
         commit *gitsrc.Commit // whose files are shown, nil outside the log
@@ -3239,7 +3614,7 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
         <span class="cov8" title="1">if w := cfg.Warning(); w != "" </span>{
                 <span class="cov0" title="0">a.msg = w
 </span>        }
-        <span class="cov8" title="1">if a.single() </span>{
+        <span class="cov8" title="1">if a.single() &amp;&amp; !a.inLog() </span>{
                 <span class="cov8" title="1">a.openFile()
 </span>        }
         <span class="cov8" title="1">return a</span>
@@ -3274,7 +3649,8 @@ func diffCommand(args []string) string {
 // log.
 func (a *App) inLog() bool { <span class="cov8" title="1">return a.commit != nil }</span>
 
-// single reports whether there is exactly one file and it can be shown.
+// single reports whether there is exactly one file and it can be shown,
+// which a comparison outside the log opens directly.
 func (a *App) single() bool { <span class="cov8" title="1">return len(a.files) == 1 &amp;&amp; !a.files[0].Binary }</span>
 
 // openPath opens the file with the given path and reports whether it could.
@@ -3606,14 +3982,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">return a, cmd</span>
         }
         <span class="cov8" title="1">if a.open != nil </span>{
-                <span class="cov8" title="1">if k, ok := msg.(tea.KeyPressMsg); ok &amp;&amp; keyFile.key(diffView, k.String()).action == "to_files" </span>{
+                <span class="cov8" title="1">if k, ok := msg.(tea.KeyPressMsg); ok &amp;&amp; a.cfg.Keys.Key(keys.DiffView, k.String()).Action == "to_files" </span>{
                         <span class="cov8" title="1">a.open.updateStats()
                         a.open = nil
-                        if a.inLog() &amp;&amp; a.single() </span>{
-                                <span class="cov8" title="1">return a, func() tea.Msg </span>{ <span class="cov8" title="1">return backMsg{} }</span>
-                        }
-                        <span class="cov8" title="1">return a, nil</span>
-                }
+                        return a, nil
+</span>                }
                 <span class="cov8" title="1">_, cmd := a.open.view.Update(msg)
                 return a, cmd</span>
         }
@@ -3638,7 +4011,7 @@ func (a *App) key(k string) tea.Cmd {
 </span>                }
                 <span class="cov8" title="1">return nil</span>
         }
-        <span class="cov8" title="1">h := keyFile.key(fileList, k)
+        <span class="cov8" title="1">h := a.cfg.Keys.Key(keys.FileList, k)
         page := max(a.listHeight()-1, 1)
         if delta, paging, ok := motion(h, page, len(a.files)); ok </span>{
                 <span class="cov8" title="1">if h := a.boxHeight(); paging &amp;&amp; h &gt; 0 &amp;&amp; a.cursor &lt; len(a.files) </span>{
@@ -3649,7 +4022,7 @@ func (a *App) key(k string) tea.Cmd {
                 <span class="cov8" title="1">a.moveCursor(delta)
                 return nil</span>
         }
-        <span class="cov8" title="1">switch h.action </span>{
+        <span class="cov8" title="1">switch h.Action </span>{
         case "quit":
                 <span class="cov8" title="1">return tea.Quit</span>
         case "open":
@@ -3669,9 +4042,9 @@ func (a *App) key(k string) tea.Cmd {
         case "flow":
                 <span class="cov8" title="1">return toggleFlow</span>
         case "jump":
-                <span class="cov8" title="1">a.prefix, a.msg = h.action, "jump to mark: press its letter"</span>
+                <span class="cov8" title="1">a.prefix, a.msg = h.Action, "jump to mark: press its letter"</span>
         default:
-                <span class="cov8" title="1">return pageKey(h, false)</span>
+                <span class="cov8" title="1">return pageKey(a.cfg.Keys, h, false)</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -3900,7 +4273,10 @@ func (a *App) frame() string {
                 <span class="cov8" title="1">head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 </span>        }
         <span class="cov8" title="1">head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-        if a.gitDiff != nil </span>{
+        if c := a.commit; c != nil </span>{
+                <span class="cov8" title="1">head += "  " + t.Decoration.Render(c.Author)
+</span>        }
+        <span class="cov8" title="1">if a.gitDiff != nil </span>{
                 <span class="cov8" title="1">cmd := diffCommand(a.diffArgs)
                 if a.cfg.Settings.Untracked </span>{
                         <span class="cov8" title="1">cmd += " + untracked"
@@ -3926,7 +4302,7 @@ func (a *App) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file16" style="display: none">package ui
+		<pre class="file" id="file17" style="display: none">package ui
 
 import (
         "cmp"
@@ -3941,6 +4317,7 @@ import (
         "github.com/charmbracelet/x/ansi"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
 )
 
 // Doc shows the pages of jdiff's documentation, markdown rendered for the
@@ -4056,7 +4433,7 @@ func (d *Doc) moveTo(i int) {
 
 func (d *Doc) key(k string) tea.Cmd {
         <span class="cov8" title="1">d.msg = ""
-        h := keyFile.key(docView, k)
+        h := d.cfg.Keys.Key(keys.DocView, k)
         body := d.bodyHeight()
         if delta, paging, ok := motion(h, max(body-1, 1), len(d.rendered.lines)); ok </span>{
                 <span class="cov8" title="1">if paging </span>{
@@ -4065,17 +4442,17 @@ func (d *Doc) key(k string) tea.Cmd {
                 <span class="cov8" title="1">d.moveTo(d.cursor + delta)
                 return nil</span>
         }
-        <span class="cov8" title="1">switch h.action </span>{
+        <span class="cov8" title="1">switch h.Action </span>{
         case "quit":
                 <span class="cov0" title="0">return tea.Quit</span>
         case "half_page":
-                <span class="cov8" title="1">delta := direction(h.i == 1) * (body / 2)
+                <span class="cov8" title="1">delta := direction(h.Index == 1) * (body / 2)
                 d.scrollTo(d.top + delta)
                 d.moveTo(d.cursor + delta)</span>
         case "link":
-                <span class="cov8" title="1">d.nextLink(direction(h.i == 0))</span>
+                <span class="cov8" title="1">d.nextLink(direction(h.Index == 0))</span>
         case "line_link":
-                <span class="cov8" title="1">d.lineLink(direction(h.i == 1))</span>
+                <span class="cov8" title="1">d.lineLink(direction(h.Index == 1))</span>
         case "follow":
                 <span class="cov8" title="1">d.follow()</span>
         case "back":
@@ -4089,19 +4466,19 @@ func (d *Doc) key(k string) tea.Cmd {
                 d.link = p.link</span>
         case "next_page":
                 <span class="cov8" title="1">i := slices.Index(d.order, d.page)
-                next := i + direction(h.i == 0)
+                next := i + direction(h.Index == 0)
                 switch </span>{
                 case i &lt; 0:
-                        <span class="cov8" title="1">d.msg = d.page + " is no page of " + keyFile.keyText("{next_page}") + ": " + keyFile.keyText("{back}") + " goes back"</span>
+                        <span class="cov8" title="1">d.msg = d.page + " is no page of " + d.cfg.Keys.Text("{next_page}") + ": " + d.cfg.Keys.Text("{back}") + " goes back"</span>
                 case next &lt; 0 || next &gt;= len(d.order):
-                        <span class="cov8" title="1">d.msg = ends(h.i == 0, "last page", "first page")</span>
+                        <span class="cov8" title="1">d.msg = ends(h.Index == 0, "last page", "first page")</span>
                 default:
                         <span class="cov8" title="1">d.show(d.order[next], 0, 0)</span>
                 }
         case "search":
                 <span class="cov0" title="0">return askSearch</span>
         case "match":
-                <span class="cov8" title="1">d.findText(direction(h.i == 0))</span>
+                <span class="cov8" title="1">d.findText(direction(h.Index == 0))</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -4158,7 +4535,7 @@ func (d *Doc) lineLink(dir int) {
 // the top; for a web address the box of frame shows it already.
 func (d *Doc) follow() {
         <span class="cov8" title="1">if d.link &lt; 0 </span>{
-                <span class="cov8" title="1">d.msg = "no link on this line: " + keyFile.keyText("{link}") + " go to the next, previous"
+                <span class="cov8" title="1">d.msg = "no link on this line: " + d.cfg.Keys.Text("{link}") + " go to the next, previous"
                 return
 </span>        }
         <span class="cov8" title="1">target := d.rendered.links[d.link].target
@@ -4368,7 +4745,7 @@ func (d *Doc) style(s docStyle) lipgloss.Style {
 }
 </pre>
 		
-		<pre class="file" id="file17" style="display: none">package ui
+		<pre class="file" id="file18" style="display: none">package ui
 
 import (
         "fmt"
@@ -5112,7 +5489,7 @@ func anchorName(an diff.Anchor) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file18" style="display: none">package ui
+		<pre class="file" id="file19" style="display: none">package ui
 
 import (
         "fmt"
@@ -5126,6 +5503,7 @@ import (
         "jdiff/internal/config"
         "jdiff/internal/diff"
         "jdiff/internal/gitsrc"
+        "jdiff/internal/keys"
 )
 
 // flowKind is the kind of a row of the flow view.
@@ -5270,8 +5648,8 @@ func (f *Flow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f *Flow) key(k string) tea.Cmd {
-        <span class="cov8" title="1">h := keyFile.key(flowView, k)
-        if f.replacing != nil &amp;&amp; h.action != "anchor" &amp;&amp; h.action != "cancel_mark" </span>{
+        <span class="cov8" title="1">h := f.cfg.Keys.Key(keys.FlowView, k)
+        if f.replacing != nil &amp;&amp; h.Action != "anchor" &amp;&amp; h.Action != "cancel_mark" </span>{
                 <span class="cov8" title="1">f.replacing.replace = nil
                 f.replacing = nil
 </span>        }
@@ -5297,7 +5675,7 @@ func (f *Flow) key(k string) tea.Cmd {
 </span>                }
                 <span class="cov8" title="1">return nil</span>
         }
-        <span class="cov8" title="1">switch h.action </span>{
+        <span class="cov8" title="1">switch h.Action </span>{
         case "quit":
                 <span class="cov8" title="1">return tea.Quit</span>
         case "flow":
@@ -5307,17 +5685,17 @@ func (f *Flow) key(k string) tea.Cmd {
         case "pane":
                 <span class="cov8" title="1">f.active = f.active.other()</span>
         case "half_page":
-                <span class="cov8" title="1">f.scroll(direction(h.i == 1) * (page / 2))</span>
+                <span class="cov8" title="1">f.scroll(direction(h.Index == 1) * (page / 2))</span>
         case "scroll":
-                <span class="cov8" title="1">if h.i == 0 </span>{
+                <span class="cov8" title="1">if h.Index == 0 </span>{
                         <span class="cov8" title="1">f.xoff = max(f.xoff-8, 0)
 </span>                } else {
                         <span class="cov8" title="1">f.xoff += 8
 </span>                }
         case "change":
-                <span class="cov8" title="1">f.nextChange(direction(h.i == 0))</span>
+                <span class="cov8" title="1">f.nextChange(direction(h.Index == 0))</span>
         case "next_file":
-                <span class="cov8" title="1">f.nextFile(direction(h.i == 0))</span>
+                <span class="cov8" title="1">f.nextFile(direction(h.Index == 0))</span>
         case "history":
                 <span class="cov8" title="1">if !f.inLog() </span>{
                         <span class="cov0" title="0">break</span>
@@ -5329,19 +5707,19 @@ func (f *Flow) key(k string) tea.Cmd {
                         <span class="cov8" title="1">f.msg = ends(historyDir(h) &gt; 0, "last commit", "first commit")
 </span>                }
         case "anchor", "cancel_mark", "fold", "fold_all":
-                <span class="cov8" title="1">f.delegate(h.action)</span>
+                <span class="cov8" title="1">f.delegate(h.Action)</span>
         case "search":
                 <span class="cov8" title="1">return askSearch</span>
         case "match":
-                <span class="cov8" title="1">f.findText(direction(h.i == 0))</span>
+                <span class="cov8" title="1">f.findText(direction(h.Index == 0))</span>
         case "moved":
                 <span class="cov8" title="1">f.jump()</span>
         case "set_mark":
-                <span class="cov8" title="1">f.prefix, f.msg = h.action, "set mark: press a letter"</span>
+                <span class="cov8" title="1">f.prefix, f.msg = h.Action, "set mark: press a letter"</span>
         case "jump":
-                <span class="cov8" title="1">f.prefix, f.msg = h.action, "jump to mark: press its letter"</span>
+                <span class="cov8" title="1">f.prefix, f.msg = h.Action, "jump to mark: press its letter"</span>
         default:
-                <span class="cov8" title="1">return pageKey(h, f.inLog())</span>
+                <span class="cov8" title="1">return pageKey(f.cfg.Keys, h, f.inLog())</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -6102,7 +6480,7 @@ func (f *Flow) row(i int) string {
 }
 </pre>
 		
-		<pre class="file" id="file19" style="display: none">package ui
+		<pre class="file" id="file20" style="display: none">package ui
 
 import (
         "fmt"
@@ -6113,26 +6491,25 @@ import (
         "github.com/charmbracelet/x/ansi"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
 )
 
 // binding is a key and what it does; a binding without key is a heading.
 type binding struct{ key, what string }
 
-// bindings lists the lines of the help popup, from keybindings.toml.
-var bindings = keyFile.bindings()
-
-// bindings returns the lines of the help popup.
-func (p keyPages) bindings() []binding {
+// helpBindings returns the lines of the help popup of k, in the order of its
+// help; helpLines puts the settings in their order.
+func helpBindings(p *keys.Map) []binding {
         <span class="cov8" title="1">var bs []binding
         for _, h := range p.Help </span>{
                 <span class="cov8" title="1">switch </span>{
                 case h.Heading != "":
                         <span class="cov8" title="1">bs = append(bs, binding{"", h.Heading})</span>
                 case h.Note != "":
-                        <span class="cov8" title="1">bs = append(bs, binding{"", "  " + p.keyText(h.Note)})</span>
+                        <span class="cov8" title="1">bs = append(bs, binding{"", "  " + p.Text(h.Note)})</span>
                 default:
-                        <span class="cov8" title="1">r := p.row(h.Action)
-                        bs = append(bs, binding{strings.Join(r.Keys, " "), p.keyText(r.Help)})</span>
+                        <span class="cov8" title="1">r := p.Row(h.Action)
+                        bs = append(bs, binding{strings.Join(r.Keys, " "), p.Text(r.Help)})</span>
                 }
         }
         <span class="cov8" title="1">return bs</span>
@@ -6143,21 +6520,29 @@ func (p keyPages) bindings() []binding {
 type Help struct {
         tea.Model
         cfg           *config.Config
+        lines         []binding // of cfg.Keys, which do not change
+        rows          []string  // the lines drawn, wrapped to the width while open
+        boxWidth      int
         open          bool
-        top           int // first shown line of the popup
+        top           int // first shown row of the popup
         width, height int
 }
 
 // WithHelp returns m with the help popup.
-func WithHelp(cfg *config.Config, m tea.Model) *Help { <span class="cov8" title="1">return &amp;Help{Model: m, cfg: cfg} }</span>
+func WithHelp(cfg *config.Config, m tea.Model) *Help {
+        <span class="cov8" title="1">return &amp;Help{Model: m, cfg: cfg, lines: helpLines(cfg.Keys)}
+</span>}
 
 func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         <span class="cov8" title="1">switch msg := msg.(type) </span>{
         case tea.WindowSizeMsg:
                 <span class="cov8" title="1">h.width, h.height = msg.Width, msg.Height
-                h.scroll(0)</span>
+                if h.open </span>{ // else wrapped when opened: resizing stays cheap
+                        <span class="cov8" title="1">h.wrap()
+                        h.scroll(0)
+</span>                }
         case tea.KeyPressMsg:
-                <span class="cov8" title="1">if cmd, ok := popupKeys(msg, h.open, "help", h.key); ok </span>{
+                <span class="cov8" title="1">if cmd, ok := popupKeys(h.cfg.Keys, msg, h.open, "help", h.key); ok </span>{
                         <span class="cov8" title="1">return h, cmd
 </span>                }
         }
@@ -6168,9 +6553,9 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // popupKeys passes the key press msg to key, when the popup is open or msg
 // opens it, being a key of action opener, and reports whether it did; else
 // msg is for the page below.
-func popupKeys(msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
+func popupKeys(km *keys.Map, msg tea.KeyPressMsg, open bool, opener string, key func(string) tea.Cmd) (tea.Cmd, bool) {
         <span class="cov8" title="1">k := msg.String()
-        if !open &amp;&amp; !isAction(k, opener) </span>{
+        if !open &amp;&amp; !isAction(km, k, opener) </span>{
                 <span class="cov8" title="1">return nil, false
 </span>        }
         <span class="cov8" title="1">return key(k), true</span>
@@ -6180,9 +6565,10 @@ func popupKeys(msg tea.KeyPressMsg, open bool, opener string, key func(string) t
 func (h *Help) key(k string) tea.Cmd {
         <span class="cov8" title="1">if !h.open </span>{
                 <span class="cov8" title="1">h.open, h.top = true, 0
+                h.wrap()
                 return nil
 </span>        }
-        <span class="cov8" title="1">cmd, _ := popupNav(k, "help", &amp;h.open, h.scroll)
+        <span class="cov8" title="1">cmd, _ := popupNav(h.cfg.Keys, k, "help", &amp;h.open, h.scroll)
         return cmd</span>
 }
 
@@ -6190,8 +6576,8 @@ func (h *Help) key(k string) tea.Cmd {
 // move alike: a key of opener, esc and q close the popup, ctrl+c quits, down
 // and j move by one, up and k back. It reports whether k was one of them;
 // the popup handles the others.
-func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
-        <span class="cov8" title="1">if isAction(k, opener) </span>{
+func popupNav(km *keys.Map, k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
+        <span class="cov8" title="1">if isAction(km, k, opener) </span>{
                 <span class="cov8" title="1">*open = false
                 return nil, true
 </span>        }
@@ -6211,7 +6597,7 @@ func popupNav(k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool
 }
 
 // boxHeight is the height of the popup.
-func (h *Help) boxHeight() int { <span class="cov8" title="1">return popupHeight(len(bindings), h.height) }</span>
+func (h *Help) boxHeight() int { <span class="cov8" title="1">return popupHeight(len(h.rows), h.height) }</span>
 
 // scroll moves the shown lines by delta; from the top, it moves on by two
 // at once, as the window never starts at the second line.
@@ -6220,7 +6606,54 @@ func (h *Help) scroll(delta int) {
         if top == 1 &amp;&amp; delta &gt; 0 </span>{
                 <span class="cov8" title="1">top = 2
 </span>        }
-        <span class="cov8" title="1">h.top = windowAt(top, h.boxHeight()-2, len(bindings)).first</span>
+        <span class="cov8" title="1">h.top = windowAt(top, h.boxHeight()-2, len(h.rows)).first</span>
+}
+
+// wrap draws the lines into rows as wide as the screen allows: what does not
+// fit goes on in the rows below, under its first word, instead of being cut.
+// The popup is as wide as its widest row.
+func (h *Help) wrap() {
+        <span class="cov8" title="1">t := h.cfg.Theme
+        keyW := 0
+        for _, b := range h.lines </span>{
+                <span class="cov8" title="1">keyW = max(keyW, ansi.StringWidth(b.key))
+</span>        }
+        <span class="cov8" title="1">inner := h.width - 4 // border and padding
+        h.rows = h.rows[:0]
+        for _, b := range h.lines </span>{
+                <span class="cov8" title="1">switch </span>{
+                case b.key == "" &amp;&amp; !strings.HasPrefix(b.what, " "):
+                        <span class="cov8" title="1">h.rows = append(h.rows, wrapRows("", 0, b.what, inner, t.Branch)...)</span>
+                case b.key == "":
+                        <span class="cov8" title="1">h.rows = append(h.rows, wrapRows(strings.Repeat(" ", keyW+2), keyW+2, strings.TrimSpace(b.what), inner, t.Hint)...)</span>
+                default:
+                        <span class="cov8" title="1">key := lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  "
+                        h.rows = append(h.rows, wrapRows(key, keyW+4, b.what, inner, lipgloss.NewStyle())...)</span>
+                }
+        }
+        <span class="cov8" title="1">rowW := 0
+        for _, r := range h.rows </span>{
+                <span class="cov8" title="1">rowW = max(rowW, ansi.StringWidth(r))
+</span>        }
+        <span class="cov8" title="1">h.boxWidth = min(rowW+4, h.width)</span>
+}
+
+// wrapRows returns the rows of text in style after prefix, which is indent
+// columns wide, wrapped to width; the rows after the first are indented as
+// far. Without room after the indent, text stays in one row.
+func wrapRows(prefix string, indent int, text string, width int, style lipgloss.Style) []string {
+        <span class="cov8" title="1">if width-indent &lt; 1 </span>{
+                <span class="cov8" title="1">return []string{prefix + style.Render(text)}
+</span>        }
+        <span class="cov8" title="1">parts := strings.Split(ansi.Wrap(text, width-indent, ""), "\n")
+        rows := make([]string, len(parts))
+        for i, p := range parts </span>{
+                <span class="cov8" title="1">if i &gt; 0 </span>{
+                        <span class="cov8" title="1">prefix = strings.Repeat(" ", indent)
+</span>                }
+                <span class="cov8" title="1">rows[i] = prefix + style.Render(strings.TrimRight(p, " "))</span>
+        }
+        <span class="cov8" title="1">return rows</span>
 }
 
 func (h *Help) View() tea.View { <span class="cov8" title="1">return tea.NewView(h.frame()) }</span>
@@ -6231,28 +6664,12 @@ func (h *Help) frame() string {
                 <span class="cov8" title="1">return base
 </span>        }
         <span class="cov8" title="1">t := h.cfg.Theme
-        keyW, whatW := 0, 0
-        for _, b := range bindings </span>{
-                <span class="cov8" title="1">keyW = max(keyW, ansi.StringWidth(b.key))
-                whatW = max(whatW, ansi.StringWidth(b.what))
+        lines := windowAt(h.top, h.boxHeight()-2, len(h.rows)).rows(t, len(h.rows), func(i int) string </span>{ <span class="cov8" title="1">return h.rows[i] }</span>)
+        <span class="cov8" title="1">title := t.CommitHash.Render(" keys ")
+        if h.boxHeight()-2 &lt; len(h.rows) </span>{
+                <span class="cov8" title="1">title += t.Hint.Render(fmt.Sprintf(" %d/%d ", h.top+1, len(h.rows)))
 </span>        }
-        <span class="cov8" title="1">line := func(i int) string </span>{
-                <span class="cov8" title="1">switch b := bindings[i]; </span>{
-                case b.key == "" &amp;&amp; !strings.HasPrefix(b.what, " "):
-                        <span class="cov8" title="1">return t.Branch.Render(b.what)</span>
-                case b.key == "":
-                        <span class="cov8" title="1">return strings.Repeat(" ", keyW+2) + t.Hint.Render(strings.TrimSpace(b.what))</span>
-                default:
-                        <span class="cov8" title="1">return lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  " + b.what</span>
-                }
-        }
-        <span class="cov8" title="1">lines := windowAt(h.top, h.boxHeight()-2, len(bindings)).rows(t, len(bindings), line)
-        w := min(keyW+whatW+8, h.width) // the key indent, gap, border and padding
-        title := t.CommitHash.Render(" keys ")
-        if h.boxHeight()-2 &lt; len(bindings) </span>{
-                <span class="cov8" title="1">title += t.Hint.Render(fmt.Sprintf(" %d/%d ", h.top+1, len(bindings)))
-</span>        }
-        <span class="cov8" title="1">return overlay(base, box(t, w, h.boxHeight(), title, lines), w, h.width)</span>
+        <span class="cov8" title="1">return overlay(base, box(t, h.boxWidth, h.boxHeight(), title, lines), h.boxWidth, h.width)</span>
 }
 
 // overlay draws the popup pop, w columns wide, centered over base, which
@@ -6280,7 +6697,7 @@ func overlayAt(base, pop string, x, y, w, width int) string {
 }
 </pre>
 		
-		<pre class="file" id="file20" style="display: none">package ui
+		<pre class="file" id="file21" style="display: none">package ui
 
 import (
         "context"
@@ -6294,6 +6711,7 @@ import (
 
         "jdiff/internal/config"
         "jdiff/internal/gitsrc"
+        "jdiff/internal/keys"
         "jdiff/internal/source"
 )
 
@@ -6542,13 +6960,13 @@ func (l *Log) key(k string) tea.Cmd {
 </span>                }
                 <span class="cov8" title="1">return nil</span>
         }
-        <span class="cov8" title="1">h := keyFile.key(commitList, k)
+        <span class="cov8" title="1">h := l.cfg.Keys.Key(keys.CommitList, k)
         page := max(l.listHeight()-1, 1)
         if delta, _, ok := motion(h, page, len(l.commits)); ok </span>{
                 <span class="cov8" title="1">l.moveCursor(delta)
                 return nil
 </span>        }
-        <span class="cov8" title="1">switch h.action </span>{
+        <span class="cov8" title="1">switch h.Action </span>{
         case "quit":
                 <span class="cov8" title="1">return tea.Quit</span>
         case "open":
@@ -6568,9 +6986,9 @@ func (l *Log) key(k string) tea.Cmd {
                         <span class="cov8" title="1">l.msg = ends(dir &gt; 0, "last commit", "first commit")
 </span>                }
         case "jump":
-                <span class="cov8" title="1">l.prefix, l.msg = h.action, "jump to mark: press its letter"</span>
+                <span class="cov8" title="1">l.prefix, l.msg = h.Action, "jump to mark: press its letter"</span>
         default:
-                <span class="cov8" title="1">return pageKey(h, false)</span>
+                <span class="cov8" title="1">return pageKey(l.cfg.Keys, h, false)</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -6657,7 +7075,7 @@ func (l *Log) app(i int) (*App, error) {
 }
 
 // openCommit shows the files of commit i, opening path directly when the
-// commit changed it, and the only file of a single-file commit.
+// commit changed it.
 func (l *Log) openCommit(i int, path string) bool {
         <span class="cov8" title="1">if i &lt; 0 || i &gt;= len(l.commits) </span>{
                 <span class="cov0" title="0">return false
@@ -6668,14 +7086,9 @@ func (l *Log) openCommit(i int, path string) bool {
                 return false
 </span>        }
         <span class="cov8" title="1">e.app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
-        switch </span>{
-        case path != "" &amp;&amp; e.app.openPath(path):<span class="cov8" title="1"></span>
-        case e.app.single():
-                <span class="cov8" title="1">e.app.cursor = 0
-                e.app.openFile()</span>
-        default:
-                <span class="cov8" title="1">e.app.open = nil</span>
-        }
+        if path == "" || !e.app.openPath(path) </span>{
+                <span class="cov8" title="1">e.app.open = nil
+</span>        }
         <span class="cov8" title="1">l.open = e
         l.cursor = i
         l.scrollToCursor()
@@ -6925,9 +7338,8 @@ func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
 }
 
 // filesOfFlow shows the file list of the commit under the flow view's
-// cursor, on its file, as backspace does from a diff view. A commit of one
-// file, or one that cannot be loaded, has no list to show: the commits are
-// shown, on it. A commit still loading shows its list when its files come;
+// cursor, on its file, as backspace does from a diff view. A commit that
+// cannot be loaded has no list to show: the commits are shown, on it. A commit still loading shows its list when its files come;
 // it returns the command loading them.
 func (l *Log) filesOfFlow() tea.Cmd {
         <span class="cov8" title="1">p, file, _ := l.flow.position()
@@ -6937,8 +7349,8 @@ func (l *Log) filesOfFlow() tea.Cmd {
         if e.app == nil &amp;&amp; l.flow.parts[p].err == "" </span>{ // its list when it comes
                 <span class="cov8" title="1">return l.request(e, commitRequest{files: true})
 </span>        }
-        <span class="cov8" title="1">if e.app == nil || e.app.single() </span>{
-                <span class="cov8" title="1">l.open, l.files = nil, false
+        <span class="cov8" title="1">if e.app == nil </span>{
+                <span class="cov0" title="0">l.open, l.files = nil, false
                 return nil
 </span>        }
         <span class="cov8" title="1">app := e.app
@@ -6964,7 +7376,7 @@ func (l *Log) dropMsg(msg string) {
         <span class="cov8" title="1">for _, e := range l.commits </span>{
                 <span class="cov8" title="1">if a := e.app; a != nil </span>{
                         <span class="cov8" title="1">if a.msg == msg </span>{
-                                <span class="cov0" title="0">a.msg = ""
+                                <span class="cov8" title="1">a.msg = ""
 </span>                        }
                         <span class="cov8" title="1">if a.open != nil &amp;&amp; a.open.view != nil &amp;&amp; a.open.view.msg == msg </span>{
                                 <span class="cov8" title="1">a.open.view.msg = ""
@@ -7062,7 +7474,7 @@ func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 }
 </pre>
 		
-		<pre class="file" id="file21" style="display: none">package ui
+		<pre class="file" id="file22" style="display: none">package ui
 
 import (
         "fmt"
@@ -7629,7 +8041,7 @@ func cutSegs(segs []docSeg, width int) []docSeg {
 }
 </pre>
 		
-		<pre class="file" id="file22" style="display: none">package ui
+		<pre class="file" id="file23" style="display: none">package ui
 
 import (
         "fmt"
@@ -7640,6 +8052,7 @@ import (
         tea "charm.land/bubbletea/v2"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
 )
 
 // markJumpMsg asks the file selector to show mark letter in another file of
@@ -7759,7 +8172,7 @@ func (p *MarksPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">p.width, p.height = msg.Width, msg.Height
                 p.move(0)</span>
         case tea.KeyPressMsg:
-                <span class="cov8" title="1">if cmd, ok := popupKeys(msg, p.open, "marks", p.key); ok </span>{
+                <span class="cov8" title="1">if cmd, ok := popupKeys(p.cfg.Keys, msg, p.open, "marks", p.key); ok </span>{
                         <span class="cov8" title="1">return p, cmd
 </span>                }
         }
@@ -7773,7 +8186,7 @@ func (p *MarksPopup) key(k string) tea.Cmd {
                 <span class="cov8" title="1">p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
                 return nil
 </span>        }
-        <span class="cov8" title="1">if cmd, ok := popupNav(k, "marks", &amp;p.open, p.move); ok </span>{
+        <span class="cov8" title="1">if cmd, ok := popupNav(p.cfg.Keys, k, "marks", &amp;p.open, p.move); ok </span>{
                 <span class="cov8" title="1">return cmd
 </span>        }
         <span class="cov8" title="1">marks := p.cfg.Marks()
@@ -7789,7 +8202,7 @@ func (p *MarksPopup) key(k string) tea.Cmd {
                 <span class="cov8" title="1">if p.cursor &lt; len(marks) </span>{
                         // Jump as the key of jump, ', and the letter do on the page.
                         <span class="cov8" title="1">p.open = false
-                        p.Model.Update(runeKey(keyName(keyFile.row("jump").Keys[0])))
+                        p.Model.Update(runeKey(keys.Name(p.cfg.Keys.Row("jump").Keys[0])))
                         _, cmd := p.Model.Update(runeKey(marks[p.cursor].Letter))
                         return cmd
 </span>                }
@@ -7820,7 +8233,7 @@ func (p *MarksPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file23" style="display: none">package ui
+		<pre class="file" id="file24" style="display: none">package ui
 
 import (
         "fmt"
@@ -7831,6 +8244,7 @@ import (
         tea "charm.land/bubbletea/v2"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
 )
 
 // switchFileMsg asks the file selector to show the next (1) or previous (-1)
@@ -7918,9 +8332,10 @@ type toggleSettingMsg struct{ action string }
 // settingKey returns the command toggling the option of action, nil when no
 // option has it or, outside the log's flow view (logFlow), one that only
 // matters there.
-func settingKey(action string, logFlow bool) tea.Cmd {
-        <span class="cov8" title="1">i := slices.IndexFunc(settingOptions, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.key != "" &amp;&amp; o.action == action }</span>)
-        <span class="cov8" title="1">if i &lt; 0 || settingOptions[i].logFlow &amp;&amp; !logFlow </span>{
+func settingKey(k *keys.Map, action string, logFlow bool) tea.Cmd {
+        <span class="cov8" title="1">options := settingWords(k, settingTable)
+        i := slices.IndexFunc(options, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.key != "" &amp;&amp; o.action == action }</span>)
+        <span class="cov8" title="1">if i &lt; 0 || options[i].logFlow &amp;&amp; !logFlow </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
         <span class="cov8" title="1">return func() tea.Msg </span>{ <span class="cov8" title="1">return toggleSettingMsg{action} }</span>
@@ -7931,8 +8346,8 @@ func settingKey(action string, logFlow bool) tea.Cmd {
 // action, see settingKey; nil when h is none of them. The pages hand them on,
 // and not the popups themselves as the help and the marks: o is a mark letter
 // too, which m and ' take before the page looks at the key.
-func pageKey(h keyHit, logFlow bool) tea.Cmd {
-        <span class="cov8" title="1">switch h.action </span>{
+func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
+        <span class="cov8" title="1">switch h.Action </span>{
         case "reload":
                 <span class="cov8" title="1">return refreshAll</span>
         case "auto_reload":
@@ -7942,7 +8357,7 @@ func pageKey(h keyHit, logFlow bool) tea.Cmd {
         case "settings":
                 <span class="cov8" title="1">return askSettings</span>
         }
-        <span class="cov8" title="1">return settingKey(h.action, logFlow)</span>
+        <span class="cov8" title="1">return settingKey(k, h.Action, logFlow)</span>
 }
 
 // settingChangedMsg tells the page below SettingsPopup that a toggle changed,
@@ -7990,7 +8405,7 @@ func saveState(cfg *config.Config) string {
 
 // historyDir returns where key h of history goes: 1 to the next commit, for
 // the first key of its row, as N and n, -1 to the previous one, as P and p.
-func historyDir(h keyHit) int { <span class="cov8" title="1">return direction(h.i == 0) }</span>
+func historyDir(h keys.Hit) int { <span class="cov8" title="1">return direction(h.Index == 0) }</span>
 
 // historyOrder is the order of a list of commits, as git log lists them:
 // the step from a commit to the next one in history, -1 when the newest
@@ -8010,7 +8425,7 @@ func (o historyOrder) step(dir int) int { <span class="cov8" title="1">return di
 
 // switchCommit returns the command asking the log for the commit key h goes
 // to in history.
-func switchCommit(h keyHit) tea.Cmd {
+func switchCommit(h keys.Hit) tea.Cmd {
         <span class="cov8" title="1">dir := switchCommitMsg(historyDir(h))
         return func() tea.Msg </span>{ <span class="cov8" title="1">return dir }</span>
 }
@@ -8031,14 +8446,14 @@ func runeKey(s string) tea.KeyPressMsg {
 // motion returns how many rows the cursor moves on key h, page rows for a
 // page and far to the first or last row, whether h pages, so that views of
 // file content move the window along, and whether h moves the cursor at all.
-func motion(h keyHit, page, far int) (delta int, paging, ok bool) {
-        <span class="cov8" title="1">switch h.action </span>{
+func motion(h keys.Hit, page, far int) (delta int, paging, ok bool) {
+        <span class="cov8" title="1">switch h.Action </span>{
         case "move":
-                <span class="cov8" title="1">return direction(h.i == 0), false, true</span>
+                <span class="cov8" title="1">return direction(h.Index == 0), false, true</span>
         case "page":
-                <span class="cov8" title="1">return direction(h.i == 1) * page, true, true</span>
+                <span class="cov8" title="1">return direction(h.Index == 1) * page, true, true</span>
         case "ends":
-                <span class="cov8" title="1">return direction(h.i == 1) * far, false, true</span>
+                <span class="cov8" title="1">return direction(h.Index == 1) * far, false, true</span>
         }
         <span class="cov8" title="1">return 0, false, false</span>
 }
@@ -8059,7 +8474,7 @@ func ends(forward bool, last, first string) string {
 }
 </pre>
 		
-		<pre class="file" id="file24" style="display: none">// Package ui implements the interactive side-by-side diff view.
+		<pre class="file" id="file25" style="display: none">// Package ui implements the interactive side-by-side diff view.
 package ui
 
 import (
@@ -8069,6 +8484,7 @@ import (
 
         "jdiff/internal/config"
         "jdiff/internal/diff"
+        "jdiff/internal/keys"
         "jdiff/internal/notify"
         "jdiff/internal/source"
 )
@@ -8233,8 +8649,8 @@ func (m *Model) key(k string) tea.Cmd {
                 }
                 <span class="cov8" title="1">return nil</span>
         }
-        <span class="cov8" title="1">h := keyFile.key(diffView, k)
-        if m.replace != nil &amp;&amp; h.action != "anchor" &amp;&amp; h.action != "cancel_mark" </span>{
+        <span class="cov8" title="1">h := m.cfg.Keys.Key(keys.DiffView, k)
+        if m.replace != nil &amp;&amp; h.Action != "anchor" &amp;&amp; h.Action != "cancel_mark" </span>{
                 <span class="cov8" title="1">m.replace = nil
 </span>        }
 
@@ -8247,24 +8663,24 @@ func (m *Model) key(k string) tea.Cmd {
 </span>                }
                 <span class="cov8" title="1">return nil</span>
         }
-        <span class="cov8" title="1">switch h.action </span>{
+        <span class="cov8" title="1">switch h.Action </span>{
         case "quit":
                 <span class="cov8" title="1">return tea.Quit</span>
         case "pane":
                 <span class="cov8" title="1">m.active = m.active.other()</span>
         case "half_page":
-                <span class="cov8" title="1">m.scroll(direction(h.i == 1) * (page / 2))</span>
+                <span class="cov8" title="1">m.scroll(direction(h.Index == 1) * (page / 2))</span>
         case "scroll":
-                <span class="cov8" title="1">if h.i == 0 </span>{
+                <span class="cov8" title="1">if h.Index == 0 </span>{
                         <span class="cov8" title="1">m.xoff = max(m.xoff-8, 0)
 </span>                } else {
                         <span class="cov8" title="1">m.xoff += 8
 </span>                }
         case "change":
-                <span class="cov8" title="1">m.nextChange(direction(h.i == 0))</span>
+                <span class="cov8" title="1">m.nextChange(direction(h.Index == 0))</span>
         case "next_file":
                 <span class="cov8" title="1">if m.canBack </span>{
-                        <span class="cov8" title="1">dir := switchFileMsg(direction(h.i == 0))
+                        <span class="cov8" title="1">dir := switchFileMsg(direction(h.Index == 0))
                         return func() tea.Msg </span>{ <span class="cov8" title="1">return dir }</span>
                 }
         case "history":
@@ -8274,21 +8690,21 @@ func (m *Model) key(k string) tea.Cmd {
         case "search":
                 <span class="cov8" title="1">return askSearch</span>
         case "match":
-                <span class="cov8" title="1">m.findText(direction(h.i == 0))</span>
+                <span class="cov8" title="1">m.findText(direction(h.Index == 0))</span>
         case "flow":
                 <span class="cov8" title="1">if m.canBack </span>{
                         <span class="cov8" title="1">return toggleFlow
 </span>                }
         case "anchor", "cancel_mark", "fold", "fold_all":
-                <span class="cov8" title="1">m.act(h.action)</span>
+                <span class="cov8" title="1">m.act(h.Action)</span>
         case "moved":
                 <span class="cov8" title="1">return m.jump()</span>
         case "set_mark":
-                <span class="cov8" title="1">m.prefix, m.msg = h.action, "set mark: press a letter"</span>
+                <span class="cov8" title="1">m.prefix, m.msg = h.Action, "set mark: press a letter"</span>
         case "jump":
-                <span class="cov8" title="1">m.prefix, m.msg = h.action, "jump to mark: press its letter"</span>
+                <span class="cov8" title="1">m.prefix, m.msg = h.Action, "jump to mark: press its letter"</span>
         default:
-                <span class="cov8" title="1">return pageKey(h, false)</span>
+                <span class="cov8" title="1">return pageKey(m.cfg.Keys, h, false)</span>
         }
         <span class="cov8" title="1">return nil</span>
 }
@@ -8509,7 +8925,7 @@ func (m *Model) scrollToCursor() {
 </span>}
 </pre>
 		
-		<pre class="file" id="file25" style="display: none">package ui
+		<pre class="file" id="file26" style="display: none">package ui
 
 import (
         "fmt"
@@ -8613,7 +9029,7 @@ func (d *fileDiff) spotOf(s side, line int, sh shape) spot {
 </span>}
 </pre>
 		
-		<pre class="file" id="file26" style="display: none">package ui
+		<pre class="file" id="file27" style="display: none">package ui
 
 import (
         "cmp"
@@ -9126,26 +9542,20 @@ func (s *SearchBar) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file27" style="display: none">package ui
+		<pre class="file" id="file28" style="display: none">package ui
 
 import (
         "cmp"
-        _ "embed"
-        "errors"
         "fmt"
-        "io/fs"
-        "os"
-        "path/filepath"
-        "regexp"
         "slices"
         "strconv"
         "strings"
 
         tea "charm.land/bubbletea/v2"
-        "github.com/BurntSushi/toml"
         "github.com/charmbracelet/x/ansi"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
 )
 
 // settingOption is a line of the settings popup: the key that toggles it
@@ -9163,7 +9573,9 @@ type settingOption struct {
         number            func(*config.Config) *int
 }
 
-var settingOptions = settingWords([]settingOption{
+// settingTable lists the settings without their keys and words, which
+// settingOptions takes from the keys.
+var settingTable = []settingOption{
         {action: "layout", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.SideBySide }</span>},
         {action: "flow", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Flow }</span>, ask: toggleFlow},
         {action: "untracked", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Untracked }</span>, ask: toggleUntracked},
@@ -9177,323 +9589,40 @@ var settingOptions = settingWords([]settingOption{
         {action: "full_messages", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.FullMessages }</span>, logFlow: true},
         {action: "stay_in_commit", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.StayInCommit }</span>, logFlow: true},
         {action: "auto_reload_timeout", number: func(c *config.Config) *int { <span class="cov8" title="1">return &amp;c.Settings.AutoReloadTimeout }</span>},
-})
+}
 
-// settingWords returns options with their keys and what they do from
-// keybindings.toml.
-func settingWords(options []settingOption) []settingOption {
-        <span class="cov8" title="1">for i := range options </span>{
-                <span class="cov8" title="1">r := keyFile.row(options[i].action)
+// settingOptions returns the lines of the settings popup, with their keys and
+// what they do from k, in its order.
+func settingOptions(k *keys.Map) []settingOption {
+        <span class="cov8" title="1">options, _ := orderSettings(k.Order(), settingWords(k, settingTable), nil)
+        return options
+</span>}
+
+// helpLines returns the lines of the help popup, from k, the settings in its
+// order.
+func helpLines(k *keys.Map) []binding {
+        <span class="cov8" title="1">_, bs := orderSettings(k.Order(), settingWords(k, settingTable), helpBindings(k))
+        return bs
+</span>}
+
+// settingWords returns options with their keys and what they do from k.
+func settingWords(k *keys.Map, options []settingOption) []settingOption {
+        <span class="cov8" title="1">options = slices.Clone(options)
+        for i := range options </span>{
+                <span class="cov8" title="1">r := k.Row(options[i].action)
                 if len(r.Keys) &gt; 0 </span>{
                         <span class="cov8" title="1">options[i].key = r.Keys[0]
 </span>                }
-                <span class="cov8" title="1">options[i].what = keyFile.keyText(r.Setting)</span>
+                <span class="cov8" title="1">options[i].what = k.Text(r.Setting)</span>
         }
         <span class="cov8" title="1">return options</span>
 }
 
-// keybindingsFile binds the keys of all pages to actions, gives their words and
-// decides the order of the settings.
-//
-//go:embed keybindings.toml
-var keybindingsFile string
-
-// keyRow is a row of keybindings.toml.
-type keyRow struct {
-        Action  string
-        Keys    []string
-        Label   []string
-        Help    string
-        Setting string
-}
-
-// helpRow is a line of the help popup in keybindings.toml.
-type helpRow struct{ Heading, Note, Action string }
-
-// keyPages holds keybindings.toml: the rows of each page and the help's lines.
-type keyPages struct {
-        CommitList []keyRow  `toml:"commit_list"`
-        FileList   []keyRow  `toml:"file_list"`
-        DiffView   []keyRow  `toml:"diff_view"`
-        FlowView   []keyRow  `toml:"flow_view"`
-        Everywhere []keyRow  `toml:"everywhere"`
-        DocView    []keyRow  `toml:"doc_view"`
-        Help       []helpRow `toml:"help"`
-}
-
-func readKeys(text string) (keyPages, error) {
-        <span class="cov8" title="1">var p keyPages
-        _, err := toml.Decode(text, &amp;p)
-        return p, err
+// isAction reports whether key k does action on all pages of k: the popups
+// over them open and close on such keys.
+func isAction(km *keys.Map, k, action string) bool {
+        <span class="cov8" title="1">return km.Key(keys.Everywhere, k).Action == action
 </span>}
-
-// keyFile is keybindingsFile, read. It is part of the program, so that failing
-// to read it is a bug, which TestKeybindingsFile finds.
-var keyFile = func() keyPages {
-        <span class="cov8" title="1">p, err := readKeys(keybindingsFile)
-        if err != nil </span>{
-                <span class="cov0" title="0">panic(err)</span>
-        }
-        <span class="cov8" title="1">return p</span>
-}()
-
-// row returns the row that gives the keys and words of action; see
-// keybindings.toml for the order. Without one, it has no keys.
-func (p keyPages) row(action string) keyRow {
-        <span class="cov8" title="1">if rows := p.rowsOf(action); len(rows) &gt; 0 </span>{
-                <span class="cov8" title="1">return rows[0]
-</span>        }
-        <span class="cov8" title="1">return keyRow{}</span>
-}
-
-// rowsOf returns the rows of action in the first page that has it, in the
-// order of row.
-func (p keyPages) rowsOf(action string) []keyRow {
-        <span class="cov8" title="1">for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
-                <span class="cov8" title="1">var of []keyRow
-                for _, r := range rows </span>{
-                        <span class="cov8" title="1">if r.Action == action </span>{
-                                <span class="cov8" title="1">of = append(of, r)
-</span>                        }
-                }
-                <span class="cov8" title="1">if len(of) &gt; 0 </span>{
-                        <span class="cov8" title="1">return of
-</span>                }
-        }
-        <span class="cov8" title="1">return nil</span>
-}
-
-// placeholder matches {action} and {action:n} in the words of keybindings.toml.
-var placeholder = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
-
-// keyText returns s with each placeholder replaced by the keys of its row, ""
-// for a row that does not exist.
-func (p keyPages) keyText(s string) string {
-        <span class="cov8" title="1">return placeholder.ReplaceAllStringFunc(s, func(m string) string </span>{
-                <span class="cov8" title="1">sub := placeholder.FindStringSubmatch(m)
-                n, _ := strconv.Atoi(sub[2])
-                if rows := p.rowsOf(sub[1]); n &lt; len(rows) </span>{
-                        <span class="cov8" title="1">return strings.Join(rows[n].Keys, " ")
-</span>                }
-                <span class="cov8" title="1">return ""</span>
-        })
-}
-
-// twoWay lists the actions whose rows take two keys, one for each way.
-var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
-
-// userRow is a row of the user's keybindings.toml, which changes only keys.
-type userRow struct {
-        Action string
-        Keys   []string
-}
-
-// userKeys returns p with the keys of text, the user's keybindings.toml, and
-// what is wrong with it. The rows of an action on a page replace all its rows
-// there, keeping their words; a file with a problem changes nothing, so that
-// a mistake cannot take away the keys to quit or get help.
-func (p keyPages) userKeys(text string) (keyPages, []string) {
-        <span class="cov8" title="1">var u struct {
-                CommitList []userRow `toml:"commit_list"`
-                FileList   []userRow `toml:"file_list"`
-                DiffView   []userRow `toml:"diff_view"`
-                FlowView   []userRow `toml:"flow_view"`
-                Everywhere []userRow `toml:"everywhere"`
-                DocView    []userRow `toml:"doc_view"`
-</span>        }
-        <span class="cov8" title="1">md, err := toml.Decode(text, &amp;u)
-        if err != nil </span>{
-                <span class="cov8" title="1">return p, []string{err.Error()}
-</span>        }
-        <span class="cov8" title="1">var problems []string
-        for _, k := range md.Undecoded() </span>{
-                <span class="cov8" title="1">problems = append(problems, "unknown "+k.String())
-</span>        }
-        <span class="cov8" title="1">merged := p
-        for _, t := range []struct {
-                name string
-                rows *[]keyRow
-                user []userRow
-        }{
-                {"everywhere", &amp;merged.Everywhere, u.Everywhere}, {"diff_view", &amp;merged.DiffView, u.DiffView},
-                {"flow_view", &amp;merged.FlowView, u.FlowView}, {"commit_list", &amp;merged.CommitList, u.CommitList},
-                {"file_list", &amp;merged.FileList, u.FileList}, {"doc_view", &amp;merged.DocView, u.DocView},
-</span>        } {
-                <span class="cov8" title="1">for _, r := range t.user </span>{
-                        <span class="cov8" title="1">switch </span>{
-                        case !slices.ContainsFunc(*t.rows, func(b keyRow) bool { <span class="cov8" title="1">return b.Action == r.Action }</span>):
-                                <span class="cov8" title="1">problems = append(problems, "no action "+r.Action+" in "+t.name)</span>
-                        case len(r.Keys) == 0:
-                                <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" has no keys")</span>
-                        case slices.Contains(twoWay, r.Action) &amp;&amp; len(r.Keys) != 2:
-                                <span class="cov8" title="1">problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")</span>
-                        }
-                }
-                <span class="cov8" title="1">*t.rows = replaceKeys(*t.rows, t.user)</span>
-        }
-        <span class="cov8" title="1">problems = append(problems, merged.conflicts()...)
-        if len(problems) &gt; 0 </span>{
-                <span class="cov8" title="1">return p, problems
-</span>        }
-        <span class="cov8" title="1">return merged, nil</span>
-}
-
-// replaceKeys returns rows with the rows of each action of user in place of
-// its rows: the first where the first was, with the words of the row it
-// replaces; rows of user beyond them have none.
-func replaceKeys(rows []keyRow, user []userRow) []keyRow {
-        <span class="cov8" title="1">var out []keyRow
-        done := map[string]bool{}
-        for _, r := range rows </span>{
-                <span class="cov8" title="1">if !slices.ContainsFunc(user, func(u userRow) bool </span>{ <span class="cov8" title="1">return u.Action == r.Action }</span>) {
-                        <span class="cov8" title="1">out = append(out, r)
-                        continue</span>
-                }
-                <span class="cov8" title="1">if done[r.Action] </span>{
-                        <span class="cov8" title="1">continue</span>
-                }
-                <span class="cov8" title="1">done[r.Action] = true
-                var old []keyRow
-                for _, o := range rows </span>{
-                        <span class="cov8" title="1">if o.Action == r.Action </span>{
-                                <span class="cov8" title="1">old = append(old, o)
-</span>                        }
-                }
-                <span class="cov8" title="1">i := 0
-                for _, u := range user </span>{
-                        <span class="cov8" title="1">if u.Action != r.Action </span>{
-                                <span class="cov0" title="0">continue</span>
-                        }
-                        <span class="cov8" title="1">row := keyRow{Action: u.Action}
-                        if i &lt; len(old) </span>{
-                                <span class="cov8" title="1">row = old[i]
-</span>                        }
-                        <span class="cov8" title="1">row.Keys = u.Keys
-                        out = append(out, row)
-                        i++</span>
-                }
-        }
-        <span class="cov8" title="1">return out</span>
-}
-
-// KeysFile is the user's keybindings.toml in the configuration directory.
-const KeysFile = "keybindings.toml"
-
-// LoadKeys reads the user's keybindings.toml from the configuration directory
-// of cfg, if there is one, over the built-in keys; a problem with it is a
-// warning of cfg, and the built-in keys stay. Call it before the first page is
-// made, which shows the warnings, and before OrderSettings.
-func LoadKeys(cfg *config.Config) {
-        <span class="cov8" title="1">if cfg.Dir() == "" </span>{
-                <span class="cov0" title="0">return
-</span>        }
-        <span class="cov8" title="1">data, err := os.ReadFile(filepath.Join(cfg.Dir(), KeysFile))
-        if errors.Is(err, fs.ErrNotExist) </span>{
-                <span class="cov8" title="1">return
-</span>        }
-        <span class="cov8" title="1">p, problems := keyFile, []string(nil)
-        if err != nil </span>{
-                <span class="cov0" title="0">problems = []string{err.Error()}
-</span>        } else {
-                <span class="cov8" title="1">p, problems = keyFile.userKeys(string(data))
-</span>        }
-        <span class="cov8" title="1">if len(problems) &gt; 0 </span>{
-                <span class="cov8" title="1">cfg.AddWarning(KeysFile + ": " + strings.Join(problems, "; ") + "; the built-in keys are used")
-                return
-</span>        }
-        <span class="cov0" title="0">keyFile = p
-        settingOptions = settingWords(settingOptions)
-        bindings = keyFile.bindings()</span>
-}
-
-// keyPage is a page whose keys are looked up in keybindings.toml.
-type keyPage int
-
-const (
-        commitList keyPage = iota
-        fileList
-        diffView
-        flowView
-        docView
-        everywhere // the popups over all pages
-)
-
-// keyHit is what a key does: the action of its row, "" for none, and its place
-// in the row, which gives the way of actions that go two ways (see
-// keybindings.toml).
-type keyHit struct {
-        action string
-        i      int
-}
-
-// tables returns the rows the keys of page pg are looked up in, in order.
-func (p keyPages) tables(pg keyPage) [][]keyRow {
-        <span class="cov8" title="1">switch pg </span>{
-        case commitList:
-                <span class="cov8" title="1">return [][]keyRow{p.CommitList, p.Everywhere}</span>
-        case fileList:
-                <span class="cov8" title="1">return [][]keyRow{p.FileList, p.Everywhere}</span>
-        case diffView:
-                <span class="cov8" title="1">return [][]keyRow{p.DiffView, p.Everywhere}</span>
-        case flowView:
-                <span class="cov8" title="1">return [][]keyRow{p.FlowView, p.DiffView, p.Everywhere}</span>
-        case docView:
-                <span class="cov8" title="1">return [][]keyRow{p.DocView, p.Everywhere}</span>
-        }
-        <span class="cov8" title="1">return [][]keyRow{p.Everywhere}</span>
-}
-
-// key returns what key k, as Bubble Tea names it, does on page pg.
-func (p keyPages) key(pg keyPage, k string) keyHit {
-        <span class="cov8" title="1">for _, rows := range p.tables(pg) </span>{
-                <span class="cov8" title="1">for _, r := range rows </span>{
-                        <span class="cov8" title="1">for i, name := range r.Keys </span>{
-                                <span class="cov8" title="1">if keyName(name) == k </span>{
-                                        <span class="cov8" title="1">return keyHit{r.Action, i}
-</span>                                }
-                        }
-                }
-        }
-        <span class="cov8" title="1">return keyHit{}</span>
-}
-
-// isAction reports whether key k does action on all pages: the popups over
-// them open and close on such keys.
-func isAction(k, action string) bool { <span class="cov8" title="1">return keyFile.key(everywhere, k).action == action }</span>
-
-// keyName returns Bubble Tea's name of the key written as name in
-// keybindings.toml, which writes pgdn and F5 as the help shows them, and
-// &lt;letter&gt; for the letter that follows.
-func keyName(name string) string {
-        <span class="cov8" title="1">name = strings.TrimSuffix(name, "&lt;letter&gt;")
-        if name == "pgdn" </span>{
-                <span class="cov8" title="1">return "pgdown"
-</span>        }
-        <span class="cov8" title="1">if n, ok := strings.CutPrefix(name, "F"); ok &amp;&amp; n != "" &amp;&amp; strings.Trim(n, "0123456789") == "" </span>{
-                <span class="cov8" title="1">return "f" + n
-</span>        }
-        <span class="cov8" title="1">return name</span>
-}
-
-// label returns the word of the status bar in state, "" when there is none.
-func (r keyRow) label(state int) string {
-        <span class="cov8" title="1">if state &lt; len(r.Label) </span>{
-                <span class="cov8" title="1">return r.Label[state]
-</span>        }
-        <span class="cov8" title="1">return ""</span>
-}
-
-// order returns the first key of each row of everywhere, which decides the
-// order of the settings.
-func (p keyPages) order() []string {
-        <span class="cov8" title="1">var keys []string
-        for _, r := range p.Everywhere </span>{
-                <span class="cov8" title="1">if len(r.Keys) &gt; 0 </span>{
-                        <span class="cov8" title="1">keys = append(keys, r.Keys[0])
-</span>                }
-        }
-        <span class="cov8" title="1">return keys</span>
-}
 
 // orderSettings returns options and bindings with the settings in the order of
 // keys. Options not in keys, as c and C, which keybindings.toml lists with the
@@ -9526,89 +9655,40 @@ func orderSettings(keys []string, options []settingOption, bs []binding) ([]sett
         <span class="cov8" title="1">return options, bs</span>
 }
 
-// OrderSettings puts the settings of the popup and the help in the order of
-// keybindings.toml. Call it before the first view is drawn.
-func OrderSettings() {
-        <span class="cov0" title="0">settingOptions, bindings = orderSettings(keyFile.order(), settingOptions, bindings)
-</span>}
-
-// keyOrderProblems returns what is wrong with text, a keybindings.toml: a row of
-// all pages with a key that does not exist or stands twice, a setting missing or
-// without words, a line of the help with an action that has no help, a key with
-// two actions on one page, a placeholder without its row.
+// keyOrderProblems returns what is wrong with text, a keybindings.toml, for the
+// settings and the help of the built-in keys: a row of all pages with a key
+// that does not exist or stands twice, a setting missing or without words, and
+// the problems of its keys by themselves (keys.Map.Problems).
 func keyOrderProblems(text string) []string {
-        <span class="cov8" title="1">p, err := readKeys(text)
+        <span class="cov8" title="1">p, err := keys.Read(text)
         if err != nil </span>{
                 <span class="cov8" title="1">return []string{err.Error()}
 </span>        }
         <span class="cov8" title="1">var problems []string
-        keys := p.order()
-        if len(keys) == 0 </span>{
+        order := p.Order()
+        if len(order) == 0 </span>{
                 <span class="cov8" title="1">return []string{"no rows in everywhere"}
 </span>        }
-        <span class="cov8" title="1">for i, k := range keys </span>{
-                <span class="cov8" title="1">if slices.Contains(keys[:i], k) </span>{
+        <span class="cov8" title="1">options, bindings := settingOptions(keys.Builtin()), helpLines(keys.Builtin())
+        for i, k := range order </span>{
+                <span class="cov8" title="1">if slices.Contains(order[:i], k) </span>{
                         <span class="cov8" title="1">problems = append(problems, "key "+k+" stands twice")
 </span>                }
                 <span class="cov8" title="1">if !slices.ContainsFunc(bindings, func(b binding) bool </span>{ <span class="cov8" title="1">return slices.Contains(strings.Fields(b.key), k) }</span>) {
                         <span class="cov8" title="1">problems = append(problems, "key "+k+" is not in the help")
 </span>                }
         }
-        <span class="cov8" title="1">for _, o := range settingOptions </span>{
-                <span class="cov8" title="1">if o.key != "" &amp;&amp; !o.logFlow &amp;&amp; !slices.Contains(keys, o.key) </span>{
+        <span class="cov8" title="1">for _, o := range options </span>{
+                <span class="cov8" title="1">if o.key != "" &amp;&amp; !o.logFlow &amp;&amp; !slices.Contains(order, o.key) </span>{
                         <span class="cov8" title="1">problems = append(problems, "setting "+o.key+" is not in the table")
 </span>                }
         }
-        <span class="cov8" title="1">for _, o := range settingOptions </span>{
-                <span class="cov8" title="1">if p.row(o.action).Setting == "" </span>{
+        <span class="cov8" title="1">for _, o := range options </span>{
+                <span class="cov8" title="1">if p.Row(o.action).Setting == "" </span>{
                         <span class="cov8" title="1">problems = append(problems, "setting "+o.action+" has no words")
 </span>                }
         }
-        <span class="cov8" title="1">problems = append(problems, p.conflicts()...)
-        for _, r := range p.Help </span>{
-                <span class="cov8" title="1">if r.Action != "" &amp;&amp; p.row(r.Action).Help == "" </span>{
-                        <span class="cov8" title="1">problems = append(problems, "the help's action "+r.Action+" has no help")
-</span>                }
-        }
-        <span class="cov8" title="1">var words []string
-        for _, rows := range [][]keyRow{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} </span>{
-                <span class="cov8" title="1">for _, r := range rows </span>{
-                        <span class="cov8" title="1">words = append(words, r.Help, r.Setting)
-</span>                }
-        }
-        <span class="cov8" title="1">for _, r := range p.Help </span>{
-                <span class="cov8" title="1">words = append(words, r.Note)
-</span>        }
-        <span class="cov8" title="1">for _, w := range words </span>{
-                <span class="cov8" title="1">for _, m := range placeholder.FindAllStringSubmatch(w, -1) </span>{
-                        <span class="cov8" title="1">n, _ := strconv.Atoi(m[2])
-                        if n &gt;= len(p.rowsOf(m[1])) </span>{
-                                <span class="cov0" title="0">problems = append(problems, "placeholder "+m[0]+" has no row")
-</span>                        }
-                }
-        }
-        <span class="cov8" title="1">return problems</span>
-}
-
-// conflicts returns the keys with two actions on one page.
-func (p keyPages) conflicts() []string {
-        <span class="cov8" title="1">var problems []string
-        for _, t := range []struct {
-                name string
-                rows []keyRow
-        }{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList},
-                {"doc_view", p.DocView}} </span>{
-                <span class="cov8" title="1">actions := map[string]string{}
-                for _, r := range t.rows </span>{
-                        <span class="cov8" title="1">for _, name := range r.Keys </span>{
-                                <span class="cov8" title="1">if a, ok := actions[keyName(name)]; ok &amp;&amp; a != r.Action </span>{
-                                        <span class="cov8" title="1">problems = append(problems, "key "+name+" has two actions in "+t.name+": "+a+", "+r.Action)
-</span>                                }
-                                <span class="cov8" title="1">actions[keyName(name)] = r.Action</span>
-                        }
-                }
-        }
-        <span class="cov8" title="1">return problems</span>
+        <span class="cov8" title="1">return append(problems, p.Problems()...)</span>
 }
 
 // SettingsPopup wraps the top-level model and shows the display toggles in a
@@ -9616,8 +9696,9 @@ func (p keyPages) conflicts() []string {
 // several can be set while the page below shows them.
 type SettingsPopup struct {
         tea.Model
-        cfg  *config.Config
-        open bool
+        cfg     *config.Config
+        options []settingOption // of cfg.Keys, which do not change
+        open    bool
         listPopup
         msg      string     // a problem saving the toggles
         input    *lineInput // while it asks for the number of the option
@@ -9626,7 +9707,7 @@ type SettingsPopup struct {
 
 // WithSettings returns m with the settings popup.
 func WithSettings(cfg *config.Config, m tea.Model) *SettingsPopup {
-        <span class="cov8" title="1">return &amp;SettingsPopup{Model: m, cfg: cfg}
+        <span class="cov8" title="1">return &amp;SettingsPopup{Model: m, cfg: cfg, options: settingOptions(cfg.Keys)}
 </span>}
 
 func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -9638,8 +9719,8 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
                 return p, nil</span>
         case toggleSettingMsg:
-                <span class="cov8" title="1">i := slices.IndexFunc(settingOptions, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.action == msg.action }</span>)
-                <span class="cov8" title="1">return p, p.flip(settingOptions[i])</span>
+                <span class="cov8" title="1">i := slices.IndexFunc(p.options, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.action == msg.action }</span>)
+                <span class="cov8" title="1">return p, p.flip(p.options[i])</span>
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">switch </span>{
                 case p.input != nil:
@@ -9660,16 +9741,16 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key handles k in the open popup.
 func (p *SettingsPopup) key(k string) tea.Cmd {
-        <span class="cov8" title="1">if cmd, ok := popupNav(k, "settings", &amp;p.open, p.move); ok </span>{
+        <span class="cov8" title="1">if cmd, ok := popupNav(p.cfg.Keys, k, "settings", &amp;p.open, p.move); ok </span>{
                 <span class="cov8" title="1">return cmd
 </span>        }
         <span class="cov8" title="1">switch k </span>{
         case "enter", "space":
-                <span class="cov8" title="1">return p.flip(settingOptions[p.cursor])</span>
+                <span class="cov8" title="1">return p.flip(p.options[p.cursor])</span>
         default:
-                <span class="cov8" title="1">if i := slices.IndexFunc(settingOptions, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.key != "" &amp;&amp; keyName(o.key) == k }</span>); i &gt;= 0 {
+                <span class="cov8" title="1">if i := slices.IndexFunc(p.options, func(o settingOption) bool </span>{ <span class="cov8" title="1">return o.key != "" &amp;&amp; keys.Name(o.key) == k }</span>); i &gt;= 0 {
                         <span class="cov8" title="1">p.move(i - p.cursor)
-                        return p.flip(settingOptions[i])
+                        return p.flip(p.options[i])
 </span>                }
         }
         <span class="cov8" title="1">return nil</span>
@@ -9708,7 +9789,7 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
                         <span class="cov8" title="1">p.inputErr = "a whole number, 0 or more"
                         return nil
 </span>                }
-                <span class="cov8" title="1">*settingOptions[p.cursor].number(p.cfg) = n
+                <span class="cov8" title="1">*p.options[p.cursor].number(p.cfg) = n
                 p.input, p.msg = nil, saveState(p.cfg)</span>
         default:
                 <span class="cov8" title="1">p.inputErr = ""
@@ -9717,7 +9798,7 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
         <span class="cov8" title="1">return nil</span>
 }
 
-func (p *SettingsPopup) move(delta int) { <span class="cov8" title="1">p.moveIn(delta, len(settingOptions)) }</span>
+func (p *SettingsPopup) move(delta int) { <span class="cov8" title="1">p.moveIn(delta, len(p.options)) }</span>
 
 func (p *SettingsPopup) View() tea.View { <span class="cov8" title="1">return tea.NewView(p.frame()) }</span>
 
@@ -9727,11 +9808,12 @@ func (p *SettingsPopup) frame() string {
                 <span class="cov8" title="1">return base
 </span>        }
         <span class="cov8" title="1">t := p.cfg.Theme
-        n := len(settingOptions)
+        options := p.options
+        n := len(options)
         all := make([]string, n)
         states := make([]string, n)
         keyW, stateW := 0, 0
-        for i, o := range settingOptions </span>{
+        for i, o := range options </span>{
                 <span class="cov8" title="1">switch </span>{
                 case o.number != nil:
                         <span class="cov8" title="1">states[i] = fmt.Sprintf("[%d]", *o.number(p.cfg))</span>
@@ -9743,7 +9825,7 @@ func (p *SettingsPopup) frame() string {
                 <span class="cov8" title="1">keyW = max(keyW, ansi.StringWidth(o.key))
                 stateW = max(stateW, ansi.StringWidth(states[i]))</span>
         }
-        <span class="cov8" title="1">for i, o := range settingOptions </span>{
+        <span class="cov8" title="1">for i, o := range options </span>{
                 <span class="cov8" title="1">all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, o.key, o.what)
 </span>        }
         <span class="cov8" title="1">title := popupTitle(t, "settings", p.msg, "enter toggle · esc close")
@@ -9756,7 +9838,7 @@ func (p *SettingsPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file28" style="display: none">package ui
+		<pre class="file" id="file29" style="display: none">package ui
 
 import (
         "fmt"
@@ -10367,7 +10449,7 @@ func printable(line string) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file29" style="display: none">package ui
+		<pre class="file" id="file30" style="display: none">package ui
 
 import (
         "context"
@@ -10671,7 +10753,7 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
 }
 </pre>
 		
-		<pre class="file" id="file30" style="display: none">package ui
+		<pre class="file" id="file31" style="display: none">package ui
 
 import (
         "context"
@@ -10684,6 +10766,7 @@ import (
         "github.com/charmbracelet/x/ansi"
 
         "jdiff/internal/config"
+        "jdiff/internal/keys"
         "jdiff/internal/notify"
         "jdiff/internal/source"
         "jdiff/internal/theme"
@@ -10760,14 +10843,14 @@ func barState(on bool) int {
 // its own label: f and s name what they switch to. All other keys are in the
 // help. keybindings.toml gives the keys and the words.
 func statusKeys(cfg *config.Config, k barKeys) string {
-        <span class="cov8" title="1">var keys []string
-        add := func(row keyRow, keyNames string, state int) </span>{
-                <span class="cov8" title="1">if l := row.label(state); l != "" </span>{
-                        <span class="cov8" title="1">keys = append(keys, keyNames+" "+l)
+        <span class="cov8" title="1">var shown []string
+        add := func(row keys.Row, keyNames string, state int) </span>{
+                <span class="cov8" title="1">if l := row.LabelIn(state); l != "" </span>{
+                        <span class="cov8" title="1">shown = append(shown, keyNames+" "+l)
 </span>                }
         }
         <span class="cov8" title="1">first := func(action string, state int) </span>{
-                <span class="cov8" title="1">if r := keyFile.row(action); len(r.Keys) &gt; 0 </span>{
+                <span class="cov8" title="1">if r := cfg.Keys.Row(action); len(r.Keys) &gt; 0 </span>{
                         <span class="cov8" title="1">add(r, r.Keys[0], state)
 </span>                }
         }
@@ -10776,7 +10859,7 @@ func statusKeys(cfg *config.Config, k barKeys) string {
                 <span class="cov8" title="1">first(k.back, 0)
 </span>        }
         <span class="cov8" title="1">if k.commits </span>{
-                <span class="cov8" title="1">r := keyFile.row("history")
+                <span class="cov8" title="1">r := cfg.Keys.Row("history")
                 add(r, strings.Join(r.Keys, "/"), 0)
 </span>        }
         <span class="cov8" title="1">if k.flow </span>{
@@ -10791,7 +10874,7 @@ func statusKeys(cfg *config.Config, k barKeys) string {
         <span class="cov8" title="1">for _, action := range actions </span>{
                 <span class="cov8" title="1">first(action, 0)
 </span>        }
-        <span class="cov8" title="1">return strings.Join(keys, " · ")</span>
+        <span class="cov8" title="1">return strings.Join(shown, " · ")</span>
 }
 
 // minBoxHeight fits the borders and one line.
@@ -11498,7 +11581,7 @@ func (g *SizeGuard) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file31" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
+		<pre class="file" id="file32" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
 // alignment.
 package main
 
@@ -11539,7 +11622,7 @@ var thirdParty string
 // the binary, so it is the only copy at hand. doc/config.md links to the
 // built-in keybindings.toml.
 //
-//go:embed README.md doc/*.md internal/ui/keybindings.toml
+//go:embed README.md doc/*.md internal/keys/keybindings.toml
 var docs embed.FS
 
 // docPages are the pages of docs in the order of n and p; --readme starts
@@ -11728,7 +11811,6 @@ func start(o options, mode string, args []string) {
                 <span class="cov0" title="0">cfg.Settings.Untracked = true
 </span>        }
         <span class="cov8" title="1">cfg.LoadMarks(repo)
-        ui.LoadKeys(cfg)
 </span>
         <span class="cov8" title="1">if mode == "readme" </span>{
                 <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewDoc(cfg, docs, docPages, 0)))))
@@ -11746,8 +11828,7 @@ func start(o options, mode string, args []string) {
         <span class="cov8" title="1">if err != nil </span>{
                 <span class="cov8" title="1">fatal(err)
 </span>        }
-        <span class="cov0" title="0">ui.OrderSettings()
-</span>        // d replaces whatever is shown by the files of git diff, which runs in
+        // d replaces whatever is shown by the files of git diff, which runs in
         // the current directory; the search bar and the popups are put around
         // the new view too.
         <span class="cov0" title="0">wrap := func(m tea.Model) tea.Model </span>{
