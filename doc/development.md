@@ -62,6 +62,11 @@ The [difftool and aliases](usage.md) in this repository's `.git/config`, with `b
 	jlog = "!f() { : git log; top=$(git rev-parse --show-toplevel); cd \"${GIT_PREFIX:-.}\" && \"$top/bin/jdiff\" log \"$@\"; }; f"
 ```
 
+## Trying auto reload
+
+`scripts/watch-demo [seconds [files [dir]]]` creates and removes small files for a while, 60 seconds and at most 5 at once by default, in a new directory `watch-demo-<pid>` that it removes at the end, also on `ctrl+c`.
+Start `jdiff diff` in the repository, turn on `R` and `u` (the untracked files), then run it there.
+
 ## Packages
 
 The packages under `internal/`, and `watch` beside them, which uses nothing of jdiff:

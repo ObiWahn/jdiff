@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Creates and removes small files for a while, so that auto reload has something to show: start
+# jdiff diff in a repository, turn on R and u (the untracked files), then run this there.
+#
+#   watch-demo [seconds [files [dir]]]
+#
+# About once a second it adds a file of 1 to 5 lines or removes one, with at most files (5) at
+# once, for seconds (60), in a new directory watch-demo-<pid> in dir (the current one). It
+# writes nowhere else, and removes only that directory at the end, also on ctrl+c.
+set -uo pipefail
+
+ferr() { echo "ERROR: $*"; exit 1; }
+
+seconds=${1:-60}
+most=${2:-5}
+base=${3:-.}
+[[ $seconds =~ ^[0-9]+$ ]] || ferr "seconds must be a whole number: $seconds"
+[[ $most =~ ^[1-9][0-9]*$ ]] || ferr "files must be a whole number above 0: $most"
+[[ -d $base ]] || ferr "no directory $base"
+
+dir=$base/watch-demo-$$
+mkdir -- "$dir" || ferr "cannot create $dir"
+trap 'rm -rf -- "$dir"' EXIT
+trap 'exit 130' INT TERM
+echo "writing into $dir for ${seconds}s, at most $most files at once"
+
+end=$((SECONDS + seconds))
+made=0
+while (( SECONDS < end )); do
+    files=("$dir"/*.txt)
+    [[ -e ${files[0]} ]] || files=()
+    if (( ${#files[@]} >= most )) || { (( ${#files[@]} > 0 )) && (( RANDOM % 3 == 0 )); }; then
+        rm -f -- "${files[RANDOM % ${#files[@]}]}" || ferr "cannot remove a file in $dir"
+    else
+        made=$((made + 1))
+        seq -f "line %g of demo $made" "$((RANDOM % 5 + 1))" >"$dir/demo-$made.txt" ||
+            ferr "cannot write $dir/demo-$made.txt"
+    fi
+    sleep 1 || ferr "sleep failed"
+done
+echo "done: $made files created and removed"
