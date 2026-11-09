@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -265,11 +266,109 @@ func (r Repo) WatchPaths() ([]string, error) {
 	return paths, nil
 }
 
+// vcsDirs are where version control systems keep their own data, which is
+// not worked on: WorkDirs leaves them out, and what is below them. Fossil
+// keeps its data in files.
+var vcsDirs = []string{".git", ".svn", ".hg", ".bzr", "CVS", "_darcs", ".jj", ".pijul", ".sl"}
+
+// WorkDirs returns the directories of the working tree that hold its files,
+// tracked or untracked and not ignored, with the time each was modified, as
+// when a file there is created, deleted or renamed, as editors save; the top
+// level always. A directory takes one lstat, not each of its files, so that
+// this stays cheap in large repositories. A submodule and a nested
+// repository count as entries of the directory they are in, which is not
+// entered. Left out are the directories of vcsDirs, and those for which
+// ignore holds of their path from the top with / and a / at the end, with
+// the directories below them.
+func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, error) {
+	top, err := r.TopLevel()
+	if err != nil {
+		return nil, err
+	}
+	// All files, also from a subdirectory, by their paths from the top.
+	out, err := r.git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--full-name", "--", ":/")
+	if err != nil {
+		return nil, err
+	}
+	dirs := map[string]time.Time{top: {}}
+	left := map[string]bool{} // directories from the top, whether left out
+	var leftOut func(rel string) bool
+	leftOut = func(rel string) bool {
+		if rel == "." {
+			return false
+		}
+		if l, ok := left[rel]; ok {
+			return l
+		}
+		l := slices.Contains(vcsDirs, path.Base(rel)) || ignore(rel+"/") || leftOut(path.Dir(rel))
+		left[rel] = l
+		return l
+	}
+	for _, rel := range strings.Split(string(out), "\x00") {
+		// A nested repository comes as its directory with a /.
+		rel = strings.TrimSuffix(rel, "/")
+		if rel == "" || leftOut(path.Dir(rel)) {
+			continue
+		}
+		dirs[filepath.Dir(filepath.Join(top, filepath.FromSlash(rel)))] = time.Time{}
+	}
+	for dir := range dirs {
+		if info, err := os.Lstat(dir); err == nil {
+			dirs[dir] = info.ModTime()
+		}
+	}
+	return dirs, nil
+}
+
 // Status returns the state of the repository: the commit of HEAD, the branch,
 // staged, changed and untracked files. It does not write the index.
 func (r Repo) Status() (string, error) {
 	out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, "status", "--porcelain=v2", "--branch", "--untracked-files=all")
 	return string(out), err
+}
+
+// StatusPaths returns the paths of the files that the lines of status, from
+// Status, name and those of old do not: changed, renamed (the new path),
+// unmerged, untracked or ignored. They are relative to where git ran. Paths
+// git quotes, with special characters, are left out.
+func StatusPaths(status, old string) []string {
+	had := map[string]bool{}
+	for _, line := range strings.Split(old, "\n") {
+		had[line] = true
+	}
+	var paths []string
+	for _, line := range strings.Split(status, "\n") {
+		if had[line] || len(line) < 2 {
+			continue
+		}
+		// The fields before the path, which may hold spaces: see git status
+		// --porcelain=v2.
+		var p string
+		switch line[0] {
+		case '1':
+			p = field(line, 8)
+		case '2':
+			p, _, _ = strings.Cut(field(line, 9), "\t")
+		case 'u':
+			p = field(line, 10)
+		case '?', '!':
+			p = line[2:]
+		}
+		if p != "" && !strings.HasPrefix(p, `"`) {
+			paths = append(paths, filepath.FromSlash(p))
+		}
+	}
+	return paths
+}
+
+// field returns the rest of line after n fields separated by single spaces,
+// "" when it has fewer.
+func field(line string, n int) string {
+	parts := strings.SplitN(line, " ", n+1)
+	if len(parts) <= n {
+		return ""
+	}
+	return parts[n]
 }
 
 // Files returns the files c changed against its first parent, or against

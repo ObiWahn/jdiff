@@ -45,6 +45,7 @@ var settingTable = []settingOption{
 	{action: "full_messages", setting: func(c *config.Config) *bool { return &c.Settings.FullMessages }, logFlow: true},
 	{action: "stay_in_commit", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{action: "auto_reload_timeout", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
+	{action: "inotify_max_dirs", number: func(c *config.Config) *int { return &c.Settings.InotifyMaxDirs }},
 }
 
 // settingOptions returns the lines of the settings popup, with their keys and
@@ -245,8 +246,11 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
 			p.inputErr = "a whole number, 0 or more"
 			return nil
 		}
-		*p.options[p.cursor].number(p.cfg) = n
+		o := p.options[p.cursor]
+		*o.number(p.cfg) = n
 		p.input, p.msg = nil, saveState(p.cfg)
+		_, cmd := p.Model.Update(settingChangedMsg{action: o.action})
+		return cmd
 	default:
 		p.inputErr = ""
 		in.edit(k)

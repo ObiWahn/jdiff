@@ -12,9 +12,9 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
-	"jdiff/internal/notify"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
+	"jdiff/watch"
 )
 
 // paneTitles renders names above the panes of a view width columns wide.
@@ -383,23 +383,33 @@ type DiffSwitch struct {
 	wrap      func(tea.Model) tea.Model
 	cfg       *config.Config
 	gitDiff   DiffFunc
-	// Auto reload: repoStatus returns the state of the repository, nil
-	// without auto reload, which is checked every auto_reload_interval and at once
-	// when repoWatch, if the system has one, reports a change of the files of
-	// repoPaths. statusRuns counts the checks under way; autoGen tells this
-	// run of auto reload from earlier ones; autoCtx ends its git commands,
-	// autoCancel ends autoCtx.
-	repoStatus func(ctx context.Context) (string, error)
-	repoPaths  func() ([]string, error)
-	repoWatch  *notify.Watcher
-	lastStatus string
-	lastActive time.Time
-	statusRuns int
-	autoGen    int
-	autoCtx    context.Context
-	autoCancel context.CancelFunc
-	input      *lineInput // while it asks
-	err        string     // why git failed, until the next key
+	// w is the watcher the views share, nil where the system has none;
+	// limit is the inotify_max_dirs it has.
+	w     *watch.Watcher
+	limit int
+	// Auto reload: repoStatus returns the state of the repository, which is
+	// checked, while gitMode is set, every auto_reload_interval and at once
+	// when w reports a change of the files of repoPaths, pinned, or in the
+	// directories of workDirs. statusRuns counts the checks under way,
+	// statusAgain asks for one more after them; tick numbers the regular
+	// checks, of which only the last counts; autoGen tells this run of auto
+	// reload from earlier ones; autoCtx ends its git commands, autoCancel
+	// ends autoCtx.
+	repoStatus  func(ctx context.Context) (string, error)
+	repoPaths   func() ([]string, error)
+	workDirs    func(ignore func(rel string) bool) (map[string]time.Time, error)
+	gitMode     bool
+	tick        int
+	pins        []string
+	statusAgain bool
+	lastStatus  string
+	lastActive  time.Time
+	statusRuns  int
+	autoGen     int
+	autoCtx     context.Context
+	autoCancel  context.CancelFunc
+	input       *lineInput // while it asks
+	err         string     // why git failed, until the next key
 	// running is set while git diff runs for the request number diffGen of
 	// show; diffCancel ends it.
 	running    bool
@@ -415,11 +425,33 @@ func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea
 	return &DiffSwitch{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, gitDiff: gitDiff}
 }
 
-// WithAutoReload sets how auto reload gets the state of the repository and
-// the files to watch for changes of it, and returns s.
-func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error)) *DiffSwitch {
-	s.repoStatus, s.repoPaths = status, paths
+// WithAutoReload sets how auto reload gets the state of the repository, the
+// files to watch for changes of it and the directories of its working tree,
+// and returns s.
+func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error),
+	dirs func(ignore func(rel string) bool) (map[string]time.Time, error)) *DiffSwitch {
+	s.repoStatus, s.repoPaths, s.workDirs = status, paths, dirs
 	return s
+}
+
+// Init starts the watcher the views share, unless watching is off, and
+// gives it to the view, before it starts.
+func (s *DiffSwitch) Init() tea.Cmd {
+	var wait tea.Cmd
+	if s.cfg.Settings.WatchInterval > 0 {
+		if w, err := watch.New(s.cfg.Settings.InotifyMaxDirs); err == nil {
+			s.w, s.limit, wait = w, s.cfg.Settings.InotifyMaxDirs, waitChanges(w)
+			s.share()
+		}
+	}
+	return batch(s.Model.Init(), wait)
+}
+
+// share gives the watcher to the view, if it watches files.
+func (s *DiffSwitch) share() {
+	if v, ok := s.view.(interface{ shareWatcher(*watch.Watcher) }); ok && s.w != nil {
+		v.shareWatcher(s.w)
+	}
 }
 
 // current returns the arguments of the git diff shown, and whether the view
@@ -448,14 +480,19 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case autoStatusMsg:
 		return s, s.onAutoStatus(msg)
 	case changedMsg:
-		if s.repoWatch != nil && msg.w == s.repoWatch {
-			return s, s.onRepoChanged()
+		if s.w != nil && msg.w == s.w {
+			check := s.onRepoChanged(msg.paths)
+			var cmd tea.Cmd
+			s.Model, cmd = s.Model.Update(msg)
+			return s, batch(cmd, check, waitChanges(s.w))
 		}
 	case watchEndedMsg:
-		if s.repoWatch != nil && msg.w == s.repoWatch {
-			s.repoWatch = nil // the regular checks still see all changes
-			return s, nil
+		if s.w != nil && msg.w == s.w {
+			s.w = nil // the regular checks still see all changes; the view checks its files
 		}
+	case repoWatchMsg:
+		s.onRepoWatch(msg)
+		return s, nil
 	case tea.KeyPressMsg:
 		s.lastActive = time.Now()
 		if s.input != nil {
@@ -471,6 +508,10 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	s.Model, cmd = s.Model.Update(msg)
+	if s.w != nil && s.limit != s.cfg.Settings.InotifyMaxDirs { // set in the settings popup
+		s.limit = s.cfg.Settings.InotifyMaxDirs
+		s.w.SetLimit(s.limit)
+	}
 	return s, cmd
 }
 
@@ -579,6 +620,9 @@ func (s *DiffSwitch) stop() {
 	if v, ok := s.view.(interface{ stop() }); ok {
 		v.stop()
 	}
+	if s.w != nil {
+		s.w.Close()
+	}
 }
 
 // diffListedMsg brings the files of git diff with args, run for the request
@@ -629,8 +673,14 @@ func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
 		a.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 	}
 	s.view, s.Model = a, s.wrap(a)
+	s.share()
 	s.Model.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
-	return s.Model.Init()
+	cmd := s.Model.Init()
+	if s.cfg.AutoReload && !s.gitMode { // now git diff: checked by git status
+		s.stopAutoReload()
+		cmd = batch(cmd, s.toggleAutoReload())
+	}
+	return cmd
 }
 
 // minInputWidth is the least width of the line in the popups of inputBox.

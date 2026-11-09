@@ -271,8 +271,9 @@ func TestSettingsPopupSweep(t *testing.T) {
 				if len(got) != rows {
 					t.Fatalf("step %d: %d rows, want %d: %q", step, len(got), rows, got)
 				}
-				cursorOption := fmt.Sprintf("] %s ", settingOptions(keys.Builtin())[s.cursor].key)
-				if !strings.Contains(strings.Join(got, "\n"), cursorOption) {
+				// The states are padded to the widest, a number.
+				cursorOption := regexp.MustCompile(`\] +` + regexp.QuoteMeta(settingOptions(keys.Builtin())[s.cursor].key) + ` `)
+				if !cursorOption.MatchString(strings.Join(got, "\n")) {
 					t.Fatalf("step %d: option %d out of view: %q", step, s.cursor, got)
 				}
 			}
@@ -532,12 +533,13 @@ func TestSettingsNumber(t *testing.T) {
 	if s.input != nil {
 		t.Errorf("a in the popup: input %+v", s.input)
 	}
-	for range len(settingOptions(keys.Builtin())) - 1 {
+	minutes := slices.IndexFunc(settingOptions(keys.Builtin()), func(o settingOption) bool { return o.action == "auto_reload_timeout" })
+	for range minutes {
 		pressRoot(s, "j")
 	}
 	pressRoot(s, "enter")
 	if s.input == nil || s.input.text != "5" {
-		t.Fatalf("enter on the last option: input %+v, want the minutes to edit", s.input)
+		t.Fatalf("enter on the minutes: input %+v, want them to edit", s.input)
 	}
 	if view := ansi.Strip(s.frame()); !strings.Contains(view, "auto reload timeout") {
 		t.Errorf("the line is not shown:\n%s", view)
@@ -596,7 +598,7 @@ func TestSettingsFlow(t *testing.T) {
 	if !strings.Contains(string(data), "flow = true") {
 		t.Errorf("state.toml:\n%s", data)
 	}
-	if !strings.Contains(ansi.Strip(s.frame()), "[x] f ") {
+	if !regexp.MustCompile(`\[x\] +f `).MatchString(ansi.Strip(s.frame())) {
 		t.Errorf("f is not ticked:\n%s", ansi.Strip(s.frame()))
 	}
 	pressRoot(s, "f")

@@ -16,16 +16,11 @@ type Settings struct {
 	// one by its length, so only the added or removed part is marked.
 	OnlyChangedWhitespaces bool `toml:"only_changed_whitespaces"`
 	// WatchInterval (watch_interval) is how often, in seconds, files on disk
-	// are checked for changes and reloaded: both files of a comparison, or
-	// the current file of the file list and its neighbors. 0 turns watching
-	// off, also by inotify.
+	// that are not watched (InotifyMaxDirs) are checked for changes and
+	// reloaded while auto reload is on: both files of a comparison, or the
+	// current file of the file list and its neighbors. 0 turns the checks
+	// off, and watching too.
 	WatchInterval float64 `toml:"watch_interval"`
-	// InotifyMaxDirs (inotify_max_dirs) is the most directories whose files
-	// Linux reports changes of (inotify), instead of jdiff checking them
-	// every WatchInterval: the directories of the files on disk, not their
-	// subdirectories. With inotify, all files are reloaded when they
-	// change. 0 turns inotify off.
-	InotifyMaxDirs int `toml:"inotify_max_dirs"`
 	// AutoReloadInterval (auto_reload_interval) is how often, in seconds, auto
 	// reload runs git status, which sees new files, and all changes where
 	// Linux does not report them at once.
@@ -104,6 +99,14 @@ type Toggles struct {
 	// without a key pressed or a change of the repository auto reload ends,
 	// and with it its git commands; 0 is never. The settings popup sets it.
 	AutoReloadTimeout int `toml:"auto_reload_timeout"`
+	// InotifyMaxDirs (inotify_max_dirs) is the most directories whose
+	// changes the system reports (on Linux, inotify) while auto reload is on,
+	// the most recently used ones: the directories of the files on disk, not
+	// their subdirectories, and those of the working tree; HEAD and the index
+	// are watched besides. Files in the others are checked every
+	// WatchInterval. 0 watches only HEAD and the index. The settings popup
+	// sets it.
+	InotifyMaxDirs int `toml:"inotify_max_dirs"`
 }
 
 // Default returns the default settings.
@@ -113,7 +116,6 @@ func Default() Settings {
 		CollapseUnchanged:      true,
 		OnlyChangedWhitespaces: true,
 		WatchInterval:          1,
-		InotifyMaxDirs:         20,
 		AutoReloadInterval:     10,
 		LineEnd:                "¶",
 		CREnd:                  "␍",
@@ -128,6 +130,7 @@ func Default() Settings {
 			FullMessages:    true,
 
 			AutoReloadTimeout: 5,
+			InotifyMaxDirs:    100,
 		},
 	}
 }

@@ -143,16 +143,19 @@ Unlike the other toggles it is not saved: each run starts without them, `jdiff -
 ### Settings popup
 
 `o` or `F8` opens a popup with all the settings above, also `c` and `C` of the flow view, to find them.
-Only there can you set the minutes until auto reload ends, typed in a line after `enter` on them.
+Only there can you set the minutes until auto reload ends and the most directories watched (`inotify_max_dirs`), typed in a line after `enter` on them.
 
 - `j` `k` move; `enter`, `space` or the letter toggles, kept in `state.toml`.
 - The popup stays open; `o`, `F8`, `esc` or `q` close it.
 
 ### Auto reload
 
-`R` loads again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff.
-The status bar says `auto reload` while it is on.
+`R` keeps what is shown up to date: the files shown are reloaded when they change on disk, and in `jdiff diff` and `jdiff log` all is loaded again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff.
+The status bar says `auto reload` while it is on; off, nothing is watched nor checked.
 
-- It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index or the refs of the current branch. So new files and edits of files not yet in the diff take up to that long.
+- It runs `git status` every `auto_reload_interval` (10 seconds) and, on Linux, at once when the kernel reports a change of `HEAD`, the index, the refs of the current branch, or in a directory of the working tree: new files and edits of files not yet in the diff show at once, and the next regular check comes a full interval later.
+- Of the working tree it watches the directories with tracked or untracked files, not ignored ones, nor those of version control (`.git`, `.svn`, `.hg` …) or nested repositories, up to `inotify_max_dirs` together with the files of the diff; changes elsewhere take up to `auto_reload_interval`. `HEAD` and the index are watched beyond that; with `inotify_max_dirs` 0 the working tree is not even looked at.
+- Comparing two files or directories, it only watches the files shown: a file new in a directory still needs `r`, which reads all files.
+- Changes of editors' files, as Vim's swap files, run no `git status`: see `watch_ignore`.
 - After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands.
 - It is not saved: off at each start.

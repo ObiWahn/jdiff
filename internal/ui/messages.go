@@ -125,10 +125,10 @@ func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 	return settingKey(k, h.Action, logFlow)
 }
 
-// settingChangedMsg tells the page below SettingsPopup that a toggle changed,
-// so that it lays out what depends on it. The diff view does on any message.
-// problem says why it is not saved, for the page to show when the popup is
-// closed.
+// settingChangedMsg tells the page below SettingsPopup that a toggle or a
+// number changed, so that it lays out what depends on it. The diff view does
+// on any message. problem says why it is not saved, for the page to show when
+// the popup is closed.
 type settingChangedMsg struct{ action, problem string }
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of

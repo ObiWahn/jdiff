@@ -40,8 +40,13 @@ For `git difftool -d`:
 	prompt = false
 ```
 
-## File watching
+## Auto reload and file watching
 
-Files of the working tree are watched, so edits you save while jdiff is open show up live.
-On Linux the kernel reports the changes (inotify): jdiff watches the directories the files of the diff are in, not their subdirectories, up to `inotify_max_dirs` (20) of them, all with one file handle.
-Elsewhere, or when the files are in more directories, it checks the files every `watch_interval` (1 second).
+What jdiff shows stays as it was loaded until you press `r`, or turn on auto reload with `R`.
+While auto reload is on, edits you save show up live, and in `jdiff diff` and `jdiff log` also new files, commits and the like: see [auto reload](keybindings.md#auto-reload).
+Watching files is part of auto reload, off with it, so that jdiff does nothing in the background while it is off.
+
+- On Linux the kernel reports the changes (inotify): jdiff watches the directories the files are in, not their subdirectories, all with one file handle.
+- It watches at most `inotify_max_dirs` (100) directories, those used most recently: where a change was seen, where the cursor was, else those modified last. `HEAD`, the index and the refs of the current branch are watched beyond that, always.
+- Files in the other directories, and all of them on other systems, it checks every `watch_interval` (1 second) while the cursor is on them or next to them, and when the cursor comes to them.
+- For a large repository, a small `inotify_max_dirs`, or 0, watches little more than `HEAD` and the index; `git status` then finds the rest every `auto_reload_interval`.

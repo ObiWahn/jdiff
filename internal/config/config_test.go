@@ -309,24 +309,64 @@ func TestWatchInterval(t *testing.T) {
 	}
 }
 
+// inotify_max_dirs is a toggle: main.toml sets it, state.toml over it, as
+// the settings popup saves it.
 func TestInotifyMaxDirs(t *testing.T) {
 	for _, tt := range []struct {
-		main    string
-		want    int
-		warning string
+		main, state string
+		want        int
+		warning     string
 	}{
-		{"", 20, ""},
-		{"inotify_max_dirs = 100", 100, ""},
-		{"inotify_max_dirs = 0", 0, ""},
-		{"inotify_max_dirs = -1", 0, "inotify_max_dirs -1 is negative"},
+		{"", "", 100, ""},
+		{"inotify_max_dirs = 20", "", 20, ""},
+		{"inotify_max_dirs = 0", "", 0, ""},
+		{"inotify_max_dirs = 20", "inotify_max_dirs = 300", 300, ""},
+		{"inotify_max_dirs = -1", "", 0, "inotify_max_dirs -1 is negative"},
+		{"", "inotify_max_dirs = -1", 0, "inotify_max_dirs -1 is negative"},
 	} {
-		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
+		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main, "state.toml": tt.state}), nil, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		if w := c.Warning(); c.Settings.InotifyMaxDirs != tt.want || (tt.warning == "") != (w == "") ||
 			!strings.Contains(w, tt.warning) {
-			t.Errorf("%q: max dirs %v, warning %q; want %v and %q", tt.main, c.Settings.InotifyMaxDirs, w, tt.want, tt.warning)
+			t.Errorf("%q, %q: max dirs %v, warning %q; want %v and %q", tt.main, tt.state, c.Settings.InotifyMaxDirs, w, tt.want, tt.warning)
+		}
+	}
+}
+
+// The default watch_ignore matches editors' files beside the one saved, not
+// the files themselves; main.toml replaces it, [] with none, and a pattern
+// that is no regular expression is left out with a warning.
+func TestWatchIgnore(t *testing.T) {
+	c := Default()
+	for _, rel := range []string{".x.swp", "d/.x.swx", "x~", ".#x", "d/.#x", "#x#", "d/#x#", "4913", "d/4913", "x.tmp"} {
+		if !c.WatchIgnored(rel) {
+			t.Errorf("default: %s not ignored", rel)
+		}
+	}
+	for _, rel := range []string{"x", "x.go", "swp.go", "d/x.go", "d/", "a#b", "49130", "x#", "d#/x"} {
+		if c.WatchIgnored(rel) {
+			t.Errorf("default: %s ignored", rel)
+		}
+	}
+	c, err := Load(writeFiles(t, map[string]string{"main.toml": "watch_ignore = []\n"}), nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.WatchIgnored(".x.swp") {
+		t.Error("watch_ignore = []: .x.swp ignored")
+	}
+	c, err = Load(writeFiles(t, map[string]string{"main.toml": `watch_ignore = ['^vendor/$', '(', 'x$']` + "\n"}), nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := c.Warning(); !strings.Contains(w, `watch_ignore "(" is not a regular expression`) {
+		t.Errorf("warning %q", w)
+	}
+	for rel, want := range map[string]bool{"vendor/": true, "src/vendor/": false, "vendor.go": false, "a/x": true, ".x.swp": false} {
+		if got := c.WatchIgnored(rel); got != want {
+			t.Errorf("%s: ignored %v, want %v", rel, got, want)
 		}
 	}
 }

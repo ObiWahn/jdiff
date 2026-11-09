@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -41,6 +42,8 @@ type Config struct {
 	statePath string   // where SaveState writes, empty for no state file
 
 	marks marksState // jump marks, see LoadMarks
+
+	watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
 
 	// AutoReload is whether what is shown is loaded again when the repository
 	// changes; R toggles it. It is not saved, so it is off at each start, as
@@ -73,7 +76,9 @@ func (s *Search) Add(q Query) {
 
 // Default returns the default theme and settings, without files.
 func Default() *Config {
-	return &Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
+	c := &Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
+	c.compileWatchIgnore(DefaultWatchIgnore)
+	return c
 }
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
@@ -96,11 +101,23 @@ const (
 	maxInterval = 86400
 )
 
-// mainFile is the content of main.toml.
+// mainFile is the content of main.toml. WatchIgnore is not one of the
+// settings, which views compare as a whole.
 type mainFile struct {
 	settings.Settings
 	Theme string `toml:"theme"`
+	// WatchIgnore (watch_ignore) are regular expressions of paths from the
+	// top of the working tree, with / and directories with a / at the end:
+	// while auto reload watches the working tree, a change of a file that
+	// one matches does not run git status, and a directory that one matches
+	// is not watched, nor those below it. See WatchIgnored.
+	WatchIgnore []string `toml:"watch_ignore"`
 }
+
+// DefaultWatchIgnore is watch_ignore by default: editors' files beside the
+// one saved, Vim's swap files, backups and the file it tries writing (4913),
+// Emacs' locks and autosaves.
+var DefaultWatchIgnore = []string{`\.sw[a-px]$`, `~$`, `(^|/)\.#`, `(^|/)#[^/]*#$`, `(^|/)4913$`, `\.tmp$`}
 
 // Load reads the files in dir over the default settings and selects the
 // theme. The themes are jdiff's defaults ("default"), delta's git config
@@ -112,15 +129,15 @@ type mainFile struct {
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 	c := &Config{Keys: keys.Builtin(), Settings: settings.Default()}
 	c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
-	name := ""
+	name, ignore := "", DefaultWatchIgnore
 	if dir != "" {
 		c.dir = dir
 		c.statePath = filepath.Join(dir, "state.toml")
-		m := mainFile{Settings: c.Settings}
+		m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore)}
 		if err := c.decode(filepath.Join(dir, "main.toml"), &m); err != nil {
 			return nil, err
 		}
-		c.Settings = m.Settings
+		c.Settings, ignore = m.Settings, m.WatchIgnore
 		if iv := c.Settings.WatchInterval; iv < 0 {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
 			c.Settings.WatchInterval = 0
@@ -138,10 +155,6 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 		if iv := c.Settings.AutoReloadInterval; iv > maxInterval {
 			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
 			c.Settings.AutoReloadInterval = maxInterval
-		}
-		if n := c.Settings.InotifyMaxDirs; n < 0 {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: inotify_max_dirs %d is negative, inotify is off", n))
-			c.Settings.InotifyMaxDirs = 0
 		}
 		// Lines are cut and wrapped by columns: the symbols take one.
 		def := settings.Default()
@@ -169,6 +182,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			return nil, err
 		}
 		c.Settings.Toggles = state.Toggles
+		if n := c.Settings.InotifyMaxDirs; n < 0 {
+			c.warnings = append(c.warnings, fmt.Sprintf("inotify_max_dirs %d is negative, it is off", n))
+			c.Settings.InotifyMaxDirs = 0
+		}
 		var problems []string
 		if c.Keys, problems = keys.Load(dir); len(problems) > 0 {
 			c.warnings = append(c.warnings, keys.FileName+": "+strings.Join(problems, "; ")+"; the built-in keys are used")
@@ -179,7 +196,29 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 		}
 	}
 	c.Theme = theme.Resolve(c.selectTheme(name, dir))
+	c.compileWatchIgnore(ignore)
 	return c, nil
+}
+
+// compileWatchIgnore compiles exprs, watch_ignore, for WatchIgnored; one that
+// is no regular expression is left out with a warning.
+func (c *Config) compileWatchIgnore(exprs []string) {
+	c.watchIgnore = nil
+	for _, expr := range exprs {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_ignore %q is not a regular expression, left out: %v", expr, err))
+			continue
+		}
+		c.watchIgnore = append(c.watchIgnore, re)
+	}
+}
+
+// WatchIgnored reports whether a pattern of watch_ignore matches rel, a path
+// from the top of the working tree with /, of a directory with a / at the
+// end.
+func (c *Config) WatchIgnored(rel string) bool {
+	return slices.ContainsFunc(c.watchIgnore, func(re *regexp.Regexp) bool { return re.MatchString(rel) })
 }
 
 // readThemes adds the theme files in dir to the themes. A file that cannot

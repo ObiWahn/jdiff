@@ -14,9 +14,9 @@ import (
 	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
 	"jdiff/internal/keys"
-	"jdiff/internal/notify"
 	"jdiff/internal/source"
 	"jdiff/internal/theme"
+	"jdiff/watch"
 )
 
 // entry is one file in the selector. Its diff is created with the selector,
@@ -136,10 +136,14 @@ type App struct {
 	// are those of the files shown.
 	gitDiff  DiffFunc
 	diffArgs []string
-	// notify reports changes to the files on disk; nil while they are
-	// checked every watch_interval, ticking while such a check is pending.
-	notify  *notify.Watcher
-	ticking bool
+	// disk watches the files on disk while auto reload is on, from watch on;
+	// those near the cursor that it does not watch are checked every
+	// watch_interval, ticking while such a check is pending. touched is the
+	// file the cursor was on last.
+	disk     diskWatch
+	watching bool
+	ticking  bool
+	touched  *entry
 	list
 	// previewTop is the first screen line of the preview scrolled by pgup
 	// and pgdn, while previewFor is the file under the cursor; moving the
@@ -215,10 +219,11 @@ func (a *App) addEntry(group *moveGroup, e *entry) {
 // is replaced, or the program ends.
 func (a *App) stop() {
 	a.cancel()
-	if a.notify != nil {
-		a.notify.Close()
-	}
+	a.disk.stop()
 }
+
+// shareWatcher makes a watch its files by w, which DiffSwitch shares.
+func (a *App) shareWatcher(w *watch.Watcher) { a.disk = diskWatch{w: w} }
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -285,29 +290,86 @@ func (a *App) Init() tea.Cmd {
 	return a.watch()
 }
 
-// watch starts watching the files on disk anew, by inotify when it can, and
-// returns the command waiting for their changes. A pending check of polling
-// is not started twice.
+// watch watches the files on disk, in place of those before, while auto
+// reload is on, and returns the command waiting for their changes and the
+// check of those not watched; off, it watches none.
 func (a *App) watch() tea.Cmd {
-	if a.notify != nil {
-		a.notify.Close()
+	if !a.cfg.AutoReload {
+		a.disk.stop()
+		a.watching = false
+		return nil
 	}
 	var paths []string
 	for _, e := range a.files {
 		paths = append(paths, diskPaths(e.File)...)
 	}
-	w, cmd, msg := startWatching(a.cfg, a, paths)
-	a.notify = w
+	cmd, msg := a.disk.set(a.cfg, paths)
 	if msg != "" {
 		a.setMsg(msg)
 	}
-	if w == nil && cmd != nil {
-		if a.ticking {
-			return nil
-		}
-		a.ticking = true
+	a.watching = true
+	return batch(cmd, a.poll())
+}
+
+// poll returns the next check of the files near the cursor, the current one
+// and its neighbors, that are not watched; nil while one is pending, or when
+// none is to be checked.
+func (a *App) poll() tea.Cmd {
+	if a.ticking || !a.cfg.AutoReload || a.cfg.Settings.WatchInterval <= 0 || !slices.ContainsFunc(a.nearCursor(), a.unwatched) {
+		return nil
 	}
-	return cmd
+	a.ticking = true
+	return watchTick(a.cfg, a)
+}
+
+// nearCursor returns the indices of the current file and its neighbors.
+func (a *App) nearCursor() []int {
+	var out []int
+	if cur := a.current(); cur >= 0 {
+		for i := max(cur-1, 0); i <= min(cur+1, len(a.files)-1); i++ {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// unwatched reports whether a side of file i on disk is not watched.
+func (a *App) unwatched(i int) bool {
+	return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool { return !a.disk.watched(p) })
+}
+
+// current returns the index of the file the cursor is on: in the flow view,
+// the diff view or the list; -1 for none.
+func (a *App) current() int {
+	if a.flowShown() {
+		_, file, _ := a.flow.position()
+		return file
+	}
+	if a.open != nil {
+		return slices.Index(a.files, a.open)
+	}
+	if a.cursor < len(a.files) {
+		return a.cursor
+	}
+	return -1
+}
+
+// followCursor counts the directories of the file the cursor is on as used
+// when it is on another one than before, and reloads it when it changed on
+// disk, as it may while its directory was not watched. It returns the check
+// of the files near the cursor not watched.
+func (a *App) followCursor() tea.Cmd {
+	i := a.current()
+	if !a.watching || !a.cfg.AutoReload || i < 0 || a.files[i] == a.touched {
+		return nil
+	}
+	a.touched = a.files[i]
+	a.disk.touch(diskPaths(a.touched.File))
+	f := a.touched.File
+	if f.OldFile != "" && stale(f.OldFile, f.OldStamp) || f.NewFile != "" && stale(f.NewFile, f.NewStamp) {
+		a.refresh(func(j int) bool { return j == i })
+	}
+	return a.poll()
 }
 
 // refresh reloads the files i that changed on disk for which which holds.
@@ -477,7 +539,13 @@ func batch(cmds ...tea.Cmd) tea.Cmd {
 // Inside the log, the log shows its own flow view.
 func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog() }
 
+// Update handles msg, then follows the cursor, see followCursor.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := a.update(msg)
+	return m, batch(cmd, a.followCursor())
+}
+
+func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width, a.height = msg.Width, msg.Height
@@ -487,37 +555,44 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.problem != "" && a.open == nil {
 			a.msg = msg.problem
 		}
+		if msg.action == "inotify_max_dirs" {
+			a.disk.limit(a.cfg)
+			return a, a.poll()
+		}
+	case autoReloadMsg:
+		if a.inLog() {
+			return a, nil
+		}
+		if msg.on { // changed while off
+			a.touched = nil
+			a.refresh(func(int) bool { return true })
+		}
+		return a, a.watch()
 	case watchTickMsg:
 		if msg.owner != nil && msg.owner != a {
 			return a, nil
 		}
 		a.ticking = false
-		if a.notify != nil {
-			return a, nil // inotify took over
+		if !a.cfg.AutoReload {
+			return a, nil
 		}
-		// Polling checks the current file and its neighbors.
-		a.refresh(func(i int) bool { return i >= a.cursor-1 && i <= a.cursor+1 })
-		a.ticking = true
-		return a, watchTick(a.cfg, a)
+		near := a.nearCursor()
+		a.refresh(func(i int) bool { return slices.Contains(near, i) && a.unwatched(i) })
+		return a, a.poll()
 	case changedMsg:
-		if msg.w != a.notify {
+		if msg.w == nil || msg.w != a.disk.w {
 			return a, nil
 		}
 		changed := func(i int) bool {
 			return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool { return slices.Contains(msg.paths, p) })
 		}
 		a.refresh(changed)
-		return a, waitChanges(a.notify)
+		return a, batch(a.disk.next(), a.poll())
 	case watchEndedMsg:
-		if msg.w != a.notify {
+		if !a.disk.ended(msg.w) {
 			return a, nil
 		}
-		a.notify = nil
-		if a.ticking {
-			return a, nil
-		}
-		a.ticking = true
-		return a, watchTick(a.cfg, a)
+		return a, a.poll()
 	case jumpMsg:
 		a.jump(msg)
 		return a, nil

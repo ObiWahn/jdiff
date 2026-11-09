@@ -7,7 +7,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `s` `f` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` (not `u`: untracked files are off at each start), the minutes of auto reload, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `s` `f` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` (not `u`: untracked files are off at each start), the minutes of auto reload, the directories watched, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 | `keybindings.toml` | [your keys](#keybindingstoml), where they differ from the built-in ones |
 
@@ -20,9 +20,12 @@ theme = "desert"                # a file in themes/; without it, delta's git con
 context = 3                     # unchanged lines kept visible around changes
 collapse_unchanged = true       # start with unchanged code folded
 only_changed_whitespaces = true # mark only the added or removed part of whitespace
-watch_interval = 1              # seconds between checks for changed files, 0.1 to 86400; 0 turns watching off
-inotify_max_dirs = 20           # Linux: up to so many directories of changed files, the kernel reports changes; 0 turns it off
+watch_interval = 1              # while auto reload (R) is on: seconds between checks of files not watched, 0.1 to 86400; 0 neither checks nor watches
 auto_reload_interval = 10       # seconds between runs of git status while auto reload (R) is on, up to 86400
+# While R is on, a change of a path from the top of the working tree that one of these regular
+# expressions matches runs no git status, and a directory that one matches (with a / at the end:
+# '^vendor/$') is not watched, nor those below it; [] for none. By default editors' files.
+watch_ignore = ['\.sw[a-px]$', '~$', '(^|/)\.#', '(^|/)#[^/]*#$', '(^|/)4913$', '\.tmp$']
 line_end = "¶"                  # drawn at the end of lines while W shows all whitespace; one column
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column
@@ -44,6 +47,7 @@ stay_in_commit = false
 search_regex = false            # / searches for a regular expression (shift+tab in its bar)
 search_all = false              # / searches all lines, not only changed ones (tab)
 auto_reload_timeout = 5         # minutes without keys or changes until auto reload (R) ends; 0 never
+inotify_max_dirs = 100          # while R is on, Linux: the most directories watched, the most recently used, besides HEAD and the index; 0 those only
 ```
 
 ## keybindings.toml

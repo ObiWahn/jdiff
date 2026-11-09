@@ -719,6 +719,80 @@ func TestWatchPaths(t *testing.T) {
 	}
 }
 
+// WorkDirs has the directories of the tracked and untracked files with their
+// own modification times, not those ignored nor of version control, nor the
+// inside of a nested repository or a symlinked directory, nor an empty one,
+// also from a subdirectory.
+func TestWorkDirs(t *testing.T) {
+	r := newRepo(t)
+	write := func(name string) {
+		t.Helper()
+		p := filepath.Join(r.Dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("x/keep")
+	write("x/.svn/entries")
+	write("y/.hg/store/data")
+	write("y/keep")
+	write("x/sub/old")
+	gitIn(t, r.Dir, "add", ".")
+	gitIn(t, r.Dir, "add", "-f", "x/.svn/entries", "y/.hg/store/data")
+	write("untracked/u")
+	write("build/out")
+	write("vendor/v")
+	write("src/vendor/v")
+	write("vendor.go")
+	if err := os.WriteFile(filepath.Join(r.Dir, ".gitignore"), []byte("build/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write("nested/inner")
+	gitIn(t, filepath.Join(r.Dir, "nested"), "init", "-q")
+	if err := os.MkdirAll(filepath.Join(r.Dir, "elsewhere"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	symlink(t, filepath.Join(r.Dir, "x"), filepath.Join(r.Dir, "linked"))
+	// The times of the directories, after all was written: a file written in
+	// one would change its time.
+	for rel, age := range map[string]time.Duration{"x": 3 * time.Hour, "y": time.Hour, "x/sub": 2 * time.Hour,
+		"untracked": 4 * time.Hour, "src/vendor": 6 * time.Hour} {
+		at := time.Now().Add(-age).Truncate(time.Second)
+		if err := os.Chtimes(filepath.Join(r.Dir, filepath.FromSlash(rel)), at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ignore := func(rel string) bool { return rel == "vendor/" }
+	for _, dir := range []string{r.Dir, filepath.Join(r.Dir, "x", "sub")} {
+		got, err := Repo{Dir: dir}.WorkDirs(ignore)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]time.Duration{"x": 3 * time.Hour, "y": time.Hour, "x/sub": 2 * time.Hour,
+			"untracked": 4 * time.Hour, "src/vendor": 6 * time.Hour}
+		for rel, age := range want {
+			d := filepath.Join(r.Dir, filepath.FromSlash(rel))
+			at, ok := got[d]
+			if wantAt := time.Now().Add(-age).Truncate(time.Second); !ok || at.Sub(wantAt).Abs() > 2*time.Second {
+				t.Errorf("from %s: %s at %v (%v), want at %v", dir, rel, at, ok, wantAt)
+			}
+		}
+		if _, ok := got[r.Dir]; !ok {
+			t.Errorf("from %s: no top level", dir)
+		}
+		if len(got) != len(want)+1 {
+			t.Errorf("from %s: %d directories, want %d: %v", dir, len(got), len(want)+1, got)
+		}
+	}
+	if _, err := (Repo{Dir: t.TempDir()}).WorkDirs(ignore); err == nil {
+		t.Error("outside a repository: no error")
+	}
+}
+
 // Status differs after a new file, also in a new directory, an edit, git add
 // and a commit, and does not write the index.
 func TestStatus(t *testing.T) {
@@ -779,6 +853,46 @@ func TestStatus(t *testing.T) {
 	}
 	if _, err := (Repo{Dir: t.TempDir()}).Status(); err == nil {
 		t.Error("outside a repository: no error")
+	}
+}
+
+// StatusPaths names the files of the lines of a status that the one before
+// has not, of all kinds, also with spaces, the new path of a rename.
+func TestStatusPaths(t *testing.T) {
+	r := newRepo(t)
+	write := func(name, content string) {
+		t.Helper()
+		p := filepath.Join(r.Dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before, err := r.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("a.txt", "edited\n")
+	write("dir/with space.txt", "x\n")
+	gitIn(t, r.Dir, "mv", "c.txt", "moved.txt")
+	status, err := r.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := StatusPaths(status, before)
+	slices.Sort(got)
+	want := []string{"a.txt", filepath.Join("dir", "with space.txt"), "moved.txt"}
+	if !slices.Equal(got, want) {
+		t.Errorf("StatusPaths = %q, want %q; status:\n%s", got, want, status)
+	}
+	if got := StatusPaths(status, status); len(got) != 0 {
+		t.Errorf("against itself: %q", got)
+	}
+	unmerged := "u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.txt"
+	if got := StatusPaths(unmerged, ""); !slices.Equal(got, []string{"conflict.txt"}) {
+		t.Errorf("unmerged: %q", got)
 	}
 }
 

@@ -64,14 +64,14 @@ The [difftool and aliases](usage.md) in this repository's `.git/config`, with `b
 
 ## Packages
 
-The packages under `internal/`:
+The packages under `internal/`, and `watch` beside them, which uses nothing of jdiff:
 
 | Package | Content |
 |---|---|
 | `diff` | alignment (patience with Myers fallback), anchors, word-level changes, moved blocks |
 | `source` | reading files and directories |
 | `gitsrc` | `git log`, the files of a commit, the repository root |
-| `notify` | changes to files reported by Linux (inotify) |
+| `watch` | changes to files and directories as the system reports them, the most recently used directories up to a limit; a backend per system, Linux (inotify) only yet |
 | `theme` | delta-compatible styles: sources (`Spec`) resolved into a `Theme` |
 | `settings` | the settings |
 | `config` | the configuration files, themes, state and marks |

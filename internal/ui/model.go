@@ -9,8 +9,8 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/keys"
-	"jdiff/internal/notify"
 	"jdiff/internal/source"
+	"jdiff/watch"
 )
 
 // Model is the Bubble Tea model of the diff view: a single file view of a
@@ -38,10 +38,13 @@ type Model struct {
 	canBack       bool // shown from the file selector, which handles backspace
 	commitNav     bool // shown from the log, which switches commits
 
-	msg    string
-	watch  *source.File    // the files on disk, reloaded when they change; nil when not watched
-	notify *notify.Watcher // reports their changes, nil while they are checked every watch_interval
-	prefix string          // "m" or "'" while waiting for the letter of a mark
+	msg   string
+	watch *source.File // the files on disk, reloaded when they change; nil when not watched
+	// disk watches them; those it does not watch are checked every
+	// watch_interval, ticking while such a check is pending.
+	disk    diskWatch
+	ticking bool
+	prefix  string // "m" or "'" while waiting for the letter of a mark
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
@@ -74,17 +77,39 @@ func newModel(d *fileDiff) *Model {
 	return m
 }
 
-// Init starts watching the files, when they are on disk.
-func (m *Model) Init() tea.Cmd {
+// Init starts watching the files, when they are on disk, see watchFiles.
+func (m *Model) Init() tea.Cmd { return m.watchFiles() }
+
+// watchFiles watches the files, when they are on disk, while auto reload is
+// on, and returns the command waiting for their changes and the check of
+// those not watched; off, it watches them no more.
+func (m *Model) watchFiles() tea.Cmd {
 	if m.watch == nil {
 		return nil
 	}
-	w, cmd, msg := startWatching(m.cfg, m, diskPaths(*m.watch))
-	m.notify = w
+	if !m.cfg.AutoReload {
+		m.disk.stop()
+		return nil
+	}
+	cmd, msg := m.disk.set(m.cfg, diskPaths(*m.watch))
 	if msg != "" {
 		m.msg = msg
 	}
-	return cmd
+	return batch(cmd, m.poll())
+}
+
+// shareWatcher makes m watch its files by w, which DiffSwitch shares.
+func (m *Model) shareWatcher(w *watch.Watcher) { m.disk = diskWatch{w: w} }
+
+// poll returns the next check of the files, unless one is pending or both
+// are watched.
+func (m *Model) poll() tea.Cmd {
+	if m.ticking || m.watch == nil || !m.cfg.AutoReload || m.cfg.Settings.WatchInterval <= 0 ||
+		!slices.ContainsFunc(diskPaths(*m.watch), func(p string) bool { return !m.disk.watched(p) }) {
+		return nil
+	}
+	m.ticking = true
+	return watchTick(m.cfg, m)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -97,28 +122,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 	case tea.KeyPressMsg:
 		return m, m.key(msg.String())
+	case autoReloadMsg:
+		if msg.on && m.watch != nil { // changed while off
+			if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
+				m.msg = msg
+			}
+		}
+		return m, m.watchFiles()
 	case watchTickMsg:
 		if msg.owner != nil && msg.owner != m {
 			return m, nil
 		}
+		m.ticking = false
+		if !m.cfg.AutoReload {
+			return m, nil
+		}
 		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
-		return m, watchTick(m.cfg, m)
+		return m, m.poll()
 	case changedMsg:
-		if msg.w != m.notify {
+		if msg.w == nil || msg.w != m.disk.w {
 			return m, nil
 		}
 		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
-		return m, waitChanges(m.notify)
+		return m, batch(m.disk.next(), m.poll())
 	case watchEndedMsg:
-		if msg.w != m.notify {
+		if !m.disk.ended(msg.w) {
 			return m, nil
 		}
-		m.notify = nil
-		return m, watchTick(m.cfg, m)
+		return m, m.poll()
 	case refreshMsg:
 		m.refresh(msg.quiet)
 	case showMsg:
@@ -131,6 +166,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.problem != "" {
 			m.msg = msg.problem
 		}
+		if msg.action == "inotify_max_dirs" {
+			m.disk.limit(m.cfg)
+			return m, m.poll()
+		}
 	case findMsg:
 		m.findText(int(msg))
 	}
@@ -138,11 +177,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // stop stops watching the files: the view is replaced.
-func (m *Model) stop() {
-	if m.notify != nil {
-		m.notify.Close()
-	}
-}
+func (m *Model) stop() { m.disk.stop() }
 
 // refresh reads both files again, whether their stamps changed or not. With
 // quiet, it does not say when nothing changed.
