@@ -854,6 +854,9 @@ func (a *App) frame() string {
 		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
+	if c := a.commit; c != nil {
+		head += "  " + t.Decoration.Render(c.Author)
+	}
 	if a.gitDiff != nil {
 		cmd := diffCommand(a.diffArgs)
 		if a.cfg.Settings.Untracked {

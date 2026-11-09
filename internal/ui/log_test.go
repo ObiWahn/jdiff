@@ -496,8 +496,8 @@ func TestLogMessageBox(t *testing.T) {
 func TestLogFileListHeading(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "enter") // c3 has two files
-	if top := topLines(l, 3); top[0] != " c3 subject c3  +2 -2" || top[1] != "" || !strings.Contains(top[2], "a.go") {
-		t.Errorf("file list top lines %q, want hash, subject and counts, an empty line, then a.go", top)
+	if top := topLines(l, 3); top[0] != " c3 subject c3  +2 -2  T" || top[1] != "" || !strings.Contains(top[2], "a.go") {
+		t.Errorf("file list top lines %q, want hash, subject, counts and author, an empty line, then a.go", top)
 	}
 }
 
