@@ -824,6 +824,28 @@ func TestLogRelistFlowStaysOnCommit(t *testing.T) {
 	}
 }
 
+// r while the commits are listed starts no second listing, but runs it after
+// the first one, as for the files.
+func TestLogRelistWhileListing(t *testing.T) {
+	l, _ := newTestLog()
+	runs := 0
+	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) {
+		runs++
+		return "main", []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-24", Author: "T", Subject: "subject c1"}}, nil
+	})
+	_, first := l.Update(refreshMsg{})
+	if _, again := l.Update(refreshMsg{}); again != nil || runs != 0 {
+		t.Fatalf("r during the listing: command %v, runs %d; want none", again != nil, runs)
+	}
+	_, next := l.Update(first())
+	if runs != 1 || next == nil {
+		t.Fatalf("after the first listing: runs %d, next %v; want the second listing", runs, next != nil)
+	}
+	if _, last := l.Update(next()); runs != 2 || last != nil {
+		t.Errorf("after the second listing: runs %d, more %v", runs, last != nil)
+	}
+}
+
 func TestLogRelistFails(t *testing.T) {
 	l, _ := newTestLog()
 	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) { return "", nil, errors.New("git log: broken") })

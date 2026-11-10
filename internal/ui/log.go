@@ -53,18 +53,15 @@ type Log struct {
 	load   LoadFunc
 	// counts counts the lines of the commits shown, in the background; nil
 	// when the commits came counted or counting failed.
-	counts   CountFunc
-	relist   CommitsFunc             // lists the commits again, nil when they cannot be
-	counting bool                    // a count is running
-	byHash   map[string]*commitEntry // the commits by hash
-	minCount int                     // the least width of the count columns
-	cols     logColumns              // see measure
-	loadGen  int                     // counts the requests of requestCommit
-	pending  *commitRequest          // the commit loading, nil for none
-	// relisting is set while the commits are listed again in the
-	// background, again when they are to be listed once more after that,
-	// quietly with againQuiet (see relistCommits).
-	relisting, again, againQuiet bool
+	counts    CountFunc
+	relist    CommitsFunc             // lists the commits again, nil when they cannot be
+	counting  bool                    // a count is running
+	byHash    map[string]*commitEntry // the commits by hash
+	minCount  int                     // the least width of the count columns
+	cols      logColumns              // see measure
+	loadGen   int                     // counts the requests of requestCommit
+	pending   *commitRequest          // the commit loading, nil for none
+	relisting relistState             // of the commits, see relistCommits
 	// ctx ends the git commands of the log, cancel ends ctx, see stop.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -549,12 +546,9 @@ func (l *Log) relistCommits(quiet bool) tea.Cmd {
 		l.setMsg("nothing to load again")
 		return nil
 	}
-	if l.relisting {
-		l.againQuiet = quiet && (!l.again || l.againQuiet)
-		l.again = true
+	if !l.relisting.start(quiet) {
 		return nil
 	}
-	l.relisting = true
 	if !quiet {
 		l.setMsg("loading again…")
 	}
@@ -571,11 +565,9 @@ func (l *Log) relistCommits(quiet bool) tea.Cmd {
 // on its commit; when the commit shown is gone, the list is shown. It returns
 // the command listing them once more when that was asked for meanwhile.
 func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
-	l.relisting = false
 	var next tea.Cmd
-	if l.again {
-		l.again = false
-		next = l.relistCommits(l.againQuiet)
+	if again, quiet := l.relisting.done(); again {
+		next = l.relistCommits(quiet)
 	}
 	branch, commits, quiet := res.branch, res.commits, res.quiet
 	if res.err != nil {

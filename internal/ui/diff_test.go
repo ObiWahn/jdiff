@@ -1092,6 +1092,49 @@ func TestDiffRelistWhileListing(t *testing.T) {
 	}
 }
 
+// The listing asked for while one runs is quiet only when all that asked for
+// it asked quietly, and each listing after it starts the count anew.
+func TestRelistState(t *testing.T) {
+	for _, c := range []struct {
+		name               string
+		meanwhile          []bool // the quiet of each start while one runs
+		wantAgain, wantQui bool
+	}{
+		{"none", nil, false, false},
+		{"quiet", []bool{true}, true, true},
+		{"loud", []bool{false}, true, false},
+		{"quiet twice", []bool{true, true}, true, true},
+		{"quiet then loud", []bool{true, false}, true, false},
+		{"loud then quiet", []bool{false, true}, true, false},
+	} {
+		var r relistState
+		if !r.start(false) {
+			t.Fatalf("%s: the first start did not start", c.name)
+		}
+		for _, quiet := range c.meanwhile {
+			if r.start(quiet) {
+				t.Fatalf("%s: started while one runs", c.name)
+			}
+		}
+		if again, quiet := r.done(); again != c.wantAgain || again && quiet != c.wantQui {
+			t.Errorf("%s: done %v, %v; want %v, %v", c.name, again, quiet, c.wantAgain, c.wantQui)
+		}
+	}
+	// A loud request before the last listing does not make the next one loud.
+	var r relistState
+	r.start(false)
+	r.start(false)
+	r.done()
+	r.start(false) // the listing after it
+	r.start(true)
+	if again, quiet := r.done(); !again || !quiet {
+		t.Errorf("after a loud listing: done %v, %v; want a quiet one", again, quiet)
+	}
+	if r.start(true); !r.running {
+		t.Error("no start after done")
+	}
+}
+
 // esc while git diff runs, and a newer request, drop the files that come
 // late and end the git command.
 func TestDiffSwitchDropsLateDiff(t *testing.T) {

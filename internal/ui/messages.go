@@ -48,6 +48,34 @@ func refreshAll() tea.Msg { return refreshMsg{} }
 // nothingChanged is the message after loading again the same.
 const nothingChanged = "nothing changed"
 
+// relistState is the state of listing again in the background, which Diff
+// (its files) and Log (its commits) must keep the same way: while a listing
+// runs, another one is not started, but run once it is done, quietly only
+// when all that asked for it meanwhile asked quietly.
+type relistState struct {
+	running, again, againQuiet bool
+}
+
+// start returns whether a listing with quiet starts now; while one runs, it
+// notes the listing for after it instead.
+func (r *relistState) start(quiet bool) bool {
+	if r.running {
+		r.againQuiet = quiet && (!r.again || r.againQuiet)
+		r.again = true
+		return false
+	}
+	r.running = true
+	return true
+}
+
+// done ends the listing that ran. It returns whether another one was asked
+// for meanwhile, and whether quietly.
+func (r *relistState) done() (again, quiet bool) {
+	r.running = false
+	again, r.again = r.again, false
+	return again, r.againQuiet
+}
+
 // askAutoReloadMsg asks App to toggle auto reload.
 type askAutoReloadMsg struct{}
 

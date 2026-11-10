@@ -123,14 +123,11 @@ const fileListRows = 15
 // of the selected file and returns to the list on backspace. A single file
 // has its list too, as many do.
 type Diff struct {
-	cfg    *config.Config
-	commit *gitsrc.Commit // whose files are shown, nil outside the log
-	files  []*fileEntry
-	relist ListFunc // lists the files again, nil when they cannot be
-	// relisting is set while the files are listed again in the background,
-	// again when they are to be listed once more after that, quietly with
-	// againQuiet (see relistFiles).
-	relisting, again, againQuiet bool
+	cfg       *config.Config
+	commit    *gitsrc.Commit // whose files are shown, nil outside the log
+	files     []*fileEntry
+	relist    ListFunc    // lists the files again, nil when they cannot be
+	relisting relistState // of the files, see relistFiles
 	// ctx ends the git commands of the view, cancel ends ctx, see stop.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -413,12 +410,9 @@ func (d *Diff) relistFiles(quiet bool) tea.Cmd {
 		d.setMsg("nothing to load again")
 		return nil
 	}
-	if d.relisting {
-		d.againQuiet = quiet && (!d.again || d.againQuiet)
-		d.again = true
+	if !d.relisting.start(quiet) {
 		return nil
 	}
-	d.relisting = true
 	if !quiet {
 		d.setMsg("loading again…")
 	}
@@ -437,11 +431,9 @@ func (d *Diff) relistFiles(quiet bool) tea.Cmd {
 // watched anew; it returns the command waiting for their changes, and the
 // one listing them once more when that was asked for meanwhile.
 func (d *Diff) filesListed(res filesListedMsg) tea.Cmd {
-	d.relisting = false
 	var next tea.Cmd
-	if d.again {
-		d.again = false
-		next = d.relistFiles(d.againQuiet)
+	if again, quiet := d.relisting.done(); again {
+		next = d.relistFiles(quiet)
 	}
 	files, quiet := res.files, res.quiet
 	if res.err != nil {
