@@ -94,6 +94,16 @@ The package `watch` stands at the top level, beside `internal/`, so that other p
 import it: it uses nothing of jdiff and is meant to be used elsewhere. Keep it free of jdiff's
 packages, and do not move it under `internal/`.
 
+### The keys of the flow view and the diff view are shared only in part
+
+`Flow.key` and `FileDiff.key` handle nearly the same actions. Those that must work alike, the
+motions, quit, pane, half_page, scroll, change, search, match, set_mark and jump, are handled once,
+by `diffKey` (`messages.go`) on the interface `diffKeyView`. The rest stays in each view's own
+`switch`, as it differs: the flow view holds all files and commits and moves between them inside
+itself (`next_file`, `history`, `to_files`), the diff view of one file asks the view above it;
+anchors and folds go to the file under the cursor (`delegate`) or the one file (`act`); and the
+marks take different arguments. Do not move those into `diffKey`.
+
 ### inotify_max_dirs is applied twice to the shared watcher
 
 The views share one watcher, owned by `App` (`app.go`). A change of `inotify_max_dirs` in the

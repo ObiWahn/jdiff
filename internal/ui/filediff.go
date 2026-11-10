@@ -188,6 +188,10 @@ func (m *FileDiff) refresh(quiet bool) {
 }
 
 func (m *FileDiff) key(k string) tea.Cmd {
+	h := m.cfg.Keys.Key(keys.DiffView, k)
+	if m.replace != nil && h.Action != "anchor" && h.Action != "cancel_mark" {
+		m.replace = nil
+	}
 	m.msg = ""
 	if p := m.prefix; p != "" {
 		m.prefix = ""
@@ -200,35 +204,10 @@ func (m *FileDiff) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	h := m.cfg.Keys.Key(keys.DiffView, k)
-	if m.replace != nil && h.Action != "anchor" && h.Action != "cancel_mark" {
-		m.replace = nil
-	}
-
-	page := max(m.bodyHeight()-1, 1)
-	if delta, paging, ok := motion(h, page, len(m.screen)); ok {
-		if paging {
-			m.scroll(delta)
-		} else {
-			m.moveCursor(delta)
-		}
-		return nil
+	if cmd, ok := diffKey(m, h, max(m.bodyHeight()-1, 1), len(m.screen)); ok {
+		return cmd
 	}
 	switch h.Action {
-	case "quit":
-		return tea.Quit
-	case "pane":
-		m.active = m.active.other()
-	case "half_page":
-		m.scroll(halfPage(h, page))
-	case "scroll":
-		if h.Index == 0 {
-			m.xoff = max(m.xoff-scrollStep, 0)
-		} else {
-			m.xoff += scrollStep
-		}
-	case "change":
-		m.nextChange(direction(h.Index == 0))
 	case "next_file":
 		if m.canBack {
 			dir := switchFileMsg(direction(h.Index == 0))
@@ -238,10 +217,6 @@ func (m *FileDiff) key(k string) tea.Cmd {
 		if m.commitNav {
 			return switchCommit(h)
 		}
-	case "search":
-		return askSearch
-	case "match":
-		m.findText(direction(h.Index == 0))
 	case "flow":
 		if m.canBack {
 			return toggleFlow
@@ -250,15 +225,16 @@ func (m *FileDiff) key(k string) tea.Cmd {
 		m.act(h.Action)
 	case "moved":
 		return m.jump()
-	case "set_mark":
-		m.prefix, m.msg = h.Action, setMarkPrompt
-	case "jump":
-		m.prefix, m.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(m.cfg.Keys, h, false)
 	}
 	return nil
 }
+
+// scrollSideways, switchPane and askLetter act for diffKey.
+func (m *FileDiff) scrollSideways(cols int)      { m.xoff = max(m.xoff+cols, 0) }
+func (m *FileDiff) switchPane()                  { m.active = m.active.other() }
+func (m *FileDiff) askLetter(action, msg string) { m.prefix, m.msg = action, msg }
 
 // gotoMark moves the cursor to the line of mark letter, at screen row
 // screenRow. A mark in another file of the diff is shown by the file

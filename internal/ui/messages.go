@@ -264,6 +264,58 @@ func motion(h keys.Hit, page, far int) (delta int, paging, ok bool) {
 	return 0, false, false
 }
 
+// diffKeyView is what the keys that work alike in the diff view and the flow
+// view act on, see diffKey.
+type diffKeyView interface {
+	moveCursor(delta int)
+	scroll(delta int)        // up and down, the window along
+	scrollSideways(cols int) // the lines, not before their start
+	switchPane()
+	nextChange(dir int)
+	findText(dir int)
+	askLetter(action, msg string) // the prefix and its message, until the mark's letter
+}
+
+// diffKey handles the keys that must work alike in the diff view and the
+// flow view, and reports whether h was one of them: motion, quit, pane,
+// half_page, scroll, change, search, match, set_mark and jump. page is the
+// paging step, far the move to the first or last row. Moving between files
+// and commits, anchors, folds and moved lines differ, and stay with each
+// view.
+func diffKey(v diffKeyView, h keys.Hit, page, far int) (tea.Cmd, bool) {
+	if delta, paging, ok := motion(h, page, far); ok {
+		if paging {
+			v.scroll(delta)
+		} else {
+			v.moveCursor(delta)
+		}
+		return nil, true
+	}
+	switch h.Action {
+	case "quit":
+		return tea.Quit, true
+	case "pane":
+		v.switchPane()
+	case "half_page":
+		v.scroll(halfPage(h, page))
+	case "scroll":
+		v.scrollSideways(direction(h.Index == 1) * scrollStep)
+	case "change":
+		v.nextChange(direction(h.Index == 0))
+	case "search":
+		return askSearch, true
+	case "match":
+		v.findText(direction(h.Index == 0))
+	case "set_mark":
+		v.askLetter(h.Action, setMarkPrompt)
+	case "jump":
+		v.askLetter(h.Action, jumpPrompt)
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
 // scrollStep is how many columns the scroll keys move the lines sideways,
 // in the diff view and the flow view alike.
 const scrollStep = 8

@@ -175,34 +175,14 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 		return nil
 	}
-	page := max(f.bodyHeight()-1, 1)
-	if delta, paging, ok := motion(h, page, far); ok {
-		if paging {
-			f.scroll(delta)
-		} else {
-			f.moveCursor(delta)
-		}
-		return nil
+	if cmd, ok := diffKey(f, h, max(f.bodyHeight()-1, 1), far); ok {
+		return cmd
 	}
 	switch h.Action {
-	case "quit":
-		return tea.Quit
 	case "flow":
 		return toggleFlow
 	case "to_files":
 		return func() tea.Msg { return backMsg{} }
-	case "pane":
-		f.active = f.active.other()
-	case "half_page":
-		f.scroll(halfPage(h, page))
-	case "scroll":
-		if h.Index == 0 {
-			f.xoff = max(f.xoff-scrollStep, 0)
-		} else {
-			f.xoff += scrollStep
-		}
-	case "change":
-		f.nextChange(direction(h.Index == 0))
 	case "next_file":
 		f.nextFile(direction(h.Index == 0))
 	case "history":
@@ -217,21 +197,18 @@ func (f *Flow) key(k string) tea.Cmd {
 		}
 	case "anchor", "cancel_mark", "fold", "fold_all":
 		f.delegate(h.Action)
-	case "search":
-		return askSearch
-	case "match":
-		f.findText(direction(h.Index == 0))
 	case "moved":
 		f.jump()
-	case "set_mark":
-		f.prefix, f.msg = h.Action, setMarkPrompt
-	case "jump":
-		f.prefix, f.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(f.cfg.Keys, h, f.inLog())
 	}
 	return nil
 }
+
+// scrollSideways, switchPane and askLetter act for diffKey.
+func (f *Flow) scrollSideways(cols int)      { f.xoff = max(f.xoff+cols, 0) }
+func (f *Flow) switchPane()                  { f.active = f.active.other() }
+func (f *Flow) askLetter(action, msg string) { f.prefix, f.msg = action, msg }
 
 // delegate runs an anchor or fold action on the diff of the file under the
 // cursor.
