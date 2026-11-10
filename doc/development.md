@@ -121,3 +121,19 @@ Both are needed:
 The second call changes no watch: with the limit unchanged, `Watcher.apply` finds the directories
 it keeps already watched. Moving it into one place would mean routing the popup's messages through
 `App` or giving every view a `diskWatch`.
+
+### Long functions and near-copies left as they are
+
+- `diff.FindMoves` is one function of about 140 lines with closures: they share the index of the
+  added lines and the lines already in a block, so the algorithm reads top to bottom. Should it
+  grow, a struct holding that state is the way to split it.
+- `theme.Resolve` lists the options one per line, in the order of `Theme`; a new option is one more
+  line. Its helpers are the methods of `resolver`.
+- `Diff.frame` and `Log.frame` share what they draw alike: `list.render`, `counts`, `pad`,
+  `statusKeys` and `pageStatus`. What is left in each, the head, a row and the box below, shows
+  different data.
+- The three `findText` of the diff view, the flow view and the readme share their messages
+  (`nothingSearched`, `noMatch`, `noFurther`, `searchMsg`) and the choice of the next hit
+  (`nextHit`). The hits, the cursor's position and the jump differ in each. One helper for the
+  steps from no match to the message would take the query, the direction, the number of hits, a
+  compare function and two texts for where, to save about eight lines a view.

@@ -37,7 +37,10 @@ const maxCommonStarts = 64
 // without surrounding whitespace, as Align matches them. Lines of an Equal
 // row are neither removed nor added, and the two lines of a Change row are a
 // change in place, not a move. Blocks are taken in file and line order, the
-// longest at each line first; each line belongs to at most one block.
+// longest at each line first; each line belongs to at most one block. It is
+// one function on purpose: its closures share the index of the added lines
+// and the lines already in a block, so it reads top to bottom; should it
+// grow, a struct holding that state is the way to split it.
 func FindMoves(files []MoveInput) Moves {
 	type side struct {
 		row  map[int]int // line -> row, for removed or added lines only
