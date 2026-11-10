@@ -459,8 +459,14 @@ func TestReadmeSweep(t *testing.T) {
 		t.Run(fmt.Sprint(w), func(t *testing.T) {
 			t.Parallel()
 			for page := range pages {
+				// Rendered once for the width, with the anchors of the pages
+				// it links to: the height changes no line, and a copy starts
+				// on the first line as a new one.
+				base := NewReadme(config.Default(), docs, pages, page)
+				base.Update(tea.WindowSizeMsg{Width: w, Height: minHeight})
 				for h := minHeight; h <= 40; h++ {
-					r := NewReadme(config.Default(), docs, pages, page)
+					r := new(Readme)
+					*r = *base
 					r.Update(tea.WindowSizeMsg{Width: w, Height: h})
 					pressRoot(r, "pgdown", "tab")
 					rows := strings.Split(r.frame(), "\n")
