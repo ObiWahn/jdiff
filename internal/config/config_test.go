@@ -371,69 +371,35 @@ func TestWatchIgnore(t *testing.T) {
 	}
 }
 
-func TestLineEnd(t *testing.T) {
+// TestSymbols checks the symbols of main.toml that must be one column wide:
+// a wrong one warns and falls back to its default.
+func TestSymbols(t *testing.T) {
+	type symbols struct{ lineEnd, crEnd, extends, precedes string }
+	def := symbols{"¶", "␍", "»", "«"}
 	for _, tt := range []struct {
 		main    string
-		want    string
+		want    symbols
 		warning string
 	}{
-		{"", "¶", ""},
-		{`line_end = "¬"`, "¬", ""},
-		{`line_end = "$"`, "$", ""},
-		{`line_end = "ab"`, "¶", `line_end "ab" is not one column wide`},
-		{`line_end = ""`, "¶", `line_end "" is not one column wide`},
-	} {
-		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if w := c.Warning(); c.Settings.LineEnd != tt.want || (tt.warning == "") != (w == "") ||
-			!strings.Contains(w, tt.warning) {
-			t.Errorf("%q: line end %q, warning %q; want %q and %q", tt.main, c.Settings.LineEnd, w, tt.want, tt.warning)
-		}
-	}
-}
-
-func TestCREnd(t *testing.T) {
-	for _, tt := range []struct {
-		main    string
-		want    string
-		warning string
-	}{
-		{"", "␍", ""},
-		{`cr_end = "←"`, "←", ""},
-		{`cr_end = "^M"`, "␍", `cr_end "^M" is not one column wide`},
-	} {
-		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if w := c.Warning(); c.Settings.CREnd != tt.want || (tt.warning == "") != (w == "") ||
-			!strings.Contains(w, tt.warning) {
-			t.Errorf("%q: cr end %q, warning %q; want %q and %q", tt.main, c.Settings.CREnd, w, tt.want, tt.warning)
-		}
-	}
-}
-
-func TestCutMarkers(t *testing.T) {
-	for _, tt := range []struct {
-		main              string
-		extends, precedes string
-		warning           string
-	}{
-		{"", "»", "«", ""},
-		{"extends = \">\"\nprecedes = \"<\"", ">", "<", ""},
-		{`extends = ">>"`, "»", "«", `extends ">>" is not one column wide`},
-		{`precedes = ""`, "»", "«", `precedes "" is not one column wide`},
+		{"", def, ""},
+		{`line_end = "¬"`, symbols{"¬", "␍", "»", "«"}, ""},
+		{`line_end = "$"`, symbols{"$", "␍", "»", "«"}, ""},
+		{`line_end = "ab"`, def, `line_end "ab" is not one column wide`},
+		{`line_end = ""`, def, `line_end "" is not one column wide`},
+		{`cr_end = "←"`, symbols{"¶", "←", "»", "«"}, ""},
+		{`cr_end = "^M"`, def, `cr_end "^M" is not one column wide`},
+		{"extends = \">\"\nprecedes = \"<\"", symbols{"¶", "␍", ">", "<"}, ""},
+		{`extends = ">>"`, def, `extends ">>" is not one column wide`},
+		{`precedes = ""`, def, `precedes "" is not one column wide`},
 	} {
 		c, err := Load(writeFiles(t, map[string]string{"main.toml": tt.main}), nil, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		st := c.Settings
-		if w := c.Warning(); st.Extends != tt.extends || st.Precedes != tt.precedes || (tt.warning == "") != (w == "") ||
-			!strings.Contains(w, tt.warning) {
-			t.Errorf("%q: extends %q precedes %q, warning %q", tt.main, st.Extends, st.Precedes, w)
+		got := symbols{st.LineEnd, st.CREnd, st.Extends, st.Precedes}
+		if w := c.Warning(); got != tt.want || (tt.warning == "") != (w == "") || !strings.Contains(w, tt.warning) {
+			t.Errorf("%q: %q, warning %q; want %q and %q", tt.main, got, w, tt.want, tt.warning)
 		}
 	}
 }

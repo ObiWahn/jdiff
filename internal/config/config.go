@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -138,24 +137,7 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			return nil, err
 		}
 		c.Settings, ignore = m.Settings, m.WatchIgnore
-		if iv := c.Settings.WatchInterval; iv < 0 {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
-			c.Settings.WatchInterval = 0
-		}
-		// Shorter checks keep a core busy; longer ones overflow the
-		// durations they become.
-		if iv := c.Settings.WatchInterval; iv > 0 && iv < minInterval {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is below %v, %v is used", iv, minInterval, minInterval))
-			c.Settings.WatchInterval = minInterval
-		}
-		if iv := c.Settings.WatchInterval; iv > maxInterval {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is above %d, %d is used", iv, maxInterval, maxInterval))
-			c.Settings.WatchInterval = maxInterval
-		}
-		if iv := c.Settings.AutoReloadInterval; iv > maxInterval {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
-			c.Settings.AutoReloadInterval = maxInterval
-		}
+		c.checkIntervals()
 		// Lines are cut and wrapped by columns: the symbols take one.
 		def := settings.Default()
 		for _, sym := range []struct {
@@ -182,6 +164,8 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			return nil, err
 		}
 		c.Settings.Toggles = state.Toggles
+		// inotify_max_dirs is a toggle: it may come from main.toml or
+		// state.toml, so the warning names neither.
 		if n := c.Settings.InotifyMaxDirs; n < 0 {
 			c.warnings = append(c.warnings, fmt.Sprintf("inotify_max_dirs %d is negative, it is off", n))
 			c.Settings.InotifyMaxDirs = 0
@@ -198,6 +182,29 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 	c.Theme = theme.Resolve(c.selectTheme(name, dir))
 	c.compileWatchIgnore(ignore)
 	return c, nil
+}
+
+// checkIntervals clamps watch_interval and auto_reload_interval of main.toml
+// to what works, with a warning for each.
+func (c *Config) checkIntervals() {
+	if iv := c.Settings.WatchInterval; iv < 0 {
+		c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
+		c.Settings.WatchInterval = 0
+	}
+	// Shorter checks keep a core busy; longer ones overflow the
+	// durations they become.
+	if iv := c.Settings.WatchInterval; iv > 0 && iv < minInterval {
+		c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is below %v, %v is used", iv, minInterval, minInterval))
+		c.Settings.WatchInterval = minInterval
+	}
+	if iv := c.Settings.WatchInterval; iv > maxInterval {
+		c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is above %d, %d is used", iv, maxInterval, maxInterval))
+		c.Settings.WatchInterval = maxInterval
+	}
+	if iv := c.Settings.AutoReloadInterval; iv > maxInterval {
+		c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
+		c.Settings.AutoReloadInterval = maxInterval
+	}
 }
 
 // compileWatchIgnore compiles exprs, watch_ignore, for WatchIgnored; one that
@@ -293,7 +300,7 @@ func (c *Config) decode(path string, v any) error {
 // unknown reports the unknown keys of the file path.
 func (c *Config) unknown(path string, keys []string) {
 	if len(keys) > 0 {
-		sort.Strings(keys)
+		slices.Sort(keys)
 		c.warnings = append(c.warnings, fmt.Sprintf("%s: unknown %s", filepath.Base(path), strings.Join(keys, ", ")))
 	}
 }
@@ -338,10 +345,6 @@ func writeTOML(path, header string, v any) error {
 // Dir returns the configuration directory the files were read from, "" for
 // none.
 func (c *Config) Dir() string { return c.dir }
-
-// AddWarning adds a problem with a file that another package reads from the
-// configuration directory, for Warning.
-func (c *Config) AddWarning(w string) { c.warnings = append(c.warnings, w) }
 
 // Warning returns the problems with the theme and the files, or "".
 func (c *Config) Warning() string {

@@ -17,7 +17,7 @@ func write(t *testing.T, path, content string) {
 	}
 }
 
-func TestReadLines(t *testing.T) {
+func TestReadSplits(t *testing.T) {
 	dir := t.TempDir()
 	tests := []struct {
 		content string
@@ -34,9 +34,9 @@ func TestReadLines(t *testing.T) {
 	for _, tt := range tests {
 		p := filepath.Join(dir, "f")
 		write(t, p, tt.content)
-		got, err := ReadLines(p)
+		got, _, err := Read(p)
 		if err != nil || !slices.Equal(got, tt.want) {
-			t.Errorf("ReadLines(%q) = %q, %v, want %q", tt.content, got, err, tt.want)
+			t.Errorf("Read(%q) = %q, %v, want %q", tt.content, got, err, tt.want)
 		}
 	}
 }

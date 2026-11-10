@@ -271,9 +271,8 @@ func (l *Log) key(k string) tea.Cmd {
 	case "open":
 		if l.cfg.Settings.Flow {
 			return l.showFlow(-1, nil)
-		} else {
-			return l.requestCommit(l.cursor, "")
 		}
+		return l.requestCommit(l.cursor, "")
 	case "flow":
 		return toggleFlow
 	case "history":

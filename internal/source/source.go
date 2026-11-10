@@ -52,15 +52,10 @@ func (f File) PathInOld() string {
 	return f.Path
 }
 
-// ReadLines reads a text file into lines without their newlines; the \r of
-// a \r\n line end is kept, so that changed line ends show.
-func ReadLines(path string) ([]string, error) {
-	lines, _, err := Read(path)
-	return lines, err
-}
-
-// Read reads a text file like ReadLines and returns the stamp of the version
-// read. The stamp is taken first, so a change while reading shows later.
+// Read reads a text file into lines without their newlines, and returns the
+// stamp of the version read; the \r of a \r\n line end is kept, so that
+// changed line ends show. The stamp is taken first, so a change while
+// reading shows later.
 func Read(path string) ([]string, Stamp, error) {
 	st, err := StampOf(path)
 	if err != nil {

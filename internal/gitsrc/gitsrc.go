@@ -422,14 +422,16 @@ func (r Repo) Files(c Commit) ([]source.File, error) {
 	n := 0
 	for i := range files {
 		f := &files[i]
+		var binOld, binNew bool
 		if f.InOld {
-			f.Old, f.Binary = lines(blobs[n], f.Binary)
+			f.Old, binOld = lines(blobs[n])
 			n++
 		}
 		if f.InNew {
-			f.New, f.Binary = lines(blobs[n], f.Binary)
+			f.New, binNew = lines(blobs[n])
 			n++
 		}
+		f.Binary = f.Binary || binOld || binNew
 	}
 	return files, nil
 }
@@ -634,7 +636,7 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 			var content []string
 			binary := false
 			if side.blob >= 0 {
-				content, binary = lines(blobs[side.blob], false)
+				content, binary = lines(blobs[side.blob])
 			} else {
 				path := filepath.Join(top, filepath.FromSlash(side.path))
 				w := readWorking(path)
@@ -700,12 +702,12 @@ func readWorking(path string) workingSide {
 
 // lines splits a blob, reporting missing blobs (e.g. submodules) and
 // binary content as binary.
-func lines(b blob, binary bool) ([]string, bool) {
+func lines(b blob) ([]string, bool) {
 	if b.missing {
 		return nil, true
 	}
 	l, err := source.SplitLines(b.data)
-	return l, binary || errors.Is(err, source.ErrBinary)
+	return l, errors.Is(err, source.ErrBinary)
 }
 
 type blob struct {

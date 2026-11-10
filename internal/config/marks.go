@@ -1,11 +1,12 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 )
@@ -62,7 +63,7 @@ func (c *Config) Marks() []LetterMark {
 	for letter, m := range c.marks.all[c.marks.repo] {
 		out = append(out, LetterMark{letter, m})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Letter < out[j].Letter })
+	slices.SortFunc(out, func(a, b LetterMark) int { return cmp.Compare(a.Letter, b.Letter) })
 	return out
 }
 
