@@ -29,7 +29,8 @@ func symlink(t *testing.T, target, link string) {
 }
 
 // fake is a backend in memory: tests say which directories are missing and
-// send its events.
+// send its events. It keeps directories with forward slashes, so that tests
+// name them as on Unix also on Windows, where the watcher cleans /a to \a.
 type fake struct {
 	mu      sync.Mutex
 	next    int
@@ -44,6 +45,7 @@ func newFake() *fake {
 }
 
 func (f *fake) add(dir string) (int, error) {
+	dir = filepath.ToSlash(dir)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.missing[dir] {
@@ -108,6 +110,23 @@ func newFakeWatcher(t *testing.T, limit int) (*Watcher, *fake) {
 	return w, f
 }
 
+// changes returns the next paths w reports, with forward slashes as the
+// fake's, failing the test if none come in time: an event the watcher does
+// not take would block the test until the run's timeout.
+func changes(t *testing.T, w *Watcher) []string {
+	t.Helper()
+	select {
+	case paths := <-w.Changes():
+		for i, p := range paths {
+			paths[i] = filepath.ToSlash(p)
+		}
+		return paths
+	case <-time.After(5 * time.Second):
+		t.Fatal("no change reported")
+		return nil
+	}
+}
+
 // at returns the time of second s, before the fake clock's first use.
 func at(s int) time.Time { return time.Unix(int64(s), 0) }
 
@@ -148,7 +167,7 @@ func TestEventCountsAsUse(t *testing.T) {
 	w.SetDirs(map[string]time.Time{"/a": at(1), "/b": at(2), "/c": at(3)})
 	check(t, f, "/b", "/c")
 	f.ch <- event{id: f.id("/b"), name: "x"}
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/b/x"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/b/x"}) {
 		t.Errorf("reported %v, want [/b/x]", got)
 	}
 	w.Touch([]string{"/a/x"})
@@ -171,7 +190,7 @@ func TestPinnedStay(t *testing.T) {
 	// Pinned files are reported by their names only.
 	f.ch <- event{id: f.id("/git"), name: "objects"}
 	f.ch <- event{id: f.id("/git"), name: "HEAD"}
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/git/HEAD"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/git/HEAD"}) {
 		t.Errorf("reported %v, want [/git/HEAD]", got)
 	}
 }
@@ -233,18 +252,18 @@ func TestReports(t *testing.T) {
 		{"/f", "other", []string{"/f/other"}},
 	} {
 		f.ch <- event{id: f.id(c.dir), name: c.name}
-		if got := <-w.Changes(); !slices.Equal(got, c.want) {
+		if got := changes(t, w); !slices.Equal(got, c.want) {
 			t.Errorf("%s/%s: reported %v, want %v", c.dir, c.name, got, c.want)
 		}
 	}
 	w.SetDirs(map[string]time.Time{"/d": at(1)})
 	f.ch <- event{id: f.id("/f"), name: "other"}
 	f.ch <- event{id: f.id("/f"), name: "x"}
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/f/x"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/f/x"}) {
 		t.Errorf("after SetDirs without /f: reported %v, want [/f/x]", got)
 	}
 	f.ch <- event{overflow: true}
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/d", "/f/x"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/d", "/f/x"}) {
 		t.Errorf("overflow: reported %v, want all, [/d /f/x]", got)
 	}
 }
@@ -258,14 +277,14 @@ func TestDirectoryGone(t *testing.T) {
 	w.Touch([]string{"/f/x"})
 	check(t, f, "/d", "/f")
 	f.ch <- f.gone("/f")
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/f/x"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/f/x"}) {
 		t.Errorf("replaced: reported %v, want [/f/x]", got)
 	}
 	check(t, f, "/d", "/f")
 
 	f.missing["/d"] = true
 	f.ch <- f.gone("/d")
-	if got := <-w.Changes(); !slices.Equal(got, []string{"/d"}) {
+	if got := changes(t, w); !slices.Equal(got, []string{"/d"}) {
 		t.Errorf("removed: reported %v, want [/d]", got)
 	}
 	check(t, f, "/e", "/f")
