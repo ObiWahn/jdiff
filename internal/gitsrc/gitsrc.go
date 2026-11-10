@@ -385,55 +385,15 @@ func field(line string, n int) string {
 }
 
 // Files returns the files c changed against its first parent, or against
-// the empty tree for a root commit, with their contents.
+// the empty tree for a root commit, with their contents: what Diff returns
+// for the two commits, but without asking for the top of the working tree,
+// as two commits have no side in it and a bare repository has none.
 func (r Repo) Files(c Commit) ([]source.File, error) {
 	base := c.Parent
 	if base == "" {
 		base = emptyTree
 	}
-	// Paths relative to the top, also with diff.relative set.
-	out, err := r.git("diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M", base, c.Hash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Blobs are requested by object id, not by "rev:path": git cat-file
-	// reads one request per line, and paths may hold newlines.
-	entries, err := parseRaw(out)
-	if err != nil {
-		return nil, err
-	}
-	var files []source.File
-	var specs []string // blob requests for git cat-file, of the sides there are
-	for _, e := range entries {
-		if e.file.InOld {
-			specs = append(specs, e.oldID)
-		}
-		if e.file.InNew {
-			specs = append(specs, e.newID)
-		}
-		files = append(files, e.file)
-	}
-
-	blobs, err := r.catFiles(specs)
-	if err != nil {
-		return nil, err
-	}
-	n := 0
-	for i := range files {
-		f := &files[i]
-		var binOld, binNew bool
-		if f.InOld {
-			f.Old, binOld = lines(blobs[n])
-			n++
-		}
-		if f.InNew {
-			f.New, binNew = lines(blobs[n])
-			n++
-		}
-		f.Binary = f.Binary || binOld || binNew
-	}
-	return files, nil
+	return r.diffFiles(nil, "", []string{base, c.Hash})
 }
 
 // rawEntry is a file in the output of git diff --raw -z, without its content,
@@ -444,8 +404,7 @@ type rawEntry struct {
 }
 
 // parseRaw parses the output of git diff --raw -z. Unmerged files are left
-// out. Files and diff share only this: diff needs a working tree, which git
-// log does not.
+// out.
 func parseRaw(out []byte) ([]rawEntry, error) {
 	var entries []rawEntry
 	tokens := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
@@ -579,6 +538,15 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	return r.diffFiles(env, top, args)
+}
+
+// diffFiles returns the files git diff compares with args, with env added to
+// its environment. Sides git names by the zero id are read from the working
+// tree at top; Files passes none, as two commits have no such sides. Blobs
+// are requested by object id, not by "rev:path": git cat-file reads one
+// request per line, and paths may hold newlines.
+func (r Repo) diffFiles(env []string, top string, args []string) ([]source.File, error) {
 	// Paths relative to the top, also with diff.relative set.
 	out, err := r.run(env, nil, append([]string{"diff", "--no-ext-diff", "--no-relative", "--raw", "-z", "--no-abbrev", "-M"},
 		args...)...)

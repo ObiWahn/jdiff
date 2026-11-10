@@ -329,6 +329,25 @@ func TestFiles(t *testing.T) {
 	}
 }
 
+// A bare repository has no working tree, which Files must not ask for.
+func TestFilesBare(t *testing.T) {
+	r := newRepo(t)
+	bare := filepath.Join(t.TempDir(), "bare.git")
+	gitIn(t, r.Dir, "clone", "-q", "--bare", r.Dir, bare)
+	b := Repo{Dir: bare}
+	commits, err := b.Log([]string{"--first-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := b.Files(commits[len(commits)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 || files[0].Path != "a.txt" || !slices.Equal(files[0].New, []string{"one", "two"}) {
+		t.Errorf("root files = %+v", files)
+	}
+}
+
 func TestBranch(t *testing.T) {
 	r := newRepo(t)
 	if b := r.Branch(); b != "main" {
