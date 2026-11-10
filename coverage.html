@@ -107,7 +107,7 @@
 				
 				<option value="file25">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file26">jdiff/internal/ui/readme.go (96.4%)</option>
+				<option value="file26">jdiff/internal/ui/readme.go (96.8%)</option>
 				
 				<option value="file27">jdiff/internal/ui/search.go (98.0%)</option>
 				
@@ -9354,7 +9354,7 @@ func (r *Readme) bodyHeight() int { <span class="cov8" title="1">return max(r.he
 // render renders the page for the width of the screen, unless it is already.
 func (r *Readme) render() {
         <span class="cov8" title="1">if r.forWidth == r.textWidth() </span>{
-                <span class="cov0" title="0">return
+                <span class="cov8" title="1">return
 </span>        }
         <span class="cov8" title="1">src, err := fs.ReadFile(r.docs, r.page)
         if err != nil </span>{

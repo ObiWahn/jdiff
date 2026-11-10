@@ -443,7 +443,7 @@ jdiff/internal/ui/readme.go:54:			Init			0.0%
 jdiff/internal/ui/readme.go:56:			Update			100.0%
 jdiff/internal/ui/readme.go:71:			textWidth		100.0%
 jdiff/internal/ui/readme.go:75:			bodyHeight		100.0%
-jdiff/internal/ui/readme.go:78:			render			85.7%
+jdiff/internal/ui/readme.go:78:			render			92.9%
 jdiff/internal/ui/readme.go:101:		show			100.0%
 jdiff/internal/ui/readme.go:109:		scrollTo		100.0%
 jdiff/internal/ui/readme.go:115:		moveTo			100.0%
