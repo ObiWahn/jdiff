@@ -1,15 +1,15 @@
 {
-    "version": "0.0.5",
+    "version": "0.0.6",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/ObiWahn/jdiff/releases/download/v0.0.5/jdiff-v0.0.5-windows-amd64.zip",
+            "url": "https://github.com/ObiWahn/jdiff/releases/download/v0.0.6/jdiff-v0.0.6-windows-amd64.zip",
             "bin": [
                 "jdiff.exe"
             ],
-            "hash": "d948d80124e838e28c88008657cf825a8577cf8e0931e4506017a17dc1e2c0b5"
+            "hash": "016bdea9d76ca15657ff859abd73bd690b7ab86bb7569367ec62d5d0062b73f3"
         }
     },
     "homepage": "https://github.com/ObiWahn/jdiff",
     "license": "MIT",
-    "description": "Interactive terminal diff viewer with manual line alignment"
+    "description": "Interactive terminal diff viewer with manual line alignment that follows your edits"
 }
