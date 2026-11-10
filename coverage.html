@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (94.0%)</option>
+				<option value="file0">jdiff/internal/config/config.go (94.5%)</option>
 				
 				<option value="file1">jdiff/internal/config/marks.go (97.2%)</option>
 				
@@ -67,59 +67,59 @@
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (91.4%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (92.0%)</option>
 				
 				<option value="file7">jdiff/internal/keys/keys.go (97.7%)</option>
 				
-				<option value="file8">jdiff/internal/notify/notify.go (100.0%)</option>
+				<option value="file8">jdiff/internal/settings/settings.go (100.0%)</option>
 				
-				<option value="file9">jdiff/internal/notify/notify_linux.go (90.6%)</option>
+				<option value="file9">jdiff/internal/source/source.go (89.7%)</option>
 				
-				<option value="file10">jdiff/internal/settings/settings.go (100.0%)</option>
+				<option value="file10">jdiff/internal/theme/config.go (100.0%)</option>
 				
-				<option value="file11">jdiff/internal/source/source.go (89.7%)</option>
+				<option value="file11">jdiff/internal/theme/spec.go (100.0%)</option>
 				
-				<option value="file12">jdiff/internal/theme/config.go (100.0%)</option>
+				<option value="file12">jdiff/internal/theme/style.go (100.0%)</option>
 				
-				<option value="file13">jdiff/internal/theme/spec.go (100.0%)</option>
+				<option value="file13">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file14">jdiff/internal/theme/style.go (100.0%)</option>
+				<option value="file14">jdiff/internal/ui/app.go (96.0%)</option>
 				
-				<option value="file15">jdiff/internal/theme/theme.go (100.0%)</option>
+				<option value="file15">jdiff/internal/ui/doc.go (96.4%)</option>
 				
-				<option value="file16">jdiff/internal/ui/app.go (95.2%)</option>
+				<option value="file16">jdiff/internal/ui/filediff.go (95.7%)</option>
 				
-				<option value="file17">jdiff/internal/ui/doc.go (96.4%)</option>
+				<option value="file17">jdiff/internal/ui/flow.go (93.6%)</option>
 				
-				<option value="file18">jdiff/internal/ui/filediff.go (95.7%)</option>
+				<option value="file18">jdiff/internal/ui/help.go (98.9%)</option>
 				
-				<option value="file19">jdiff/internal/ui/flow.go (93.6%)</option>
+				<option value="file19">jdiff/internal/ui/log.go (94.0%)</option>
 				
-				<option value="file20">jdiff/internal/ui/help.go (98.9%)</option>
+				<option value="file20">jdiff/internal/ui/markdown.go (96.5%)</option>
 				
-				<option value="file21">jdiff/internal/ui/log.go (94.0%)</option>
+				<option value="file21">jdiff/internal/ui/marks.go (96.2%)</option>
 				
-				<option value="file22">jdiff/internal/ui/markdown.go (96.5%)</option>
+				<option value="file22">jdiff/internal/ui/messages.go (100.0%)</option>
 				
-				<option value="file23">jdiff/internal/ui/marks.go (96.2%)</option>
+				<option value="file23">jdiff/internal/ui/model.go (89.6%)</option>
 				
-				<option value="file24">jdiff/internal/ui/messages.go (100.0%)</option>
+				<option value="file24">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file25">jdiff/internal/ui/model.go (92.8%)</option>
+				<option value="file25">jdiff/internal/ui/search.go (98.0%)</option>
 				
-				<option value="file26">jdiff/internal/ui/moved.go (100.0%)</option>
+				<option value="file26">jdiff/internal/ui/settings.go (99.3%)</option>
 				
-				<option value="file27">jdiff/internal/ui/search.go (98.0%)</option>
+				<option value="file27">jdiff/internal/ui/view.go (99.3%)</option>
 				
-				<option value="file28">jdiff/internal/ui/settings.go (99.3%)</option>
+				<option value="file28">jdiff/internal/ui/watch.go (87.4%)</option>
 				
-				<option value="file29">jdiff/internal/ui/view.go (99.3%)</option>
+				<option value="file29">jdiff/internal/ui/widgets.go (96.3%)</option>
 				
-				<option value="file30">jdiff/internal/ui/watch.go (91.3%)</option>
+				<option value="file30">jdiff/main.go (79.5%)</option>
 				
-				<option value="file31">jdiff/internal/ui/widgets.go (97.0%)</option>
+				<option value="file31">jdiff/watch/backend_linux.go (91.2%)</option>
 				
-				<option value="file32">jdiff/main.go (79.5%)</option>
+				<option value="file32">jdiff/watch/watch.go (95.3%)</option>
 				
 				</select>
 			</div>
@@ -151,6 +151,7 @@ import (
         "io/fs"
         "os"
         "path/filepath"
+        "regexp"
         "slices"
         "sort"
         "strings"
@@ -176,6 +177,8 @@ type Config struct {
         statePath string   // where SaveState writes, empty for no state file
 
         marks marksState // jump marks, see LoadMarks
+
+        watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
 
         // AutoReload is whether what is shown is loaded again when the repository
         // changes; R toggles it. It is not saved, so it is off at each start, as
@@ -208,7 +211,9 @@ func (s *Search) Add(q Query) {
 
 // Default returns the default theme and settings, without files.
 func Default() *Config {
-        <span class="cov8" title="1">return &amp;Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
+        <span class="cov8" title="1">c := &amp;Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
+        c.compileWatchIgnore(DefaultWatchIgnore)
+        return c
 </span>}
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
@@ -231,11 +236,23 @@ const (
         maxInterval = 86400
 )
 
-// mainFile is the content of main.toml.
+// mainFile is the content of main.toml. WatchIgnore is not one of the
+// settings, which views compare as a whole.
 type mainFile struct {
         settings.Settings
         Theme string `toml:"theme"`
+        // WatchIgnore (watch_ignore) are regular expressions of paths from the
+        // top of the working tree, with / and directories with a / at the end:
+        // while auto reload watches the working tree, a change of a file that
+        // one matches does not run git status, and a directory that one matches
+        // is not watched, nor those below it. See WatchIgnored.
+        WatchIgnore []string `toml:"watch_ignore"`
 }
+
+// DefaultWatchIgnore is watch_ignore by default: editors' files beside the
+// one saved, Vim's swap files, backups and the file it tries writing (4913),
+// Emacs' locks and autosaves.
+var DefaultWatchIgnore = []string{`\.sw[a-px]$`, `~$`, `(^|/)\.#`, `(^|/)#[^/]*#$`, `(^|/)4913$`, `\.tmp$`}
 
 // Load reads the files in dir over the default settings and selects the
 // theme. The themes are jdiff's defaults ("default"), delta's git config
@@ -247,15 +264,15 @@ type mainFile struct {
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
         <span class="cov8" title="1">c := &amp;Config{Keys: keys.Builtin(), Settings: settings.Default()}
         c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
-        name := ""
+        name, ignore := "", DefaultWatchIgnore
         if dir != "" </span>{
                 <span class="cov8" title="1">c.dir = dir
                 c.statePath = filepath.Join(dir, "state.toml")
-                m := mainFile{Settings: c.Settings}
+                m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore)}
                 if err := c.decode(filepath.Join(dir, "main.toml"), &amp;m); err != nil </span>{
                         <span class="cov8" title="1">return nil, err
 </span>                }
-                <span class="cov8" title="1">c.Settings = m.Settings
+                <span class="cov8" title="1">c.Settings, ignore = m.Settings, m.WatchIgnore
                 if iv := c.Settings.WatchInterval; iv &lt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_interval %v is negative, files are not watched", iv))
                         c.Settings.WatchInterval = 0
@@ -273,10 +290,6 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                 <span class="cov8" title="1">if iv := c.Settings.AutoReloadInterval; iv &gt; maxInterval </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: auto_reload_interval %d is above %d, %d is used", iv, maxInterval, maxInterval))
                         c.Settings.AutoReloadInterval = maxInterval
-</span>                }
-                <span class="cov8" title="1">if n := c.Settings.InotifyMaxDirs; n &lt; 0 </span>{
-                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: inotify_max_dirs %d is negative, inotify is off", n))
-                        c.Settings.InotifyMaxDirs = 0
 </span>                }
                 // Lines are cut and wrapped by columns: the symbols take one.
                 <span class="cov8" title="1">def := settings.Default()
@@ -304,7 +317,11 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                         <span class="cov0" title="0">return nil, err
 </span>                }
                 <span class="cov8" title="1">c.Settings.Toggles = state.Toggles
-                var problems []string
+                if n := c.Settings.InotifyMaxDirs; n &lt; 0 </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("inotify_max_dirs %d is negative, it is off", n))
+                        c.Settings.InotifyMaxDirs = 0
+</span>                }
+                <span class="cov8" title="1">var problems []string
                 if c.Keys, problems = keys.Load(dir); len(problems) &gt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, keys.FileName+": "+strings.Join(problems, "; ")+"; the built-in keys are used")
 </span>                }
@@ -314,7 +331,29 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 </span>                }
         }
         <span class="cov8" title="1">c.Theme = theme.Resolve(c.selectTheme(name, dir))
+        c.compileWatchIgnore(ignore)
         return c, nil</span>
+}
+
+// compileWatchIgnore compiles exprs, watch_ignore, for WatchIgnored; one that
+// is no regular expression is left out with a warning.
+func (c *Config) compileWatchIgnore(exprs []string) {
+        <span class="cov8" title="1">c.watchIgnore = nil
+        for _, expr := range exprs </span>{
+                <span class="cov8" title="1">re, err := regexp.Compile(expr)
+                if err != nil </span>{
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_ignore %q is not a regular expression, left out: %v", expr, err))
+                        continue</span>
+                }
+                <span class="cov8" title="1">c.watchIgnore = append(c.watchIgnore, re)</span>
+        }
+}
+
+// WatchIgnored reports whether a pattern of watch_ignore matches rel, a path
+// from the top of the working tree with /, of a directory with a / at the
+// end.
+func (c *Config) WatchIgnored(rel string) bool {
+        <span class="cov8" title="1">return slices.ContainsFunc(c.watchIgnore, func(re *regexp.Regexp) bool </span>{ <span class="cov8" title="1">return re.MatchString(rel) }</span>)
 }
 
 // readThemes adds the theme files in dir to the themes. A file that cannot
@@ -1275,6 +1314,7 @@ import (
         "io/fs"
         "os"
         "os/exec"
+        "path"
         "path/filepath"
         "slices"
         "strconv"
@@ -1529,12 +1569,110 @@ func (r Repo) WatchPaths() ([]string, error) {
         <span class="cov8" title="1">return paths, nil</span>
 }
 
+// vcsDirs are where version control systems keep their own data, which is
+// not worked on: WorkDirs leaves them out, and what is below them. Fossil
+// keeps its data in files.
+var vcsDirs = []string{".git", ".svn", ".hg", ".bzr", "CVS", "_darcs", ".jj", ".pijul", ".sl"}
+
+// WorkDirs returns the directories of the working tree that hold its files,
+// tracked or untracked and not ignored, with the time each was modified, as
+// when a file there is created, deleted or renamed, as editors save; the top
+// level always. A directory takes one lstat, not each of its files, so that
+// this stays cheap in large repositories. A submodule and a nested
+// repository count as entries of the directory they are in, which is not
+// entered. Left out are the directories of vcsDirs, and those for which
+// ignore holds of their path from the top with / and a / at the end, with
+// the directories below them.
+func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, error) {
+        <span class="cov8" title="1">top, err := r.TopLevel()
+        if err != nil </span>{
+                <span class="cov8" title="1">return nil, err
+</span>        }
+        // All files, also from a subdirectory, by their paths from the top.
+        <span class="cov8" title="1">out, err := r.git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--full-name", "--", ":/")
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov8" title="1">dirs := map[string]time.Time{top: {}}
+        left := map[string]bool{} // directories from the top, whether left out
+        var leftOut func(rel string) bool
+        leftOut = func(rel string) bool </span>{
+                <span class="cov8" title="1">if rel == "." </span>{
+                        <span class="cov8" title="1">return false
+</span>                }
+                <span class="cov8" title="1">if l, ok := left[rel]; ok </span>{
+                        <span class="cov8" title="1">return l
+</span>                }
+                <span class="cov8" title="1">l := slices.Contains(vcsDirs, path.Base(rel)) || ignore(rel+"/") || leftOut(path.Dir(rel))
+                left[rel] = l
+                return l</span>
+        }
+        <span class="cov8" title="1">for _, rel := range strings.Split(string(out), "\x00") </span>{
+                // A nested repository comes as its directory with a /.
+                <span class="cov8" title="1">rel = strings.TrimSuffix(rel, "/")
+                if rel == "" || leftOut(path.Dir(rel)) </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">dirs[filepath.Dir(filepath.Join(top, filepath.FromSlash(rel)))] = time.Time{}</span>
+        }
+        <span class="cov8" title="1">for dir := range dirs </span>{
+                <span class="cov8" title="1">if info, err := os.Lstat(dir); err == nil </span>{
+                        <span class="cov8" title="1">dirs[dir] = info.ModTime()
+</span>                }
+        }
+        <span class="cov8" title="1">return dirs, nil</span>
+}
+
 // Status returns the state of the repository: the commit of HEAD, the branch,
 // staged, changed and untracked files. It does not write the index.
 func (r Repo) Status() (string, error) {
         <span class="cov8" title="1">out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, "status", "--porcelain=v2", "--branch", "--untracked-files=all")
         return string(out), err
 </span>}
+
+// StatusPaths returns the paths of the files that the lines of status, from
+// Status, name and those of old do not: changed, renamed (the new path),
+// unmerged, untracked or ignored. They are relative to where git ran. Paths
+// git quotes, with special characters, are left out.
+func StatusPaths(status, old string) []string {
+        <span class="cov8" title="1">had := map[string]bool{}
+        for _, line := range strings.Split(old, "\n") </span>{
+                <span class="cov8" title="1">had[line] = true
+</span>        }
+        <span class="cov8" title="1">var paths []string
+        for _, line := range strings.Split(status, "\n") </span>{
+                <span class="cov8" title="1">if had[line] || len(line) &lt; 2 </span>{
+                        <span class="cov8" title="1">continue</span>
+                }
+                // The fields before the path, which may hold spaces: see git status
+                // --porcelain=v2.
+                <span class="cov8" title="1">var p string
+                switch line[0] </span>{
+                case '1':
+                        <span class="cov8" title="1">p = field(line, 8)</span>
+                case '2':
+                        <span class="cov8" title="1">p, _, _ = strings.Cut(field(line, 9), "\t")</span>
+                case 'u':
+                        <span class="cov8" title="1">p = field(line, 10)</span>
+                case '?', '!':
+                        <span class="cov8" title="1">p = line[2:]</span>
+                }
+                <span class="cov8" title="1">if p != "" &amp;&amp; !strings.HasPrefix(p, `"`) </span>{
+                        <span class="cov8" title="1">paths = append(paths, filepath.FromSlash(p))
+</span>                }
+        }
+        <span class="cov8" title="1">return paths</span>
+}
+
+// field returns the rest of line after n fields separated by single spaces,
+// "" when it has fewer.
+func field(line string, n int) string {
+        <span class="cov8" title="1">parts := strings.SplitN(line, " ", n+1)
+        if len(parts) &lt;= n </span>{
+                <span class="cov0" title="0">return ""
+</span>        }
+        <span class="cov8" title="1">return parts[n]</span>
+}
 
 // Files returns the files c changed against its first parent, or against
 // the empty tree for a root commit, with their contents.
@@ -2308,260 +2446,7 @@ func (p Map) conflicts() []string {
 }
 </pre>
 		
-		<pre class="file" id="file8" style="display: none">// Package notify reports changes to files as the kernel sees them, instead
-// of checking them over and over. It watches the directories the files are
-// in, not the files: editors often save by writing a new file and renaming
-// it over the old one, which a watch on the old file would not see. Only
-// these directories are watched, not their subdirectories.
-//
-// Only Linux (inotify) is supported; elsewhere New fails with ErrUnsupported
-// and the caller checks the files itself.
-package notify
-
-import (
-        "errors"
-        "path/filepath"
-        "slices"
-)
-
-var (
-        // ErrUnsupported is returned where the kernel cannot report changes.
-        ErrUnsupported = errors.New("not supported on this system")
-        // ErrTooManyDirs is returned when the files are in more directories
-        // than allowed.
-        ErrTooManyDirs = errors.New("files in too many directories")
-)
-
-// watched maps each path the kernel names to the paths it was given as: a
-// path stands for itself and, when it is a symlink, for its target, which
-// is what git difftool --dir-diff puts in place of working tree files.
-func watched(paths []string) map[string][]string {
-        <span class="cov8" title="1">names := map[string][]string{}
-        for _, p := range paths </span>{
-                <span class="cov8" title="1">p = filepath.Clean(p)
-                names[p] = append(names[p], p)
-                if target, err := filepath.EvalSymlinks(p); err == nil &amp;&amp; target != p </span>{
-                        <span class="cov8" title="1">names[target] = append(names[target], p)
-</span>                }
-        }
-        <span class="cov8" title="1">return names</span>
-}
-
-// dirs returns the directories of the paths of names, sorted.
-func dirs(names map[string][]string) []string {
-        <span class="cov8" title="1">var out []string
-        for p := range names </span>{
-                <span class="cov8" title="1">out = append(out, filepath.Dir(p))
-</span>        }
-        <span class="cov8" title="1">slices.Sort(out)
-        return slices.Compact(out)</span>
-}
-</pre>
-		
-		<pre class="file" id="file9" style="display: none">//go:build linux
-
-package notify
-
-import (
-        "bytes"
-        "encoding/binary"
-        "errors"
-        "fmt"
-        "maps"
-        "os"
-        "path/filepath"
-        "slices"
-        "sync"
-        "time"
-
-        "golang.org/x/sys/unix"
-)
-
-// settle is how long changes are collected after the first one, so that
-// the events of one save come as one batch.
-const settle = 50 * time.Millisecond
-
-// mask selects the events that change a file's content or replace or
-// remove it, and the move of a watched directory; touching its times or mode
-// does not.
-const mask = unix.IN_MODIFY | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
-        unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_MOVE_SELF | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
-
-// Watcher reports changes to files. All watches share one inotify instance,
-// which takes one file descriptor.
-type Watcher struct {
-        file    *os.File
-        dirs    map[int32]string    // watch descriptor -&gt; directory
-        names   map[string][]string // see watched
-        changes chan []string
-        done    chan struct{}
-        once    sync.Once
-}
-
-// New starts watching paths. It fails with ErrTooManyDirs when they are in
-// more than maxDirs directories, counting those of symlink targets, and
-// when the kernel refuses, e.g. because the user's inotify instances or
-// watches are used up. A directory that does not exist is left out.
-func New(paths []string, maxDirs int) (*Watcher, error) {
-        <span class="cov8" title="1">names := watched(paths)
-        ds := dirs(names)
-        if len(ds) &gt; maxDirs </span>{
-                <span class="cov8" title="1">return nil, ErrTooManyDirs
-</span>        }
-        <span class="cov8" title="1">fd, err := unix.InotifyInit1(unix.IN_NONBLOCK | unix.IN_CLOEXEC)
-        if err != nil </span>{
-                <span class="cov0" title="0">return nil, fmt.Errorf("inotify: %w", err)
-</span>        }
-        // Non-blocking, the file is read through Go's poller, so that Close
-        // ends a pending read.
-        <span class="cov8" title="1">w := &amp;Watcher{file: os.NewFile(uintptr(fd), "inotify"), dirs: map[int32]string{}, names: names,
-                changes: make(chan []string), done: make(chan struct{})}
-        for _, d := range ds </span>{
-                <span class="cov8" title="1">wd, err := unix.InotifyAddWatch(fd, d, mask)
-                if errors.Is(err, unix.ENOENT) </span>{
-                        <span class="cov8" title="1">continue</span>
-                }
-                <span class="cov8" title="1">if err != nil </span>{
-                        <span class="cov0" title="0">w.file.Close()
-                        return nil, fmt.Errorf("inotify: %s: %w", d, err)
-</span>                }
-                <span class="cov8" title="1">w.dirs[int32(wd)] = d</span>
-        }
-        <span class="cov8" title="1">raw := make(chan string)
-        go w.read(raw)
-        go w.batch(raw)
-        return w, nil</span>
-}
-
-// Changes returns the channel of changed paths, as given to New, in sorted
-// batches. It is closed when the watcher is, and when a directory cannot be
-// watched any more (see read).
-func (w *Watcher) Changes() &lt;-chan []string { <span class="cov8" title="1">return w.changes }</span>
-
-// Close stops watching.
-func (w *Watcher) Close() error {
-        <span class="cov8" title="1">err := os.ErrClosed
-        w.once.Do(func() </span>{
-                <span class="cov8" title="1">close(w.done)
-                err = w.file.Close()
-</span>        })
-        <span class="cov8" title="1">return err</span>
-}
-
-// read sends the watched paths the kernel reports to raw, until the
-// watcher is closed. When the kernel's queue overflowed, events were lost:
-// all paths are sent. When a watched directory is gone or moved away, as
-// when a checkout removes and makes it again, its paths are sent and the
-// directory at its path is watched anew; when it cannot be, read ends, which
-// closes Changes, so that the caller checks the files itself.
-func (w *Watcher) read(raw chan&lt;- string) {
-        <span class="cov8" title="1">defer close(raw)
-        send := func(paths []string) bool </span>{
-                <span class="cov8" title="1">for _, p := range paths </span>{
-                        <span class="cov8" title="1">select </span>{
-                        case raw &lt;- p:<span class="cov8" title="1"></span>
-                        case &lt;-w.done:
-                                <span class="cov0" title="0">return false</span>
-                        }
-                }
-                <span class="cov8" title="1">return true</span>
-        }
-        <span class="cov8" title="1">buf := make([]byte, 64*1024)
-        for </span>{
-                <span class="cov8" title="1">n, err := w.file.Read(buf)
-                if err != nil </span>{
-                        <span class="cov8" title="1">return
-</span>                }
-                <span class="cov8" title="1">for off := 0; off+unix.SizeofInotifyEvent &lt;= n; </span>{
-                        <span class="cov8" title="1">wd := int32(binary.NativeEndian.Uint32(buf[off:]))
-                        evMask := binary.NativeEndian.Uint32(buf[off+4:])
-                        nameLen := int(binary.NativeEndian.Uint32(buf[off+12:]))
-                        name := bytes.TrimRight(buf[off+unix.SizeofInotifyEvent:off+unix.SizeofInotifyEvent+nameLen], "\x00")
-                        off += unix.SizeofInotifyEvent + nameLen
-                        var paths []string
-                        lost := false
-                        dir, known := w.dirs[wd]
-                        switch </span>{
-                        case evMask&amp;unix.IN_Q_OVERFLOW != 0:
-                                <span class="cov0" title="0">for _, ps := range w.names </span>{
-                                        <span class="cov0" title="0">paths = append(paths, ps...)
-</span>                                }
-                        case evMask&amp;(unix.IN_IGNORED|unix.IN_MOVE_SELF) != 0 &amp;&amp; known:
-                                <span class="cov8" title="1">delete(w.dirs, wd)
-                                for p, ps := range w.names </span>{
-                                        <span class="cov8" title="1">if filepath.Dir(p) == dir </span>{
-                                                <span class="cov8" title="1">paths = append(paths, ps...)
-</span>                                        }
-                                }
-                                <span class="cov8" title="1">lost = !w.rewatch(dir, wd, evMask&amp;unix.IN_MOVE_SELF != 0)</span>
-                        case known &amp;&amp; len(name) &gt; 0:
-                                <span class="cov8" title="1">paths = w.names[filepath.Join(dir, string(name))]</span>
-                        }
-                        <span class="cov8" title="1">if !send(paths) || lost </span>{
-                                <span class="cov8" title="1">return
-</span>                        }
-                }
-        }
-}
-
-// rewatch watches the directory at dir again after its watch wd ended, or,
-// with moved, removes wd, which follows the directory moved away. It reports
-// whether it could. The file's descriptor is used through Control, so that
-// Close cannot close it meanwhile.
-func (w *Watcher) rewatch(dir string, wd int32, moved bool) bool {
-        <span class="cov8" title="1">conn, err := w.file.SyscallConn()
-        if err != nil </span>{
-                <span class="cov0" title="0">return false
-</span>        }
-        <span class="cov8" title="1">ok := false
-        conn.Control(func(fd uintptr) </span>{
-                <span class="cov8" title="1">if moved </span>{
-                        <span class="cov8" title="1">unix.InotifyRmWatch(int(fd), uint32(wd))
-</span>                }
-                <span class="cov8" title="1">if wd, err := unix.InotifyAddWatch(int(fd), dir, mask); err == nil </span>{
-                        <span class="cov8" title="1">w.dirs[int32(wd)] = dir
-                        ok = true
-</span>                }
-        })
-        <span class="cov8" title="1">return ok</span>
-}
-
-// batch collects the paths from raw for settle after the first one and
-// sends them on as one batch, until raw is closed; the batch collected
-// then is still sent.
-func (w *Watcher) batch(raw &lt;-chan string) {
-        <span class="cov8" title="1">defer close(w.changes)
-        for open := true; open; </span>{
-                <span class="cov8" title="1">p, ok := &lt;-raw
-                if !ok </span>{
-                        <span class="cov8" title="1">return
-</span>                }
-                <span class="cov8" title="1">set := map[string]bool{p: true}
-                timer := time.NewTimer(settle)
-        collect:
-                for </span>{
-                        <span class="cov8" title="1">select </span>{
-                        case p, ok := &lt;-raw:
-                                <span class="cov8" title="1">if !ok </span>{
-                                        <span class="cov8" title="1">timer.Stop()
-                                        open = false
-                                        break collect</span>
-                                }
-                                <span class="cov8" title="1">set[p] = true</span>
-                        case &lt;-timer.C:
-                                <span class="cov8" title="1">break collect</span>
-                        }
-                }
-                <span class="cov8" title="1">select </span>{
-                case w.changes &lt;- slices.Sorted(maps.Keys(set)):<span class="cov8" title="1"></span>
-                case &lt;-w.done:
-                        <span class="cov0" title="0">return</span>
-                }
-        }
-}
-</pre>
-		
-		<pre class="file" id="file10" style="display: none">// Package settings holds jdiff's user settings.
+		<pre class="file" id="file8" style="display: none">// Package settings holds jdiff's user settings.
 package settings
 
 // Settings are the user-configurable options, read from main.toml and,
@@ -2579,16 +2464,11 @@ type Settings struct {
         // one by its length, so only the added or removed part is marked.
         OnlyChangedWhitespaces bool `toml:"only_changed_whitespaces"`
         // WatchInterval (watch_interval) is how often, in seconds, files on disk
-        // are checked for changes and reloaded: both files of a comparison, or
-        // the current file of the file list and its neighbors. 0 turns watching
-        // off, also by inotify.
+        // that are not watched (InotifyMaxDirs) are checked for changes and
+        // reloaded while auto reload is on: both files of a comparison, or the
+        // current file of the file list and its neighbors. 0 turns the checks
+        // off, and watching too.
         WatchInterval float64 `toml:"watch_interval"`
-        // InotifyMaxDirs (inotify_max_dirs) is the most directories whose files
-        // Linux reports changes of (inotify), instead of jdiff checking them
-        // every WatchInterval: the directories of the files on disk, not their
-        // subdirectories. With inotify, all files are reloaded when they
-        // change. 0 turns inotify off.
-        InotifyMaxDirs int `toml:"inotify_max_dirs"`
         // AutoReloadInterval (auto_reload_interval) is how often, in seconds, auto
         // reload runs git status, which sees new files, and all changes where
         // Linux does not report them at once.
@@ -2667,6 +2547,14 @@ type Toggles struct {
         // without a key pressed or a change of the repository auto reload ends,
         // and with it its git commands; 0 is never. The settings popup sets it.
         AutoReloadTimeout int `toml:"auto_reload_timeout"`
+        // InotifyMaxDirs (inotify_max_dirs) is the most directories whose
+        // changes the system reports (on Linux, inotify) while auto reload is on,
+        // the most recently used ones: the directories of the files on disk, not
+        // their subdirectories, and those of the working tree; HEAD and the index
+        // are watched besides. Files in the others are checked every
+        // WatchInterval. 0 watches only HEAD and the index. The settings popup
+        // sets it.
+        InotifyMaxDirs int `toml:"inotify_max_dirs"`
 }
 
 // Default returns the default settings.
@@ -2676,7 +2564,6 @@ func Default() Settings {
                 CollapseUnchanged:      true,
                 OnlyChangedWhitespaces: true,
                 WatchInterval:          1,
-                InotifyMaxDirs:         20,
                 AutoReloadInterval:     10,
                 LineEnd:                "¶",
                 CREnd:                  "␍",
@@ -2691,12 +2578,13 @@ func Default() Settings {
                         FullMessages:    true,
 
                         AutoReloadTimeout: 5,
+                        InotifyMaxDirs:    100,
                 },
 </span>        }
 }
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">// Package source loads the files to compare from disk.
+		<pre class="file" id="file9" style="display: none">// Package source loads the files to compare from disk.
 package source
 
 import (
@@ -2860,7 +2748,7 @@ func listFiles(dir string) ([]string, error) {
 }
 </pre>
 		
-		<pre class="file" id="file12" style="display: none">package theme
+		<pre class="file" id="file10" style="display: none">package theme
 
 import (
         "bytes"
@@ -2953,7 +2841,7 @@ func lookup(cfg Config, features []string, key string) (string, bool) {
 }
 </pre>
 		
-		<pre class="file" id="file13" style="display: none">package theme
+		<pre class="file" id="file11" style="display: none">package theme
 
 import (
         "path/filepath"
@@ -3147,7 +3035,7 @@ func FromFile(path string) (Spec, []string, error) {
 }
 </pre>
 		
-		<pre class="file" id="file14" style="display: none">package theme
+		<pre class="file" id="file12" style="display: none">package theme
 
 import (
         "fmt"
@@ -3250,7 +3138,7 @@ func isHexColor(s string) bool {
 }
 </pre>
 		
-		<pre class="file" id="file15" style="display: none">// Package theme builds jdiff's styles. A theme comes from a source, as a
+		<pre class="file" id="file13" style="display: none">// Package theme builds jdiff's styles. A theme comes from a source, as a
 // Spec: jdiff's defaults, delta's git config settings or a theme file;
 // Resolve turns it into the styles, with the defaults for what it leaves
 // unset.
@@ -3417,7 +3305,7 @@ func Resolve(sp Spec) *Theme {
 }
 </pre>
 		
-		<pre class="file" id="file16" style="display: none">package ui
+		<pre class="file" id="file14" style="display: none">package ui
 
 import (
         "context"
@@ -3433,9 +3321,9 @@ import (
         "jdiff/internal/diff"
         "jdiff/internal/gitsrc"
         "jdiff/internal/keys"
-        "jdiff/internal/notify"
         "jdiff/internal/source"
         "jdiff/internal/theme"
+        "jdiff/watch"
 )
 
 // entry is one file in the selector. Its diff is created with the selector,
@@ -3555,10 +3443,14 @@ type App struct {
         // are those of the files shown.
         gitDiff  DiffFunc
         diffArgs []string
-        // notify reports changes to the files on disk; nil while they are
-        // checked every watch_interval, ticking while such a check is pending.
-        notify  *notify.Watcher
-        ticking bool
+        // disk watches the files on disk while auto reload is on, from watch on;
+        // those near the cursor that it does not watch are checked every
+        // watch_interval, ticking while such a check is pending. touched is the
+        // file the cursor was on last.
+        disk     diskWatch
+        watching bool
+        ticking  bool
+        touched  *entry
         list
         // previewTop is the first screen line of the preview scrolled by pgup
         // and pgdn, while previewFor is the file under the cursor; moving the
@@ -3634,10 +3526,11 @@ func (a *App) addEntry(group *moveGroup, e *entry) {
 // is replaced, or the program ends.
 func (a *App) stop() {
         <span class="cov8" title="1">a.cancel()
-        if a.notify != nil </span>{
-                <span class="cov8" title="1">a.notify.Close()
-</span>        }
-}
+        a.disk.stop()
+</span>}
+
+// shareWatcher makes a watch its files by w, which DiffSwitch shares.
+func (a *App) shareWatcher(w *watch.Watcher) { <span class="cov8" title="1">a.disk = diskWatch{w: w} }</span>
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -3704,29 +3597,86 @@ func (a *App) Init() tea.Cmd {
         <span class="cov8" title="1">return a.watch()</span>
 }
 
-// watch starts watching the files on disk anew, by inotify when it can, and
-// returns the command waiting for their changes. A pending check of polling
-// is not started twice.
+// watch watches the files on disk, in place of those before, while auto
+// reload is on, and returns the command waiting for their changes and the
+// check of those not watched; off, it watches none.
 func (a *App) watch() tea.Cmd {
-        <span class="cov8" title="1">if a.notify != nil </span>{
-                <span class="cov8" title="1">a.notify.Close()
+        <span class="cov8" title="1">if !a.cfg.AutoReload </span>{
+                <span class="cov8" title="1">a.disk.stop()
+                a.watching = false
+                return nil
 </span>        }
         <span class="cov8" title="1">var paths []string
         for _, e := range a.files </span>{
                 <span class="cov8" title="1">paths = append(paths, diskPaths(e.File)...)
 </span>        }
-        <span class="cov8" title="1">w, cmd, msg := startWatching(a.cfg, a, paths)
-        a.notify = w
+        <span class="cov8" title="1">cmd, msg := a.disk.set(a.cfg, paths)
         if msg != "" </span>{
                 <span class="cov0" title="0">a.setMsg(msg)
 </span>        }
-        <span class="cov8" title="1">if w == nil &amp;&amp; cmd != nil </span>{
-                <span class="cov8" title="1">if a.ticking </span>{
-                        <span class="cov0" title="0">return nil
+        <span class="cov8" title="1">a.watching = true
+        return batch(cmd, a.poll())</span>
+}
+
+// poll returns the next check of the files near the cursor, the current one
+// and its neighbors, that are not watched; nil while one is pending, or when
+// none is to be checked.
+func (a *App) poll() tea.Cmd {
+        <span class="cov8" title="1">if a.ticking || !a.cfg.AutoReload || a.cfg.Settings.WatchInterval &lt;= 0 || !slices.ContainsFunc(a.nearCursor(), a.unwatched) </span>{
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">a.ticking = true
+        return watchTick(a.cfg, a)</span>
+}
+
+// nearCursor returns the indices of the current file and its neighbors.
+func (a *App) nearCursor() []int {
+        <span class="cov8" title="1">var out []int
+        if cur := a.current(); cur &gt;= 0 </span>{
+                <span class="cov8" title="1">for i := max(cur-1, 0); i &lt;= min(cur+1, len(a.files)-1); i++ </span>{
+                        <span class="cov8" title="1">out = append(out, i)
 </span>                }
-                <span class="cov8" title="1">a.ticking = true</span>
         }
-        <span class="cov8" title="1">return cmd</span>
+        <span class="cov8" title="1">return out</span>
+}
+
+// unwatched reports whether a side of file i on disk is not watched.
+func (a *App) unwatched(i int) bool {
+        <span class="cov8" title="1">return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool </span>{ <span class="cov8" title="1">return !a.disk.watched(p) }</span>)
+}
+
+// current returns the index of the file the cursor is on: in the flow view,
+// the diff view or the list; -1 for none.
+func (a *App) current() int {
+        <span class="cov8" title="1">if a.flowShown() </span>{
+                <span class="cov8" title="1">_, file, _ := a.flow.position()
+                return file
+</span>        }
+        <span class="cov8" title="1">if a.open != nil </span>{
+                <span class="cov8" title="1">return slices.Index(a.files, a.open)
+</span>        }
+        <span class="cov8" title="1">if a.cursor &lt; len(a.files) </span>{
+                <span class="cov8" title="1">return a.cursor
+</span>        }
+        <span class="cov8" title="1">return -1</span>
+}
+
+// followCursor counts the directories of the file the cursor is on as used
+// when it is on another one than before, and reloads it when it changed on
+// disk, as it may while its directory was not watched. It returns the check
+// of the files near the cursor not watched.
+func (a *App) followCursor() tea.Cmd {
+        <span class="cov8" title="1">i := a.current()
+        if !a.watching || !a.cfg.AutoReload || i &lt; 0 || a.files[i] == a.touched </span>{
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">a.touched = a.files[i]
+        a.disk.touch(diskPaths(a.touched.File))
+        f := a.touched.File
+        if f.OldFile != "" &amp;&amp; stale(f.OldFile, f.OldStamp) || f.NewFile != "" &amp;&amp; stale(f.NewFile, f.NewStamp) </span>{
+                <span class="cov8" title="1">a.refresh(func(j int) bool </span>{ <span class="cov8" title="1">return j == i }</span>)
+        }
+        <span class="cov8" title="1">return a.poll()</span>
 }
 
 // refresh reloads the files i that changed on disk for which which holds.
@@ -3889,14 +3839,20 @@ func batch(cmds ...tea.Cmd) tea.Cmd {
         case 1:
                 <span class="cov8" title="1">return cmds[0]</span>
         }
-        <span class="cov0" title="0">return tea.Batch(cmds...)</span>
+        <span class="cov8" title="1">return tea.Batch(cmds...)</span>
 }
 
 // flowShown reports whether the flow view is shown instead of a diff view.
 // Inside the log, the log shows its own flow view.
 func (a *App) flowShown() bool { <span class="cov8" title="1">return a.open != nil &amp;&amp; a.cfg.Settings.Flow &amp;&amp; !a.inLog() }</span>
 
+// Update handles msg, then follows the cursor, see followCursor.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+        <span class="cov8" title="1">m, cmd := a.update(msg)
+        return m, batch(cmd, a.followCursor())
+</span>}
+
+func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
         <span class="cov8" title="1">switch msg := msg.(type) </span>{
         case tea.WindowSizeMsg:
                 <span class="cov8" title="1">a.width, a.height = msg.Width, msg.Height
@@ -3906,37 +3862,44 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 if msg.problem != "" &amp;&amp; a.open == nil </span>{
                         <span class="cov8" title="1">a.msg = msg.problem
 </span>                }
+                <span class="cov8" title="1">if msg.action == "inotify_max_dirs" </span>{
+                        <span class="cov8" title="1">a.disk.limit(a.cfg)
+                        return a, a.poll()
+</span>                }
+        case autoReloadMsg:
+                <span class="cov8" title="1">if a.inLog() </span>{
+                        <span class="cov0" title="0">return a, nil
+</span>                }
+                <span class="cov8" title="1">if msg.on </span>{ // changed while off
+                        <span class="cov8" title="1">a.touched = nil
+                        a.refresh(func(int) bool </span>{ <span class="cov8" title="1">return true }</span>)
+                }
+                <span class="cov8" title="1">return a, a.watch()</span>
         case watchTickMsg:
                 <span class="cov8" title="1">if msg.owner != nil &amp;&amp; msg.owner != a </span>{
                         <span class="cov8" title="1">return a, nil
 </span>                }
                 <span class="cov8" title="1">a.ticking = false
-                if a.notify != nil </span>{
-                        <span class="cov8" title="1">return a, nil // inotify took over
+                if !a.cfg.AutoReload </span>{
+                        <span class="cov8" title="1">return a, nil
 </span>                }
-                // Polling checks the current file and its neighbors.
-                <span class="cov8" title="1">a.refresh(func(i int) bool </span>{ <span class="cov8" title="1">return i &gt;= a.cursor-1 &amp;&amp; i &lt;= a.cursor+1 }</span>)
-                <span class="cov8" title="1">a.ticking = true
-                return a, watchTick(a.cfg, a)</span>
+                <span class="cov8" title="1">near := a.nearCursor()
+                a.refresh(func(i int) bool </span>{ <span class="cov8" title="1">return slices.Contains(near, i) &amp;&amp; a.unwatched(i) }</span>)
+                <span class="cov8" title="1">return a, a.poll()</span>
         case changedMsg:
-                <span class="cov8" title="1">if msg.w != a.notify </span>{
+                <span class="cov8" title="1">if msg.w == nil || msg.w != a.disk.w </span>{
                         <span class="cov8" title="1">return a, nil
 </span>                }
                 <span class="cov8" title="1">changed := func(i int) bool </span>{
                         <span class="cov8" title="1">return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool </span>{ <span class="cov8" title="1">return slices.Contains(msg.paths, p) }</span>)
                 }
                 <span class="cov8" title="1">a.refresh(changed)
-                return a, waitChanges(a.notify)</span>
+                return a, batch(a.disk.next(), a.poll())</span>
         case watchEndedMsg:
-                <span class="cov8" title="1">if msg.w != a.notify </span>{
+                <span class="cov8" title="1">if !a.disk.ended(msg.w) </span>{
                         <span class="cov8" title="1">return a, nil
 </span>                }
-                <span class="cov8" title="1">a.notify = nil
-                if a.ticking </span>{
-                        <span class="cov0" title="0">return a, nil
-</span>                }
-                <span class="cov8" title="1">a.ticking = true
-                return a, watchTick(a.cfg, a)</span>
+                <span class="cov8" title="1">return a, a.poll()</span>
         case jumpMsg:
                 <span class="cov8" title="1">a.jump(msg)
                 return a, nil</span>
@@ -4302,7 +4265,7 @@ func (a *App) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file17" style="display: none">package ui
+		<pre class="file" id="file15" style="display: none">package ui
 
 import (
         "cmp"
@@ -4745,7 +4708,7 @@ func (d *Doc) style(s docStyle) lipgloss.Style {
 }
 </pre>
 		
-		<pre class="file" id="file18" style="display: none">package ui
+		<pre class="file" id="file16" style="display: none">package ui
 
 import (
         "fmt"
@@ -5489,7 +5452,7 @@ func anchorName(an diff.Anchor) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file19" style="display: none">package ui
+		<pre class="file" id="file17" style="display: none">package ui
 
 import (
         "fmt"
@@ -6480,7 +6443,7 @@ func (f *Flow) row(i int) string {
 }
 </pre>
 		
-		<pre class="file" id="file20" style="display: none">package ui
+		<pre class="file" id="file18" style="display: none">package ui
 
 import (
         "fmt"
@@ -6697,7 +6660,7 @@ func overlayAt(base, pop string, x, y, w, width int) string {
 }
 </pre>
 		
-		<pre class="file" id="file21" style="display: none">package ui
+		<pre class="file" id="file19" style="display: none">package ui
 
 import (
         "context"
@@ -7474,7 +7437,7 @@ func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 }
 </pre>
 		
-		<pre class="file" id="file22" style="display: none">package ui
+		<pre class="file" id="file20" style="display: none">package ui
 
 import (
         "fmt"
@@ -8041,7 +8004,7 @@ func cutSegs(segs []docSeg, width int) []docSeg {
 }
 </pre>
 		
-		<pre class="file" id="file23" style="display: none">package ui
+		<pre class="file" id="file21" style="display: none">package ui
 
 import (
         "fmt"
@@ -8233,7 +8196,7 @@ func (p *MarksPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file24" style="display: none">package ui
+		<pre class="file" id="file22" style="display: none">package ui
 
 import (
         "fmt"
@@ -8360,10 +8323,10 @@ func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
         <span class="cov8" title="1">return settingKey(k, h.Action, logFlow)</span>
 }
 
-// settingChangedMsg tells the page below SettingsPopup that a toggle changed,
-// so that it lays out what depends on it. The diff view does on any message.
-// problem says why it is not saved, for the page to show when the popup is
-// closed.
+// settingChangedMsg tells the page below SettingsPopup that a toggle or a
+// number changed, so that it lays out what depends on it. The diff view does
+// on any message. problem says why it is not saved, for the page to show when
+// the popup is closed.
 type settingChangedMsg struct{ action, problem string }
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of
@@ -8474,7 +8437,7 @@ func ends(forward bool, last, first string) string {
 }
 </pre>
 		
-		<pre class="file" id="file25" style="display: none">// Package ui implements the interactive side-by-side diff view.
+		<pre class="file" id="file23" style="display: none">// Package ui implements the interactive side-by-side diff view.
 package ui
 
 import (
@@ -8485,8 +8448,8 @@ import (
         "jdiff/internal/config"
         "jdiff/internal/diff"
         "jdiff/internal/keys"
-        "jdiff/internal/notify"
         "jdiff/internal/source"
+        "jdiff/watch"
 )
 
 // Model is the Bubble Tea model of the diff view: a single file view of a
@@ -8514,10 +8477,13 @@ type Model struct {
         canBack       bool // shown from the file selector, which handles backspace
         commitNav     bool // shown from the log, which switches commits
 
-        msg    string
-        watch  *source.File    // the files on disk, reloaded when they change; nil when not watched
-        notify *notify.Watcher // reports their changes, nil while they are checked every watch_interval
-        prefix string          // "m" or "'" while waiting for the letter of a mark
+        msg   string
+        watch *source.File // the files on disk, reloaded when they change; nil when not watched
+        // disk watches them; those it does not watch are checked every
+        // watch_interval, ticking while such a check is pending.
+        disk    diskWatch
+        ticking bool
+        prefix  string // "m" or "'" while waiting for the letter of a mark
 }
 
 // New returns a model comparing oldLines (left) with newLines (right).
@@ -8550,17 +8516,39 @@ func newModel(d *fileDiff) *Model {
         <span class="cov8" title="1">return m</span>
 }
 
-// Init starts watching the files, when they are on disk.
-func (m *Model) Init() tea.Cmd {
+// Init starts watching the files, when they are on disk, see watchFiles.
+func (m *Model) Init() tea.Cmd { <span class="cov8" title="1">return m.watchFiles() }</span>
+
+// watchFiles watches the files, when they are on disk, while auto reload is
+// on, and returns the command waiting for their changes and the check of
+// those not watched; off, it watches them no more.
+func (m *Model) watchFiles() tea.Cmd {
         <span class="cov8" title="1">if m.watch == nil </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">w, cmd, msg := startWatching(m.cfg, m, diskPaths(*m.watch))
-        m.notify = w
+        <span class="cov8" title="1">if !m.cfg.AutoReload </span>{
+                <span class="cov0" title="0">m.disk.stop()
+                return nil
+</span>        }
+        <span class="cov8" title="1">cmd, msg := m.disk.set(m.cfg, diskPaths(*m.watch))
         if msg != "" </span>{
                 <span class="cov0" title="0">m.msg = msg
 </span>        }
-        <span class="cov8" title="1">return cmd</span>
+        <span class="cov8" title="1">return batch(cmd, m.poll())</span>
+}
+
+// shareWatcher makes m watch its files by w, which DiffSwitch shares.
+func (m *Model) shareWatcher(w *watch.Watcher) { <span class="cov0" title="0">m.disk = diskWatch{w: w} }</span>
+
+// poll returns the next check of the files, unless one is pending or both
+// are watched.
+func (m *Model) poll() tea.Cmd {
+        <span class="cov8" title="1">if m.ticking || m.watch == nil || !m.cfg.AutoReload || m.cfg.Settings.WatchInterval &lt;= 0 ||
+                !slices.ContainsFunc(diskPaths(*m.watch), func(p string) bool </span>{ <span class="cov8" title="1">return !m.disk.watched(p) }</span>) {
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">m.ticking = true
+        return watchTick(m.cfg, m)</span>
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -8573,28 +8561,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 </span>                })
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">return m, m.key(msg.String())</span>
+        case autoReloadMsg:
+                <span class="cov0" title="0">if msg.on &amp;&amp; m.watch != nil </span>{ // changed while off
+                        <span class="cov0" title="0">if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" </span>{
+                                <span class="cov0" title="0">m.msg = msg
+</span>                        }
+                }
+                <span class="cov0" title="0">return m, m.watchFiles()</span>
         case watchTickMsg:
                 <span class="cov8" title="1">if msg.owner != nil &amp;&amp; msg.owner != m </span>{
                         <span class="cov8" title="1">return m, nil
 </span>                }
+                <span class="cov8" title="1">m.ticking = false
+                if !m.cfg.AutoReload </span>{
+                        <span class="cov0" title="0">return m, nil
+</span>                }
                 <span class="cov8" title="1">if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" </span>{
                         <span class="cov8" title="1">m.msg = msg
 </span>                }
-                <span class="cov8" title="1">return m, watchTick(m.cfg, m)</span>
+                <span class="cov8" title="1">return m, m.poll()</span>
         case changedMsg:
-                <span class="cov8" title="1">if msg.w != m.notify </span>{
+                <span class="cov8" title="1">if msg.w == nil || msg.w != m.disk.w </span>{
                         <span class="cov0" title="0">return m, nil
 </span>                }
                 <span class="cov8" title="1">if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" </span>{
                         <span class="cov8" title="1">m.msg = msg
 </span>                }
-                <span class="cov8" title="1">return m, waitChanges(m.notify)</span>
+                <span class="cov8" title="1">return m, batch(m.disk.next(), m.poll())</span>
         case watchEndedMsg:
-                <span class="cov0" title="0">if msg.w != m.notify </span>{
+                <span class="cov0" title="0">if !m.disk.ended(msg.w) </span>{
                         <span class="cov0" title="0">return m, nil
 </span>                }
-                <span class="cov0" title="0">m.notify = nil
-                return m, watchTick(m.cfg, m)</span>
+                <span class="cov0" title="0">return m, m.poll()</span>
         case refreshMsg:
                 <span class="cov8" title="1">m.refresh(msg.quiet)</span>
         case showMsg:
@@ -8607,6 +8605,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">if msg.problem != "" </span>{
                         <span class="cov8" title="1">m.msg = msg.problem
 </span>                }
+                <span class="cov8" title="1">if msg.action == "inotify_max_dirs" </span>{
+                        <span class="cov0" title="0">m.disk.limit(m.cfg)
+                        return m, m.poll()
+</span>                }
         case findMsg:
                 <span class="cov8" title="1">m.findText(int(msg))</span>
         }
@@ -8614,11 +8616,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // stop stops watching the files: the view is replaced.
-func (m *Model) stop() {
-        <span class="cov8" title="1">if m.notify != nil </span>{
-                <span class="cov0" title="0">m.notify.Close()
-</span>        }
-}
+func (m *Model) stop() { <span class="cov8" title="1">m.disk.stop() }</span>
 
 // refresh reads both files again, whether their stamps changed or not. With
 // quiet, it does not say when nothing changed.
@@ -8925,7 +8923,7 @@ func (m *Model) scrollToCursor() {
 </span>}
 </pre>
 		
-		<pre class="file" id="file26" style="display: none">package ui
+		<pre class="file" id="file24" style="display: none">package ui
 
 import (
         "fmt"
@@ -9029,7 +9027,7 @@ func (d *fileDiff) spotOf(s side, line int, sh shape) spot {
 </span>}
 </pre>
 		
-		<pre class="file" id="file27" style="display: none">package ui
+		<pre class="file" id="file25" style="display: none">package ui
 
 import (
         "cmp"
@@ -9542,7 +9540,7 @@ func (s *SearchBar) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file28" style="display: none">package ui
+		<pre class="file" id="file26" style="display: none">package ui
 
 import (
         "cmp"
@@ -9589,6 +9587,7 @@ var settingTable = []settingOption{
         {action: "full_messages", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.FullMessages }</span>, logFlow: true},
         {action: "stay_in_commit", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.StayInCommit }</span>, logFlow: true},
         {action: "auto_reload_timeout", number: func(c *config.Config) *int { <span class="cov8" title="1">return &amp;c.Settings.AutoReloadTimeout }</span>},
+        {action: "inotify_max_dirs", number: func(c *config.Config) *int { <span class="cov8" title="1">return &amp;c.Settings.InotifyMaxDirs }</span>},
 }
 
 // settingOptions returns the lines of the settings popup, with their keys and
@@ -9789,8 +9788,11 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
                         <span class="cov8" title="1">p.inputErr = "a whole number, 0 or more"
                         return nil
 </span>                }
-                <span class="cov8" title="1">*p.options[p.cursor].number(p.cfg) = n
-                p.input, p.msg = nil, saveState(p.cfg)</span>
+                <span class="cov8" title="1">o := p.options[p.cursor]
+                *o.number(p.cfg) = n
+                p.input, p.msg = nil, saveState(p.cfg)
+                _, cmd := p.Model.Update(settingChangedMsg{action: o.action})
+                return cmd</span>
         default:
                 <span class="cov8" title="1">p.inputErr = ""
                 in.edit(k)</span>
@@ -9838,7 +9840,7 @@ func (p *SettingsPopup) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file29" style="display: none">package ui
+		<pre class="file" id="file27" style="display: none">package ui
 
 import (
         "fmt"
@@ -10449,7 +10451,7 @@ func printable(line string) string {
 </span>}
 </pre>
 		
-		<pre class="file" id="file30" style="display: none">package ui
+		<pre class="file" id="file28" style="display: none">package ui
 
 import (
         "context"
@@ -10458,13 +10460,15 @@ import (
         "path/filepath"
         "slices"
         "strconv"
+        "strings"
         "time"
 
         tea "charm.land/bubbletea/v2"
 
         "jdiff/internal/config"
-        "jdiff/internal/notify"
+        "jdiff/internal/gitsrc"
         "jdiff/internal/source"
+        "jdiff/watch"
 )
 
 // racyWindow is how long after its modification time a file is compared by
@@ -10480,17 +10484,17 @@ type watchTickMsg struct{ owner tea.Model }
 // changedMsg reports files on disk that changed, by their paths cleaned,
 // from inotify watcher w.
 type changedMsg struct {
-        w     *notify.Watcher
+        w     *watch.Watcher
         paths []string
 }
 
 // watchEndedMsg reports that inotify watcher w stopped reporting changes: it
 // was closed, or a directory could not be watched any more. The view whose
 // watcher it still is checks its files itself from now on.
-type watchEndedMsg struct{ w *notify.Watcher }
+type watchEndedMsg struct{ w *watch.Watcher }
 
 // waitChanges returns the command waiting for the next changes w reports.
-func waitChanges(w *notify.Watcher) tea.Cmd {
+func waitChanges(w *watch.Watcher) tea.Cmd {
         <span class="cov8" title="1">return func() tea.Msg </span>{
                 <span class="cov8" title="1">paths, ok := &lt;-w.Changes()
                 if !ok </span>{
@@ -10500,31 +10504,107 @@ func waitChanges(w *notify.Watcher) tea.Cmd {
         }
 }
 
-// startWatching starts watching the files at paths and returns the
-// watcher and the command waiting for its changes. When inotify is off, not
-// supported or the files are in more than inotify_max_dirs directories, the
-// watcher is nil and the command the first check of polling; when the
-// kernel refuses inotify, msg says why. With watching off or no paths, it
-// returns nothing.
-func startWatching(cfg *config.Config, owner tea.Model, paths []string) (w *notify.Watcher, cmd tea.Cmd, msg string) {
-        <span class="cov8" title="1">if cfg.Settings.WatchInterval &lt;= 0 || len(paths) == 0 </span>{
-                <span class="cov8" title="1">return nil, nil, ""
-</span>        }
-        <span class="cov8" title="1">if cfg.Settings.InotifyMaxDirs &gt; 0 </span>{
-                <span class="cov8" title="1">w, err := notify.New(paths, cfg.Settings.InotifyMaxDirs)
-                switch </span>{
-                case err == nil:
-                        <span class="cov8" title="1">return w, waitChanges(w), ""</span>
-                case !errors.Is(err, notify.ErrUnsupported) &amp;&amp; !errors.Is(err, notify.ErrTooManyDirs):
-                        <span class="cov0" title="0">msg = err.Error() + "; checking files every " + strconv.FormatFloat(cfg.Settings.WatchInterval, 'g', -1, 64) + "s"</span>
-                }
-        }
-        <span class="cov8" title="1">return nil, watchTick(cfg, owner), msg</span>
+// diskWatch watches the files of a view on disk: by the watcher DiffSwitch
+// shares, which it gives the view before Init (shareWatcher) and waits on, or
+// by one of the view's own, which the view waits on and closes. The files it
+// does not watch, all without a watcher, the view checks every
+// watch_interval.
+type diskWatch struct {
+        w   *watch.Watcher
+        own bool
 }
 
-// autoTickMsg asks DiffSwitch for the next check of auto reload number gen;
-// a later or ended one drops it.
-type autoTickMsg struct{ gen int }
+// set watches the files at paths in place of those before, starting the
+// view's own watcher when it has none, there are files and inotify_max_dirs
+// allows one. It
+// returns the command waiting for the changes of a watcher just started, and
+// why the system refused, or "".
+func (d *diskWatch) set(cfg *config.Config, paths []string) (cmd tea.Cmd, msg string) {
+        <span class="cov8" title="1">if cfg.Settings.WatchInterval &lt;= 0 </span>{
+                <span class="cov8" title="1">return nil, ""
+</span>        }
+        <span class="cov8" title="1">if d.w == nil </span>{
+                <span class="cov8" title="1">if cfg.Settings.InotifyMaxDirs &lt;= 0 || len(paths) == 0 </span>{
+                        <span class="cov8" title="1">return nil, ""
+</span>                }
+                <span class="cov8" title="1">w, err := watch.New(cfg.Settings.InotifyMaxDirs)
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil, refused(cfg, err)
+</span>                }
+                <span class="cov8" title="1">d.w, d.own, cmd = w, true, waitChanges(w)</span>
+        }
+        <span class="cov8" title="1">if err := d.w.SetFiles(paths); err != nil </span>{
+                <span class="cov0" title="0">msg = refused(cfg, err)
+</span>        }
+        <span class="cov8" title="1">return cmd, msg</span>
+}
+
+// refused returns what to say when the system refused to watch, nothing
+// where it cannot.
+func refused(cfg *config.Config, err error) string {
+        <span class="cov0" title="0">if errors.Is(err, watch.ErrUnsupported) </span>{
+                <span class="cov0" title="0">return ""
+</span>        }
+        <span class="cov0" title="0">return err.Error() + "; checking files every " + strconv.FormatFloat(cfg.Settings.WatchInterval, 'g', -1, 64) + "s"</span>
+}
+
+// next returns the command waiting for the next changes of the view's own
+// watcher, nil for the shared one, which DiffSwitch waits on.
+func (d *diskWatch) next() tea.Cmd {
+        <span class="cov8" title="1">if !d.own || d.w == nil </span>{
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">return waitChanges(d.w)</span>
+}
+
+// watched reports whether a change of the file at path is reported.
+func (d *diskWatch) watched(path string) bool { <span class="cov8" title="1">return d.w != nil &amp;&amp; d.w.Watched(path) }</span>
+
+// touch counts the directories of the files at paths as used.
+func (d *diskWatch) touch(paths []string) {
+        <span class="cov8" title="1">if d.w != nil </span>{
+                <span class="cov8" title="1">d.w.Touch(paths)
+</span>        }
+}
+
+// limit applies inotify_max_dirs, set in the settings popup.
+func (d *diskWatch) limit(cfg *config.Config) {
+        <span class="cov8" title="1">if d.w != nil </span>{
+                <span class="cov8" title="1">d.w.SetLimit(cfg.Settings.InotifyMaxDirs)
+</span>        }
+}
+
+// ended reports whether w, which stopped reporting, was the watcher, which
+// is then dropped.
+func (d *diskWatch) ended(w *watch.Watcher) bool {
+        <span class="cov8" title="1">if w == nil || w != d.w </span>{
+                <span class="cov8" title="1">return false
+</span>        }
+        <span class="cov8" title="1">d.w = nil
+        return true</span>
+}
+
+// stop stops watching the files: the view's own watcher is closed, the
+// shared one, which stays, watches them no more.
+func (d *diskWatch) stop() {
+        <span class="cov8" title="1">switch </span>{
+        case d.w == nil:<span class="cov8" title="1"></span>
+        case d.own:
+                <span class="cov8" title="1">d.w.Close()
+                d.w = nil</span>
+        default:
+                <span class="cov8" title="1">d.w.SetFiles(nil)</span>
+        }
+}
+
+// autoReloadMsg tells the view that auto reload went on or off: it watches
+// its files on disk only while it is on.
+type autoReloadMsg struct{ on bool }
+
+// autoTickMsg asks DiffSwitch for the next check of auto reload number gen,
+// the tick number tick of it; a later or ended one drops it, and so does a
+// change reported, which starts the next tick anew.
+type autoTickMsg struct{ gen, tick int }
 
 // autoStatusMsg is the result of git status for auto reload number gen.
 type autoStatusMsg struct {
@@ -10534,36 +10614,50 @@ type autoStatusMsg struct {
 }
 
 // toggleAutoReload starts or stops auto reload and returns the commands of
-// its checks. Starting also loads again, since the repository may have changed
-// since the last load. When it cannot start, the view says why.
+// its checks. On, the view watches its files on disk. Of git diff and git
+// log, the repository is watched and checked by git status too, and what is
+// shown loaded again at once, since the repository may have changed since
+// the last load; of two files or directories, only the files shown are
+// watched (gitMode off), and the ticks only end it after the timeout. When it
+// cannot start, the view says why.
 func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
         <span class="cov8" title="1">if s.cfg.AutoReload </span>{
                 <span class="cov8" title="1">s.stopAutoReload()
                 return nil
 </span>        }
-        <span class="cov8" title="1">if s.repoStatus == nil </span>{
-                <span class="cov0" title="0">return showAutoReloadError(errors.New("nothing to watch"))
-</span>        }
-        <span class="cov8" title="1">if s.cfg.Settings.AutoReloadInterval &lt;= 0 </span>{
-                <span class="cov8" title="1">return showAutoReloadError(errors.New("auto_reload_interval is 0"))
-</span>        }
-        <span class="cov8" title="1">ctx, cancel := context.WithCancel(context.Background())
-        status, err := s.repoStatus(ctx)
-        if err != nil </span>{
-                <span class="cov8" title="1">cancel()
-                return showAutoReloadError(err)
-</span>        }
-        <span class="cov8" title="1">s.autoCtx, s.autoCancel = ctx, cancel
-        s.cfg.AutoReload, s.lastStatus, s.lastActive = true, status, time.Now()
+        <span class="cov8" title="1">s.gitMode = s.repoStatus != nil &amp;&amp; s.gitView()
+        if s.gitMode </span>{
+                <span class="cov8" title="1">if s.cfg.Settings.AutoReloadInterval &lt;= 0 </span>{
+                        <span class="cov8" title="1">return showAutoReloadError(errors.New("auto_reload_interval is 0"))
+</span>                }
+                <span class="cov8" title="1">ctx, cancel := context.WithCancel(context.Background())
+                status, err := s.repoStatus(ctx)
+                if err != nil </span>{
+                        <span class="cov8" title="1">cancel()
+                        return showAutoReloadError(err)
+</span>                }
+                <span class="cov8" title="1">s.autoCtx, s.autoCancel, s.lastStatus = ctx, cancel, status</span>
+        }
+        <span class="cov8" title="1">s.cfg.AutoReload, s.lastActive = true, time.Now()
         s.autoGen++
-        s.watchRepo()
-        var cmd tea.Cmd
-        s.Model, cmd = s.Model.Update(refreshMsg{quiet: true})
-        return tea.Batch(cmd, s.autoTick(), s.waitRepo())</span>
+        var on, cmd tea.Cmd
+        s.Model, on = s.Model.Update(autoReloadMsg{on: true})
+        if s.gitMode </span>{
+                <span class="cov8" title="1">s.Model, cmd = s.Model.Update(refreshMsg{quiet: true})
+</span>        }
+        <span class="cov8" title="1">return batch(cmd, on, s.autoTick(), s.watchRepo())</span>
 }
 
+// gitView reports whether the view shows git diff or git log, which auto
+// reload checks by git status.
+func (s *DiffSwitch) gitView() bool {
+        <span class="cov8" title="1">_, diff := s.current()
+        _, log := s.view.(*Log)
+        return diff || log
+</span>}
+
 // stopAutoReload ends auto reload: its git commands are killed, and none
-// run for it from now on.
+// run for it from now on; nothing is watched.
 func (s *DiffSwitch) stopAutoReload() {
         <span class="cov8" title="1">s.cfg.AutoReload = false
         s.autoGen++
@@ -10571,17 +10665,24 @@ func (s *DiffSwitch) stopAutoReload() {
                 <span class="cov8" title="1">s.autoCancel()
                 s.autoCancel = nil
 </span>        }
-        <span class="cov8" title="1">if s.repoWatch != nil </span>{
-                <span class="cov8" title="1">s.repoWatch.Close()
-                s.repoWatch = nil
+        <span class="cov8" title="1">if s.w != nil </span>{
+                <span class="cov8" title="1">s.w.Pin(nil)
+                s.w.SetDirs(nil)
 </span>        }
+        <span class="cov8" title="1">s.pins, s.statusAgain, s.gitMode = nil, false, false
+        s.Model, _ = s.Model.Update(autoReloadMsg{on: false})</span>
 }
 
-// autoTick returns the command for the next regular check.
+// autoTick returns the command for the next regular check, nil without an
+// interval.
 func (s *DiffSwitch) autoTick() tea.Cmd {
-        <span class="cov8" title="1">gen := s.autoGen
+        <span class="cov8" title="1">if s.cfg.Settings.AutoReloadInterval &lt;= 0 </span>{
+                <span class="cov0" title="0">return nil
+</span>        }
+        <span class="cov8" title="1">s.tick++
+        gen, tick := s.autoGen, s.tick
         every := time.Duration(s.cfg.Settings.AutoReloadInterval) * time.Second
-        return tea.Tick(every, func(time.Time) tea.Msg </span>{ <span class="cov0" title="0">return autoTickMsg{gen} }</span>)
+        return tea.Tick(every, func(time.Time) tea.Msg </span>{ <span class="cov0" title="0">return autoTickMsg{gen, tick} }</span>)
 }
 
 // checkStatus returns the command running git status.
@@ -10595,9 +10696,10 @@ func (s *DiffSwitch) checkStatus() tea.Cmd {
 }
 
 // onAutoTick ends auto reload after the timeout without activity, else checks
-// the status, unless git is still at it, as in a large repository.
+// the status, unless git is still at it, as in a large repository, or there
+// is no git status to check.
 func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
-        <span class="cov8" title="1">if msg.gen != s.autoGen </span>{
+        <span class="cov8" title="1">if msg.gen != s.autoGen || msg.tick != s.tick || !s.cfg.AutoReload </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
         // In minutes as float: a large timeout overflows a time.Duration.
@@ -10605,16 +10707,19 @@ func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
                 <span class="cov8" title="1">s.stopAutoReload()
                 return func() tea.Msg </span>{ <span class="cov8" title="1">return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }</span>
         }
-        <span class="cov8" title="1">if s.statusRuns &gt; 0 </span>{
+        <span class="cov8" title="1">if s.statusRuns &gt; 0 || !s.gitMode </span>{
                 <span class="cov8" title="1">return s.autoTick()
 </span>        }
         <span class="cov8" title="1">return tea.Batch(s.autoTick(), s.checkStatus())</span>
 }
 
 // onAutoStatus loads what is shown again when the status differs from the last
-// one, which counts as activity. git status elsewhere, or git diff refreshing
-// the index, makes the watcher report a change but leaves the status as it is.
-// When git fails, auto reload ends.
+// one, which counts as activity, and watches the repository anew, whose files
+// to watch it may have changed. The directories of the files it names anew
+// count as used. git status elsewhere, or git diff refreshing the index,
+// makes the watcher report a change but leaves the status as it is. When git
+// fails, auto reload ends. A change reported while git was at it is checked
+// once more.
 func (s *DiffSwitch) onAutoStatus(msg autoStatusMsg) tea.Cmd {
         <span class="cov8" title="1">s.statusRuns--
         if msg.gen != s.autoGen </span>{
@@ -10624,50 +10729,114 @@ func (s *DiffSwitch) onAutoStatus(msg autoStatusMsg) tea.Cmd {
                 <span class="cov8" title="1">s.stopAutoReload()
                 return showAutoReloadError(msg.err)
 </span>        }
-        <span class="cov8" title="1">if msg.status == s.lastStatus </span>{
-                <span class="cov8" title="1">return nil
+        <span class="cov8" title="1">var again tea.Cmd
+        if s.statusAgain &amp;&amp; s.statusRuns == 0 </span>{
+                <span class="cov8" title="1">s.statusAgain, again = false, s.checkStatus()
 </span>        }
+        <span class="cov8" title="1">if msg.status == s.lastStatus </span>{
+                <span class="cov8" title="1">return again
+</span>        }
+        <span class="cov8" title="1">if s.w != nil </span>{
+                <span class="cov0" title="0">var paths []string
+                for _, p := range gitsrc.StatusPaths(msg.status, s.lastStatus) </span>{
+                        <span class="cov0" title="0">if abs, err := filepath.Abs(p); err == nil </span>{ // relative to where git ran
+                                <span class="cov0" title="0">paths = append(paths, abs)
+</span>                        }
+                }
+                <span class="cov0" title="0">s.w.Touch(paths)</span>
+        }
         <span class="cov8" title="1">s.lastStatus, s.lastActive = msg.status, time.Now()
         var cmd tea.Cmd
         s.Model, cmd = s.Model.Update(refreshMsg{quiet: true})
-        return cmd</span>
+        return batch(cmd, s.watchRepo(), again)</span>
 }
 
-// onRepoChanged checks the status at once after the watcher reported a change.
-// The files are watched anew, since a checkout changes the branch's ref.
-func (s *DiffSwitch) onRepoChanged() tea.Cmd {
-        <span class="cov8" title="1">s.watchRepo()
-        return tea.Batch(s.checkStatus(), s.waitRepo())
-</span>}
-
-// watchRepo starts watching the repository's files, in place of the watcher
-// before, which stays when that fails: the regular checks still see all
-// changes, only later. A symlink counts with the directory of its target.
-func (s *DiffSwitch) watchRepo() {
-        <span class="cov8" title="1">if s.repoPaths == nil </span>{
-                <span class="cov0" title="0">return
+// onRepoChanged checks the status at once when the watcher reported a change
+// of the repository or of the working tree, unless only of files that
+// watch_ignore matches; while git is at it, once more after. The next regular
+// check comes a full interval later. Without git status, a change of the
+// files shown counts as activity.
+func (s *DiffSwitch) onRepoChanged(paths []string) tea.Cmd {
+        <span class="cov8" title="1">if !s.cfg.AutoReload </span>{
+                <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">paths, err := s.repoPaths()
-        if err != nil </span>{
-                <span class="cov0" title="0">return
+        <span class="cov8" title="1">if !s.gitMode </span>{
+                <span class="cov0" title="0">s.lastActive = time.Now()
+                return nil
 </span>        }
-        <span class="cov8" title="1">w, err := notify.New(paths, 2*len(paths))
-        if err != nil </span>{
-                <span class="cov0" title="0">return
+        <span class="cov8" title="1">if !slices.ContainsFunc(paths, s.repoChange) </span>{
+                <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">if s.repoWatch != nil </span>{
-                <span class="cov8" title="1">s.repoWatch.Close()
+        <span class="cov8" title="1">if s.statusRuns &gt; 0 </span>{
+                <span class="cov8" title="1">s.statusAgain = true
+                return s.autoTick()
 </span>        }
-        <span class="cov8" title="1">s.repoWatch = w</span>
+        <span class="cov8" title="1">return batch(s.checkStatus(), s.autoTick())</span>
 }
 
-// waitRepo returns the command waiting for the watcher's next change, nil
-// without one.
-func (s *DiffSwitch) waitRepo() tea.Cmd {
-        <span class="cov8" title="1">if s.repoWatch == nil </span>{
-                <span class="cov0" title="0">return nil
+// repoChange reports whether a change of path counts for auto reload: of the
+// pinned files of the repository, or in the working tree, but of those that
+// watch_ignore matches.
+func (s *DiffSwitch) repoChange(path string) bool {
+        <span class="cov8" title="1">if slices.Contains(s.pins, path) </span>{
+                <span class="cov8" title="1">return true
 </span>        }
-        <span class="cov8" title="1">return waitChanges(s.repoWatch)</span>
+        <span class="cov8" title="1">rel := path
+        if top := s.cfg.Repo(); top != "" </span>{
+                <span class="cov0" title="0">r, err := filepath.Rel(top, path)
+                if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) </span>{
+                        <span class="cov0" title="0">return false
+</span>                }
+                <span class="cov0" title="0">rel = r</span>
+        }
+        <span class="cov8" title="1">return !s.cfg.WatchIgnored(filepath.ToSlash(rel))</span>
+}
+
+// repoWatchMsg brings, for auto reload number gen, the files of the
+// repository to watch and the directories of its working tree.
+type repoWatchMsg struct {
+        gen  int
+        pins []string
+        dirs map[string]time.Time
+}
+
+// watchRepo returns the command finding in the background what auto reload
+// watches of git: the files of the repository, which a checkout changes, and
+// the directories of the working tree, unless inotify_max_dirs is 0; nil
+// without a watcher or git. When git fails,
+// the watcher keeps what it watched: the regular checks still see all
+// changes, only later.
+func (s *DiffSwitch) watchRepo() tea.Cmd {
+        <span class="cov8" title="1">if s.w == nil || s.repoPaths == nil || !s.gitMode </span>{
+                <span class="cov8" title="1">return nil
+</span>        }
+        <span class="cov8" title="1">gen, paths, workDirs, ignored := s.autoGen, s.repoPaths, s.workDirs, s.cfg.WatchIgnored
+</span>        // Without directories to watch, the working tree is not looked at.
+        <span class="cov8" title="1">scan := workDirs != nil &amp;&amp; s.cfg.Settings.InotifyMaxDirs &gt; 0
+        return func() tea.Msg </span>{
+                <span class="cov8" title="1">pins, err := paths()
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil
+</span>                }
+                <span class="cov8" title="1">var dirs map[string]time.Time
+                if scan </span>{
+                        <span class="cov8" title="1">if dirs, err = workDirs(ignored); err != nil </span>{
+                                <span class="cov0" title="0">return nil
+</span>                        }
+                }
+                <span class="cov8" title="1">return repoWatchMsg{gen, pins, dirs}</span>
+        }
+}
+
+// onRepoWatch watches what msg brings, the files of the repository always,
+// unless auto reload ended meanwhile.
+func (s *DiffSwitch) onRepoWatch(msg repoWatchMsg) {
+        <span class="cov8" title="1">if msg.gen != s.autoGen || !s.cfg.AutoReload || s.w == nil </span>{
+                <span class="cov8" title="1">return
+</span>        }
+        <span class="cov8" title="1">s.pins = msg.pins
+        s.w.Pin(msg.pins)
+        s.w.SetDirs(msg.dirs)</span>
 }
 
 // showAutoReloadError returns the command showing why auto reload is off.
@@ -10692,10 +10861,18 @@ func diskPaths(f source.File) []string {
 func watchTick(cfg *config.Config, owner tea.Model) tea.Cmd {
         <span class="cov8" title="1">interval := cfg.Settings.WatchInterval
         if interval &lt;= 0 </span>{
-                <span class="cov8" title="1">return nil
+                <span class="cov0" title="0">return nil
 </span>        }
         <span class="cov8" title="1">return tea.Tick(time.Duration(interval*float64(time.Second)), func(time.Time) tea.Msg </span>{ <span class="cov0" title="0">return watchTickMsg{owner} }</span>)
 }
+
+// stale reports whether the file at path may differ from what was read with
+// stamp: its stamp changed or, while its modification time is recent, its
+// content may have. A file that cannot be read is not.
+func stale(path string, stamp source.Stamp) bool {
+        <span class="cov8" title="1">st, err := source.StampOf(path)
+        return err == nil &amp;&amp; (st != stamp || time.Since(st.ModTime) &lt; racyWindow)
+</span>}
 
 // refreshFile reloads the sides of f that changed on disk into f and into
 // its diff d, unless nil, calling after, unless nil, after each reload of d
@@ -10714,9 +10891,9 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
         reloaded, binary, dropped := false, false, 0
         for s, sf := range sides </span>{
                 <span class="cov8" title="1">if sf.path == "" </span>{
-                        <span class="cov0" title="0">continue</span>
+                        <span class="cov8" title="1">continue</span>
                 }
-                <span class="cov8" title="1">if st, err := source.StampOf(sf.path); err != nil || (st == *sf.stamp &amp;&amp; time.Since(st.ModTime) &gt;= racyWindow) </span>{
+                <span class="cov8" title="1">if !stale(sf.path, *sf.stamp) </span>{
                         <span class="cov8" title="1">continue</span>
                 }
                 <span class="cov8" title="1">lines, st, err := source.Read(sf.path)
@@ -10753,7 +10930,7 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
 }
 </pre>
 		
-		<pre class="file" id="file31" style="display: none">package ui
+		<pre class="file" id="file29" style="display: none">package ui
 
 import (
         "context"
@@ -10767,9 +10944,9 @@ import (
 
         "jdiff/internal/config"
         "jdiff/internal/keys"
-        "jdiff/internal/notify"
         "jdiff/internal/source"
         "jdiff/internal/theme"
+        "jdiff/watch"
 )
 
 // paneTitles renders names above the panes of a view width columns wide.
@@ -11138,23 +11315,33 @@ type DiffSwitch struct {
         wrap      func(tea.Model) tea.Model
         cfg       *config.Config
         gitDiff   DiffFunc
-        // Auto reload: repoStatus returns the state of the repository, nil
-        // without auto reload, which is checked every auto_reload_interval and at once
-        // when repoWatch, if the system has one, reports a change of the files of
-        // repoPaths. statusRuns counts the checks under way; autoGen tells this
-        // run of auto reload from earlier ones; autoCtx ends its git commands,
-        // autoCancel ends autoCtx.
-        repoStatus func(ctx context.Context) (string, error)
-        repoPaths  func() ([]string, error)
-        repoWatch  *notify.Watcher
-        lastStatus string
-        lastActive time.Time
-        statusRuns int
-        autoGen    int
-        autoCtx    context.Context
-        autoCancel context.CancelFunc
-        input      *lineInput // while it asks
-        err        string     // why git failed, until the next key
+        // w is the watcher the views share, nil where the system has none;
+        // limit is the inotify_max_dirs it has.
+        w     *watch.Watcher
+        limit int
+        // Auto reload: repoStatus returns the state of the repository, which is
+        // checked, while gitMode is set, every auto_reload_interval and at once
+        // when w reports a change of the files of repoPaths, pinned, or in the
+        // directories of workDirs. statusRuns counts the checks under way,
+        // statusAgain asks for one more after them; tick numbers the regular
+        // checks, of which only the last counts; autoGen tells this run of auto
+        // reload from earlier ones; autoCtx ends its git commands, autoCancel
+        // ends autoCtx.
+        repoStatus  func(ctx context.Context) (string, error)
+        repoPaths   func() ([]string, error)
+        workDirs    func(ignore func(rel string) bool) (map[string]time.Time, error)
+        gitMode     bool
+        tick        int
+        pins        []string
+        statusAgain bool
+        lastStatus  string
+        lastActive  time.Time
+        statusRuns  int
+        autoGen     int
+        autoCtx     context.Context
+        autoCancel  context.CancelFunc
+        input       *lineInput // while it asks
+        err         string     // why git failed, until the next key
         // running is set while git diff runs for the request number diffGen of
         // show; diffCancel ends it.
         running    bool
@@ -11170,12 +11357,34 @@ func WithDiffSwitch(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea
         <span class="cov8" title="1">return &amp;DiffSwitch{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, gitDiff: gitDiff}
 </span>}
 
-// WithAutoReload sets how auto reload gets the state of the repository and
-// the files to watch for changes of it, and returns s.
-func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error)) *DiffSwitch {
-        <span class="cov8" title="1">s.repoStatus, s.repoPaths = status, paths
+// WithAutoReload sets how auto reload gets the state of the repository, the
+// files to watch for changes of it and the directories of its working tree,
+// and returns s.
+func (s *DiffSwitch) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error),
+        dirs func(ignore func(rel string) bool) (map[string]time.Time, error)) *DiffSwitch {
+        <span class="cov8" title="1">s.repoStatus, s.repoPaths, s.workDirs = status, paths, dirs
         return s
 </span>}
+
+// Init starts the watcher the views share, unless watching is off, and
+// gives it to the view, before it starts.
+func (s *DiffSwitch) Init() tea.Cmd {
+        <span class="cov8" title="1">var wait tea.Cmd
+        if s.cfg.Settings.WatchInterval &gt; 0 </span>{
+                <span class="cov8" title="1">if w, err := watch.New(s.cfg.Settings.InotifyMaxDirs); err == nil </span>{
+                        <span class="cov8" title="1">s.w, s.limit, wait = w, s.cfg.Settings.InotifyMaxDirs, waitChanges(w)
+                        s.share()
+</span>                }
+        }
+        <span class="cov8" title="1">return batch(s.Model.Init(), wait)</span>
+}
+
+// share gives the watcher to the view, if it watches files.
+func (s *DiffSwitch) share() {
+        <span class="cov8" title="1">if v, ok := s.view.(interface{ shareWatcher(*watch.Watcher) }); ok &amp;&amp; s.w != nil </span>{
+                <span class="cov8" title="1">v.shareWatcher(s.w)
+</span>        }
+}
 
 // current returns the arguments of the git diff shown, and whether the view
 // shows one.
@@ -11203,14 +11412,19 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case autoStatusMsg:
                 <span class="cov8" title="1">return s, s.onAutoStatus(msg)</span>
         case changedMsg:
-                <span class="cov8" title="1">if s.repoWatch != nil &amp;&amp; msg.w == s.repoWatch </span>{
-                        <span class="cov8" title="1">return s, s.onRepoChanged()
+                <span class="cov8" title="1">if s.w != nil &amp;&amp; msg.w == s.w </span>{
+                        <span class="cov8" title="1">check := s.onRepoChanged(msg.paths)
+                        var cmd tea.Cmd
+                        s.Model, cmd = s.Model.Update(msg)
+                        return s, batch(cmd, check, waitChanges(s.w))
 </span>                }
         case watchEndedMsg:
-                <span class="cov0" title="0">if s.repoWatch != nil &amp;&amp; msg.w == s.repoWatch </span>{
-                        <span class="cov0" title="0">s.repoWatch = nil // the regular checks still see all changes
-                        return s, nil
+                <span class="cov0" title="0">if s.w != nil &amp;&amp; msg.w == s.w </span>{
+                        <span class="cov0" title="0">s.w = nil // the regular checks still see all changes; the view checks its files
 </span>                }
+        case repoWatchMsg:
+                <span class="cov8" title="1">s.onRepoWatch(msg)
+                return s, nil</span>
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">s.lastActive = time.Now()
                 if s.input != nil </span>{
@@ -11226,7 +11440,11 @@ func (s *DiffSwitch) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         }
         <span class="cov8" title="1">var cmd tea.Cmd
         s.Model, cmd = s.Model.Update(msg)
-        return s, cmd</span>
+        if s.w != nil &amp;&amp; s.limit != s.cfg.Settings.InotifyMaxDirs </span>{ // set in the settings popup
+                <span class="cov0" title="0">s.limit = s.cfg.Settings.InotifyMaxDirs
+                s.w.SetLimit(s.limit)
+</span>        }
+        <span class="cov8" title="1">return s, cmd</span>
 }
 
 // key edits the arguments asked for; all text typed goes into the line. Up
@@ -11334,6 +11552,9 @@ func (s *DiffSwitch) stop() {
         if v, ok := s.view.(interface{ stop() }); ok </span>{
                 <span class="cov8" title="1">v.stop()
 </span>        }
+        <span class="cov8" title="1">if s.w != nil </span>{
+                <span class="cov8" title="1">s.w.Close()
+</span>        }
 }
 
 // diffListedMsg brings the files of git diff with args, run for the request
@@ -11384,8 +11605,14 @@ func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
                 <span class="cov8" title="1">a.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 </span>        }
         <span class="cov8" title="1">s.view, s.Model = a, s.wrap(a)
+        s.share()
         s.Model.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
-        return s.Model.Init()</span>
+        cmd := s.Model.Init()
+        if s.cfg.AutoReload &amp;&amp; !s.gitMode </span>{ // now git diff: checked by git status
+                <span class="cov0" title="0">s.stopAutoReload()
+                cmd = batch(cmd, s.toggleAutoReload())
+</span>        }
+        <span class="cov8" title="1">return cmd</span>
 }
 
 // minInputWidth is the least width of the line in the popups of inputBox.
@@ -11581,7 +11808,7 @@ func (g *SizeGuard) frame() string {
 }
 </pre>
 		
-		<pre class="file" id="file32" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
+		<pre class="file" id="file30" style="display: none">// Command jdiff is an interactive side-by-side diff viewer with manual line
 // alignment.
 package main
 
@@ -11834,7 +12061,7 @@ func start(o options, mode string, args []string) {
         <span class="cov0" title="0">wrap := func(m tea.Model) tea.Model </span>{
                 <span class="cov0" title="0">return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
 </span>        }
-        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths)))</span>
+        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))</span>
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -11979,6 +12206,565 @@ func resolveVersion() string {
                 <span class="cov0" title="0">v = rev[:min(len(rev), 7)]
 </span>        }
         <span class="cov0" title="0">return v + dirty</span>
+}
+</pre>
+		
+		<pre class="file" id="file31" style="display: none">//go:build linux
+
+package watch
+
+import (
+        "bytes"
+        "encoding/binary"
+        "fmt"
+        "os"
+        "sync"
+
+        "golang.org/x/sys/unix"
+)
+
+// mask selects the events that change a file's content or replace or
+// remove it, and the move of a watched directory; touching its times or mode
+// does not.
+const mask = unix.IN_MODIFY | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
+        unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_MOVE_SELF | unix.IN_ONLYDIR | unix.IN_EXCL_UNLINK
+
+// inotify is the backend of Linux. All watches share one inotify instance,
+// which takes one file descriptor. Its descriptor is used through Control,
+// so that close cannot close it meanwhile.
+type inotify struct {
+        file *os.File
+        mu   sync.Mutex
+        live map[int32]bool // the watches not removed nor ended
+        ch   chan event
+        done chan struct{}
+        once sync.Once
+}
+
+func newBackend() (backend, error) {
+        <span class="cov8" title="1">fd, err := unix.InotifyInit1(unix.IN_NONBLOCK | unix.IN_CLOEXEC)
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, fmt.Errorf("inotify: %w", err)
+</span>        }
+        // Non-blocking, the file is read through Go's poller, so that close
+        // ends a pending read.
+        <span class="cov8" title="1">b := &amp;inotify{file: os.NewFile(uintptr(fd), "inotify"), live: map[int32]bool{},
+                ch: make(chan event), done: make(chan struct{})}
+        go b.read()
+        return b, nil</span>
+}
+
+func (b *inotify) add(dir string) (int, error) {
+        <span class="cov8" title="1">var wd int
+        var err error
+        if cerr := b.control(func(fd int) </span>{ <span class="cov8" title="1">wd, err = unix.InotifyAddWatch(fd, dir, mask) }</span>); cerr != nil {
+                <span class="cov0" title="0">return 0, cerr
+</span>        }
+        <span class="cov8" title="1">if err != nil </span>{
+                <span class="cov8" title="1">return 0, fmt.Errorf("inotify: %s: %w", dir, err)
+</span>        }
+        <span class="cov8" title="1">b.mu.Lock()
+        b.live[int32(wd)] = true
+        b.mu.Unlock()
+        return wd, nil</span>
+}
+
+func (b *inotify) remove(id int) {
+        <span class="cov8" title="1">b.mu.Lock()
+        live := b.live[int32(id)]
+        delete(b.live, int32(id))
+        b.mu.Unlock()
+        if live </span>{
+                <span class="cov8" title="1">b.control(func(fd int) </span>{ <span class="cov8" title="1">unix.InotifyRmWatch(fd, uint32(id)) }</span>)
+        }
+}
+
+func (b *inotify) events() &lt;-chan event { <span class="cov8" title="1">return b.ch }</span>
+
+func (b *inotify) close() error {
+        <span class="cov8" title="1">err := os.ErrClosed
+        b.once.Do(func() </span>{
+                <span class="cov8" title="1">close(b.done)
+                err = b.file.Close()
+</span>        })
+        <span class="cov8" title="1">return err</span>
+}
+
+// control runs f with the file's descriptor.
+func (b *inotify) control(f func(fd int)) error {
+        <span class="cov8" title="1">conn, err := b.file.SyscallConn()
+        if err != nil </span>{
+                <span class="cov0" title="0">return err
+</span>        }
+        <span class="cov8" title="1">return conn.Control(func(fd uintptr) </span>{ <span class="cov8" title="1">f(int(fd)) }</span>)
+}
+
+// read sends the events the kernel reports, until the file is closed. A
+// watch removed is dropped, the end the kernel reports for it too. A
+// directory moved away ends its watch, which would follow it.
+func (b *inotify) read() {
+        <span class="cov8" title="1">defer close(b.ch)
+        buf := make([]byte, 64*1024)
+        for </span>{
+                <span class="cov8" title="1">n, err := b.file.Read(buf)
+                if err != nil </span>{
+                        <span class="cov8" title="1">return
+</span>                }
+                <span class="cov8" title="1">for off := 0; off+unix.SizeofInotifyEvent &lt;= n; </span>{
+                        <span class="cov8" title="1">wd := int32(binary.NativeEndian.Uint32(buf[off:]))
+                        evMask := binary.NativeEndian.Uint32(buf[off+4:])
+                        nameLen := int(binary.NativeEndian.Uint32(buf[off+12:]))
+                        name := bytes.TrimRight(buf[off+unix.SizeofInotifyEvent:off+unix.SizeofInotifyEvent+nameLen], "\x00")
+                        off += unix.SizeofInotifyEvent + nameLen
+                        ev, ok := b.event(wd, evMask, string(name))
+                        if !ok </span>{
+                                <span class="cov8" title="1">continue</span>
+                        }
+                        <span class="cov8" title="1">select </span>{
+                        case b.ch &lt;- ev:<span class="cov8" title="1"></span>
+                        case &lt;-b.done:
+                                <span class="cov0" title="0">return</span>
+                        }
+                }
+        }
+}
+
+// event returns the event of watch wd, with evMask and name, and whether
+// there is one.
+func (b *inotify) event(wd int32, evMask uint32, name string) (event, bool) {
+        <span class="cov8" title="1">if evMask&amp;unix.IN_Q_OVERFLOW != 0 </span>{
+                <span class="cov0" title="0">return event{overflow: true}, true
+</span>        }
+        <span class="cov8" title="1">b.mu.Lock()
+        live := b.live[wd]
+        ended := live &amp;&amp; evMask&amp;(unix.IN_IGNORED|unix.IN_MOVE_SELF) != 0
+        if ended </span>{
+                <span class="cov8" title="1">delete(b.live, wd)
+</span>        }
+        <span class="cov8" title="1">b.mu.Unlock()
+        switch </span>{
+        case !live:
+                <span class="cov8" title="1">return event{}, false</span>
+        case ended:
+                <span class="cov8" title="1">if evMask&amp;unix.IN_MOVE_SELF != 0 </span>{
+                        <span class="cov8" title="1">b.control(func(fd int) </span>{ <span class="cov8" title="1">unix.InotifyRmWatch(fd, uint32(wd)) }</span>)
+                }
+                <span class="cov8" title="1">return event{id: int(wd)}, true</span>
+        case name == "":
+                <span class="cov0" title="0">return event{}, false</span>
+        }
+        <span class="cov8" title="1">return event{id: int(wd), name: name}, true</span>
+}
+</pre>
+		
+		<pre class="file" id="file32" style="display: none">// Package watch reports changes to files as the system sees them, instead
+// of checking them over and over. It watches the directories the files are
+// in, not the files: editors often save by writing a new file and renaming
+// it over the old one, which a watch on the old file would not see, and only
+// a directory sees a file appear. Only these directories are watched, not
+// their subdirectories.
+//
+// A Watcher watches the directories of pinned files always, and of the others
+// at most a number. When more are wanted, the most recently used ones are
+// watched, see Watched, and the callers check the others themselves. A
+// directory is used when something in it changes and when Touch says so;
+// before either, at the time it or its newest file was modified.
+//
+// What a system offers is its backend. Only Linux (inotify) has one; elsewhere
+// New fails with ErrUnsupported and the callers check the files themselves.
+// Another system needs only a backend of its own (backend_&lt;os&gt;.go).
+package watch
+
+import (
+        "cmp"
+        "errors"
+        "io/fs"
+        "maps"
+        "os"
+        "path/filepath"
+        "slices"
+        "sync"
+        "time"
+)
+
+// ErrUnsupported is returned where the system cannot report changes.
+var ErrUnsupported = errors.New("not supported on this system")
+
+// settle is how long changes are collected after the first one, so that
+// the events of one save come as one batch.
+const settle = 50 * time.Millisecond
+
+// backend watches single directories, without their subdirectories. Its
+// methods may be called from any goroutine; add and remove must not wait for
+// the events to be taken.
+type backend interface {
+        // add starts watching dir and returns the id of its events. A missing
+        // dir is an error matching fs.ErrNotExist.
+        add(dir string) (int, error)
+        // remove stops watching id: no event of it comes after.
+        remove(id int)
+        // events returns the events, closed after close or when the system
+        // stops reporting.
+        events() &lt;-chan event
+        close() error
+}
+
+// event is a change of the entry name of the directory watched as id. With
+// name "", the directory itself is gone or moved away, and its watch ended.
+// With overflow, the system lost events; id is not set.
+type event struct {
+        id       int
+        name     string
+        overflow bool
+}
+
+// Watcher reports changes to files and directories. Its methods may be called
+// from any goroutine.
+type Watcher struct {
+        b backend
+
+        mu     sync.Mutex
+        limit  int                  // the most directories watched
+        files  map[string][]string  // SetFiles, see watched
+        pinned map[string][]string  // Pin, see watched
+        whole  map[string]bool      // SetDirs: all their entries count
+        used   map[string]time.Time // the directories wanted, but pinned ones, and when they were used
+        ids    map[int]string       // watch id -&gt; directory
+        dirIDs map[string]int       // watched directory -&gt; watch id
+        now    func() time.Time     // the time of a use, time.Now but in tests
+
+        raw     chan string
+        changes chan []string
+        done    chan struct{}
+        once    sync.Once
+}
+
+// New returns a watcher of at most limit directories, watching none yet. It
+// fails when the system cannot report changes.
+func New(limit int) (*Watcher, error) {
+        <span class="cov8" title="1">b, err := newBackend()
+        if err != nil </span>{
+                <span class="cov0" title="0">return nil, err
+</span>        }
+        <span class="cov8" title="1">return newWatcher(b, limit), nil</span>
+}
+
+// newWatcher returns a watcher of at most limit directories with b.
+func newWatcher(b backend, limit int) *Watcher {
+        <span class="cov8" title="1">w := &amp;Watcher{b: b, limit: limit, used: map[string]time.Time{}, ids: map[int]string{}, dirIDs: map[string]int{}, now: time.Now,
+                raw: make(chan string), changes: make(chan []string), done: make(chan struct{})}
+        go w.read()
+        go w.batch()
+        return w
+</span>}
+
+// SetFiles watches the files at paths, in place of those set before. A
+// change of one is reported by its path as given; other entries of their
+// directories are not reported. It returns the first error of the system,
+// other than for a missing directory, which is left out; the directories
+// that could be watched are.
+func (w *Watcher) SetFiles(paths []string) error {
+        <span class="cov8" title="1">names := watched(paths)
+        modified := newest(names)
+        w.mu.Lock()
+        defer w.mu.Unlock()
+        w.files = names
+        w.want(modified)
+        return w.apply()
+</span>}
+
+// Pin watches the files at paths as SetFiles does, in place of those pinned
+// before, but always: their directories do not count towards the limit.
+func (w *Watcher) Pin(paths []string) error {
+        <span class="cov8" title="1">names := watched(paths)
+        w.mu.Lock()
+        defer w.mu.Unlock()
+        w.pinned = names
+        return w.apply()
+</span>}
+
+// SetDirs watches the directories of dirs, in place of those set before, with
+// the time each was last modified. A change of any entry is reported by the
+// directory joined with its name. It returns errors as SetFiles does.
+func (w *Watcher) SetDirs(dirs map[string]time.Time) error {
+        <span class="cov8" title="1">cleaned := map[string]time.Time{}
+        for d, t := range dirs </span>{
+                <span class="cov8" title="1">cleaned[filepath.Clean(d)] = t
+</span>        }
+        <span class="cov8" title="1">w.mu.Lock()
+        defer w.mu.Unlock()
+        w.whole = map[string]bool{}
+        for d := range cleaned </span>{
+                <span class="cov8" title="1">w.whole[d] = true
+</span>        }
+        <span class="cov8" title="1">w.want(cleaned)
+        return w.apply()</span>
+}
+
+// Touch counts the directories of the files at paths, those of symlink
+// targets too, as used now: the most recent ones are watched.
+func (w *Watcher) Touch(paths []string) error {
+        <span class="cov8" title="1">ds := dirs(watched(paths))
+        w.mu.Lock()
+        defer w.mu.Unlock()
+        now := w.now()
+        for _, d := range ds </span>{
+                <span class="cov8" title="1">if _, ok := w.used[d]; ok </span>{
+                        <span class="cov8" title="1">w.used[d] = now
+</span>                }
+        }
+        <span class="cov8" title="1">return w.apply()</span>
+}
+
+// SetLimit sets the most directories watched besides those of pinned files;
+// with 0 only those are.
+func (w *Watcher) SetLimit(limit int) error {
+        <span class="cov8" title="1">w.mu.Lock()
+        defer w.mu.Unlock()
+        w.limit = limit
+        return w.apply()
+</span>}
+
+// Watched reports whether a change of the file at path is reported now: its
+// directory is watched, and so is that of its target when it is a symlink.
+func (w *Watcher) Watched(path string) bool {
+        <span class="cov8" title="1">names := watched([]string{path})
+        w.mu.Lock()
+        defer w.mu.Unlock()
+        for name := range names </span>{
+                <span class="cov8" title="1">if _, ok := w.dirIDs[filepath.Dir(name)]; !ok </span>{
+                        <span class="cov8" title="1">return false
+</span>                }
+        }
+        <span class="cov8" title="1">return true</span>
+}
+
+// Changes returns the channel of changed paths, in sorted batches. It is
+// closed when the watcher is, and when the system stops reporting.
+func (w *Watcher) Changes() &lt;-chan []string { <span class="cov8" title="1">return w.changes }</span>
+
+// Close stops watching.
+func (w *Watcher) Close() error {
+        <span class="cov8" title="1">err := os.ErrClosed
+        w.once.Do(func() </span>{
+                <span class="cov8" title="1">close(w.done)
+                err = w.b.close()
+</span>        })
+        <span class="cov8" title="1">return err</span>
+}
+
+// want adds the directories of modified, at the time given, to those wanted
+// that are not yet.
+func (w *Watcher) want(modified map[string]time.Time) {
+        <span class="cov8" title="1">for d, t := range modified </span>{
+                <span class="cov8" title="1">if _, ok := w.used[d]; !ok </span>{
+                        <span class="cov8" title="1">w.used[d] = t
+</span>                }
+        }
+}
+
+// apply watches the pinned directories and the most recently used others, as
+// many as the limit allows, and no others: those no longer wanted are dropped.
+// A missing directory takes no place. It returns the first error of the
+// system other than for a missing directory. w.mu is held.
+func (w *Watcher) apply() error {
+        <span class="cov8" title="1">wanted := map[string]bool{}
+        for d := range w.whole </span>{
+                <span class="cov8" title="1">wanted[d] = true
+</span>        }
+        <span class="cov8" title="1">for _, d := range dirs(w.files) </span>{
+                <span class="cov8" title="1">wanted[d] = true
+</span>        }
+        <span class="cov8" title="1">maps.DeleteFunc(w.used, func(d string, _ time.Time) bool </span>{ <span class="cov8" title="1">return !wanted[d] }</span>)
+        <span class="cov8" title="1">pins := dirs(w.pinned)
+        order := slices.Clone(pins)
+        others := slices.Collect(maps.Keys(w.used))
+        slices.SortFunc(others, func(a, b string) int </span>{
+                <span class="cov8" title="1">if c := w.used[b].Compare(w.used[a]); c != 0 </span>{
+                        <span class="cov8" title="1">return c
+</span>                }
+                <span class="cov8" title="1">return cmp.Compare(a, b)</span>
+        })
+        <span class="cov8" title="1">for _, d := range others </span>{
+                <span class="cov8" title="1">if !slices.Contains(order, d) </span>{
+                        <span class="cov8" title="1">order = append(order, d)
+</span>                }
+        }
+        // The watches beyond the limit go first, so that the system's limit
+        // is not passed on the way.
+        <span class="cov8" title="1">keep := order[:min(len(order), len(pins)+max(w.limit, 0))]
+        for d, id := range w.dirIDs </span>{
+                <span class="cov8" title="1">if !slices.Contains(keep, d) </span>{
+                        <span class="cov8" title="1">w.b.remove(id)
+                        delete(w.ids, id)
+                        delete(w.dirIDs, d)
+</span>                }
+        }
+        <span class="cov8" title="1">var first error
+        n := 0 // the others watched
+        for _, d := range order </span>{
+                <span class="cov8" title="1">pinned := slices.Contains(pins, d)
+                if !pinned &amp;&amp; n &gt;= w.limit </span>{
+                        <span class="cov8" title="1">break</span>
+                }
+                <span class="cov8" title="1">if _, ok := w.dirIDs[d]; ok </span>{
+                        <span class="cov8" title="1">if !pinned </span>{
+                                <span class="cov8" title="1">n++
+</span>                        }
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">id, err := w.b.add(d)
+                if err != nil </span>{
+                        <span class="cov8" title="1">if !errors.Is(err, fs.ErrNotExist) &amp;&amp; first == nil </span>{
+                                <span class="cov0" title="0">first = err
+</span>                        }
+                        <span class="cov8" title="1">continue</span>
+                }
+                <span class="cov8" title="1">w.ids[id], w.dirIDs[d] = d, id
+                if !pinned </span>{
+                        <span class="cov8" title="1">n++
+</span>                }
+        }
+        <span class="cov8" title="1">return first</span>
+}
+
+// read hands the paths of the backend's events to batch, until the watcher
+// is closed or the backend ends.
+func (w *Watcher) read() {
+        <span class="cov8" title="1">defer close(w.raw)
+        for ev := range w.b.events() </span>{
+                <span class="cov8" title="1">for _, p := range w.paths(ev) </span>{
+                        <span class="cov8" title="1">select </span>{
+                        case w.raw &lt;- p:<span class="cov8" title="1"></span>
+                        case &lt;-w.done:
+                                <span class="cov0" title="0">return</span>
+                        }
+                }
+        }
+}
+
+// paths returns the paths ev reports. A change counts as use of its
+// directory. When events were lost, all paths count as changed. When a
+// watched directory is gone or moved away, as when a checkout removes and
+// makes it again, its paths count as changed, and the directory at its path
+// is watched again when there is one: else it is not watched, which Watched
+// tells.
+func (w *Watcher) paths(ev event) []string {
+        <span class="cov8" title="1">w.mu.Lock()
+        defer w.mu.Unlock()
+        if ev.overflow </span>{
+                <span class="cov8" title="1">var out []string
+                for _, names := range []map[string][]string{w.files, w.pinned} </span>{
+                        <span class="cov8" title="1">for _, ps := range names </span>{
+                                <span class="cov8" title="1">out = append(out, ps...)
+</span>                        }
+                }
+                <span class="cov8" title="1">return append(out, slices.Collect(maps.Keys(w.whole))...)</span>
+        }
+        <span class="cov8" title="1">dir, ok := w.ids[ev.id]
+        if !ok </span>{
+                <span class="cov0" title="0">return nil // removed meanwhile
+</span>        }
+        <span class="cov8" title="1">if ev.name == "" </span>{
+                <span class="cov8" title="1">delete(w.ids, ev.id)
+                delete(w.dirIDs, dir)
+                var out []string
+                for _, names := range []map[string][]string{w.files, w.pinned} </span>{
+                        <span class="cov8" title="1">for p, ps := range names </span>{
+                                <span class="cov8" title="1">if filepath.Dir(p) == dir </span>{
+                                        <span class="cov8" title="1">out = append(out, ps...)
+</span>                                }
+                        }
+                }
+                <span class="cov8" title="1">if w.whole[dir] </span>{
+                        <span class="cov8" title="1">out = append(out, dir)
+</span>                }
+                <span class="cov8" title="1">w.apply() // what it cannot watch, Watched tells
+                return out</span>
+        }
+        <span class="cov8" title="1">if _, ok := w.used[dir]; ok </span>{
+                <span class="cov8" title="1">w.used[dir] = w.now()
+</span>        }
+        <span class="cov8" title="1">p := filepath.Join(dir, ev.name)
+        out := append(slices.Clone(w.files[p]), w.pinned[p]...)
+        if w.whole[dir] </span>{
+                <span class="cov8" title="1">out = append(out, p)
+</span>        }
+        <span class="cov8" title="1">return out</span>
+}
+
+// batch collects the paths from raw for settle after the first one and
+// sends them on as one batch, until raw is closed; the batch collected
+// then is still sent.
+func (w *Watcher) batch() {
+        <span class="cov8" title="1">defer close(w.changes)
+        for open := true; open; </span>{
+                <span class="cov8" title="1">p, ok := &lt;-w.raw
+                if !ok </span>{
+                        <span class="cov8" title="1">return
+</span>                }
+                <span class="cov8" title="1">set := map[string]bool{p: true}
+                timer := time.NewTimer(settle)
+        collect:
+                for </span>{
+                        <span class="cov8" title="1">select </span>{
+                        case p, ok := &lt;-w.raw:
+                                <span class="cov8" title="1">if !ok </span>{
+                                        <span class="cov0" title="0">timer.Stop()
+                                        open = false
+                                        break collect</span>
+                                }
+                                <span class="cov8" title="1">set[p] = true</span>
+                        case &lt;-timer.C:
+                                <span class="cov8" title="1">break collect</span>
+                        }
+                }
+                <span class="cov8" title="1">select </span>{
+                case w.changes &lt;- slices.Sorted(maps.Keys(set)):<span class="cov8" title="1"></span>
+                case &lt;-w.done:
+                        <span class="cov0" title="0">return</span>
+                }
+        }
+}
+
+// watched maps each path the system names to the paths it was given as: a
+// path stands for itself and, when it is a symlink, for its target, which
+// is what git difftool --dir-diff puts in place of working tree files.
+func watched(paths []string) map[string][]string {
+        <span class="cov8" title="1">names := map[string][]string{}
+        for _, p := range paths </span>{
+                <span class="cov8" title="1">p = filepath.Clean(p)
+                names[p] = append(names[p], p)
+                if target, err := filepath.EvalSymlinks(p); err == nil &amp;&amp; target != p </span>{
+                        <span class="cov8" title="1">names[target] = append(names[target], p)
+</span>                }
+        }
+        <span class="cov8" title="1">return names</span>
+}
+
+// dirs returns the directories of the paths of names, sorted.
+func dirs(names map[string][]string) []string {
+        <span class="cov8" title="1">var out []string
+        for p := range names </span>{
+                <span class="cov8" title="1">out = append(out, filepath.Dir(p))
+</span>        }
+        <span class="cov8" title="1">slices.Sort(out)
+        return slices.Compact(out)</span>
+}
+
+// newest returns the directories of the paths of names with the time their
+// newest file there was modified; a file that cannot be read counts as never.
+func newest(names map[string][]string) map[string]time.Time {
+        <span class="cov8" title="1">out := map[string]time.Time{}
+        for p := range names </span>{
+                <span class="cov8" title="1">d := filepath.Dir(p)
+                t := out[d]
+                if info, err := os.Stat(p); err == nil &amp;&amp; info.ModTime().After(t) </span>{
+                        <span class="cov8" title="1">t = info.ModTime()
+</span>                }
+                <span class="cov8" title="1">out[d] = t</span>
+        }
+        <span class="cov8" title="1">return out</span>
 }
 </pre>
 		
