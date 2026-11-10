@@ -1415,7 +1415,7 @@ func TestQuitKeys(t *testing.T) {
 	help := func() tea.Model { return WithHelp(config.Default(), model()) }
 	marks := func() tea.Model { return WithMarks(config.Default(), model()) }
 	search := func() tea.Model { return newSearchBar(model()) }
-	ask := func() tea.Model { s, _ := newDiffSwitch(files()); return s }
+	ask := func() tea.Model { s, _ := newTestApp(files()); return s }
 	for _, c := range []struct {
 		name string
 		page func() tea.Model

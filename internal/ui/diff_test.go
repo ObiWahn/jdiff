@@ -377,18 +377,18 @@ func (g *fakeGitDiff) diff(ctx context.Context, args []string, untracked bool) (
 	}, nil
 }
 
-// newDiffSwitch returns the switch around view, wrapped in the help popup.
-func newDiffSwitch(view tea.Model) (*DiffSwitch, *fakeGitDiff) {
+// newTestApp returns the app around view, wrapped in the help popup.
+func newTestApp(view tea.Model) (*App, *fakeGitDiff) {
 	g := &fakeGitDiff{}
 	wrap := func(m tea.Model) tea.Model { return WithHelp(config.Default(), m) }
-	s := WithDiffSwitch(config.Default(), view, wrap, g.diff)
+	s := newApp(config.Default(), view, wrap, g.diff)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
 	return s, g
 }
 
 // shownDiff returns the file list s shows, failing when it shows another
 // view.
-func shownDiff(t *testing.T, s *DiffSwitch) *Diff {
+func shownDiff(t *testing.T, s *App) *Diff {
 	t.Helper()
 	d, ok := s.view.(*Diff)
 	if !ok {
@@ -397,13 +397,13 @@ func shownDiff(t *testing.T, s *DiffSwitch) *Diff {
 	return d
 }
 
-func TestDiffSwitchTyped(t *testing.T) {
+func TestAppDiffTyped(t *testing.T) {
 	g := &fakeGitDiff{}
 	start := NewDiff(config.Default(), []source.File{
 		{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "b.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	}).WithGitDiff([]string{"--cached"}, g.diff)
-	s, _ := newDiffSwitch(start)
+	s, _ := newTestApp(start)
 	s.gitDiff = g.diff
 
 	pressRoot(s, "d")
@@ -449,7 +449,7 @@ func TestDiffSwitchTyped(t *testing.T) {
 
 // popupLine returns the line of the popup of s that holds want, without
 // the borders, its spaces kept, failing when there is none.
-func popupLine(t *testing.T, s *DiffSwitch, want string) string {
+func popupLine(t *testing.T, s *App, want string) string {
 	t.Helper()
 	for _, row := range strings.Split(ansi.Strip(s.frame()), "\n") {
 		if strings.Contains(row, want) {
@@ -463,7 +463,7 @@ func popupLine(t *testing.T, s *DiffSwitch, want string) string {
 }
 
 func TestDiffSwitchPopup(t *testing.T) {
-	s, g := newDiffSwitch(newTestDiff()) // 100 columns
+	s, g := newTestApp(newTestDiff()) // 100 columns
 	pressRoot(s, "d")
 	if strings.Contains(s.frame(), "↑ current") {
 		t.Error("offers the current arguments without a git diff shown")
@@ -502,7 +502,7 @@ func TestDiffSwitchPopup(t *testing.T) {
 func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "enter", "enter") // c3, a.go
-	s, g := newDiffSwitch(l)
+	s, g := newTestApp(l)
 	pressRoot(s, "d")
 	if strings.Contains(s.frame(), "current") {
 		t.Error("the log offers its current git diff arguments")
@@ -515,7 +515,7 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 	pressRoot(s, "backspace")
 	shownDiff(t, s)
 
-	s, g = newDiffSwitch(newTestFileDiff([]string{"a"}, []string{"b"}))
+	s, g = newTestApp(newTestFileDiff([]string{"a"}, []string{"b"}))
 	pressRoot(s, "d", "--cached", "enter")
 	if d := shownDiff(t, s); !slices.Equal(d.diffArgs, []string{"--cached"}) || len(g.runs) != 1 {
 		t.Errorf("from two files: args %v runs %v", d.diffArgs, g.runs)
@@ -524,7 +524,7 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 
 func TestDiffSwitchFails(t *testing.T) {
 	m := newTestFileDiff([]string{"a"}, []string{"b"})
-	s, g := newDiffSwitch(m)
+	s, g := newTestApp(m)
 	g.err = errors.New("git diff: fatal: bad revision 'HEAD~99'\nmore lines of git")
 	pressRoot(s, "d", "HEAD~99", "enter")
 	// The popup stays with the line typed, to be fixed, and git's first line.
@@ -850,7 +850,7 @@ func TestFileListRows(t *testing.T) {
 }
 
 func TestDiffSwitchBackspaceCloses(t *testing.T) {
-	s, g := newDiffSwitch(newTestDiff())
+	s, g := newTestApp(newTestDiff())
 	pressRoot(s, "d", "ab", "backspace")
 	if s.input == nil || s.input.text != "a" {
 		t.Fatalf("backspace on text: %v", s.input)
@@ -862,7 +862,7 @@ func TestDiffSwitchBackspaceCloses(t *testing.T) {
 }
 
 func TestDiffSwitchErrorWidens(t *testing.T) {
-	s, g := newDiffSwitch(newTestDiff()) // 100 columns
+	s, g := newTestApp(newTestDiff()) // 100 columns
 	msg := "git diff: fatal: ambiguous argument 'HEAD~99': unknown revision or path not in the working tree"
 	g.err = errors.New(msg + "\nmore")
 	pressRoot(s, "d", "HEAD~99", "enter")
@@ -1023,7 +1023,7 @@ func TestDiffRelistDropsAnchors(t *testing.T) {
 // Pasted text goes into the line while the popup asks, also clearing why git
 // failed, and to the view otherwise.
 func TestDiffSwitchPaste(t *testing.T) {
-	s, g := newDiffSwitch(newTestDiff())
+	s, g := newTestApp(newTestDiff())
 	s.Update(tea.PasteMsg{Content: "x0"})
 	if s.input != nil {
 		t.Fatalf("pasted with the popup closed: %q", s.input.text)
@@ -1096,7 +1096,7 @@ func TestDiffRelistWhileListing(t *testing.T) {
 // late and end the git command.
 func TestDiffSwitchDropsLateDiff(t *testing.T) {
 	view := newTestDiff()
-	s, g := newDiffSwitch(view)
+	s, g := newTestApp(view)
 	ask := func(args string) tea.Cmd {
 		s.Update(askDiffMsg{})
 		pressRoot(s, args)
@@ -1157,7 +1157,7 @@ func TestPasteAndHeading(t *testing.T) {
 	if in.text != "x0 a b [2Jc d" {
 		t.Errorf("pasted: %q", in.text)
 	}
-	s, _ := newDiffSwitch(newTestDiff())
+	s, _ := newTestApp(newTestDiff())
 	s.Update(askDiffMsg{})
 	s.Update(tea.PasteMsg{Content: "x1\x1b[2J"})
 	cmd := s.key(keyMsg("enter"))

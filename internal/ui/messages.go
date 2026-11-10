@@ -48,7 +48,7 @@ func refreshAll() tea.Msg { return refreshMsg{} }
 // nothingChanged is the message after loading again the same.
 const nothingChanged = "nothing changed"
 
-// askAutoReloadMsg asks DiffSwitch to toggle auto reload.
+// askAutoReloadMsg asks App to toggle auto reload.
 type askAutoReloadMsg struct{}
 
 func askAutoReload() tea.Msg { return askAutoReloadMsg{} }
@@ -80,7 +80,7 @@ func refreshed(added, gone, changed, dropped int) string {
 	return strings.Join(parts, ", ")
 }
 
-// askDiffMsg asks DiffSwitch for the arguments of git diff to show next.
+// askDiffMsg asks App for the arguments of git diff to show next.
 type askDiffMsg struct{}
 
 func askDiff() tea.Msg { return askDiffMsg{} }

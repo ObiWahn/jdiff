@@ -44,7 +44,7 @@ func polling() *config.Config {
 }
 
 // tickOf returns the regular check of auto reload that s waits for.
-func tickOf(s *DiffSwitch) autoTickMsg { return autoTickMsg{s.autoGen, s.tick} }
+func tickOf(s *App) autoTickMsg { return autoTickMsg{s.autoGen, s.tick} }
 
 // newWatchedFileDiff returns the watched diff view of two files with lines a
 // and b in a new directory, checked by polling.
@@ -454,10 +454,10 @@ func TestFileDiffInotify(t *testing.T) {
 	}
 }
 
-func TestDiffSwitchStopsWatching(t *testing.T) {
+func TestAppStopsWatching(t *testing.T) {
 	d, _, _ := newInotifyDiff(t)
 	old := d.disk.w
-	s, _ := newDiffSwitch(d)
+	s, _ := newTestApp(d)
 	pressRoot(s, "d", "HEAD", "enter")
 	if _, ok := <-old.Changes(); ok {
 		t.Error("the replaced view still watches")
@@ -517,8 +517,8 @@ func (r *fakeRepo) getDirs(func(string) bool) (map[string]time.Time, error) {
 	return dirs, nil
 }
 
-// newAutoReload returns the switch around a file list of git diff, with
-// the repository of a watched file, and the file. The view and the switch share
+// newAutoReload returns the app around a file list of git diff, with
+// the repository of a watched file, and the file. The view and the app share
 // their configuration, as in the program.
 // loadNow runs the listing of the files that cmd starts, as the runtime does
 // in the background, and gives s its result. Auto reload starts it in a batch
@@ -539,7 +539,7 @@ func loadNow(t *testing.T, s tea.Model, cmd tea.Cmd) {
 	s.Update(msg)
 }
 
-func newAutoReload(t *testing.T) (*DiffSwitch, *fakeGitDiff, *fakeRepo, string) {
+func newAutoReload(t *testing.T) (*App, *fakeGitDiff, *fakeRepo, string) {
 	t.Helper()
 	g := &fakeGitDiff{}
 	file := filepath.Join(t.TempDir(), "HEAD")
@@ -548,13 +548,13 @@ func newAutoReload(t *testing.T) (*DiffSwitch, *fakeGitDiff, *fakeRepo, string) 
 	cfg := config.Default()
 	cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
 	d := NewDiff(cfg, nil).WithGitDiff(nil, g.diff)
-	s := WithDiffSwitch(cfg, d, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	s := newApp(cfg, d, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
 	s.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 	t.Cleanup(s.stop)
 	return s, g, repo, file
 }
 
-// R goes to the switch on every page; off, nothing is checked or shown.
+// R goes to the app on every page; off, nothing is checked or shown.
 func TestAutoReloadKeyOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
 		m, _ := page.make()
@@ -704,7 +704,7 @@ func TestAutoReloadErrors(t *testing.T) {
 
 // startAutoReload turns auto reload on in s, started by Init with its
 // watcher, and gives it what to watch, which it finds in the background.
-func startAutoReload(t *testing.T, s *DiffSwitch) {
+func startAutoReload(t *testing.T, s *App) {
 	t.Helper()
 	if runtime.GOOS != "linux" {
 		t.Skip("inotify is Linux only")
@@ -841,7 +841,7 @@ func TestAutoReloadSwitchesWatching(t *testing.T) {
 		t.Error("off: a tick checks on")
 	}
 	repo := &fakeRepo{status: "s0"}
-	s := WithDiffSwitch(d.cfg, d, func(m tea.Model) tea.Model { return m }, nil).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	s := newApp(d.cfg, d, func(m tea.Model) tea.Model { return m }, nil).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
 	s.Init()
 	t.Cleanup(s.stop)
 	writeLines(t, filepath.Join(dir, "a.txt"), append(numbered("x", 10), "added", "more"))

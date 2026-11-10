@@ -98,7 +98,7 @@ func (m *FileDiff) watchFiles() tea.Cmd {
 	return batch(cmd, m.poll())
 }
 
-// shareWatcher makes m watch its files by w, which DiffSwitch shares.
+// shareWatcher makes m watch its files by w, which App shares.
 func (m *FileDiff) shareWatcher(w *watch.Watcher) { m.disk = diskWatch{w: w} }
 
 // poll returns the next check of the files, unless one is pending or both

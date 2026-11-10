@@ -51,7 +51,7 @@ func waitChanges(w *watch.Watcher) tea.Cmd {
 	}
 }
 
-// diskWatch watches the files of a view on disk: by the watcher DiffSwitch
+// diskWatch watches the files of a view on disk: by the watcher App
 // shares, which it gives the view before Init (shareWatcher) and waits on, or
 // by one of the view's own, which the view waits on and closes. The files it
 // does not watch, all without a watcher, the view checks every
@@ -96,7 +96,7 @@ func refused(cfg *config.Config, err error) string {
 }
 
 // next returns the command waiting for the next changes of the view's own
-// watcher, nil for the shared one, which DiffSwitch waits on.
+// watcher, nil for the shared one, which App waits on.
 func (d *diskWatch) next() tea.Cmd {
 	if !d.own || d.w == nil {
 		return nil
@@ -148,7 +148,7 @@ func (d *diskWatch) stop() {
 // its files on disk only while it is on.
 type autoReloadMsg struct{ on bool }
 
-// autoTickMsg asks DiffSwitch for the next check of auto reload number gen,
+// autoTickMsg asks App for the next check of auto reload number gen,
 // the tick number tick of it; a later or ended one drops it, and so does a
 // change reported, which starts the next tick anew.
 type autoTickMsg struct{ gen, tick int }
@@ -167,7 +167,7 @@ type autoStatusMsg struct {
 // the last load; of two files or directories, only the files shown are
 // watched (gitMode off), and the ticks only end it after the timeout. When it
 // cannot start, the view says why.
-func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
+func (s *App) toggleAutoReload() tea.Cmd {
 	if s.cfg.AutoReload {
 		s.stopAutoReload()
 		return nil
@@ -197,7 +197,7 @@ func (s *DiffSwitch) toggleAutoReload() tea.Cmd {
 
 // gitView reports whether the view shows git diff or git log, which auto
 // reload checks by git status.
-func (s *DiffSwitch) gitView() bool {
+func (s *App) gitView() bool {
 	_, diff := s.current()
 	_, log := s.view.(*Log)
 	return diff || log
@@ -205,7 +205,7 @@ func (s *DiffSwitch) gitView() bool {
 
 // stopAutoReload ends auto reload: its git commands are killed, and none
 // run for it from now on; nothing is watched.
-func (s *DiffSwitch) stopAutoReload() {
+func (s *App) stopAutoReload() {
 	s.cfg.AutoReload = false
 	s.autoGen++
 	if s.autoCancel != nil {
@@ -222,7 +222,7 @@ func (s *DiffSwitch) stopAutoReload() {
 
 // autoTick returns the command for the next regular check, nil without an
 // interval.
-func (s *DiffSwitch) autoTick() tea.Cmd {
+func (s *App) autoTick() tea.Cmd {
 	if s.cfg.Settings.AutoReloadInterval <= 0 {
 		return nil
 	}
@@ -233,7 +233,7 @@ func (s *DiffSwitch) autoTick() tea.Cmd {
 }
 
 // checkStatus returns the command running git status.
-func (s *DiffSwitch) checkStatus() tea.Cmd {
+func (s *App) checkStatus() tea.Cmd {
 	s.statusRuns++
 	gen, status, ctx := s.autoGen, s.repoStatus, s.autoCtx
 	return func() tea.Msg {
@@ -245,7 +245,7 @@ func (s *DiffSwitch) checkStatus() tea.Cmd {
 // onAutoTick ends auto reload after the timeout without activity, else checks
 // the status, unless git is still at it, as in a large repository, or there
 // is no git status to check.
-func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
+func (s *App) onAutoTick(msg autoTickMsg) tea.Cmd {
 	if msg.gen != s.autoGen || msg.tick != s.tick || !s.cfg.AutoReload {
 		return nil
 	}
@@ -267,7 +267,7 @@ func (s *DiffSwitch) onAutoTick(msg autoTickMsg) tea.Cmd {
 // makes the watcher report a change but leaves the status as it is. When git
 // fails, auto reload ends. A change reported while git was at it is checked
 // once more.
-func (s *DiffSwitch) onAutoStatus(msg autoStatusMsg) tea.Cmd {
+func (s *App) onAutoStatus(msg autoStatusMsg) tea.Cmd {
 	s.statusRuns--
 	if msg.gen != s.autoGen {
 		return nil
@@ -303,7 +303,7 @@ func (s *DiffSwitch) onAutoStatus(msg autoStatusMsg) tea.Cmd {
 // watch_ignore matches; while git is at it, once more after. The next regular
 // check comes a full interval later. Without git status, a change of the
 // files shown counts as activity.
-func (s *DiffSwitch) onRepoChanged(paths []string) tea.Cmd {
+func (s *App) onRepoChanged(paths []string) tea.Cmd {
 	if !s.cfg.AutoReload {
 		return nil
 	}
@@ -324,7 +324,7 @@ func (s *DiffSwitch) onRepoChanged(paths []string) tea.Cmd {
 // repoChange reports whether a change of path counts for auto reload: of the
 // pinned files of the repository, or in the working tree, but of those that
 // watch_ignore matches.
-func (s *DiffSwitch) repoChange(path string) bool {
+func (s *App) repoChange(path string) bool {
 	if slices.Contains(s.pins, path) {
 		return true
 	}
@@ -353,7 +353,7 @@ type repoWatchMsg struct {
 // without a watcher or git. When git fails,
 // the watcher keeps what it watched: the regular checks still see all
 // changes, only later.
-func (s *DiffSwitch) watchRepo() tea.Cmd {
+func (s *App) watchRepo() tea.Cmd {
 	if s.w == nil || s.repoPaths == nil || !s.gitMode {
 		return nil
 	}
@@ -377,7 +377,7 @@ func (s *DiffSwitch) watchRepo() tea.Cmd {
 
 // onRepoWatch watches what msg brings, the files of the repository always,
 // unless auto reload ended meanwhile.
-func (s *DiffSwitch) onRepoWatch(msg repoWatchMsg) {
+func (s *App) onRepoWatch(msg repoWatchMsg) {
 	if msg.gen != s.autoGen || !s.cfg.AutoReload || s.w == nil {
 		return
 	}

@@ -220,7 +220,7 @@ func (d *Diff) stop() {
 	d.disk.stop()
 }
 
-// shareWatcher makes d watch its files by w, which DiffSwitch shares.
+// shareWatcher makes d watch its files by w, which App shares.
 func (d *Diff) shareWatcher(w *watch.Watcher) { d.disk = diskWatch{w: w} }
 
 // diffCommand returns the git diff command line of args, quoted as the

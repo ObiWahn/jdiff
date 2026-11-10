@@ -1241,7 +1241,7 @@ func TestLogFlowTakesLoadedFiles(t *testing.T) {
 func TestStopEndsLoads(t *testing.T) {
 	l, ctxs := newLoadingLog(3)
 	cmd := l.flow.load(1)
-	WithSizeGuard(l.cfg, WithDiffSwitch(l.cfg, l, func(m tea.Model) tea.Model { return m }, nil)).Stop()
+	WithSizeGuard(l.cfg, newApp(l.cfg, l, func(m tea.Model) tea.Model { return m }, nil)).Stop()
 	cmd()
 	if (*ctxs)[0].Err() == nil {
 		t.Error("the load of the flow view runs on")

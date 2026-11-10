@@ -246,12 +246,8 @@ func start(o options, mode string, args []string) {
 		fatal(err)
 	}
 	// d replaces whatever is shown by the files of git diff, which runs in
-	// the current directory; the search bar and the popups are put around
-	// the new view too.
-	wrap := func(m tea.Model) tea.Model {
-		return ui.WithSearch(cfg, ui.WithHelp(cfg, ui.WithSettings(cfg, ui.WithMarks(cfg, m))))
-	}
-	run(ui.WithSizeGuard(cfg, ui.WithDiffSwitch(cfg, m, wrap, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))
+	// the current directory.
+	run(ui.WithSizeGuard(cfg, ui.NewApp(cfg, m, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
