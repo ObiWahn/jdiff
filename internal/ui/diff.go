@@ -917,7 +917,7 @@ func (d *Diff) frame() string {
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 	if c := d.commit; c != nil {
-		head += "  " + t.Decoration.Render(c.Author)
+		head += "  " + t.Decoration.Render(c.Author+"  "+c.Date)
 	}
 	if d.gitDiff != nil {
 		cmd := diffCommand(d.diffArgs)

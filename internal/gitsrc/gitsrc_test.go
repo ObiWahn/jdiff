@@ -18,7 +18,7 @@ import (
 
 // newRepo creates a repository with this history, oldest first:
 //
-//	root:   add a.txt (2 lines) and b.txt
+//	root:   add a.txt (2 lines) and b.txt, at 2026-01-02 03:04 +05:00
 //	second: change a.txt, rename b.txt to c.txt, add bin.dat
 //	merge:  merge a branch that added d.txt
 func newRepo(t *testing.T) Repo {
@@ -49,7 +49,7 @@ func newRepo(t *testing.T) Repo {
 	write("a.txt", "one\ntwo\n")
 	write("b.txt", "keep\nthese\nlines\nfor\nrename\n")
 	run("add", ".")
-	run("commit", "-qm", "root")
+	run("commit", "-qm", "root", "--date", "2026-01-02T03:04:05+05:00")
 	write("a.txt", "one\n2\nthree\n")
 	run("mv", "b.txt", "c.txt")
 	write("bin.dat", "\x00\x01")
@@ -66,6 +66,7 @@ func newRepo(t *testing.T) Repo {
 
 func TestLog(t *testing.T) {
 	r := newRepo(t)
+	t.Setenv("TZ", "UTC")
 	commits, err := r.Log([]string{"--first-parent"})
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func TestLog(t *testing.T) {
 	if second.Body != "first body line\nsecond body line" || root.Body != "" {
 		t.Errorf("bodies: second %q root %q", second.Body, root.Body)
 	}
-	if root.Short == "" || root.Author != "T" || root.Date == "" {
+	if root.Short == "" || root.Author != "T" || root.Date != "2026-01-01 22:04" {
 		t.Errorf("root = %+v", root)
 	}
 }

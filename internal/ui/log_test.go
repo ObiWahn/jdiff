@@ -52,7 +52,7 @@ func newTestLogOrder(oldestFirst bool) (*Log, map[string]int) {
 	}
 	var commits []gitsrc.Commit
 	for _, h := range []string{"c3", "c2", "c1", "c0"} {
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T",
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22 10:00", Author: "T",
 			Subject: "subject " + h, Added: 12, Removed: 3})
 	}
 	commits[0].Body = "body c3"
@@ -77,7 +77,7 @@ func shownFile(l *Log) string {
 func TestLogListShowsCommits(t *testing.T) {
 	l, loads := newTestLog()
 	view := ansi.Strip(l.frame())
-	for _, want := range []string{"main (4 commits)", "c3", "2026-10-22", "+12 -3", "subject c1"} {
+	for _, want := range []string{"main (4 commits)", "c3", "2026-10-22 10:00", "+12 -3", "subject c1"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("log view lacks %q:\n%s", want, view)
 		}
@@ -218,7 +218,7 @@ func TestLogFlowLoadsLazily(t *testing.T) {
 		t.Fatalf("f: flow at %d, loads %v, want c3 only", flowCommitAt(l), loads)
 	}
 	view := ansi.Strip(l.frame())
-	for _, want := range []string{"commit c3 · T · 2026-10-22", "    subject c3", "    body c3", "a.go", "b.go"} {
+	for _, want := range []string{"commit c3 · T · 2026-10-22 10:00", "    subject c3", "    body c3", "a.go", "b.go"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("flow view lacks %q:\n%s", want, view)
 		}
@@ -249,7 +249,7 @@ func newNumberedLog(n int) (*Log, map[string]int) {
 	var commits []gitsrc.Commit
 	for i := range n {
 		h := fmt.Sprintf("c%02d", i)
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22 10:00", Author: "T", Subject: "subject " + h})
 	}
 	l := NewLog(config.Default(), "main", commits, false, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
@@ -403,7 +403,7 @@ func TestLogFlowHeader(t *testing.T) {
 func TestLogListColumns(t *testing.T) {
 	l, _ := newTestLog()
 	line := topLines(l, 3)[2]
-	order := []string{"c3", "+12 -3", "subject c3", "T", "2026-10-22"}
+	order := []string{"c3", "+12 -3", "subject c3", "T", "2026-10-22 10:00"}
 	pos := -1
 	for _, want := range order {
 		i := strings.Index(line[pos+1:], want)
@@ -413,8 +413,8 @@ func TestLogListColumns(t *testing.T) {
 		pos += 1 + i
 	}
 	// When narrow, the subject is cut and the date stays visible.
-	l.Update(tea.WindowSizeMsg{Width: 34, Height: 12})
-	if line := topLines(l, 3)[2]; !strings.Contains(line, "  subje…  T  ") || !strings.HasSuffix(line, "2026-10-22") {
+	l.Update(tea.WindowSizeMsg{Width: 40, Height: 12})
+	if line := topLines(l, 3)[2]; !strings.Contains(line, "  subje…  T  ") || !strings.HasSuffix(line, "2026-10-22 10:00") {
 		t.Errorf("narrow line %q", line)
 	}
 }
@@ -423,8 +423,8 @@ func TestLogListColumns(t *testing.T) {
 // wide characters in the name.
 func TestLogListWideAuthor(t *testing.T) {
 	commits := []gitsrc.Commit{
-		{Hash: "c00", Short: "c00", Date: "2026-10-22", Author: "日本語", Subject: "subject c00"},
-		{Hash: "c01", Short: "c01", Date: "2026-10-22", Author: "abcdefgh", Subject: "subject c01"},
+		{Hash: "c00", Short: "c00", Date: "2026-10-22 10:00", Author: "日本語", Subject: "subject c00"},
+		{Hash: "c01", Short: "c01", Date: "2026-10-22 10:00", Author: "abcdefgh", Subject: "subject c01"},
 	}
 	l := NewLog(config.Default(), "main", commits, false, nil, nil)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
@@ -505,8 +505,8 @@ func TestLogMessageBox(t *testing.T) {
 func TestLogFileListHeading(t *testing.T) {
 	l, _ := newTestLog()
 	pressLog(l, "enter") // c3 has two files
-	if top := topLines(l, 3); top[0] != " c3 subject c3  +2 -2  T" || top[1] != "" || !strings.Contains(top[2], "a.go") {
-		t.Errorf("file list top lines %q, want hash, subject, counts and author, an empty line, then a.go", top)
+	if top := topLines(l, 3); top[0] != " c3 subject c3  +2 -2  T  2026-10-22 10:00" || top[1] != "" || !strings.Contains(top[2], "a.go") {
+		t.Errorf("file list top lines %q, want hash, subject, counts, author and date, an empty line, then a.go", top)
 	}
 }
 
@@ -633,7 +633,7 @@ func TestFlowStayInCommit(t *testing.T) {
 }
 
 func TestLogExpandsTabsInCommits(t *testing.T) {
-	commits := []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-22", Author: "A\tB",
+	commits := []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-22 10:00", Author: "A\tB",
 		Subject: "sub\tject\x01", Body: "body\tline\nsecond\t\tline"}}
 	load := func(context.Context, gitsrc.Commit) ([]source.File, error) {
 		return []source.File{modified("a.go", []string{"1"}, []string{"2"})}, nil
@@ -676,7 +676,7 @@ func newCountingLog(fail bool) (*Log, *[][]string) {
 	var commits []gitsrc.Commit
 	for i := range 100 {
 		h := fmt.Sprintf("h%d", i)
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22 10:00", Author: "T", Subject: "subject " + h})
 	}
 	var asked [][]string
 	counts := func(_ context.Context, hashes []string) (map[string]gitsrc.LineCounts, error) {
@@ -771,7 +771,7 @@ func relistTo(l *Log, branch string, hashes ...string) {
 	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) {
 		var commits []gitsrc.Commit
 		for _, h := range hashes {
-			commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "subject " + h})
+			commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24 10:00", Author: "T", Subject: "subject " + h})
 		}
 		return branch, commits, nil
 	})
@@ -831,7 +831,7 @@ func TestLogRelistWhileListing(t *testing.T) {
 	runs := 0
 	l.WithRelist(func(context.Context) (string, []gitsrc.Commit, error) {
 		runs++
-		return "main", []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-24", Author: "T", Subject: "subject c1"}}, nil
+		return "main", []gitsrc.Commit{{Hash: "c1", Short: "c1", Date: "2026-10-24 10:00", Author: "T", Subject: "subject c1"}}, nil
 	})
 	_, first := l.Update(refreshMsg{})
 	if _, again := l.Update(refreshMsg{}); again != nil || runs != 0 {
@@ -859,7 +859,7 @@ func TestCommitListArrows(t *testing.T) {
 	var commits []gitsrc.Commit
 	for i := range 30 {
 		h := fmt.Sprintf("c%02d", i)
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "subject " + h})
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24 10:00", Author: "T", Subject: "subject " + h})
 	}
 	l := NewLog(config.Default(), "main", commits, false, nil, nil)
 	l.cfg.Settings.Preview = false
@@ -979,7 +979,7 @@ func TestCommitListArrowsSweep(t *testing.T) {
 	var commits []gitsrc.Commit
 	for i := range 30 {
 		h := fmt.Sprintf("c%02d", i)
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24", Author: "T", Subject: "s"})
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-24 10:00", Author: "T", Subject: "s"})
 	}
 	index := func(r string) int {
 		var k int
@@ -1097,7 +1097,7 @@ func newLoadingLog(n int) (*Log, *[]context.Context) {
 	var commits []gitsrc.Commit
 	for i := range n {
 		h := fmt.Sprintf("c%02d", i)
-		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22", Author: "T", Subject: "subject " + h})
+		commits = append(commits, gitsrc.Commit{Hash: h, Short: h, Date: "2026-10-22 10:00", Author: "T", Subject: "subject " + h})
 	}
 	l := NewLog(config.Default(), "main", commits, false, load, nil)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})

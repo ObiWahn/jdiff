@@ -28,7 +28,7 @@ const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 // Commit is one commit of the log.
 type Commit struct {
 	Hash, Short    string
-	Author, Date   string
+	Author, Date   string // Date: of the author, local, as 2006-01-02 15:04
 	Subject        string
 	Body           string // the message after the subject, trimmed
 	Parent         string // first parent, empty for a root commit
@@ -168,7 +168,7 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 	}
 	out, err := r.git(append([]string{"log", "--no-show-signature",
 		"--format=%x1e%H%x1f%h%x1f%an%x1f%ad%x1f%P%x1f%s%x1f%b%x1d",
-		"--date=short"}, args...)...)
+		"--date=format-local:%Y-%m-%d %H:%M"}, args...)...)
 	if err != nil {
 		return nil, err
 	}
