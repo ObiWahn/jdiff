@@ -244,9 +244,11 @@ func (a *fileAlign) unifiedLine(v, sub int, cursor bool, lo layout) string {
 	pending := piece == 0 && a.isPending(row) && (row.Kind == diff.Equal || a.pending.side == s)
 	line := lineOf(row, s)
 	_, moved := a.movedTo(s, line)
-	gutter := a.gutter(row, s, changed, pending, moved, piece > 0, nums, t.Decoration, cursor, cursor)
+	ls := lineState{s: s, row: row, line: line, changed: changed, pending: pending, moved: moved,
+		cont: piece > 0, cursor: cursor, active: cursor}
+	gutter := a.gutter(ls, nums, t.Decoration)
 	width := a.contentWidth(lo.width, true)
-	return gutter + a.content(s, row, line, width, cursor, moved, startCol(piece, width, lo), lo.wrap == 0)
+	return gutter + a.content(ls, width, startCol(piece, width, lo), lo.wrap == 0)
 }
 
 // bodyRow renders line sub of displayed row v side by side, marked as the
@@ -313,39 +315,54 @@ func (a *fileAlign) cell(s side, v, piece, width, numWidth int, cursor bool, lo 
 	}
 	pending := piece == 0 && a.pending != nil && a.pending.side == s && a.pending.line == line && line >= 0
 	_, moved := a.movedTo(s, line)
-	gutter := a.gutter(row, s, changed, pending, moved, piece > 0 && line >= 0, num, sepStyle, cursor,
-		cursor && s == lo.active)
+	ls := lineState{s: s, row: row, line: line, changed: changed, pending: pending, moved: moved,
+		cont: piece > 0 && line >= 0, cursor: cursor, active: cursor && s == lo.active}
+	gutter := a.gutter(ls, num, sepStyle)
 
 	if line < 0 {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	return gutter + a.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo), lo.wrap == 0)
+	return gutter + a.content(ls, contentWidth, startCol(piece, contentWidth, lo), lo.wrap == 0)
 }
 
-// gutter renders what precedes a line of side s in row: the marker, the line
-// numbers nums and the separator in sepStyle. The marker is ↪ on further
-// pieces of a wrapped line (cont), ● when pending holds, ◆ on anchors and -
-// or + on changed lines, in the moved style for moved ones; changed lines
-// also have their side's number style. On the cursor line marker and numbers
-// are bold, with active the numbers are in the cursor style.
-func (a *fileAlign) gutter(row diff.Row, s side, changed, pending, moved, cont bool, nums string,
-	sepStyle lipgloss.Style, cursor, active bool) string {
+// lineState is what gutter and content draw a line by; cell and unifiedLine
+// each work it out once.
+type lineState struct {
+	s       side
+	row     diff.Row // the row the line is shown in
+	line    int      // the line of side s, -1 for none
+	changed bool     // a changed line of its side
+	pending bool     // the pending end of an anchor
+	moved   bool     // moved, drawn in the moved style
+	cont    bool     // a further piece of a wrapped line
+	cursor  bool     // on the cursor row
+	active  bool     // on the cursor row and the active side
+}
+
+// gutter renders what precedes the line of ls: the marker, the line numbers
+// nums and the separator in sepStyle. The marker is ↪ on further pieces of a
+// wrapped line, ● on the pending end of an anchor, ◆ on anchors and - or + on
+// changed lines, in the moved style for moved ones; changed lines also have
+// their side's number style. On the cursor line marker and numbers are bold,
+// on the active side the numbers are in the cursor style.
+func (a *fileAlign) gutter(ls lineState, nums string, sepStyle lipgloss.Style) string {
 	t := a.cfg.Theme
+	s, changed, cursor := ls.s, ls.changed, ls.cursor
 	lineStyle, _, _, _ := a.sideStyles(s)
-	if moved {
+	if ls.moved {
 		lineStyle = a.movedStyle(s)
 	}
 	numStyle := t.NumZero
 	marker := " "
 	switch {
-	case cont && changed:
+	case ls.cont && changed:
 		marker = boldIf(lineStyle, cursor).Render("↪")
-	case cont:
+	case ls.cont:
 		marker = boldIf(t.Decoration, cursor).Render("↪")
-	case pending:
+	case ls.pending:
 		marker = t.Pending.Render("●")
-	case row.Anchored:
+	case ls.row.Anchored:
 		marker = boldIf(t.Anchor, cursor).Render("◆")
 	case changed && s == left:
 		marker = boldIf(lineStyle, cursor).Render("-")
@@ -358,7 +375,7 @@ func (a *fileAlign) gutter(row diff.Row, s side, changed, pending, moved, cont b
 			numStyle = t.NumMinus
 		}
 	}
-	if active {
+	if ls.active {
 		// The cursor's line numbers stand out in the cursor style, in
 		// their own color.
 		numStyle = t.Cursor.Inherit(numStyle)
@@ -384,13 +401,14 @@ func (a *fileAlign) movedStyle(s side) lipgloss.Style {
 	return a.cfg.Theme.PlusMoved
 }
 
-// content renders line of side s, shown in row, width columns wide with
-// changes emphasized, from column from on. On the cursor line unchanged text
+// content renders the line of ls width columns wide with changes
+// emphasized, from column from on. On the cursor line unchanged text
 // is bold; a moved line is drawn in the moved style, without emphasis.
 // With cut, a line that goes on past the pane ends in Extends, one with
 // text scrolled out to the left starts with Precedes.
-func (a *fileAlign) content(s side, row diff.Row, line, width int, cursor, moved bool, from int, cut bool) string {
+func (a *fileAlign) content(ls lineState, width, from int, cut bool) string {
 	t := a.cfg.Theme
+	s, row, line, cursor, moved := ls.s, ls.row, ls.line, ls.cursor, ls.moved
 	lineStyle, nonEmph, emph, indent := a.sideStyles(s)
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
 		showAll: a.cfg.Settings.ShowWhitespaces, plainSpace: !a.cfg.Settings.MarkWhitespace,
