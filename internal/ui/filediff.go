@@ -1,4 +1,3 @@
-// Package ui implements the interactive side-by-side diff view.
 package ui
 
 import (

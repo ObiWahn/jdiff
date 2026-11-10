@@ -61,7 +61,7 @@ type docPage struct {
 }
 
 // pageLink is a link of a page: where it goes, as written, and its first
-// line; broken when it leads nowhere, which Doc decides.
+// line; broken when it leads nowhere, which Readme decides.
 type pageLink struct {
 	target string
 	line   int

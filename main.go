@@ -230,7 +230,7 @@ func start(o options, mode string, args []string) {
 	cfg.LoadMarks(repo)
 
 	if mode == "readme" {
-		run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewDoc(cfg, docs, docPages, 0)))))
+		run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewReadme(cfg, docs, docPages, 0)))))
 		return
 	}
 	var m tea.Model

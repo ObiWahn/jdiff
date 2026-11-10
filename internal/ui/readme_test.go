@@ -104,13 +104,13 @@ func TestRenderMarkdownLinks(t *testing.T) {
 	}
 }
 
-// docTestPages are the pages of newTestDoc: a.md, then doc/b.md, which links
+// docTestPages are the pages of newTestReadme: a.md, then doc/b.md, which links
 // back and to c.toml, which is no page. a.md has the lines x0 … x29 before
 // its links, two of which lead nowhere; b.md the headings x0 … x9 with ten
 // lines each; c.toml a line of 107 columns.
 var docTestPages = []string{"a.md", "doc/b.md"}
 
-func newTestDoc(t *testing.T, width, height int) *Doc {
+func newTestReadme(t *testing.T, width, height int) *Readme {
 	t.Helper()
 	var a, b strings.Builder
 	for i := range 30 {
@@ -126,48 +126,48 @@ func newTestDoc(t *testing.T, width, height int) *Doc {
 	b.WriteString("[a](../a.md) [c](../c.toml)\n")
 	c := "# x0\nx1 = \"" + strings.Repeat("y", 100) + "\"\n"
 	docs := fstest.MapFS{"a.md": {Data: []byte(a.String())}, "doc/b.md": {Data: []byte(b.String())}, "c.toml": {Data: []byte(c)}}
-	d := NewDoc(config.Default(), docs, docTestPages, 0)
-	d.Update(tea.WindowSizeMsg{Width: width, Height: height})
-	return d
+	r := NewReadme(config.Default(), docs, docTestPages, 0)
+	r.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	return r
 }
 
 // selected returns the target of the selected link, "" for none.
-func (d *Doc) selected() string {
-	if d.link < 0 {
+func (r *Readme) selected() string {
+	if r.link < 0 {
 		return ""
 	}
-	return d.rendered.links[d.link].target
+	return r.rendered.links[r.link].target
 }
 
 // a.md has its links on line 60, after x0 … x29 with empty lines between.
-func TestDocLinks(t *testing.T) {
-	d := newTestDoc(t, 80, 12) // 10 lines shown
-	pressRoot(d, "enter")
-	if d.msg != "no link on this line: tab shift+tab go to the next, previous" {
-		t.Errorf("enter without a link: %q", d.msg)
+func TestReadmeLinks(t *testing.T) {
+	r := newTestReadme(t, 80, 12) // 10 lines shown
+	pressRoot(r, "enter")
+	if r.msg != "no link on this line: tab shift+tab go to the next, previous" {
+		t.Errorf("enter without a link: %q", r.msg)
 	}
 	// tab goes to the first link below, then to the next on the same line.
-	pressRoot(d, "tab")
-	if d.cursor != 60 || d.selected() != "doc/b.md" || d.top != 51 || d.msg != "" {
-		t.Fatalf("tab: cursor %d, link %q, top %d, msg %q", d.cursor, d.selected(), d.top, d.msg)
+	pressRoot(r, "tab")
+	if r.cursor != 60 || r.selected() != "doc/b.md" || r.top != 51 || r.msg != "" {
+		t.Fatalf("tab: cursor %d, link %q, top %d, msg %q", r.cursor, r.selected(), r.top, r.msg)
 	}
-	pressRoot(d, "tab", "enter")
-	if d.page != "doc/b.md" || d.top != d.rendered.anchors["x5"] || d.cursor != d.top || d.rendered.lines[d.top].plain() != "x5" {
-		t.Errorf("enter on b x5: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
+	pressRoot(r, "tab", "enter")
+	if r.page != "doc/b.md" || r.top != r.rendered.anchors["x5"] || r.cursor != r.top || r.rendered.lines[r.top].plain() != "x5" {
+		t.Errorf("enter on b x5: page %s, top %d, cursor %d", r.page, r.top, r.cursor)
 	}
 	// Back where it was, on the link followed, the second of the line.
-	pressRoot(d, "backspace")
-	if d.page != "a.md" || d.cursor != 60 || d.top != 51 || d.selected() != "doc/b.md#x5" || d.msg != "" {
-		t.Errorf("backspace: page %s, cursor %d, top %d, link %q", d.page, d.cursor, d.top, d.selected())
+	pressRoot(r, "backspace")
+	if r.page != "a.md" || r.cursor != 60 || r.top != 51 || r.selected() != "doc/b.md#x5" || r.msg != "" {
+		t.Errorf("backspace: page %s, cursor %d, top %d, link %q", r.page, r.cursor, r.top, r.selected())
 	}
-	pressRoot(d, "backspace")
-	if d.msg != "no link followed to go back from" {
-		t.Errorf("backspace again: %q", d.msg)
+	pressRoot(r, "backspace")
+	if r.msg != "no link followed to go back from" {
+		t.Errorf("backspace again: %q", r.msg)
 	}
 	// A web address shows in a box, enter does nothing more. The links to a
 	// page and a heading that are not there are no links: tab passes them,
 	// they are drawn as text.
-	web := newTestDoc(t, 80, 12)
+	web := newTestReadme(t, 80, 12)
 	pressRoot(web, "tab", "tab", "tab", "enter")
 	if web.page != "a.md" || web.msg != "" || !strings.Contains(ansi.Strip(web.frame()), "│ https://x30.example │") {
 		t.Errorf("enter on x30: page %s, %q, no box of the address:\n%s", web.page, web.msg, ansi.Strip(web.frame()))
@@ -193,43 +193,43 @@ func TestDocLinks(t *testing.T) {
 		t.Errorf("links that lead nowhere are drawn as links, or links are not:\n%q", frame)
 	}
 	// The cursor on the line of links selects the first and says where it goes.
-	pressRoot(d, "end")
-	if d.selected() != "doc/b.md" || d.msg != "" {
-		t.Errorf("end: link %q, msg %q", d.selected(), d.msg)
+	pressRoot(r, "end")
+	if r.selected() != "doc/b.md" || r.msg != "" {
+		t.Errorf("end: link %q, msg %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "tab", "tab", "tab")
-	if d.selected() != "https://x30.example" || d.msg != "no link further down" {
-		t.Errorf("past the last: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "tab", "tab", "tab")
+	if r.selected() != "https://x30.example" || r.msg != "no link further down" {
+		t.Errorf("past the last: %q, %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "shift+tab")
-	if d.selected() != "doc/b.md#x5" {
-		t.Errorf("shift+tab: %q", d.selected())
+	pressRoot(r, "shift+tab")
+	if r.selected() != "doc/b.md#x5" {
+		t.Errorf("shift+tab: %q", r.selected())
 	}
 	// h l go through the links of the line only, those that lead somewhere.
-	pressRoot(d, "l", "l")
-	if d.selected() != "https://x30.example" || d.msg != "no link further right" {
-		t.Errorf("l on the last: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "l", "l")
+	if r.selected() != "https://x30.example" || r.msg != "no link further right" {
+		t.Errorf("l on the last: %q, %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "h", "left", "right")
-	if d.selected() != "doc/b.md#x5" || d.msg != "" {
-		t.Errorf("h left right: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "h", "left", "right")
+	if r.selected() != "doc/b.md#x5" || r.msg != "" {
+		t.Errorf("h left right: %q, %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "home", "h", "h", "h", "h", "h")
-	if d.selected() != "" || d.msg != "no link on this line" {
-		t.Errorf("h without links: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "home", "h", "h", "h", "h", "h")
+	if r.selected() != "" || r.msg != "no link on this line" {
+		t.Errorf("h without links: %q, %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "end", "h")
-	if d.selected() != "doc/b.md" || d.msg != "no link further left" {
-		t.Errorf("h on the first: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "end", "h")
+	if r.selected() != "doc/b.md" || r.msg != "no link further left" {
+		t.Errorf("h on the first: %q, %q", r.selected(), r.msg)
 	}
-	pressRoot(d, "home", "shift+tab")
-	if d.selected() != "" || d.msg != "no link further up" {
-		t.Errorf("shift+tab at the top: %q, %q", d.selected(), d.msg)
+	pressRoot(r, "home", "shift+tab")
+	if r.selected() != "" || r.msg != "no link further up" {
+		t.Errorf("shift+tab at the top: %q, %q", r.selected(), r.msg)
 	}
 	// A link back from doc/b.md, relative to it.
-	pressRoot(d, "n", "end", "enter")
-	if d.page != "a.md" || d.top != 0 || d.cursor != 0 {
-		t.Errorf("../a.md: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
+	pressRoot(r, "n", "end", "enter")
+	if r.page != "a.md" || r.top != 0 || r.cursor != 0 {
+		t.Errorf("../a.md: page %s, top %d, cursor %d", r.page, r.top, r.cursor)
 	}
 }
 
@@ -237,24 +237,24 @@ func TestDocLinks(t *testing.T) {
 // and the cursor along.
 // A file that is no markdown, reached by a link: as it is, its long line
 // wrapped and indented, outside the order of n and p.
-func TestDocFile(t *testing.T) {
-	d := newTestDoc(t, 40, 12) // pages 38 columns wide
-	pressRoot(d, "n", "end", "l", "enter")
+func TestReadmeFile(t *testing.T) {
+	r := newTestReadme(t, 40, 12) // pages 38 columns wide
+	pressRoot(r, "n", "end", "l", "enter")
 	// Broken at the last space, then where the line ends.
 	want := []string{"# x0", "x1 =", `  "` + strings.Repeat("y", 35), "  " + strings.Repeat("y", 36), "  " + strings.Repeat("y", 29) + `"`}
-	if got := plainLines(d.rendered); d.page != "c.toml" || !slices.Equal(got, want) {
-		t.Fatalf("c.toml: page %s, lines\n%q\nwant\n%q", d.page, got, want)
+	if got := plainLines(r.rendered); r.page != "c.toml" || !slices.Equal(got, want) {
+		t.Fatalf("c.toml: page %s, lines\n%q\nwant\n%q", r.page, got, want)
 	}
-	if title := strings.Split(ansi.Strip(d.frame()), "\n")[0]; strings.Contains(title, "page") {
+	if title := strings.Split(ansi.Strip(r.frame()), "\n")[0]; strings.Contains(title, "page") {
 		t.Errorf("title %q: c.toml is no page of n p", title)
 	}
-	pressRoot(d, "n")
-	if d.page != "c.toml" || d.msg != "c.toml is no page of n p: backspace goes back" {
-		t.Errorf("n: page %s, %q", d.page, d.msg)
+	pressRoot(r, "n")
+	if r.page != "c.toml" || r.msg != "c.toml is no page of n p: backspace goes back" {
+		t.Errorf("n: page %s, %q", r.page, r.msg)
 	}
-	pressRoot(d, "backspace")
-	if d.page != "doc/b.md" || d.selected() != "../c.toml" {
-		t.Errorf("backspace: page %s, link %q", d.page, d.selected())
+	pressRoot(r, "backspace")
+	if r.page != "doc/b.md" || r.selected() != "../c.toml" {
+		t.Errorf("backspace: page %s, link %q", r.page, r.selected())
 	}
 }
 
@@ -281,7 +281,7 @@ func TestRenderText(t *testing.T) {
 
 // All links of the README and doc/ lead to a page and heading, or the web:
 // none are broken.
-func TestDocLinksResolve(t *testing.T) {
+func TestReadmeLinksResolve(t *testing.T) {
 	docs := fstest.MapFS{}
 	var pages []string
 	for _, f := range append([]string{"README.md"}, globDocs(t)...) {
@@ -297,9 +297,9 @@ func TestDocLinksResolve(t *testing.T) {
 	}
 	docs["internal/keys/keybindings.toml"] = &fstest.MapFile{Data: b}
 	for i, page := range pages {
-		d := NewDoc(config.Default(), docs, pages, i)
-		d.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-		for _, l := range d.rendered.links {
+		r := NewReadme(config.Default(), docs, pages, i)
+		r.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+		for _, l := range r.rendered.links {
 			if l.broken {
 				t.Errorf("%s: link %s leads nowhere", page, l.target)
 			}
@@ -321,8 +321,8 @@ func globDocs(t *testing.T) []string {
 	return out
 }
 
-func TestDocPagesAndScroll(t *testing.T) {
-	d := newTestDoc(t, 80, 12)
+func TestReadmePagesAndScroll(t *testing.T) {
+	r := newTestReadme(t, 80, 12)
 	for _, c := range []struct {
 		keys        string
 		cursor, top int
@@ -330,62 +330,62 @@ func TestDocPagesAndScroll(t *testing.T) {
 		{"j", 1, 0}, {"k", 0, 0}, {"k", 0, 0}, {"pgdown", 9, 9}, {"ctrl+d", 14, 14}, {"ctrl+u", 9, 9},
 		{"pgup", 0, 0}, {"end", 60, 51}, {"j", 60, 51}, {"home", 0, 0},
 	} {
-		pressRoot(d, c.keys)
-		if d.cursor != c.cursor || d.top != c.top {
-			t.Errorf("%s: cursor %d, top %d; want %d, %d", c.keys, d.cursor, d.top, c.cursor, c.top)
+		pressRoot(r, c.keys)
+		if r.cursor != c.cursor || r.top != c.top {
+			t.Errorf("%s: cursor %d, top %d; want %d, %d", c.keys, r.cursor, r.top, c.cursor, c.top)
 		}
 	}
-	if rows := strings.Split(d.frame(), "\n"); !strings.HasPrefix(rows[1], d.cfg.Theme.Cursor.Render(" ")+"x0") {
+	if rows := strings.Split(r.frame(), "\n"); !strings.HasPrefix(rows[1], r.cfg.Theme.Cursor.Render(" ")+"x0") {
 		t.Errorf("the cursor's line is not marked: %q", rows[1])
 	}
-	pressRoot(d, "p")
-	if d.page != "a.md" || d.msg != "first page" {
-		t.Errorf("p on the first: page %s, %q", d.page, d.msg)
+	pressRoot(r, "p")
+	if r.page != "a.md" || r.msg != "first page" {
+		t.Errorf("p on the first: page %s, %q", r.page, r.msg)
 	}
-	pressRoot(d, "j", "n")
-	if d.page != "doc/b.md" || d.top != 0 || d.cursor != 0 || !strings.HasPrefix(ansi.Strip(d.frame()), " doc/b.md") {
-		t.Errorf("n: page %s, top %d, cursor %d", d.page, d.top, d.cursor)
+	pressRoot(r, "j", "n")
+	if r.page != "doc/b.md" || r.top != 0 || r.cursor != 0 || !strings.HasPrefix(ansi.Strip(r.frame()), " doc/b.md") {
+		t.Errorf("n: page %s, top %d, cursor %d", r.page, r.top, r.cursor)
 	}
-	pressRoot(d, "n")
-	if d.page != "doc/b.md" || d.msg != "last page" {
-		t.Errorf("n on the last: page %s, %q", d.page, d.msg)
+	pressRoot(r, "n")
+	if r.page != "doc/b.md" || r.msg != "last page" {
+		t.Errorf("n on the last: page %s, %q", r.page, r.msg)
 	}
 }
 
-func TestDocSearch(t *testing.T) {
-	d := newTestDoc(t, 80, 12)
-	d.Update(findMsg(1))
-	if d.msg != nothingSearched {
-		t.Errorf("before a search: %q", d.msg)
+func TestReadmeSearch(t *testing.T) {
+	r := newTestReadme(t, 80, 12)
+	r.Update(findMsg(1))
+	if r.msg != nothingSearched {
+		t.Errorf("before a search: %q", r.msg)
 	}
-	d.cfg.Search.Add(config.Query{Text: "x2"}) // x2, x20 … x29
-	d.Update(findMsg(1))
-	if d.cursor != 4 || d.msg != "/x2: match 1/11 · . next · , previous" {
-		t.Errorf("x2: cursor %d, %q", d.cursor, d.msg)
+	r.cfg.Search.Add(config.Query{Text: "x2"}) // x2, x20 … x29
+	r.Update(findMsg(1))
+	if r.cursor != 4 || r.msg != "/x2: match 1/11 · . next · , previous" {
+		t.Errorf("x2: cursor %d, %q", r.cursor, r.msg)
 	}
-	pressRoot(d, ".")
-	if d.cursor != 40 || d.top != 31 {
-		t.Errorf(". : cursor %d, top %d", d.cursor, d.top)
+	pressRoot(r, ".")
+	if r.cursor != 40 || r.top != 31 {
+		t.Errorf(". : cursor %d, top %d", r.cursor, r.top)
 	}
-	pressRoot(d, ",", ",")
-	if d.cursor != 4 || d.msg != "/x2: no match further up" {
-		t.Errorf(", ,: cursor %d, %q", d.cursor, d.msg)
+	pressRoot(r, ",", ",")
+	if r.cursor != 4 || r.msg != "/x2: no match further up" {
+		t.Errorf(", ,: cursor %d, %q", r.cursor, r.msg)
 	}
-	if !strings.Contains(d.frame(), d.cfg.Theme.Search.Render("x2")) {
+	if !strings.Contains(r.frame(), r.cfg.Theme.Search.Render("x2")) {
 		t.Error("the match is not drawn in the search style")
 	}
-	d.cfg.Search.Add(config.Query{Text: "x77"})
-	pressRoot(d, ".")
-	if d.msg != "no match for x77 in this page" {
-		t.Errorf("x77: %q", d.msg)
+	r.cfg.Search.Add(config.Query{Text: "x77"})
+	pressRoot(r, ".")
+	if r.msg != "no match for x77 in this page" {
+		t.Errorf("x77: %q", r.msg)
 	}
 }
 
 // The status bar shows only the keys that work on a page of text, in the
 // order of all status bars.
-func TestDocStatusBar(t *testing.T) {
-	d := newTestDoc(t, 80, 12)
-	lines := strings.Split(ansi.Strip(d.frame()), "\n")
+func TestReadmeStatusBar(t *testing.T) {
+	r := newTestReadme(t, 80, 12)
+	lines := strings.Split(ansi.Strip(r.frame()), "\n")
 	if got := lines[len(lines)-1]; strings.TrimSpace(got) != "enter follow · backspace back · ? help · q quit" {
 		t.Errorf("status bar %q", got)
 	}
@@ -414,7 +414,7 @@ func docFiles(t *testing.T) map[string][]byte {
 // line wider than the text, no link lost. Then the frames of every height
 // from minHeight to 40, in the narrowest terminal, one column wider and at
 // 80: as high and no wider than the screen.
-func TestDocSweep(t *testing.T) {
+func TestReadmeSweep(t *testing.T) {
 	files := docFiles(t)
 	for name, src := range files {
 		render := renderMarkdown
@@ -453,10 +453,10 @@ func TestDocSweep(t *testing.T) {
 			t.Parallel()
 			for page := range pages {
 				for h := minHeight; h <= 40; h++ {
-					d := NewDoc(config.Default(), docs, pages, page)
-					d.Update(tea.WindowSizeMsg{Width: w, Height: h})
-					pressRoot(d, "pgdown", "tab")
-					rows := strings.Split(d.frame(), "\n")
+					r := NewReadme(config.Default(), docs, pages, page)
+					r.Update(tea.WindowSizeMsg{Width: w, Height: h})
+					pressRoot(r, "pgdown", "tab")
+					rows := strings.Split(r.frame(), "\n")
 					if len(rows) != h {
 						t.Fatalf("%s %dx%d: %d rows", pages[page], w, h, len(rows))
 					}
