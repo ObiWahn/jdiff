@@ -118,7 +118,8 @@ func (e *fileEntry) updateStats() {
 // so that on a tall screen the preview gets the rest.
 const fileListRows = 15
 
-// Diff is the Bubble Tea model of the file list. It shows the diff view
+// Diff is the Bubble Tea model of the file list (keys of file_list), of jdiff
+// diff, two directories and a commit of the log. It shows the diff view
 // of the selected file and returns to the list on backspace. A single file
 // has its list too, as many do.
 type Diff struct {

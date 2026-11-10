@@ -17,9 +17,9 @@ import (
 )
 
 // Readme shows the pages of jdiff's documentation, markdown rendered for the
-// terminal: jdiff --readme. A cursor line moves through a page; enter follows
-// the link it is on, the first unless h l or tab chose another, to another
-// page or heading, backspace goes back. Only links that lead to a file of
+// terminal: jdiff --readme (keys of doc_view). A cursor line moves through a
+// page; enter follows the link it is on, the first unless h l or tab chose
+// another, to another page or heading, backspace goes back. Only links that lead to a file of
 // docs, and a heading there, or to the web are links. A file that is no
 // markdown, reached by a link, shows as it is.
 type Readme struct {

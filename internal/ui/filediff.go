@@ -12,8 +12,8 @@ import (
 	"jdiff/watch"
 )
 
-// FileDiff is the Bubble Tea model of the diff view: a single file view of a
-// fileAlign, which other views may show and change too.
+// FileDiff is the Bubble Tea model of the diff view (keys of diff_view): a
+// single file view of a fileAlign, which other views may show and change too.
 type FileDiff struct {
 	*fileAlign
 

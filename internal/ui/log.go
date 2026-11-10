@@ -44,8 +44,9 @@ type commitEntry struct {
 	diff    *Diff
 }
 
-// Log is the Bubble Tea model of the commit list. Enter shows the files of
-// a commit; N/P step through commits from the deeper views.
+// Log is the Bubble Tea model of the commit list (keys of commit_list).
+// Enter shows the files of a commit, a Diff; N/P step through commits from
+// the deeper views.
 type Log struct {
 	cfg    *config.Config
 	branch string // shown above the commit list

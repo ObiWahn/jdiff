@@ -46,9 +46,9 @@ type flowPart struct {
 // far moves the cursor to the first or last row.
 const far = 1 << 30
 
-// Flow is the Bubble Tea model of the flow view: the diffs of all files one
-// after the other, each starting with a bar, and in the log each commit
-// starting with its message. Files share their diffs with the single file
+// Flow is the Bubble Tea model of the flow view (keys of flow_view): the
+// diffs of all files one after the other, each starting with a bar, and in
+// the log each commit starting with its message. Files share their diffs with the single file
 // view, so anchors and folds carry over; cursor and scrolling are the
 // flow's own. In the log, commits load in the background once they are on
 // the screen, one at a time; until then a note says that they load.
