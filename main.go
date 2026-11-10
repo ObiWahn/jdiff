@@ -274,7 +274,7 @@ func run(page tea.Model) {
 	}
 }
 
-// load opens the file selector for two directories, as passed by
+// load opens the file list for two directories, as passed by
 // git difftool --dir-diff, and the diff view for two files; both reload
 // files that change on disk.
 func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
@@ -286,7 +286,7 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 			return nil, err
 		}
 		relist := func(context.Context) ([]source.File, error) { return source.LoadDirs(oldPath, newPath) }
-		return ui.NewApp(cfg, files).WithRelist(relist), nil
+		return ui.NewDiff(cfg, files).WithRelist(relist), nil
 	}
 
 	// Path names the file in messages; the panes show the paths as given.
@@ -325,14 +325,14 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 	return ui.NewLog(cfg, repo.Branch(), commits, gitsrc.Reversed(args), files, counts).WithRelist(relist), nil
 }
 
-// loadDiff opens the file selector for the files git diff compares with
+// loadDiff opens the file list for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
 	files, err := gitDiff(context.Background(), args, cfg.Settings.Untracked)
 	if err != nil {
 		return nil, err
 	}
-	return ui.NewApp(cfg, files).WithGitDiff(args, gitDiff), nil
+	return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff), nil
 }
 
 // gitDiff runs git diff with args, with the untracked files when untracked

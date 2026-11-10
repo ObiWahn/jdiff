@@ -74,7 +74,7 @@ func TestWatchedModelReloads(t *testing.T) {
 	}
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
-	m.fileDiff.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
+	m.fileAlign.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
 	m.realign()
 	moveTo(t, m, right, 25)
 
@@ -147,10 +147,10 @@ func TestWatchOff(t *testing.T) {
 	}
 }
 
-// newWatchedApp returns the file selector of directories with the files
+// newWatchedDiff returns the file list of directories with the files
 // a.txt to d.txt, each changed in the new directory, and the new directory;
 // the files are checked by polling.
-func newWatchedApp(t *testing.T) (*App, string) {
+func newWatchedDiff(t *testing.T) (*Diff, string) {
 	t.Helper()
 	oldDir, newDir := t.TempDir(), t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt", "c.txt", "d.txt"} {
@@ -161,34 +161,34 @@ func newWatchedApp(t *testing.T) (*App, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := NewApp(polling(), files)
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	return a, newDir
+	d := NewDiff(polling(), files)
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	return d, newDir
 }
 
-func TestAppReloadsCurrentFileAndNeighbors(t *testing.T) {
-	a, dir := newWatchedApp(t)
-	if a.Init() == nil {
+func TestDiffReloadsCurrentFileAndNeighbors(t *testing.T) {
+	d, dir := newWatchedDiff(t)
+	if d.Init() == nil {
 		t.Fatal("Init does not start watching")
 	}
-	pressApp(a, "j") // on b.txt
+	pressDiff(d, "j") // on b.txt
 	for _, name := range []string{"a.txt", "c.txt", "d.txt"} {
 		writeLines(t, filepath.Join(dir, name), append(numbered("x", 10), "added", "more", "lines"))
 	}
-	if _, cmd := a.Update(watchTickMsg{}); cmd == nil {
+	if _, cmd := d.Update(watchTickMsg{}); cmd == nil {
 		t.Error("no next check")
 	}
-	added := func(i int) int { return a.files[i].added }
+	added := func(i int) int { return d.files[i].added }
 	if added(0) != 3 || added(2) != 3 || added(3) != 1 {
 		t.Errorf("added lines a %d c %d d %d; want 3, 3 and d, two away from the cursor, not reloaded",
 			added(0), added(2), added(3))
 	}
-	if a.msg != "a.txt reloaded; c.txt reloaded" {
-		t.Errorf("msg %q", a.msg)
+	if d.msg != "a.txt reloaded; c.txt reloaded" {
+		t.Errorf("msg %q", d.msg)
 	}
 	// The open diff view shows the new content.
-	pressApp(a, "k", "enter")
-	if m := a.open.view; len(m.lines[right]) != 13 {
+	pressDiff(d, "k", "enter")
+	if m := d.open.view; len(m.lines[right]) != 13 {
 		t.Errorf("opened a.txt: %d lines, want the reloaded 13", len(m.lines[right]))
 	}
 	if NewLog(config.Default(), "main", nil, false, nil, nil).Init() != nil {
@@ -197,37 +197,37 @@ func TestAppReloadsCurrentFileAndNeighbors(t *testing.T) {
 }
 
 func TestFlowFollowsReloadedLine(t *testing.T) {
-	a, dir := newWatchedApp(t)
-	a.cfg.Settings.CollapseUnchanged = false
-	pressApp(a, "f", "j", "j", "j", "j", "j") // on a.txt, the row of line 5
-	_, file, line := a.flow.position()
-	d := a.files[file].diff
-	before := d.lineAt(right, line)
+	d, dir := newWatchedDiff(t)
+	d.cfg.Settings.CollapseUnchanged = false
+	pressDiff(d, "f", "j", "j", "j", "j", "j") // on a.txt, the row of line 5
+	_, file, line := d.flow.position()
+	a := d.files[file].align
+	before := a.lineAt(right, line)
 	writeLines(t, filepath.Join(dir, "a.txt"), append([]string{"new top"}, append(numbered("x", 10), "added")...))
-	a.Update(watchTickMsg{})
-	_, file, line = a.flow.position()
-	if got := d.lineAt(right, line); file != 0 || got != before+1 {
+	d.Update(watchTickMsg{})
+	_, file, line = d.flow.position()
+	if got := a.lineAt(right, line); file != 0 || got != before+1 {
 		t.Errorf("flow cursor on file %d right line %d, want file 0 line %d: its line moved by one", file, got, before+1)
 	}
-	if a.flow.msg != "a.txt reloaded" {
-		t.Errorf("flow msg %q", a.flow.msg)
+	if d.flow.msg != "a.txt reloaded" {
+		t.Errorf("flow msg %q", d.flow.msg)
 	}
 }
 
 func TestFlowFollowsLineWhenBothSidesReload(t *testing.T) {
-	a, newDir := newWatchedApp(t)
-	oldDir := filepath.Dir(a.files[0].OldFile)
-	pressApp(a, "f")
-	d := a.files[0].diff
-	at := d.reveal(left, 9, a.flow.built) // the last unchanged line, x9 on both sides
-	a.flow.show(0, 0, at.v, at.sub, 5)
+	d, newDir := newWatchedDiff(t)
+	oldDir := filepath.Dir(d.files[0].OldFile)
+	pressDiff(d, "f")
+	a := d.files[0].align
+	at := a.reveal(left, 9, d.flow.built) // the last unchanged line, x9 on both sides
+	d.flow.show(0, 0, at.v, at.sub, 5)
 	// In one tick the old side shrinks past the cursor's line and the new
 	// side gets a line on top.
 	writeLines(t, filepath.Join(oldDir, "a.txt"), numbered("x", 1))
 	writeLines(t, filepath.Join(newDir, "a.txt"), append([]string{"new top"}, append(numbered("x", 10), "added")...))
-	a.Update(watchTickMsg{})
-	_, file, line := a.flow.position()
-	if got := d.lineAt(right, line); file != 0 || got != 10 {
+	d.Update(watchTickMsg{})
+	_, file, line := d.flow.position()
+	if got := a.lineAt(right, line); file != 0 || got != 10 {
 		t.Errorf("flow cursor on file %d right line %d, want file 0 line 10: x9 moved down by one", file, got)
 	}
 }
@@ -288,65 +288,65 @@ func awaitMsg(t *testing.T, cmd tea.Cmd) tea.Msg {
 	}
 }
 
-// newInotifyApp returns the file selector of newWatchedApp with inotify
+// newInotifyDiff returns the file list of newWatchedDiff with inotify
 // on, as configured by default, started by Init, and the new directory.
-func newInotifyApp(t *testing.T) (*App, string, tea.Cmd) {
+func newInotifyDiff(t *testing.T) (*Diff, string, tea.Cmd) {
 	t.Helper()
 	if runtime.GOOS != "linux" {
 		t.Skip("inotify is Linux only")
 	}
-	a, dir := newWatchedApp(t)
-	a.cfg.Settings.InotifyMaxDirs = settings.Default().InotifyMaxDirs
-	cmd := a.Init()
-	if a.disk.w == nil {
-		t.Fatalf("not watched by inotify, msg %q", a.msg)
+	d, dir := newWatchedDiff(t)
+	d.cfg.Settings.InotifyMaxDirs = settings.Default().InotifyMaxDirs
+	cmd := d.Init()
+	if d.disk.w == nil {
+		t.Fatalf("not watched by inotify, msg %q", d.msg)
 	}
-	t.Cleanup(a.stop)
-	return a, dir, cmd
+	t.Cleanup(d.stop)
+	return d, dir, cmd
 }
 
-func TestAppInotifyReloadsAnyFile(t *testing.T) {
-	a, dir, cmd := newInotifyApp(t)
+func TestDiffInotifyReloadsAnyFile(t *testing.T) {
+	d, dir, cmd := newInotifyDiff(t)
 	// d.txt is three files away from the cursor: polling would not see it.
 	writeLines(t, filepath.Join(dir, "d.txt"), append(numbered("x", 10), "added", "more", "lines"))
 	msg := awaitMsg(t, cmd)
 	if _, ok := msg.(changedMsg); !ok {
 		t.Fatalf("message %T, want changedMsg", msg)
 	}
-	if _, cmd = a.Update(msg); cmd == nil {
+	if _, cmd = d.Update(msg); cmd == nil {
 		t.Error("not waiting for the next changes")
 	}
-	if a.files[3].added != 3 || a.msg != "d.txt reloaded" {
-		t.Errorf("d.txt +%d, msg %q; want +3 and reloaded", a.files[3].added, a.msg)
+	if d.files[3].added != 3 || d.msg != "d.txt reloaded" {
+		t.Errorf("d.txt +%d, msg %q; want +3 and reloaded", d.files[3].added, d.msg)
 	}
 	// Ticks left from polling neither check nor go on.
-	if _, cmd := a.Update(watchTickMsg{}); cmd != nil {
+	if _, cmd := d.Update(watchTickMsg{}); cmd != nil {
 		t.Error("a tick while inotify watches schedules the next one")
 	}
 	// Changes of a watcher no longer used are dropped.
 	old := changedMsg{w: nil, paths: []string{filepath.Join(dir, "a.txt")}}
-	if _, cmd := a.Update(old); cmd != nil {
+	if _, cmd := d.Update(old); cmd != nil {
 		t.Error("a change of another watcher is waited on")
 	}
 }
 
 // Over inotify_max_dirs, the directories used last are watched; the files
 // near the cursor in the others are checked every watch_interval.
-func TestAppInotifyLimit(t *testing.T) {
+func TestDiffInotifyLimit(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("inotify is Linux only")
 	}
-	a, _ := newWatchedApp(t) // the old and the new directory
-	a.cfg.Settings.InotifyMaxDirs = 1
-	if a.Init() == nil || a.disk.w == nil || !a.ticking {
-		t.Errorf("two directories, inotify_max_dirs 1: watcher %v ticking %v; want one watched and polling", a.disk.w, a.ticking)
+	d, _ := newWatchedDiff(t) // the old and the new directory
+	d.cfg.Settings.InotifyMaxDirs = 1
+	if d.Init() == nil || d.disk.w == nil || !d.ticking {
+		t.Errorf("two directories, inotify_max_dirs 1: watcher %v ticking %v; want one watched and polling", d.disk.w, d.ticking)
 	}
-	t.Cleanup(a.stop)
-	f := a.files[0].File
-	if a.disk.watched(f.OldFile) == a.disk.watched(f.NewFile) {
-		t.Errorf("old watched %v, new %v; want one of them", a.disk.watched(f.OldFile), a.disk.watched(f.NewFile))
+	t.Cleanup(d.stop)
+	f := d.files[0].File
+	if d.disk.watched(f.OldFile) == d.disk.watched(f.NewFile) {
+		t.Errorf("old watched %v, new %v; want one of them", d.disk.watched(f.OldFile), d.disk.watched(f.NewFile))
 	}
-	b, _ := newWatchedApp(t)
+	b, _ := newWatchedDiff(t)
 	b.cfg.Settings.WatchInterval = 0
 	if b.Init() != nil || b.disk.w != nil {
 		t.Error("watch_interval 0 watches")
@@ -355,16 +355,16 @@ func TestAppInotifyLimit(t *testing.T) {
 
 // The files listed again are watched by the same watcher; in a directory
 // over the limit they are checked while near the cursor.
-func TestAppRelistKeepsWatcher(t *testing.T) {
-	a, dir, _ := newInotifyApp(t)
+func TestDiffRelistKeepsWatcher(t *testing.T) {
+	d, dir, _ := newInotifyDiff(t)
 	var list []source.File
-	for _, e := range a.files {
+	for _, e := range d.files {
 		list = append(list, e.File)
 	}
-	a.WithRelist(func(context.Context) ([]source.File, error) { return list, nil })
+	d.WithRelist(func(context.Context) ([]source.File, error) { return list, nil })
 
-	a.cfg.Settings.InotifyMaxDirs = 2
-	a.Update(settingChangedMsg{action: "inotify_max_dirs"})
+	d.cfg.Settings.InotifyMaxDirs = 2
+	d.Update(settingChangedMsg{action: "inotify_max_dirs"})
 	third := filepath.Join(t.TempDir(), "e.txt")
 	writeLines(t, third, []string{"e"})
 	old := time.Now().Add(-time.Hour)
@@ -372,13 +372,13 @@ func TestAppRelistKeepsWatcher(t *testing.T) {
 		t.Fatal(err)
 	}
 	list = append(slices.Clone(list), source.File{Path: "e.txt", NewFile: third, New: []string{"e"}, InNew: true})
-	w := a.disk.w
-	_, cmd := a.Update(refreshMsg{})
-	a.Update(cmd()) // the listing, which runs in the background
-	if a.disk.w != w || a.disk.watched(third) {
-		t.Fatalf("after r: watcher replaced %v, e.txt watched %v; want the same watcher, e.txt over the limit", a.disk.w != w, a.disk.watched(third))
+	w := d.disk.w
+	_, cmd := d.Update(refreshMsg{})
+	d.Update(cmd()) // the listing, which runs in the background
+	if d.disk.w != w || d.disk.watched(third) {
+		t.Fatalf("after r: watcher replaced %v, e.txt watched %v; want the same watcher, e.txt over the limit", d.disk.w != w, d.disk.watched(third))
 	}
-	if a.ticking {
+	if d.ticking {
 		t.Error("polling while the files near the cursor are watched")
 	}
 	writeLines(t, filepath.Join(dir, "b.txt"), numbered("x", 12))
@@ -389,7 +389,7 @@ func TestAppRelistKeepsWatcher(t *testing.T) {
 
 // With the limit at 1, the cursor on a file brings its directory in, and the
 // file is reloaded when it changed while it was not watched.
-func TestAppCursorWatches(t *testing.T) {
+func TestDiffCursorWatches(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("inotify is Linux only")
 	}
@@ -407,30 +407,30 @@ func TestAppCursorWatches(t *testing.T) {
 	cfg := config.Default()
 	cfg.Settings.InotifyMaxDirs = 1
 	cfg.AutoReload = true
-	a := NewApp(cfg, files)
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	cmd := a.Init()
-	t.Cleanup(a.stop)
-	if !a.disk.watched(files[0].NewFile) || a.disk.watched(files[1].NewFile) {
-		t.Fatalf("on f0: watched %v %v, want true false", a.disk.watched(files[0].NewFile), a.disk.watched(files[1].NewFile))
+	d := NewDiff(cfg, files)
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	cmd := d.Init()
+	t.Cleanup(d.stop)
+	if !d.disk.watched(files[0].NewFile) || d.disk.watched(files[1].NewFile) {
+		t.Fatalf("on f0: watched %v %v, want true false", d.disk.watched(files[0].NewFile), d.disk.watched(files[1].NewFile))
 	}
 	// Changed while not watched, with another size: reloaded when the
 	// cursor comes to it.
 	writeLines(t, files[1].NewFile, numbered("x", 5))
-	pressApp(a, "j")
-	if !a.disk.watched(files[1].NewFile) || a.disk.watched(files[0].NewFile) {
-		t.Errorf("on f1: watched %v %v, want false true", a.disk.watched(files[0].NewFile), a.disk.watched(files[1].NewFile))
+	pressDiff(d, "j")
+	if !d.disk.watched(files[1].NewFile) || d.disk.watched(files[0].NewFile) {
+		t.Errorf("on f1: watched %v %v, want false true", d.disk.watched(files[0].NewFile), d.disk.watched(files[1].NewFile))
 	}
-	if a.files[1].added != 5 {
-		t.Errorf("f1 +%d, want the 5 lines read again", a.files[1].added)
+	if d.files[1].added != 5 {
+		t.Errorf("f1 +%d, want the 5 lines read again", d.files[1].added)
 	}
-	if cmd == nil || !a.ticking {
-		t.Errorf("Init: command %v, ticking %v; want f1, next to the cursor and not watched, checked", cmd != nil, a.ticking)
+	if cmd == nil || !d.ticking {
+		t.Errorf("Init: command %v, ticking %v; want f1, next to the cursor and not watched, checked", cmd != nil, d.ticking)
 	}
 	writeLines(t, files[1].NewFile, numbered("x", 7))
-	a.Update(awaitMsg(t, waitChanges(a.disk.w)))
-	if a.files[1].added != 7 {
-		t.Errorf("f1 +%d after its change, want 7", a.files[1].added)
+	d.Update(awaitMsg(t, waitChanges(d.disk.w)))
+	if d.files[1].added != 7 {
+		t.Errorf("f1 +%d after its change, want 7", d.files[1].added)
 	}
 }
 
@@ -455,9 +455,9 @@ func TestModelInotify(t *testing.T) {
 }
 
 func TestDiffSwitchStopsWatching(t *testing.T) {
-	a, _, _ := newInotifyApp(t)
-	old := a.disk.w
-	s, _ := newDiffSwitch(a)
+	d, _, _ := newInotifyDiff(t)
+	old := d.disk.w
+	s, _ := newDiffSwitch(d)
 	pressRoot(s, "d", "HEAD", "enter")
 	if _, ok := <-old.Changes(); ok {
 		t.Error("the replaced view still watches")
@@ -466,9 +466,9 @@ func TestDiffSwitchStopsWatching(t *testing.T) {
 
 func TestStaleTickDropped(t *testing.T) {
 	m, _ := newWatchedModel(t, numbered("x", 2), numbered("x", 2))
-	a, _ := newWatchedApp(t)
-	for _, v := range []tea.Model{m, a} {
-		if _, cmd := v.Update(watchTickMsg{owner: newTestApp()}); cmd != nil {
+	d, _ := newWatchedDiff(t)
+	for _, v := range []tea.Model{m, d} {
+		if _, cmd := v.Update(watchTickMsg{owner: newTestDiff()}); cmd != nil {
 			t.Errorf("%T: a tick of another view schedules the next one", v)
 		}
 		if _, cmd := v.Update(watchTickMsg{owner: v}); cmd == nil {
@@ -481,8 +481,8 @@ func TestWatchDropsAnchors(t *testing.T) {
 	m, dir := newWatchedModel(t, numbered("x", 30), numbered("x", 30))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
-	m.fileDiff.addAnchor(diff.Anchor{Left: 10, Right: 10}, right, shape{})
-	m.fileDiff.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
+	m.fileAlign.addAnchor(diff.Anchor{Left: 10, Right: 10}, right, shape{})
+	m.fileAlign.addAnchor(diff.Anchor{Left: 20, Right: 20}, right, shape{})
 	m.realign()
 	lines := numbered("x", 30)
 	lines[10], lines[20] = "changed10", "changed20"
@@ -517,7 +517,7 @@ func (r *fakeRepo) getDirs(func(string) bool) (map[string]time.Time, error) {
 	return dirs, nil
 }
 
-// newAutoReload returns the switch around a file selector of git diff, with
+// newAutoReload returns the switch around a file list of git diff, with
 // the repository of a watched file, and the file. The view and the switch share
 // their configuration, as in the program.
 // loadNow runs the listing of the files that cmd starts, as the runtime does
@@ -547,8 +547,8 @@ func newAutoReload(t *testing.T) (*DiffSwitch, *fakeGitDiff, *fakeRepo, string) 
 	repo := &fakeRepo{status: "s0", paths: []string{file}}
 	cfg := config.Default()
 	cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
-	a := NewApp(cfg, nil).WithGitDiff(nil, g.diff)
-	s := WithDiffSwitch(cfg, a, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	d := NewDiff(cfg, nil).WithGitDiff(nil, g.diff)
+	s := WithDiffSwitch(cfg, d, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
 	s.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 	t.Cleanup(s.stop)
 	return s, g, repo, file
@@ -800,14 +800,14 @@ func TestAutoReloadNotSaved(t *testing.T) {
 // more, a view checks its files every watch_interval; the end of a watcher
 // it replaced changes nothing.
 func TestWatchEndedPolls(t *testing.T) {
-	a, _, _ := newInotifyApp(t)
-	old := a.disk.w
+	d, _, _ := newInotifyDiff(t)
+	old := d.disk.w
 	t.Cleanup(func() { old.Close() })
-	if _, cmd := a.Update(watchEndedMsg{&watch.Watcher{}}); cmd != nil || a.disk.w != old {
-		t.Fatalf("another watcher ended: command %v, watcher changed %v", cmd != nil, a.disk.w != old)
+	if _, cmd := d.Update(watchEndedMsg{&watch.Watcher{}}); cmd != nil || d.disk.w != old {
+		t.Fatalf("another watcher ended: command %v, watcher changed %v", cmd != nil, d.disk.w != old)
 	}
-	if _, cmd := a.Update(watchEndedMsg{old}); cmd == nil || a.disk.w != nil || !a.ticking {
-		t.Errorf("its watcher ended: command %v, watcher %v, ticking %v; want polling", cmd != nil, a.disk.w, a.ticking)
+	if _, cmd := d.Update(watchEndedMsg{old}); cmd == nil || d.disk.w != nil || !d.ticking {
+		t.Errorf("its watcher ended: command %v, watcher %v, ticking %v; want polling", cmd != nil, d.disk.w, d.ticking)
 	}
 }
 
@@ -831,32 +831,32 @@ func TestAutoReloadOffEndsStatus(t *testing.T) {
 // compared, R watches the files shown without git status, whose ticks only
 // end it after the timeout.
 func TestAutoReloadSwitchesWatching(t *testing.T) {
-	a, dir := newWatchedApp(t)
-	a.cfg.AutoReload = false
-	a.cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
-	if cmd := a.Init(); cmd != nil || a.disk.w != nil || a.ticking {
-		t.Fatalf("off: Init %v, watcher %v, ticking %v; want nothing", cmd != nil, a.disk.w, a.ticking)
+	d, dir := newWatchedDiff(t)
+	d.cfg.AutoReload = false
+	d.cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
+	if cmd := d.Init(); cmd != nil || d.disk.w != nil || d.ticking {
+		t.Fatalf("off: Init %v, watcher %v, ticking %v; want nothing", cmd != nil, d.disk.w, d.ticking)
 	}
-	if _, cmd := a.Update(watchTickMsg{owner: a}); cmd != nil {
+	if _, cmd := d.Update(watchTickMsg{owner: d}); cmd != nil {
 		t.Error("off: a tick checks on")
 	}
 	repo := &fakeRepo{status: "s0"}
-	s := WithDiffSwitch(a.cfg, a, func(m tea.Model) tea.Model { return m }, nil).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	s := WithDiffSwitch(d.cfg, d, func(m tea.Model) tea.Model { return m }, nil).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
 	s.Init()
 	t.Cleanup(s.stop)
 	writeLines(t, filepath.Join(dir, "a.txt"), append(numbered("x", 10), "added", "more"))
-	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.gitMode || repo.ctx != nil || !a.ticking || cmd == nil {
-		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.gitMode, repo.ctx != nil, a.ticking)
+	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.gitMode || repo.ctx != nil || !d.ticking || cmd == nil {
+		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.gitMode, repo.ctx != nil, d.ticking)
 	}
-	if a.files[0].added != 2 {
-		t.Errorf("a.txt +%d, want 2: changed while off", a.files[0].added)
+	if d.files[0].added != 2 {
+		t.Errorf("a.txt +%d, want 2: changed while off", d.files[0].added)
 	}
 	if _, cmd := s.Update(tickOf(s)); s.statusRuns != 0 || cmd == nil {
 		t.Errorf("tick: checks %d, next tick %v; want no git status, a next tick", s.statusRuns, cmd != nil)
 	}
 	s.Update(askAutoReloadMsg{})
-	if _, cmd := a.Update(watchTickMsg{owner: a}); cmd != nil || a.watching {
-		t.Errorf("off: the pending tick checks on %v, watching %v", cmd != nil, a.watching)
+	if _, cmd := d.Update(watchTickMsg{owner: d}); cmd != nil || d.watching {
+		t.Errorf("off: the pending tick checks on %v, watching %v", cmd != nil, d.watching)
 	}
 }
 

@@ -62,17 +62,17 @@ func TestAnchorEndsMove(t *testing.T) {
 	}
 }
 
-func TestMovedAcrossFilesInApp(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestMovedAcrossFilesInDiff(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		modified("a.go", append([]string{"package a"}, movedBlock...), []string{"package a"}),
 		modified("b.go", []string{"package b"}, append([]string{"package b", ""}, movedBlock...)),
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	pressApp(a, "j", "enter") // b.go
-	if to := renderedLine(t, a.open.view, right, 2); !strings.Contains(to, "\x1b[36mfunc\x1b") {
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	pressDiff(d, "j", "enter") // b.go
+	if to := renderedLine(t, d.open.view, right, 2); !strings.Contains(to, "\x1b[36mfunc\x1b") {
 		t.Errorf("b.go: line moved from a.go %q, want it cyan", to)
 	}
-	if r, ok := a.files[1].diff.movedTo(right, 2); !ok || r != (diff.Ref{File: 0, Line: 1}) {
+	if r, ok := d.files[1].align.movedTo(right, 2); !ok || r != (diff.Ref{File: 0, Line: 1}) {
 		t.Errorf("b.go line 3 came from %v (%v), want a.go line 2", r, ok)
 	}
 }
@@ -148,10 +148,10 @@ func TestJumpFromEitherPane(t *testing.T) {
 }
 
 func TestFlowJumpFromEitherPane(t *testing.T) {
-	a := newMovedApp()
-	pressApp(a, "f", "j", "j", "j", "tab", "g") // a.go line 2, from the empty right pane
-	if _, file, line := a.flow.position(); file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.msg != "moved from a.go:3" {
-		t.Errorf("g in the flow from the empty pane: file %d, right line %d, msg %q", file, a.files[1].diff.lineAt(right, line), a.flow.msg)
+	d := newMovedDiff()
+	pressDiff(d, "f", "j", "j", "j", "tab", "g") // a.go line 2, from the empty right pane
+	if _, file, line := d.flow.position(); file != 1 || d.files[1].align.lineAt(right, line) != 3 || d.flow.msg != "moved from a.go:3" {
+		t.Errorf("g in the flow from the empty pane: file %d, right line %d, msg %q", file, d.files[1].align.lineAt(right, line), d.flow.msg)
 	}
 }
 
@@ -165,29 +165,29 @@ func TestJumpNotMoved(t *testing.T) {
 	}
 }
 
-// newMovedApp returns the file selector of a.go, whose block moved to b.go.
-func newMovedApp() *App {
-	a := NewApp(config.Default(), []source.File{
+// newMovedDiff returns the file list of a.go, whose block moved to b.go.
+func newMovedDiff() *Diff {
+	d := NewDiff(config.Default(), []source.File{
 		modified("a.go", append([]string{"package a"}, movedBlock...), []string{"package a"}),
 		modified("b.go", []string{"package b"}, append([]string{"package b", ""}, movedBlock...)),
 	})
-	a.cfg.Settings.CollapseUnchanged = false
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	return a
+	d.cfg.Settings.CollapseUnchanged = false
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	return d
 }
 
 func TestJumpToAnotherFile(t *testing.T) {
-	a := newMovedApp()
-	pressApp(a, "enter") // a.go
-	moveTo(t, a.open.view, left, 2)
-	pressApp(a, "g")
-	m := a.open.view
-	if a.open.Path != "b.go" || m.lineAt(right, m.cursor) != 3 || m.active != right || m.msg != "moved from a.go:3" {
-		t.Fatalf("g into b.go: file %s, right line %d, active %v, msg %q", a.open.Path, m.lineAt(right, m.cursor), m.active, m.msg)
+	d := newMovedDiff()
+	pressDiff(d, "enter") // a.go
+	moveTo(t, d.open.view, left, 2)
+	pressDiff(d, "g")
+	m := d.open.view
+	if d.open.Path != "b.go" || m.lineAt(right, m.cursor) != 3 || m.active != right || m.msg != "moved from a.go:3" {
+		t.Fatalf("g into b.go: file %s, right line %d, active %v, msg %q", d.open.Path, m.lineAt(right, m.cursor), m.active, m.msg)
 	}
-	pressApp(a, "g")
-	if m := a.open.view; a.open.Path != "a.go" || m.lineAt(left, m.cursor) != 2 || m.msg != "moved to b.go:4" {
-		t.Errorf("g back: file %s, left line %d, msg %q", a.open.Path, m.lineAt(left, m.cursor), m.msg)
+	pressDiff(d, "g")
+	if m := d.open.view; d.open.Path != "a.go" || m.lineAt(left, m.cursor) != 2 || m.msg != "moved to b.go:4" {
+		t.Errorf("g back: file %s, left line %d, msg %q", d.open.Path, m.lineAt(left, m.cursor), m.msg)
 	}
 }
 
@@ -199,34 +199,34 @@ func TestJumpNamesTheSideOfARename(t *testing.T) {
 	}
 	f := modified("new.go", append(slices.Clone(movedBlock), stay...), append(slices.Clone(stay), movedBlock...))
 	f.OldPath = "old.go"
-	a := NewApp(config.Default(), []source.File{f})
-	a.cfg.Settings.CollapseUnchanged = false
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	pressApp(a, "enter")
-	m := a.open.view
+	d := NewDiff(config.Default(), []source.File{f})
+	d.cfg.Settings.CollapseUnchanged = false
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	pressDiff(d, "enter")
+	m := d.open.view
 	moveTo(t, m, left, 1)
-	pressApp(a, "g")
+	pressDiff(d, "g")
 	if m.lineAt(right, m.cursor) != 21 || m.msg != "moved from old.go:2" {
 		t.Errorf("g: right line %d, msg %q; want 21, moved from old.go:2", m.lineAt(right, m.cursor), m.msg)
 	}
-	pressApp(a, "g")
+	pressDiff(d, "g")
 	if m.lineAt(left, m.cursor) != 1 || m.msg != "moved to new.go:22" {
 		t.Errorf("g back: left line %d, msg %q; want 1, moved to new.go:22", m.lineAt(left, m.cursor), m.msg)
 	}
 }
 
 func TestFlowJumpToAnotherFile(t *testing.T) {
-	a := newMovedApp()
-	pressApp(a, "f", "j", "j", "j") // a.go: bar, line 1, line 2 on the left
-	_, file, line := a.flow.position()
-	if file != 0 || a.files[0].diff.lineAt(left, line) != 2 {
-		t.Fatalf("flow cursor on file %d left line %d, want a.go line 2", file, a.files[0].diff.lineAt(left, line))
+	d := newMovedDiff()
+	pressDiff(d, "f", "j", "j", "j") // a.go: bar, line 1, line 2 on the left
+	_, file, line := d.flow.position()
+	if file != 0 || d.files[0].align.lineAt(left, line) != 2 {
+		t.Fatalf("flow cursor on file %d left line %d, want a.go line 2", file, d.files[0].align.lineAt(left, line))
 	}
-	pressApp(a, "g")
-	_, file, line = a.flow.position()
-	if file != 1 || a.files[1].diff.lineAt(right, line) != 3 || a.flow.active != right || a.flow.msg != "moved from a.go:3" {
+	pressDiff(d, "g")
+	_, file, line = d.flow.position()
+	if file != 1 || d.files[1].align.lineAt(right, line) != 3 || d.flow.active != right || d.flow.msg != "moved from a.go:3" {
 		t.Errorf("g in the flow: file %d, right line %d, active %v, msg %q",
-			file, a.files[1].diff.lineAt(right, line), a.flow.active, a.flow.msg)
+			file, d.files[1].align.lineAt(right, line), d.flow.active, d.flow.msg)
 	}
 }
 
@@ -282,26 +282,26 @@ func TestJumpOnScreenDoesNotScroll(t *testing.T) {
 }
 
 func TestFlowJumpKeepsBothEndsInView(t *testing.T) {
-	// As newMovedApp, with lines after the block in b.go, so that the window
+	// As newMovedDiff, with lines after the block in b.go, so that the window
 	// can scroll past both ends.
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		modified("a.go", append([]string{"package a"}, movedBlock...), []string{"package a"}),
 		modified("b.go", []string{"package b"}, append(append([]string{"package b", ""}, movedBlock...), numbered("more ", 20)...)),
 	})
-	a.cfg.Settings.CollapseUnchanged = false
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10}) // 8 rows of a longer flow
-	pressApp(a, "f", "j", "j", "j")                    // a.go line 2, moved to b.go line 3
-	inView := func(i int) bool { return i >= a.flow.top && i < a.flow.top+a.flow.bodyHeight() }
-	from := a.flow.cursor
-	pressApp(a, "g")
-	if _, file, _ := a.flow.position(); file != 1 || !inView(from) || !inView(a.flow.cursor) {
+	d.cfg.Settings.CollapseUnchanged = false
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10}) // 8 rows of a longer flow
+	pressDiff(d, "f", "j", "j", "j")                   // a.go line 2, moved to b.go line 3
+	inView := func(i int) bool { return i >= d.flow.top && i < d.flow.top+d.flow.bodyHeight() }
+	from := d.flow.cursor
+	pressDiff(d, "g")
+	if _, file, _ := d.flow.position(); file != 1 || !inView(from) || !inView(d.flow.cursor) {
 		t.Errorf("g in the flow: file %d, rows %d and %d, window from %d; want b.go with both in view",
-			file, from, a.flow.cursor, a.flow.top)
+			file, from, d.flow.cursor, d.flow.top)
 	}
 	// A mark there, back with g, and to the mark: again both in view.
-	to := a.flow.cursor
-	pressApp(a, "m", "k", "g", "'", "k")
-	if a.flow.cursor != to || !inView(from) || !inView(to) {
-		t.Errorf("' k in the flow: cursor %d, want %d, with row %d in view too (window from %d)", a.flow.cursor, to, from, a.flow.top)
+	to := d.flow.cursor
+	pressDiff(d, "m", "k", "g", "'", "k")
+	if d.flow.cursor != to || !inView(from) || !inView(to) {
+		t.Errorf("' k in the flow: cursor %d, want %d, with row %d in view too (window from %d)", d.flow.cursor, to, from, d.flow.top)
 	}
 }

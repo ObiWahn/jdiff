@@ -172,16 +172,16 @@ type hit struct {
 // line first.
 func (h hit) order() int { return 2*h.row + int(h.side) }
 
-// hits returns the lines of d that m finds something in, in order: only
+// hits returns the lines of a that m finds something in, in order: only
 // the changed ones unless all is set.
-func (d *fileDiff) hits(m *matcher, all bool) []hit {
+func (a *fileAlign) hits(m *matcher, all bool) []hit {
 	var out []hit
-	for i, r := range d.rows {
+	for i, r := range a.rows {
 		if !all && r.Kind == diff.Equal {
 			continue
 		}
 		for _, s := range []side{left, right} {
-			if line := lineOf(r, s); line >= 0 && m.spans(d.lines[s][line]) != nil {
+			if line := lineOf(r, s); line >= 0 && m.spans(a.lines[s][line]) != nil {
 				out = append(out, hit{i, s})
 			}
 		}
@@ -212,16 +212,16 @@ func nextHit(n, dir int, compare func(i int) int) (int, bool) {
 }
 
 // showMatch returns the horizontal scroll that shows the first match of m
-// in the line of side s of d, in a view viewWidth columns wide, scrolled by
+// in the line of side s of a, in a view viewWidth columns wide, scrolled by
 // xoff: xoff when lines are wrapped or the match is in view, else in steps of
 // 8 columns, as h and l scroll, the match a step from the left edge.
-func (d *fileDiff) showMatch(m *matcher, s side, line, xoff, viewWidth int) int {
-	spans := m.spans(d.lines[s][line])
-	if d.cfg.Settings.Wrap || len(spans) == 0 {
+func (a *fileAlign) showMatch(m *matcher, s side, line, xoff, viewWidth int) int {
+	spans := m.spans(a.lines[s][line])
+	if a.cfg.Settings.Wrap || len(spans) == 0 {
 		return xoff
 	}
-	width := d.contentWidth(viewWidth, !d.cfg.Settings.SideBySide)
-	text := d.lines[s][line]
+	width := a.contentWidth(viewWidth, !a.cfg.Settings.SideBySide)
+	text := a.lines[s][line]
 	from := ansi.StringWidth(printable(text[:spans[0].Start]))
 	to := from + ansi.StringWidth(printable(text[spans[0].Start:spans[0].End]))
 	if from >= xoff && to <= xoff+width-1 { // the last column may hold »
@@ -325,14 +325,14 @@ func (f *Flow) findText(dir int) {
 	}
 	var hits []flowHit
 	for p, part := range f.parts {
-		if part.app == nil || f.inLog() && p != cur {
+		if part.diff == nil || f.inLog() && p != cur {
 			continue
 		}
-		for i, e := range part.app.files {
+		for i, e := range part.diff.files {
 			if e.Binary {
 				continue
 			}
-			for _, h := range part.app.diffOf(e).hits(mt, f.cfg.Settings.SearchAll) {
+			for _, h := range part.diff.diffOf(e).hits(mt, f.cfg.Settings.SearchAll) {
 				hits = append(hits, flowHit{p, i, h})
 			}
 		}
@@ -348,7 +348,7 @@ func (f *Flow) findText(dir int) {
 		r := f.rows[f.cursor]
 		pos.part, pos.file = r.part, r.file
 		if r.kind == flowDiff {
-			pos.row = f.parts[r.part].app.files[r.file].diff.view[r.line].row
+			pos.row = f.parts[r.part].diff.files[r.file].align.view[r.line].row
 		}
 	}
 	i, ok := nextHit(len(hits), dir, func(i int) int {
@@ -360,13 +360,13 @@ func (f *Flow) findText(dir int) {
 		return
 	}
 	h := hits[i]
-	d := f.parts[h.part].app.files[h.file].diff
-	line := lineOf(d.rows[h.row], h.side)
-	at := d.reveal(h.side, line, f.built)
+	a := f.parts[h.part].diff.files[h.file].align
+	line := lineOf(a.rows[h.row], h.side)
+	at := a.reveal(h.side, line, f.built)
 	f.relocate() // a fold may have opened: the cursor keeps its row
 	f.jumpTo(f.findDiff(h.part, h.file, at.v, at.sub))
 	f.active, f.msg = h.side, searchMsg(q, i, len(hits))
-	f.xoff = d.showMatch(mt, h.side, line, f.xoff, f.width)
+	f.xoff = a.showMatch(mt, h.side, line, f.xoff, f.width)
 }
 
 // SearchBar wraps the view: / opens a bar at the bottom to type what to

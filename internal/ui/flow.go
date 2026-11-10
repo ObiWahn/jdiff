@@ -39,7 +39,7 @@ type flowPart struct {
 	commit *commitEntry // nil outside the log
 	full   []string     // commit header lines with the whole message, the first one is the bar
 	short  []string     // commit header lines with the subject only
-	app    *App         // the files, nil until loaded
+	diff   *Diff        // the files, nil until loaded
 	err    string       // why the files could not be loaded
 }
 
@@ -73,9 +73,9 @@ type Flow struct {
 	top       int
 	xoff      int
 	active    side
-	marked    *fileDiff // diff holding a pending mark
-	replacing *fileDiff // diff waiting for confirmation to replace anchors
-	prefix    string    // "m" or "'" while waiting for the letter of a jump mark
+	marked    *fileAlign // diff holding a pending mark
+	replacing *fileAlign // diff waiting for confirmation to replace anchors
+	prefix    string     // "m" or "'" while waiting for the letter of a jump mark
 
 	width, height int
 	msg           string
@@ -94,8 +94,8 @@ func newFlow(cfg *config.Config, parts []*flowPart, load func(int) tea.Cmd) *Flo
 	return f
 }
 
-// flowOfApp returns the flow view of the files of a, outside the log.
-func flowOfApp(a *App) *Flow { return newFlow(a.cfg, []*flowPart{{app: a}}, nil) }
+// flowOfDiff returns the flow view of the files of d, outside the log.
+func flowOfDiff(d *Diff) *Flow { return newFlow(d.cfg, []*flowPart{{diff: d}}, nil) }
 
 // newCommitPart returns the part of the flow view for commit e.
 func newCommitPart(e *commitEntry) *flowPart {
@@ -252,14 +252,14 @@ func (f *Flow) delegate(action string) {
 		return
 	}
 	r := f.rows[f.cursor]
-	e := f.parts[r.part].app.files[r.file]
-	d := e.diff
-	if action == "anchor" && f.marked != d {
+	e := f.parts[r.part].diff.files[r.file]
+	a := e.align
+	if action == "anchor" && f.marked != a {
 		f.dropMark()
 	}
 	var at spot
 	f.keepScreenRow(func() {
-		at, f.msg = d.act(action, spot{r.line, r.sub, f.active}, f.built)
+		at, f.msg = a.act(action, spot{r.line, r.sub, f.active}, f.built)
 		e.updateStats()
 		f.build()
 		if i := f.findDiff(r.part, r.file, at.v, at.sub); i >= 0 {
@@ -268,12 +268,12 @@ func (f *Flow) delegate(action string) {
 	})
 	f.active = at.side
 	f.replacing = nil
-	if d.replace != nil {
-		f.replacing = d
+	if a.replace != nil {
+		f.replacing = a
 	}
-	if d.pending != nil {
-		f.marked = d
-	} else if f.marked == d {
+	if a.pending != nil {
+		f.marked = a
+	} else if f.marked == a {
 		f.marked = nil
 	}
 }
@@ -286,18 +286,18 @@ func (f *Flow) jump() {
 		return
 	}
 	r := f.rows[f.cursor]
-	app := f.parts[r.part].app
-	d := app.files[r.file].diff
-	end, msg, ok := d.otherEnd(spot{r.line, r.sub, f.active}, f.built)
+	d := f.parts[r.part].diff
+	a := d.files[r.file].align
+	end, msg, ok := a.otherEnd(spot{r.line, r.sub, f.active}, f.built)
 	f.msg = msg
 	if !ok {
 		return
 	}
-	i := app.fileByGroup(end.file)
+	i := d.fileByGroup(end.file)
 	if i < 0 {
 		return
 	}
-	at := app.files[i].diff.spotOf(end.side, end.line, f.built)
+	at := d.files[i].align.spotOf(end.side, end.line, f.built)
 	f.jumpTo(f.findDiff(r.part, i, at.v, at.sub))
 	f.active = at.side
 }
@@ -320,7 +320,7 @@ func (f *Flow) setMark(letter string) {
 		return
 	}
 	r := f.rows[f.cursor]
-	f.msg = setMark(f.cfg, f.parts[r.part].app.files[r.file].diff, letter, r.line)
+	f.msg = setMark(f.cfg, f.parts[r.part].diff.files[r.file].align, letter, r.line)
 }
 
 // gotoMark moves the cursor to the line of jump mark letter when its file is
@@ -332,24 +332,24 @@ func (f *Flow) gotoMark(letter string) {
 		f.msg = "no mark " + letter
 		return
 	}
-	if len(f.rows) == 0 || f.parts[f.rows[f.cursor].part].app == nil {
+	if len(f.rows) == 0 || f.parts[f.rows[f.cursor].part].diff == nil {
 		f.msg = notInDiff(letter, mk)
 		return
 	}
 	r := f.rows[f.cursor]
-	app := f.parts[r.part].app
-	i := app.fileByPath(mk.Path)
+	d := f.parts[r.part].diff
+	i := d.fileByPath(mk.Path)
 	if i < 0 {
 		f.msg = notInDiff(letter, mk)
 		return
 	}
-	d := app.files[i].diff
-	line, note, ok := d.markLine(mk)
+	a := d.files[i].align
+	line, note, ok := a.markLine(mk)
 	if !ok {
 		f.msg = markMsg(letter, "the new file is empty")
 		return
 	}
-	at := d.reveal(right, line, f.built)
+	at := a.reveal(right, line, f.built)
 	f.relocate() // a fold may have opened: the cursor keeps its row
 	f.jumpTo(f.findDiff(r.part, i, at.v, at.sub))
 	f.active, f.msg = right, markMsg(letter, note)
@@ -357,9 +357,9 @@ func (f *Flow) gotoMark(letter string) {
 
 // dropMark cancels a pending mark; the caller rebuilds the rows.
 func (f *Flow) dropMark() {
-	if d := f.marked; d != nil && d.pending != nil {
-		d.pending = nil
-		d.buildView()
+	if a := f.marked; a != nil && a.pending != nil {
+		a.pending = nil
+		a.buildView()
 	}
 	f.marked = nil
 }
@@ -372,25 +372,25 @@ func (f *Flow) build() {
 		f.rows = append(f.rows, flowRow{k, part, file, line, 0})
 	}
 	for p, part := range f.parts {
-		if part.app == nil && part.commit != nil {
-			part.app = part.commit.app // loaded for the list meanwhile
+		if part.diff == nil && part.commit != nil {
+			part.diff = part.commit.diff // loaded for the list meanwhile
 		}
 		for i := range f.commitLines(part) {
 			add(flowCommit, p, -1, i)
 		}
-		if part.app == nil || len(part.app.files) == 0 {
+		if part.diff == nil || len(part.diff.files) == 0 {
 			add(flowNote, p, -1, 0) // loading, why it cannot, or no files
 		}
-		if part.app == nil {
+		if part.diff == nil {
 			continue
 		}
-		for i, e := range part.app.files {
+		for i, e := range part.diff.files {
 			add(flowFile, p, i, 0)
 			if e.Binary {
 				add(flowNote, p, i, 0)
 				continue
 			}
-			screen, _ := part.app.diffOf(e).screenLines(f.built)
+			screen, _ := part.diff.diffOf(e).screenLines(f.built)
 			for _, s := range screen {
 				f.rows = append(f.rows, flowRow{flowDiff, p, i, s.v, s.sub})
 			}
@@ -406,38 +406,38 @@ func (f *Flow) build() {
 // refresh runs reload, which may reload files, calling its argument after
 // each reload of a diff, and rebuilds the rows. The cursor stays on its
 // screen row and, in a reloaded file, on its line.
-func (f *Flow) refresh(reload func(after func(*fileDiff))) {
+func (f *Flow) refresh(reload func(after func(*fileAlign))) {
 	var cur flowRow
-	var d *fileDiff
+	var a *fileAlign
 	var row diff.Row
 	reloads, lost := 0, false
 	if f.cursor < len(f.rows) && f.rows[f.cursor].kind == flowDiff {
 		cur = f.rows[f.cursor]
-		d = f.parts[cur.part].app.files[cur.file].diff
-		row, reloads = d.rows[d.view[cur.line].row], d.reloads
+		a = f.parts[cur.part].diff.files[cur.file].align
+		row, reloads = a.rows[a.view[cur.line].row], a.reloads
 	}
 	f.keepScreenRow(func() {
 		// The cursor's row is followed through each reload: a diff may
 		// reload both sides, and each reload maps only its own side.
-		reload(func(rd *fileDiff) {
-			if rd != d || lost {
+		reload(func(rd *fileAlign) {
+			if rd != a || lost {
 				return
 			}
-			if i := d.rowAfterReload(row); i >= 0 {
-				row = d.rows[i]
+			if i := a.rowAfterReload(row); i >= 0 {
+				row = a.rows[i]
 			} else {
 				lost = true
 			}
 		})
-		if d != nil {
+		if a != nil {
 			// The files may have been listed again, in another order.
-			cur.file = slices.IndexFunc(f.parts[cur.part].app.files, func(e *entry) bool { return e.diff == d })
+			cur.file = slices.IndexFunc(f.parts[cur.part].diff.files, func(e *fileEntry) bool { return e.align == a })
 		}
 		f.relocate()
-		if d == nil || cur.file < 0 || d.reloads == reloads || lost {
+		if a == nil || cur.file < 0 || a.reloads == reloads || lost {
 			return
 		}
-		if v := d.follow(row, false); v >= 0 {
+		if v := a.follow(row, false); v >= 0 {
 			if i := f.findDiff(cur.part, cur.file, v, cur.sub); i >= 0 {
 				f.cursor = i
 			}
@@ -449,7 +449,7 @@ func (f *Flow) refresh(reload func(after func(*fileDiff))) {
 // listed again, from old to new: on the file's row, or for a file that is
 // gone on the bar of the next file left, else of the last. The rows are
 // rebuilt next.
-func (f *Flow) followFiles(part int, old, new []*entry) {
+func (f *Flow) followFiles(part int, old, new []*fileEntry) {
 	if f.cursor >= len(f.rows) {
 		return
 	}
@@ -500,8 +500,8 @@ func (f *Flow) relocate() {
 	}
 	if cur.kind == flowDiff {
 		sub := cur.sub
-		if d := f.parts[cur.part].app.files[cur.file].diff; cur.line < len(d.view) {
-			sub = d.convertSub(cur.line, cur.sub, from, f.built, f.active)
+		if a := f.parts[cur.part].diff.files[cur.file].align; cur.line < len(a.view) {
+			sub = a.convertSub(cur.line, cur.sub, from, f.built, f.active)
 		}
 		i = f.findDiff(cur.part, cur.file, cur.line, sub)
 	}
@@ -546,7 +546,7 @@ func (f *Flow) inLog() bool { return f.load != nil }
 // for the flow nor for the list.
 func (f *Flow) unloaded(part int) bool {
 	p := f.parts[part]
-	return p.app == nil && p.err == "" && (p.commit == nil || p.commit.app == nil)
+	return p.diff == nil && p.err == "" && (p.commit == nil || p.commit.diff == nil)
 }
 
 // nextLoad returns the command loading the next commit, nil while one loads
@@ -729,7 +729,7 @@ func (f *Flow) isKind(k flowKind, line int) func(int) bool {
 func (f *Flow) changeStart(i int) bool {
 	changed := func(i int) bool {
 		r := f.rows[i]
-		return r.kind == flowDiff && f.parts[r.part].app.files[r.file].diff.changed(r.line)
+		return r.kind == flowDiff && f.parts[r.part].diff.files[r.file].align.changed(r.line)
 	}
 	return changed(i) && (i == 0 || !changed(i-1))
 }
@@ -744,7 +744,7 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 	f.adopt(part, file)
 	i := f.find(flowRow{flowCommit, part, -1, 0, 0})
 	switch {
-	case f.parts[part].app == nil:
+	case f.parts[part].diff == nil:
 	case file >= 0 && line >= 0:
 		i = f.findDiff(part, file, line, sub)
 	case file >= 0:
@@ -775,32 +775,32 @@ func (f *Flow) showFrom(part, file int, from *Model) {
 // the others are dropped, as the flow keeps one.
 func (f *Flow) adopt(part, file int) {
 	f.marked, f.replacing = nil, nil
-	app := f.parts[part].app
-	if app == nil {
+	d := f.parts[part].diff
+	if d == nil {
 		return
 	}
-	var marked []*fileDiff
-	for i, e := range app.files {
-		d := e.diff
-		if d == nil {
+	var marked []*fileAlign
+	for i, e := range d.files {
+		a := e.align
+		if a == nil {
 			continue
 		}
-		if d.pending != nil {
+		if a.pending != nil {
 			if i == file {
-				marked = append([]*fileDiff{d}, marked...)
+				marked = append([]*fileAlign{a}, marked...)
 			} else {
-				marked = append(marked, d)
+				marked = append(marked, a)
 			}
 		}
-		if d.replace != nil {
-			f.replacing = d
+		if a.replace != nil {
+			f.replacing = a
 		}
 	}
 	if len(marked) == 0 {
 		return
 	}
-	for _, d := range marked[1:] {
-		f.marked = d
+	for _, a := range marked[1:] {
+		f.marked = a
 		f.dropMark()
 	}
 	f.marked = marked[0]
@@ -888,7 +888,7 @@ func (f *Flow) header() string {
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}
 	if file >= 0 {
-		b.WriteString(paneTitles(t, f.parts[p].app.files[file].paneNames(), f.active, f.cfg.Settings.SideBySide, f.width))
+		b.WriteString(paneTitles(t, f.parts[p].diff.files[file].paneNames(), f.active, f.cfg.Settings.SideBySide, f.width))
 	}
 	return b.String() + "\n"
 }
@@ -904,10 +904,10 @@ func (f *Flow) status() string {
 		where = append(where, c)
 	}
 	if file >= 0 {
-		files := f.parts[p].app.files
+		files := f.parts[p].diff.files
 		where = append(where, fmt.Sprintf("file %d/%d", file+1, len(files)))
-		if d := files[file].diff; d != nil {
-			where = append(where, fmt.Sprintf("anchors %d", len(d.anchors)))
+		if a := files[file].align; a != nil {
+			where = append(where, fmt.Sprintf("anchors %d", len(a.anchors)))
 		}
 	}
 	msg := f.msg
@@ -960,7 +960,7 @@ func (f *Flow) row(i int) string {
 		}
 		return mark + text(line, t.Zero)
 	case flowFile:
-		e := part.app.files[r.file]
+		e := part.diff.files[r.file]
 		line := " "
 		if lbl := e.label(t); lbl != "" {
 			line += lbl + " "
@@ -979,11 +979,11 @@ func (f *Flow) row(i int) string {
 			note = "binary file"
 		case part.err != "":
 			note = printable(part.err)
-		case part.app == nil:
+		case part.diff == nil:
 			note = "loading…"
 		}
 		return mark + text("  "+note, t.Hint)
 	}
-	d := part.app.files[r.file].diff
-	return d.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, f.built})
+	a := part.diff.files[r.file].align
+	return a.render(sline{r.line, r.sub}, i == f.cursor, layout{f.width, f.xoff, f.active, f.built})
 }

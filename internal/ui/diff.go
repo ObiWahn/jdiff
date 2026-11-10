@@ -19,18 +19,19 @@ import (
 	"jdiff/watch"
 )
 
-// entry is one file in the selector. Its diff is created with the selector,
-// since moved code is searched in all files together, and its diff view on
-// first open; both are kept, so anchors survive going back to the list.
-type entry struct {
+// fileEntry is one file in the list. Its alignment is created with the
+// list, since moved code is searched in all files together, and its diff
+// view on first open; both are kept, so anchors survive going back to the
+// list.
+type fileEntry struct {
 	source.File
 	added, removed int
-	diff           *fileDiff
+	align          *fileAlign
 	view           *Model
 }
 
 // label returns the status label, using delta's file labels.
-func (e *entry) label(th *theme.Theme) string {
+func (e *fileEntry) label(th *theme.Theme) string {
 	switch {
 	case e.OldPath != "":
 		return th.RenamedLabel
@@ -44,7 +45,7 @@ func (e *entry) label(th *theme.Theme) string {
 
 // name returns the path shown for the file, "old → new" for renames,
 // printable: paths may hold control characters.
-func (e *entry) name() string {
+func (e *fileEntry) name() string {
 	if e.OldPath != "" {
 		return printable(e.OldPath) + " → " + printable(e.Path)
 	}
@@ -52,17 +53,17 @@ func (e *entry) name() string {
 }
 
 // paneNames returns the names shown above the panes of the file's diff.
-func (e *entry) paneNames() [2]string {
+func (e *fileEntry) paneNames() [2]string {
 	return [2]string{"a/" + e.PathInOld(), "b/" + e.Path}
 }
 
 // refresh reloads the sides of e that changed on disk, see refreshFile. Its
 // diff view and after, unless nil, follow each reload of its diff.
-func (e *entry) refresh(after func(*fileDiff)) string {
+func (e *fileEntry) refresh(after func(*fileAlign)) string {
 	if e.Binary {
 		return ""
 	}
-	msg := refreshFile(&e.File, e.diff, func() { e.followReload(after) })
+	msg := refreshFile(&e.File, e.align, func() { e.followReload(after) })
 	if msg != "" {
 		e.updateStats()
 	}
@@ -73,19 +74,19 @@ func (e *entry) refresh(after func(*fileDiff)) string {
 // its diff whose content changed. Its diff view and after, unless nil,
 // follow each reload, as in refresh. It returns the anchors dropped and
 // whether the content changed.
-func (e *entry) update(f source.File, after func(*fileDiff)) (dropped int, changed bool) {
+func (e *fileEntry) update(f source.File, after func(*fileAlign)) (dropped int, changed bool) {
 	was := [2][]string{e.Old, e.New}
 	e.File = f
 	if e.Binary {
 		return 0, false
 	}
-	e.diff.names = e.paneNames()
+	e.align.names = e.paneNames()
 	for s, lines := range [2][]string{f.Old, f.New} {
 		if slices.Equal(was[s], lines) {
 			continue
 		}
 		changed = true
-		dropped += e.diff.reload(side(s), lines)
+		dropped += e.align.reload(side(s), lines)
 		e.followReload(after)
 	}
 	return dropped, changed
@@ -93,21 +94,21 @@ func (e *entry) update(f source.File, after func(*fileDiff)) (dropped int, chang
 
 // followReload lets its diff view and after, unless nil, follow a reload of
 // its diff.
-func (e *entry) followReload(after func(*fileDiff)) {
+func (e *fileEntry) followReload(after func(*fileAlign)) {
 	if e.view != nil {
 		e.view.syncLayout()
 	}
 	if after != nil {
-		after(e.diff)
+		after(e.align)
 	}
 }
 
-func (e *entry) updateStats() {
+func (e *fileEntry) updateStats() {
 	if e.Binary {
 		return
 	}
-	if e.diff != nil {
-		e.added, e.removed = diff.Stats(e.diff.rows)
+	if e.align != nil {
+		e.added, e.removed = diff.Stats(e.align.rows)
 		return
 	}
 	e.added, e.removed = diff.Stats(diff.Align(e.Old, e.New, nil))
@@ -117,13 +118,13 @@ func (e *entry) updateStats() {
 // so that on a tall screen the preview gets the rest.
 const fileListRows = 15
 
-// App is the Bubble Tea model of the file selector. It shows the diff view
+// Diff is the Bubble Tea model of the file list. It shows the diff view
 // of the selected file and returns to the list on backspace. A single file
 // has its list too, as many do.
-type App struct {
+type Diff struct {
 	cfg    *config.Config
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
-	files  []*entry
+	files  []*fileEntry
 	relist ListFunc // lists the files again, nil when they cannot be
 	// relisting is set while the files are listed again in the background,
 	// again when they are to be listed once more after that, quietly with
@@ -143,21 +144,21 @@ type App struct {
 	disk     diskWatch
 	watching bool
 	ticking  bool
-	touched  *entry
+	touched  *fileEntry
 	list
 	// previewTop is the first screen line of the preview scrolled by pgup
 	// and pgdn, while previewFor is the file under the cursor; moving the
 	// cursor drops it.
-	previewFor *entry
+	previewFor *fileEntry
 	previewTop int
-	open       *entry // file whose diff view is shown, nil for the list
-	flow       *Flow  // flow view outside the log, created on first use
+	open       *fileEntry // file whose diff view is shown, nil for the list
+	flow       *Flow      // flow view outside the log, created on first use
 	msg        string
 	prefix     string // "'" while waiting for the letter of a mark
 }
 
-// NewApp returns the file selector for files.
-func NewApp(cfg *config.Config, files []source.File) *App { return newApp(cfg, files, nil) }
+// NewDiff returns the file list for files.
+func NewDiff(cfg *config.Config, files []source.File) *Diff { return newDiff(cfg, files, nil) }
 
 // ListFunc lists the files of a comparison again. It runs in the background,
 // and ends when ctx is done.
@@ -169,58 +170,58 @@ type ListFunc func(ctx context.Context) ([]source.File, error)
 // when ctx is done.
 type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source.File, error)
 
-// WithGitDiff makes a the files of git diff with args, which r runs again,
-// and returns a.
-func (a *App) WithGitDiff(args []string, gitDiff DiffFunc) *App {
-	a.gitDiff, a.diffArgs = gitDiff, args
-	return a
+// WithGitDiff makes d the files of git diff with args, which r runs again,
+// and returns d.
+func (d *Diff) WithGitDiff(args []string, gitDiff DiffFunc) *Diff {
+	d.gitDiff, d.diffArgs = gitDiff, args
+	return d
 }
 
-// WithRelist sets how r lists the files again and returns a.
-func (a *App) WithRelist(list ListFunc) *App {
-	a.relist = list
-	return a
+// WithRelist sets how r lists the files again and returns d.
+func (d *Diff) WithRelist(list ListFunc) *Diff {
+	d.relist = list
+	return d
 }
 
-// newApp returns the file selector for files, as part of the log for the
+// newDiff returns the file list for files, as part of the log for the
 // files of commit when it is set.
-func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App {
-	a := &App{cfg: cfg, commit: commit}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
+func newDiff(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *Diff {
+	d := &Diff{cfg: cfg, commit: commit}
+	d.ctx, d.cancel = context.WithCancel(context.Background())
 	// The files are searched for moved code together.
 	group := &moveGroup{}
 	for _, f := range files {
-		a.addEntry(group, &entry{File: f})
+		d.addEntry(group, &fileEntry{File: f})
 	}
-	a.list = list{n: len(a.files), preview: &cfg.Settings.Preview, maxRows: fileListRows}
+	d.list = list{n: len(d.files), preview: &cfg.Settings.Preview, maxRows: fileListRows}
 	if len(files) == 0 {
-		a.msg = "no changed files"
+		d.msg = "no changed files"
 	}
 	if w := cfg.Warning(); w != "" {
-		a.msg = w
+		d.msg = w
 	}
-	return a
+	return d
 }
 
 // addEntry adds e to the files and its diff, unless binary, to group, the
 // files searched for moved code together.
-func (a *App) addEntry(group *moveGroup, e *entry) {
+func (d *Diff) addEntry(group *moveGroup, e *fileEntry) {
 	if !e.Binary {
-		group.add(a.diffOf(e), [2]string{e.PathInOld(), e.Path})
+		group.add(d.diffOf(e), [2]string{e.PathInOld(), e.Path})
 	}
 	e.updateStats()
-	a.files = append(a.files, e)
+	d.files = append(d.files, e)
 }
 
 // stop stops watching the files and ends the git commands of the view: it
 // is replaced, or the program ends.
-func (a *App) stop() {
-	a.cancel()
-	a.disk.stop()
+func (d *Diff) stop() {
+	d.cancel()
+	d.disk.stop()
 }
 
-// shareWatcher makes a watch its files by w, which DiffSwitch shares.
-func (a *App) shareWatcher(w *watch.Watcher) { a.disk = diskWatch{w: w} }
+// shareWatcher makes d watch its files by w, which DiffSwitch shares.
+func (d *Diff) shareWatcher(w *watch.Watcher) { d.disk = diskWatch{w: w} }
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -230,96 +231,96 @@ func diffCommand(args []string) string {
 
 // inLog reports whether a is part of the log: backspace and N/P go to the
 // log.
-func (a *App) inLog() bool { return a.commit != nil }
+func (d *Diff) inLog() bool { return d.commit != nil }
 
 // openPath opens the file with the given path and reports whether it could.
-func (a *App) openPath(path string) bool {
-	i := a.fileByPath(path)
+func (d *Diff) openPath(path string) bool {
+	i := d.fileByPath(path)
 	if i >= 0 {
-		a.openIndex(i)
+		d.openIndex(i)
 	}
 	return i >= 0
 }
 
 // fileByPath returns the index of the file with the given path that can be
 // shown, or -1.
-func (a *App) fileByPath(path string) int {
-	return slices.IndexFunc(a.files, func(e *entry) bool { return e.Path == path && !e.Binary })
+func (d *Diff) fileByPath(path string) int {
+	return slices.IndexFunc(d.files, func(e *fileEntry) bool { return e.Path == path && !e.Binary })
 }
 
 // fileByGroup returns the index of the file at index i of the files searched
 // for moved code, or -1.
-func (a *App) fileByGroup(i int) int {
-	return slices.IndexFunc(a.files, func(e *entry) bool { return e.diff != nil && e.diff.groupIndex == i })
+func (d *Diff) fileByGroup(i int) int {
+	return slices.IndexFunc(d.files, func(e *fileEntry) bool { return e.align != nil && e.align.groupIndex == i })
 }
 
 // openIndex opens file i, after updating the counts of the file it leaves.
-func (a *App) openIndex(i int) {
-	if a.open != nil {
-		a.open.updateStats()
+func (d *Diff) openIndex(i int) {
+	if d.open != nil {
+		d.open.updateStats()
 	}
-	a.cursor = i
-	a.scrollToCursor()
-	a.openFile()
+	d.cursor = i
+	d.scrollToCursor()
+	d.openFile()
 }
 
 // setMsg shows msg in the status bar of whatever is displayed.
-func (a *App) setMsg(msg string) {
+func (d *Diff) setMsg(msg string) {
 	switch {
-	case a.flowShown():
-		a.flow.msg = msg
-	case a.open != nil:
-		a.open.view.msg = msg
+	case d.flowShown():
+		d.flow.msg = msg
+	case d.open != nil:
+		d.open.view.msg = msg
 	default:
-		a.msg = msg
+		d.msg = msg
 	}
 }
 
 // Init starts watching the files, outside the log.
-func (a *App) Init() tea.Cmd {
-	if a.inLog() {
+func (d *Diff) Init() tea.Cmd {
+	if d.inLog() {
 		return nil
 	}
-	return a.watch()
+	return d.watch()
 }
 
 // watch watches the files on disk, in place of those before, while auto
 // reload is on, and returns the command waiting for their changes and the
 // check of those not watched; off, it watches none.
-func (a *App) watch() tea.Cmd {
-	if !a.cfg.AutoReload {
-		a.disk.stop()
-		a.watching = false
+func (d *Diff) watch() tea.Cmd {
+	if !d.cfg.AutoReload {
+		d.disk.stop()
+		d.watching = false
 		return nil
 	}
 	var paths []string
-	for _, e := range a.files {
+	for _, e := range d.files {
 		paths = append(paths, diskPaths(e.File)...)
 	}
-	cmd, msg := a.disk.set(a.cfg, paths)
+	cmd, msg := d.disk.set(d.cfg, paths)
 	if msg != "" {
-		a.setMsg(msg)
+		d.setMsg(msg)
 	}
-	a.watching = true
-	return batch(cmd, a.poll())
+	d.watching = true
+	return batch(cmd, d.poll())
 }
 
 // poll returns the next check of the files near the cursor, the current one
 // and its neighbors, that are not watched; nil while one is pending, or when
 // none is to be checked.
-func (a *App) poll() tea.Cmd {
-	if a.ticking || !a.cfg.AutoReload || a.cfg.Settings.WatchInterval <= 0 || !slices.ContainsFunc(a.nearCursor(), a.unwatched) {
+func (d *Diff) poll() tea.Cmd {
+	if d.ticking || !d.cfg.AutoReload || d.cfg.Settings.WatchInterval <= 0 || !slices.ContainsFunc(d.nearCursor(), d.unwatched) {
 		return nil
 	}
-	a.ticking = true
-	return watchTick(a.cfg, a)
+	d.ticking = true
+	return watchTick(d.cfg, d)
 }
 
 // nearCursor returns the indices of the current file and its neighbors.
-func (a *App) nearCursor() []int {
+func (d *Diff) nearCursor() []int {
 	var out []int
-	if cur := a.current(); cur >= 0 {
-		for i := max(cur-1, 0); i <= min(cur+1, len(a.files)-1); i++ {
+	if cur := d.current(); cur >= 0 {
+		for i := max(cur-1, 0); i <= min(cur+1, len(d.files)-1); i++ {
 			out = append(out, i)
 		}
 	}
@@ -327,22 +328,22 @@ func (a *App) nearCursor() []int {
 }
 
 // unwatched reports whether a side of file i on disk is not watched.
-func (a *App) unwatched(i int) bool {
-	return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool { return !a.disk.watched(p) })
+func (d *Diff) unwatched(i int) bool {
+	return slices.ContainsFunc(diskPaths(d.files[i].File), func(p string) bool { return !d.disk.watched(p) })
 }
 
 // current returns the index of the file the cursor is on: in the flow view,
 // the diff view or the list; -1 for none.
-func (a *App) current() int {
-	if a.flowShown() {
-		_, file, _ := a.flow.position()
+func (d *Diff) current() int {
+	if d.flowShown() {
+		_, file, _ := d.flow.position()
 		return file
 	}
-	if a.open != nil {
-		return slices.Index(a.files, a.open)
+	if d.open != nil {
+		return slices.Index(d.files, d.open)
 	}
-	if a.cursor < len(a.files) {
-		return a.cursor
+	if d.cursor < len(d.files) {
+		return d.cursor
 	}
 	return -1
 }
@@ -351,46 +352,46 @@ func (a *App) current() int {
 // when it is on another one than before, and reloads it when it changed on
 // disk, as it may while its directory was not watched. It returns the check
 // of the files near the cursor not watched.
-func (a *App) followCursor() tea.Cmd {
-	i := a.current()
-	if !a.watching || !a.cfg.AutoReload || i < 0 || a.files[i] == a.touched {
+func (d *Diff) followCursor() tea.Cmd {
+	i := d.current()
+	if !d.watching || !d.cfg.AutoReload || i < 0 || d.files[i] == d.touched {
 		return nil
 	}
-	a.touched = a.files[i]
-	a.disk.touch(diskPaths(a.touched.File))
-	f := a.touched.File
+	d.touched = d.files[i]
+	d.disk.touch(diskPaths(d.touched.File))
+	f := d.touched.File
 	if f.OldFile != "" && stale(f.OldFile, f.OldStamp) || f.NewFile != "" && stale(f.NewFile, f.NewStamp) {
-		a.refresh(func(j int) bool { return j == i })
+		d.refresh(func(j int) bool { return j == i })
 	}
-	return a.poll()
+	return d.poll()
 }
 
 // refresh reloads the files i that changed on disk for which which holds.
-func (a *App) refresh(which func(i int) bool) {
+func (d *Diff) refresh(which func(i int) bool) {
 	var msgs []string
-	reload := func(after func(*fileDiff)) {
-		for i := range a.files {
+	reload := func(after func(*fileAlign)) {
+		for i := range d.files {
 			if !which(i) {
 				continue
 			}
-			if msg := a.files[i].refresh(after); msg != "" {
+			if msg := d.files[i].refresh(after); msg != "" {
 				msgs = append(msgs, msg)
 			}
 		}
 	}
-	if a.flowShown() {
-		a.flow.refresh(reload)
+	if d.flowShown() {
+		d.flow.refresh(reload)
 	} else {
 		reload(nil)
 	}
 	if len(msgs) > 0 {
-		a.setMsg(strings.Join(msgs, "; "))
+		d.setMsg(strings.Join(msgs, "; "))
 	}
 }
 
-// filesListedMsg brings the files app listed again, or why it could not.
+// filesListedMsg brings the files d listed again, or why it could not.
 type filesListedMsg struct {
-	app   *App
+	diff  *Diff
 	files []source.File
 	err   error
 	quiet bool
@@ -401,29 +402,29 @@ type filesListedMsg struct {
 // meanwhile. While a listing runs, another one is not started, but run once
 // it is done, since what to list may have changed, as the untracked files.
 // With quiet, as auto reload asks, nothing is said unless something changed.
-func (a *App) relistFiles(quiet bool) tea.Cmd {
-	list := a.relist
-	if a.gitDiff != nil {
-		args, untracked, gitDiff := a.diffArgs, a.cfg.Settings.Untracked, a.gitDiff
+func (d *Diff) relistFiles(quiet bool) tea.Cmd {
+	list := d.relist
+	if d.gitDiff != nil {
+		args, untracked, gitDiff := d.diffArgs, d.cfg.Settings.Untracked, d.gitDiff
 		list = func(ctx context.Context) ([]source.File, error) { return gitDiff(ctx, args, untracked) }
 	}
 	if list == nil {
-		a.setMsg("nothing to load again")
+		d.setMsg("nothing to load again")
 		return nil
 	}
-	if a.relisting {
-		a.againQuiet = quiet && (!a.again || a.againQuiet)
-		a.again = true
+	if d.relisting {
+		d.againQuiet = quiet && (!d.again || d.againQuiet)
+		d.again = true
 		return nil
 	}
-	a.relisting = true
+	d.relisting = true
 	if !quiet {
-		a.setMsg("loading again…")
+		d.setMsg("loading again…")
 	}
-	ctx := a.ctx
+	ctx := d.ctx
 	return func() tea.Msg {
 		files, err := list(ctx)
-		return filesListedMsg{a, files, err, quiet}
+		return filesListedMsg{d, files, err, quiet}
 	}
 }
 
@@ -434,36 +435,36 @@ func (a *App) relistFiles(quiet bool) tea.Cmd {
 // its file; when the file shown is gone, the list is shown. The files are
 // watched anew; it returns the command waiting for their changes, and the
 // one listing them once more when that was asked for meanwhile.
-func (a *App) filesListed(res filesListedMsg) tea.Cmd {
-	a.relisting = false
+func (d *Diff) filesListed(res filesListedMsg) tea.Cmd {
+	d.relisting = false
 	var next tea.Cmd
-	if a.again {
-		a.again = false
-		next = a.relistFiles(a.againQuiet)
+	if d.again {
+		d.again = false
+		next = d.relistFiles(d.againQuiet)
 	}
 	files, quiet := res.files, res.quiet
 	if res.err != nil {
-		a.setMsg(firstLine(res.err))
+		d.setMsg(firstLine(res.err))
 		return next
 	}
-	kept := map[string]*entry{}
-	for _, e := range a.files {
+	kept := map[string]*fileEntry{}
+	for _, e := range d.files {
 		kept[e.Path] = e
 	}
-	var cur *entry
-	if a.cursor < len(a.files) {
-		cur = a.files[a.cursor]
+	var cur *fileEntry
+	if d.cursor < len(d.files) {
+		cur = d.files[d.cursor]
 	}
 	added, changed, dropped := 0, 0, 0
-	update := func(after func(*fileDiff)) {
-		old := a.files
-		a.files = nil
+	update := func(after func(*fileAlign)) {
+		old := d.files
+		d.files = nil
 		// The files are searched for moved code together.
 		group := &moveGroup{}
 		for _, f := range files {
 			e := kept[f.Path]
 			if e == nil || e.Binary != f.Binary {
-				e = &entry{File: f}
+				e = &fileEntry{File: f}
 				added++
 			} else {
 				delete(kept, f.Path)
@@ -473,45 +474,45 @@ func (a *App) filesListed(res filesListedMsg) tea.Cmd {
 				}
 				dropped += n
 			}
-			a.addEntry(group, e)
+			d.addEntry(group, e)
 		}
-		if a.flow != nil {
-			a.flow.followFiles(0, old, a.files)
+		if d.flow != nil {
+			d.flow.followFiles(0, old, d.files)
 		}
 	}
-	shown := a.flowShown()
+	shown := d.flowShown()
 	if shown {
-		a.flow.refresh(update)
+		d.flow.refresh(update)
 	} else {
 		update(nil)
 	}
-	a.list.n = len(a.files)
-	if i := slices.Index(a.files, cur); i >= 0 {
-		a.cursor = i
+	d.list.n = len(d.files)
+	if i := slices.Index(d.files, cur); i >= 0 {
+		d.cursor = i
 	} else {
-		a.cursor = max(min(a.cursor, len(a.files)-1), 0)
+		d.cursor = max(min(d.cursor, len(d.files)-1), 0)
 	}
 	msg := refreshed(added, len(kept), changed, dropped)
 	switch {
-	case len(a.files) == 0:
-		a.open = nil
+	case len(d.files) == 0:
+		d.open = nil
 	case shown:
-		if _, file, _ := a.flow.position(); file >= 0 {
-			a.cursor = file
+		if _, file, _ := d.flow.position(); file >= 0 {
+			d.cursor = file
 		}
-		a.open = a.files[a.cursor]
-	case a.open != nil && !slices.Contains(a.files, a.open):
-		msg = a.open.Path + " is gone; " + msg
-		a.open = nil
+		d.open = d.files[d.cursor]
+	case d.open != nil && !slices.Contains(d.files, d.open):
+		msg = d.open.Path + " is gone; " + msg
+		d.open = nil
 	}
-	a.scrollToCursor()
+	d.scrollToCursor()
 	if !quiet || msg != nothingChanged {
-		a.setMsg(msg)
+		d.setMsg(msg)
 	}
-	if a.inLog() {
+	if d.inLog() {
 		return next
 	}
-	return batch(a.watch(), next)
+	return batch(d.watch(), next)
 }
 
 // batch returns the commands that are not nil, as one: tea.Batch of them
@@ -530,322 +531,322 @@ func batch(cmds ...tea.Cmd) tea.Cmd {
 
 // flowShown reports whether the flow view is shown instead of a diff view.
 // Inside the log, the log shows its own flow view.
-func (a *App) flowShown() bool { return a.open != nil && a.cfg.Settings.Flow && !a.inLog() }
+func (d *Diff) flowShown() bool { return d.open != nil && d.cfg.Settings.Flow && !d.inLog() }
 
 // Update handles msg, then follows the cursor, see followCursor.
-func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m, cmd := a.update(msg)
-	return m, batch(cmd, a.followCursor())
+func (d *Diff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := d.update(msg)
+	return m, batch(cmd, d.followCursor())
 }
 
-func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		a.width, a.height = msg.Width, msg.Height
-		a.scrollToCursor()
+		d.width, d.height = msg.Width, msg.Height
+		d.scrollToCursor()
 	case settingChangedMsg:
-		a.scrollToCursor() // the preview takes room from the list
-		if msg.problem != "" && a.open == nil {
-			a.msg = msg.problem
+		d.scrollToCursor() // the preview takes room from the list
+		if msg.problem != "" && d.open == nil {
+			d.msg = msg.problem
 		}
 		if msg.action == "inotify_max_dirs" {
-			a.disk.limit(a.cfg)
-			return a, a.poll()
+			d.disk.limit(d.cfg)
+			return d, d.poll()
 		}
 	case autoReloadMsg:
-		if a.inLog() {
-			return a, nil
+		if d.inLog() {
+			return d, nil
 		}
 		if msg.on { // changed while off
-			a.touched = nil
-			a.refresh(func(int) bool { return true })
+			d.touched = nil
+			d.refresh(func(int) bool { return true })
 		}
-		return a, a.watch()
+		return d, d.watch()
 	case watchTickMsg:
-		if msg.owner != nil && msg.owner != a {
-			return a, nil
+		if msg.owner != nil && msg.owner != d {
+			return d, nil
 		}
-		a.ticking = false
-		if !a.cfg.AutoReload {
-			return a, nil
+		d.ticking = false
+		if !d.cfg.AutoReload {
+			return d, nil
 		}
-		near := a.nearCursor()
-		a.refresh(func(i int) bool { return slices.Contains(near, i) && a.unwatched(i) })
-		return a, a.poll()
+		near := d.nearCursor()
+		d.refresh(func(i int) bool { return slices.Contains(near, i) && d.unwatched(i) })
+		return d, d.poll()
 	case changedMsg:
-		if msg.w == nil || msg.w != a.disk.w {
-			return a, nil
+		if msg.w == nil || msg.w != d.disk.w {
+			return d, nil
 		}
 		changed := func(i int) bool {
-			return slices.ContainsFunc(diskPaths(a.files[i].File), func(p string) bool { return slices.Contains(msg.paths, p) })
+			return slices.ContainsFunc(diskPaths(d.files[i].File), func(p string) bool { return slices.Contains(msg.paths, p) })
 		}
-		a.refresh(changed)
-		return a, batch(a.disk.next(), a.poll())
+		d.refresh(changed)
+		return d, batch(d.disk.next(), d.poll())
 	case watchEndedMsg:
-		if !a.disk.ended(msg.w) {
-			return a, nil
+		if !d.disk.ended(msg.w) {
+			return d, nil
 		}
-		return a, a.poll()
+		return d, d.poll()
 	case jumpMsg:
-		a.jump(msg)
-		return a, nil
+		d.jump(msg)
+		return d, nil
 	case markJumpMsg:
-		a.gotoMark(msg.letter, msg.screenRow)
-		return a, nil
+		d.gotoMark(msg.letter, msg.screenRow)
+		return d, nil
 	case switchFileMsg:
-		a.switchFile(int(msg))
-		return a, nil
+		d.switchFile(int(msg))
+		return d, nil
 	case toggleFlowMsg:
-		a.toggleFlow()
-		if w := saveState(a.cfg); w != "" {
-			a.setMsg(w)
+		d.toggleFlow()
+		if w := saveState(d.cfg); w != "" {
+			d.setMsg(w)
 		}
-		return a, nil
+		return d, nil
 	case backMsg: // from the flow view
-		a.open = nil
-		return a, nil
+		d.open = nil
+		return d, nil
 	case refreshMsg:
-		return a, a.relistFiles(msg.quiet)
+		return d, d.relistFiles(msg.quiet)
 	case filesListedMsg:
-		if msg.app != a {
-			return a, nil
+		if msg.diff != d {
+			return d, nil
 		}
-		return a, a.filesListed(msg)
+		return d, d.filesListed(msg)
 	case showMsg:
-		a.setMsg(string(msg))
-		return a, nil
+		d.setMsg(string(msg))
+		return d, nil
 	case toggleUntrackedMsg:
-		if a.gitDiff == nil {
-			a.setMsg(untrackedOnlyInDiff)
-			return a, nil
+		if d.gitDiff == nil {
+			d.setMsg(untrackedOnlyInDiff)
+			return d, nil
 		}
-		a.cfg.Settings.Untracked = !a.cfg.Settings.Untracked // not saved
-		return a, a.relistFiles(false)
+		d.cfg.Settings.Untracked = !d.cfg.Settings.Untracked // not saved
+		return d, d.relistFiles(false)
 	}
-	if a.flowShown() {
-		_, cmd := a.flow.Update(msg)
-		if _, file, _ := a.flow.position(); file >= 0 {
-			a.cursor = file
-			a.scrollToCursor()
+	if d.flowShown() {
+		_, cmd := d.flow.Update(msg)
+		if _, file, _ := d.flow.position(); file >= 0 {
+			d.cursor = file
+			d.scrollToCursor()
 		}
-		return a, cmd
+		return d, cmd
 	}
-	if a.open != nil {
-		if k, ok := msg.(tea.KeyPressMsg); ok && a.cfg.Keys.Key(keys.DiffView, k.String()).Action == "to_files" {
-			a.open.updateStats()
-			a.open = nil
-			return a, nil
+	if d.open != nil {
+		if k, ok := msg.(tea.KeyPressMsg); ok && d.cfg.Keys.Key(keys.DiffView, k.String()).Action == "to_files" {
+			d.open.updateStats()
+			d.open = nil
+			return d, nil
 		}
-		_, cmd := a.open.view.Update(msg)
-		return a, cmd
+		_, cmd := d.open.view.Update(msg)
+		return d, cmd
 	}
 	if k, ok := msg.(tea.KeyPressMsg); ok {
-		return a, a.key(k.String())
+		return d, d.key(k.String())
 	}
-	return a, nil
+	return d, nil
 }
 
-func (a *App) key(k string) tea.Cmd {
-	a.msg = ""
-	cursor := a.cursor
+func (d *Diff) key(k string) tea.Cmd {
+	d.msg = ""
+	cursor := d.cursor
 	defer func() {
-		if a.cursor != cursor {
-			a.previewFor = nil // another file shows its preview from the start
+		if d.cursor != cursor {
+			d.previewFor = nil // another file shows its preview from the start
 		}
 	}()
-	if a.prefix != "" {
-		a.prefix = ""
+	if d.prefix != "" {
+		d.prefix = ""
 		if isMarkLetter(k) {
-			a.gotoMark(k, (a.height-2)/2)
+			d.gotoMark(k, (d.height-2)/2)
 		}
 		return nil
 	}
-	h := a.cfg.Keys.Key(keys.FileList, k)
-	page := max(a.listHeight()-1, 1)
-	if delta, paging, ok := motion(h, page, len(a.files)); ok {
-		if h := a.boxHeight(); paging && h > 0 && a.cursor < len(a.files) {
+	h := d.cfg.Keys.Key(keys.FileList, k)
+	page := max(d.listHeight()-1, 1)
+	if delta, paging, ok := motion(h, page, len(d.files)); ok {
+		if h := d.boxHeight(); paging && h > 0 && d.cursor < len(d.files) {
 			// The preview scrolls, by its height less a line, as the list pages.
-			a.scrollPreview(direction(delta > 0) * max(h-3, 1))
+			d.scrollPreview(direction(delta > 0) * max(h-3, 1))
 			return nil
 		}
-		a.moveCursor(delta)
+		d.moveCursor(delta)
 		return nil
 	}
 	switch h.Action {
 	case "quit":
 		return tea.Quit
 	case "open":
-		if a.inLog() && a.cfg.Settings.Flow && a.cursor < len(a.files) {
-			file := a.cursor
+		if d.inLog() && d.cfg.Settings.Flow && d.cursor < len(d.files) {
+			file := d.cursor
 			return func() tea.Msg { return flowAtMsg(file) }
 		}
-		a.openFile()
+		d.openFile()
 	case "to_commits":
-		if a.inLog() {
+		if d.inLog() {
 			return func() tea.Msg { return backMsg{} }
 		}
 	case "history":
-		if a.inLog() {
+		if d.inLog() {
 			return switchCommit(h)
 		}
 	case "flow":
 		return toggleFlow
 	case "jump":
-		a.prefix, a.msg = h.Action, "jump to mark: press its letter"
+		d.prefix, d.msg = h.Action, "jump to mark: press its letter"
 	default:
-		return pageKey(a.cfg.Keys, h, false)
+		return pageKey(d.cfg.Keys, h, false)
 	}
 	return nil
 }
 
 // diffOf returns the diff of e, creating it on first use.
-func (a *App) diffOf(e *entry) *fileDiff {
-	if e.diff == nil {
-		e.diff = newFileDiff(a.cfg, e.paneNames(), [2][]string{e.Old, e.New})
-		e.diff.markPath = e.Path
+func (d *Diff) diffOf(e *fileEntry) *fileAlign {
+	if e.align == nil {
+		e.align = newFileDiff(d.cfg, e.paneNames(), [2][]string{e.Old, e.New})
+		e.align.markPath = e.Path
 	}
-	return e.diff
+	return e.align
 }
 
 // viewOf returns the diff view of e, creating it on first use.
-func (a *App) viewOf(e *entry) *Model {
+func (d *Diff) viewOf(e *fileEntry) *Model {
 	if e.view == nil {
-		e.view = newModel(a.diffOf(e))
+		e.view = newModel(d.diffOf(e))
 		e.view.canBack = true
-		e.view.commitNav = a.inLog()
+		e.view.commitNav = d.inLog()
 	}
 	return e.view
 }
 
-func (a *App) openFile() {
-	if a.cursor >= len(a.files) {
+func (d *Diff) openFile() {
+	if d.cursor >= len(d.files) {
 		return
 	}
-	if a.cfg.Settings.Flow && !a.inLog() {
-		a.showFlow(a.cursor, nil)
+	if d.cfg.Settings.Flow && !d.inLog() {
+		d.showFlow(d.cursor, nil)
 		return
 	}
-	e := a.files[a.cursor]
+	e := d.files[d.cursor]
 	if e.Binary {
-		a.msg = e.Path + " is a binary file"
+		d.msg = e.Path + " is a binary file"
 		return
 	}
-	a.viewOf(e).Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
-	a.open = e
+	d.viewOf(e).Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
+	d.open = e
 }
 
 // showFlow shows the flow view on file, where its diff view from leaves
 // it, or on its bar for from nil (see Flow.showFrom).
-func (a *App) showFlow(file int, from *Model) {
-	if a.flow == nil {
-		a.flow = flowOfApp(a)
+func (d *Diff) showFlow(file int, from *Model) {
+	if d.flow == nil {
+		d.flow = flowOfDiff(d)
 	}
-	a.open = a.files[file]
-	a.flow.width, a.flow.height = a.width, a.height
-	a.flow.showFrom(0, file, from)
+	d.open = d.files[file]
+	d.flow.width, d.flow.height = d.width, d.height
+	d.flow.showFrom(0, file, from)
 }
 
 // toggleFlow switches between the diff view of the file under the cursor
 // and the flow view, keeping the cursor on its line and screen row.
-func (a *App) toggleFlow() {
-	st := &a.cfg.Settings
+func (d *Diff) toggleFlow() {
+	st := &d.cfg.Settings
 	if !st.Flow {
 		st.Flow = true
 		switch {
-		case len(a.files) == 0:
-		case a.open == nil:
-			a.showFlow(a.cursor, nil)
+		case len(d.files) == 0:
+		case d.open == nil:
+			d.showFlow(d.cursor, nil)
 		default:
-			a.showFlow(a.cursor, a.open.view)
+			d.showFlow(d.cursor, d.open.view)
 		}
 		return
 	}
 	st.Flow = false
-	if a.open == nil {
+	if d.open == nil {
 		return
 	}
-	_, file, line := a.flow.position()
-	screenRow := a.flow.cursor - a.flow.top
-	a.open = nil
+	_, file, line := d.flow.position()
+	screenRow := d.flow.cursor - d.flow.top
+	d.open = nil
 	if file < 0 {
 		return
 	}
-	a.cursor = file
-	a.scrollToCursor()
-	if a.files[file].Binary {
+	d.cursor = file
+	d.scrollToCursor()
+	if d.files[file].Binary {
 		return
 	}
-	a.openFile()
-	a.open.view.takeOver(a.flow, line, screenRow)
+	d.openFile()
+	d.open.view.takeOver(d.flow, line, screenRow)
 }
 
 // gotoMark opens the file of mark letter, when it is in the diff, with the
 // cursor on its line at screen row screenRow.
-func (a *App) gotoMark(letter string, screenRow int) {
-	mk, ok := a.cfg.Mark(letter)
+func (d *Diff) gotoMark(letter string, screenRow int) {
+	mk, ok := d.cfg.Mark(letter)
 	if !ok {
-		a.setMsg("no mark " + letter)
+		d.setMsg("no mark " + letter)
 		return
 	}
-	i := a.fileByPath(mk.Path)
+	i := d.fileByPath(mk.Path)
 	if i < 0 {
-		a.setMsg(notInDiff(letter, mk))
+		d.setMsg(notInDiff(letter, mk))
 		return
 	}
-	a.openIndex(i)
-	if a.flowShown() {
-		a.flow.gotoMark(letter)
+	d.openIndex(i)
+	if d.flowShown() {
+		d.flow.gotoMark(letter)
 		return
 	}
-	if at, ok := a.open.view.markSpot(letter, mk); ok {
-		a.open.view.show(at, screenRow)
+	if at, ok := d.open.view.markSpot(letter, mk); ok {
+		d.open.view.show(at, screenRow)
 	}
 }
 
 // jump opens the file of j's end of moved code with the cursor on its line.
-func (a *App) jump(j jumpMsg) {
-	i := a.fileByGroup(j.end.file)
+func (d *Diff) jump(j jumpMsg) {
+	i := d.fileByGroup(j.end.file)
 	if i < 0 {
 		return
 	}
-	a.openIndex(i)
-	a.open.view.show(a.open.diff.spotOf(j.end.side, j.end.line, a.open.view.shape()), j.screenRow)
-	a.open.view.msg = j.msg
+	d.openIndex(i)
+	d.open.view.show(d.open.align.spotOf(j.end.side, j.end.line, d.open.view.shape()), j.screenRow)
+	d.open.view.msg = j.msg
 }
 
 // switchFile opens the next (dir > 0) or previous file that can be shown.
-func (a *App) switchFile(dir int) {
-	for i := a.cursor + dir; i >= 0 && i < len(a.files); i += dir {
-		if !a.files[i].Binary {
-			a.openIndex(i)
+func (d *Diff) switchFile(dir int) {
+	for i := d.cursor + dir; i >= 0 && i < len(d.files); i += dir {
+		if !d.files[i].Binary {
+			d.openIndex(i)
 			return
 		}
 	}
-	a.setMsg(ends(dir > 0, "last file", "first file"))
+	d.setMsg(ends(dir > 0, "last file", "first file"))
 }
 
 // scrollPreview scrolls the preview of the file under the cursor by delta
 // lines: up to its first line, down until its last one is the last shown.
-func (a *App) scrollPreview(delta int) {
-	e := a.files[a.cursor]
+func (d *Diff) scrollPreview(delta int) {
+	e := d.files[d.cursor]
 	if e.Binary {
 		return
 	}
-	screen, at := a.diffOf(e).screenLines(a.previewLayout(e).shape)
-	from := a.previewStart(e, screen, at)
+	screen, at := d.diffOf(e).screenLines(d.previewLayout(e).shape)
+	from := d.previewStart(e, screen, at)
 	if delta > 0 {
-		from = min(from+delta, max(len(screen)-(a.boxHeight()-2), from))
+		from = min(from+delta, max(len(screen)-(d.boxHeight()-2), from))
 	} else {
 		from = max(from+delta, 0)
 	}
-	a.previewFor, a.previewTop = e, from
+	d.previewFor, d.previewTop = e, from
 }
 
 // previewLayout returns the layout of the preview of e: as wide as the
 // box's inside, scrolled like the file's diff view.
-func (a *App) previewLayout(e *entry) layout {
-	lo := layout{width: max(a.width-4, 0)}
-	lo.shape = newShape(a.cfg, lo.width)
+func (d *Diff) previewLayout(e *fileEntry) layout {
+	lo := layout{width: max(d.width-4, 0)}
+	lo.shape = newShape(d.cfg, lo.width)
 	if e.view != nil {
 		lo.xoff, lo.active = e.view.xoff, e.view.active
 	}
@@ -855,15 +856,15 @@ func (a *App) previewLayout(e *entry) layout {
 // previewStart returns the first of the screen lines of e's diff, indexed by
 // at, that its preview shows: where pgup and pgdn scrolled it, else the
 // context of the first change.
-func (a *App) previewStart(e *entry, screen []sline, at map[sline]int) int {
-	if a.previewFor == e {
-		return max(min(a.previewTop, len(screen)-1), 0)
+func (d *Diff) previewStart(e *fileEntry, screen []sline, at map[sline]int) int {
+	if d.previewFor == e {
+		return max(min(d.previewTop, len(screen)-1), 0)
 	}
-	d := a.diffOf(e)
+	a := d.diffOf(e)
 	for i := range screen {
-		if d.blockStart(screen, i) {
+		if a.blockStart(screen, i) {
 			// The rows of context before the block, else its first line.
-			return min(at[sline{max(screen[i].v-a.cfg.Settings.Context, 0), 0}], i)
+			return min(at[sline{max(screen[i].v-d.cfg.Settings.Context, 0), 0}], i)
 		}
 	}
 	return 0
@@ -871,43 +872,43 @@ func (a *App) previewStart(e *entry, screen []sline, at map[sline]int) int {
 
 // preview renders the diff of e in a box height lines high, starting with
 // the context of the first change, or where pgup and pgdn scrolled it.
-func (a *App) preview(e *entry, height int) string {
-	t := a.cfg.Theme
+func (d *Diff) preview(e *fileEntry, height int) string {
+	t := d.cfg.Theme
 	title := lipgloss.NewStyle().Bold(true).Render(" " + e.name() + " ")
 	if e.Binary {
-		return box(t, a.width, height, title, []string{t.Hint.Render("binary file")})
+		return box(t, d.width, height, title, []string{t.Hint.Render("binary file")})
 	}
-	d := a.diffOf(e)
-	if len(d.view) == 0 { // empty on both sides
-		return box(t, a.width, height, title, nil)
+	a := d.diffOf(e)
+	if len(a.view) == 0 { // empty on both sides
+		return box(t, d.width, height, title, nil)
 	}
-	lo := a.previewLayout(e)
-	screen, at := d.screenLines(lo.shape)
-	from := a.previewStart(e, screen, at)
+	lo := d.previewLayout(e)
+	screen, at := a.screenLines(lo.shape)
+	from := d.previewStart(e, screen, at)
 	var lines []string
 	for i := from; i < len(screen) && len(lines) < height-2; i++ {
-		lines = append(lines, d.render(screen[i], false, lo))
+		lines = append(lines, a.render(screen[i], false, lo))
 	}
-	return box(t, a.width, height, title, lines)
+	return box(t, d.width, height, title, lines)
 }
 
-func (a *App) View() tea.View { return tea.NewView(a.frame()) }
+func (d *Diff) View() tea.View { return tea.NewView(d.frame()) }
 
-func (a *App) frame() string {
-	if a.flowShown() {
-		return a.flow.frame()
+func (d *Diff) frame() string {
+	if d.flowShown() {
+		return d.flow.frame()
 	}
-	if a.open != nil {
-		return a.open.view.frame()
+	if d.open != nil {
+		return d.open.view.frame()
 	}
-	if a.width == 0 {
+	if d.width == 0 {
 		return ""
 	}
 
-	t := a.cfg.Theme
+	t := d.cfg.Theme
 	var added, removed int
 	addW, remW, lblW := 1, 1, 0
-	for _, e := range a.files {
+	for _, e := range d.files {
 		added, removed = added+e.added, removed+e.removed
 		addW = max(addW, len(fmt.Sprint(e.added)))
 		remW = max(remW, len(fmt.Sprint(e.removed)))
@@ -917,28 +918,28 @@ func (a *App) frame() string {
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
 	bold := lipgloss.NewStyle().Bold(true)
-	changed := fmt.Sprintf("%d files changed", len(a.files))
-	if len(a.files) == 1 {
+	changed := fmt.Sprintf("%d files changed", len(d.files))
+	if len(d.files) == 1 {
 		changed = "1 file changed"
 	}
 	head := " " + bold.Render(changed)
-	if c := a.commit; c != nil {
+	if c := d.commit; c != nil {
 		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-	if c := a.commit; c != nil {
+	if c := d.commit; c != nil {
 		head += "  " + t.Decoration.Render(c.Author)
 	}
-	if a.gitDiff != nil {
-		cmd := diffCommand(a.diffArgs)
-		if a.cfg.Settings.Untracked {
+	if d.gitDiff != nil {
+		cmd := diffCommand(d.diffArgs)
+		if d.cfg.Settings.Untracked {
 			cmd += " + untracked"
 		}
 		head += "  " + t.Hint.Render(printable(cmd))
 	}
 
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
-		e := a.files[i]
+		e := d.files[i]
 		cnt := counts(t, st, e.added, e.removed, addW, remW)
 		if e.Binary {
 			cnt = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
@@ -946,10 +947,10 @@ func (a *App) frame() string {
 		lbl := st(lipgloss.NewStyle()).Render(" " + pad(e.label(t), lblW, lipgloss.NewStyle()) + " ")
 		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
-	k := barKeys{enter: "open", commits: a.inLog(), flow: true}
-	if a.inLog() {
+	k := barKeys{enter: "open", commits: d.inLog(), flow: true}
+	if d.inLog() {
 		k.back = "to_commits"
 	}
-	hints := statusKeys(a.cfg, k)
-	return a.render(t, head, item, func(h int) string { return a.preview(a.files[a.cursor], h) }, pageStatus(a.cfg, a.msg, hints))
+	hints := statusKeys(d.cfg, k)
+	return d.render(t, head, item, func(h int) string { return d.preview(d.files[d.cursor], h) }, pageStatus(d.cfg, d.msg, hints))
 }

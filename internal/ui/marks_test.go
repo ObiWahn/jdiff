@@ -101,28 +101,28 @@ func TestMarkFindsMovedLine(t *testing.T) {
 	}
 }
 
-func TestMarkOpensFileInApp(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestMarkOpensFileInDiff(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		modified("a.go", numbered("a", 30), append(numbered("a", 30), "added")),
 		modified("b.go", numbered("b", 30), append(numbered("b", 30), "added")),
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "enter", "ctrl+space")
-	moveTo(t, a.open.view, right, 12)
-	pressApp(a, "m", "a", "backspace")
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressDiff(d, "enter", "ctrl+space")
+	moveTo(t, d.open.view, right, 12)
+	pressDiff(d, "m", "a", "backspace")
 	// From the list.
-	pressApp(a, "j", "'", "a")
-	if a.open == nil || a.open.Path != "a.go" || a.open.view.lineAt(right, a.open.view.cursor) != 12 {
-		t.Fatalf("' a in the list: open %v", a.open)
+	pressDiff(d, "j", "'", "a")
+	if d.open == nil || d.open.Path != "a.go" || d.open.view.lineAt(right, d.open.view.cursor) != 12 {
+		t.Fatalf("' a in the list: open %v", d.open)
 	}
 	// From the other file's diff view.
-	pressApp(a, "n")
-	if a.open.Path != "b.go" {
-		t.Fatalf("n: %s", a.open.Path)
+	pressDiff(d, "n")
+	if d.open.Path != "b.go" {
+		t.Fatalf("n: %s", d.open.Path)
 	}
-	pressApp(a, "'", "a")
-	if m := a.open.view; a.open.Path != "a.go" || m.lineAt(right, m.cursor) != 12 || m.msg != "mark a" {
-		t.Errorf("' a in b.go: file %s, right line %d, msg %q", a.open.Path, m.lineAt(right, m.cursor), m.msg)
+	pressDiff(d, "'", "a")
+	if m := d.open.view; d.open.Path != "a.go" || m.lineAt(right, m.cursor) != 12 || m.msg != "mark a" {
+		t.Errorf("' a in b.go: file %s, right line %d, msg %q", d.open.Path, m.lineAt(right, m.cursor), m.msg)
 	}
 }
 
@@ -183,18 +183,18 @@ func TestMarksPopup(t *testing.T) {
 }
 
 func TestMarksPopupJumpsToAnotherFile(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		modified("a.go", numbered("a", 30), append(numbered("a", 30), "added")),
 		modified("b.go", numbered("b", 30), append(numbered("b", 30), "added")),
 	})
-	p := WithMarks(a.cfg, a)
+	p := WithMarks(d.cfg, d)
 	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if err := a.cfg.SetMark("k", config.Mark{Path: "b.go", Line: 13, Text: "b12"}); err != nil {
+	if err := d.cfg.SetMark("k", config.Mark{Path: "b.go", Line: 13, Text: "b12"}); err != nil {
 		t.Fatal(err)
 	}
 	pressRoot(p, "enter", "\\", "enter") // in a.go, then the mark in b.go
-	if a.open.Path != "b.go" || a.open.view.lineAt(right, a.open.view.cursor) != 12 {
-		t.Errorf("enter on a mark in b.go: file %s, line %d", a.open.Path, a.open.view.lineAt(right, a.open.view.cursor))
+	if d.open.Path != "b.go" || d.open.view.lineAt(right, d.open.view.cursor) != 12 {
+		t.Errorf("enter on a mark in b.go: file %s, line %d", d.open.Path, d.open.view.lineAt(right, d.open.view.cursor))
 	}
 }
 
@@ -438,82 +438,82 @@ func TestMarkOnEmptyNewFile(t *testing.T) {
 }
 
 func TestMarkMessagesInList(t *testing.T) {
-	a := newFlowApp()
-	pressApp(a, "'", "q")
-	if a.msg != "no mark q" || a.open != nil {
-		t.Errorf("' q: msg %q, open %v", a.msg, a.open)
+	d := newFlowDiff()
+	pressDiff(d, "'", "q")
+	if d.msg != "no mark q" || d.open != nil {
+		t.Errorf("' q: msg %q, open %v", d.msg, d.open)
 	}
-	if err := a.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
+	if err := d.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	pressApp(a, "'", "z")
-	if a.msg != "mark z: x0 is not in this diff" || a.open != nil {
-		t.Errorf("' z: msg %q, open %v", a.msg, a.open)
+	pressDiff(d, "'", "z")
+	if d.msg != "mark z: x0 is not in this diff" || d.open != nil {
+		t.Errorf("' z: msg %q, open %v", d.msg, d.open)
 	}
 }
 
 func TestFlowMarkMessages(t *testing.T) {
-	a := newFlowApp()
-	pressApp(a, "f")
-	if !flowAt(a, 0, -1) {
+	d := newFlowDiff()
+	pressDiff(d, "f")
+	if !flowAt(d, 0, -1) {
 		t.Fatal("not on the file bar of a.go")
 	}
 	// On the file bar there is no line to mark, and a non-letter is no mark.
-	pressApp(a, "m", "a")
-	if _, ok := a.cfg.Mark("a"); ok || a.flow.msg != "no line of the new file here" {
-		t.Errorf("m a on the file bar: msg %q", a.flow.msg)
+	pressDiff(d, "m", "a")
+	if _, ok := d.cfg.Mark("a"); ok || d.flow.msg != "no line of the new file here" {
+		t.Errorf("m a on the file bar: msg %q", d.flow.msg)
 	}
-	pressApp(a, "j", "m", "1")
-	if _, ok := a.cfg.Mark("1"); ok || a.flow.msg != "" {
-		t.Errorf("m 1: msg %q, want no mark and no message", a.flow.msg)
+	pressDiff(d, "j", "m", "1")
+	if _, ok := d.cfg.Mark("1"); ok || d.flow.msg != "" {
+		t.Errorf("m 1: msg %q, want no mark and no message", d.flow.msg)
 	}
-	pressApp(a, "'", "q")
-	if a.flow.msg != "no mark q" {
-		t.Errorf("' q: msg %q", a.flow.msg)
+	pressDiff(d, "'", "q")
+	if d.flow.msg != "no mark q" {
+		t.Errorf("' q: msg %q", d.flow.msg)
 	}
-	if err := a.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
+	if err := d.cfg.SetMark("z", config.Mark{Path: "x0", Line: 1, Text: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	pressApp(a, "'", "z")
-	if a.flow.msg != "mark z: x0 is not in this diff" {
-		t.Errorf("' z: msg %q", a.flow.msg)
+	pressDiff(d, "'", "z")
+	if d.flow.msg != "mark z: x0 is not in this diff" {
+		t.Errorf("' z: msg %q", d.flow.msg)
 	}
 	// In a file of the diff the cursor goes to the line.
-	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+	if err := d.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
 		t.Fatal(err)
 	}
-	pressApp(a, "'", "c")
-	if !flowAt(a, 2, a.flow.rows[a.flow.cursor].line) || a.flow.msg != "mark c" {
-		_, f, _ := a.flow.position()
-		t.Errorf("' c: on file %d, msg %q; want c.go", f, a.flow.msg)
+	pressDiff(d, "'", "c")
+	if !flowAt(d, 2, d.flow.rows[d.flow.cursor].line) || d.flow.msg != "mark c" {
+		_, f, _ := d.flow.position()
+		t.Errorf("' c: on file %d, msg %q; want c.go", f, d.flow.msg)
 	}
 }
 
 func TestFlowMarkOnEmptyNewFile(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "x0", Old: []string{"x0"}, InOld: true},
 		modified("x1", []string{"x1"}, []string{"x2"}),
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if err := a.cfg.SetMark("a", config.Mark{Path: "x0", Line: 1, Text: "x0"}); err != nil {
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if err := d.cfg.SetMark("a", config.Mark{Path: "x0", Line: 1, Text: "x0"}); err != nil {
 		t.Fatal(err)
 	}
-	pressApp(a, "f", "'", "a")
-	if a.flow.msg != "mark a: the new file is empty" {
-		t.Errorf("' a: msg %q", a.flow.msg)
+	pressDiff(d, "f", "'", "a")
+	if d.flow.msg != "mark a: the new file is empty" {
+		t.Errorf("' a: msg %q", d.flow.msg)
 	}
 }
 
 func TestMarksPopupJumpsInFlow(t *testing.T) {
-	a := newFlowApp()
-	p := WithMarks(a.cfg, a)
+	d := newFlowDiff()
+	p := WithMarks(d.cfg, d)
 	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+	if err := d.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
 		t.Fatal(err)
 	}
 	pressRoot(p, "f", "\\", "enter")
-	if _, file, line := a.flow.position(); !a.flowShown() || file != 2 || line < 0 || a.flow.msg != "mark c" {
-		t.Errorf("enter on a mark in c.go: flow %v, file %d, line %d, msg %q", a.flowShown(), file, line, a.flow.msg)
+	if _, file, line := d.flow.position(); !d.flowShown() || file != 2 || line < 0 || d.flow.msg != "mark c" {
+		t.Errorf("enter on a mark in c.go: flow %v, file %d, line %d, msg %q", d.flowShown(), file, line, d.flow.msg)
 	}
 }
 
@@ -523,23 +523,23 @@ func TestFlowMarkInCommitNotLoaded(t *testing.T) {
 		t.Fatal(err)
 	}
 	pressLog(l, "f", "end", "'", "a")
-	if r := l.flow.rows[l.flow.cursor]; l.flow.parts[r.part].app != nil || l.flow.msg != "mark a: a.go is not in this diff" {
+	if r := l.flow.rows[l.flow.cursor]; l.flow.parts[r.part].diff != nil || l.flow.msg != "mark a: a.go is not in this diff" {
 		t.Errorf("' a in c0: row %+v, msg %q", r, l.flow.msg)
 	}
 }
 
 // From the file list with flow on, a mark opens the flow view at its line.
 func TestMarkFromListOpensFlow(t *testing.T) {
-	a := newFlowApp()
-	if err := a.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
+	d := newFlowDiff()
+	if err := d.cfg.SetMark("c", config.Mark{Path: "c.go", Line: 2, Text: "new"}); err != nil {
 		t.Fatal(err)
 	}
-	pressApp(a, "f", "backspace")
-	if a.open != nil {
-		t.Fatalf("backspace: open %v, want the list", a.open)
+	pressDiff(d, "f", "backspace")
+	if d.open != nil {
+		t.Fatalf("backspace: open %v, want the list", d.open)
 	}
-	pressApp(a, "'", "c")
-	if _, file, line := a.flow.position(); !a.flowShown() || file != 2 || line < 0 || a.flow.msg != "mark c" {
-		t.Errorf("' c: flow %v, file %d, line %d, msg %q", a.flowShown(), file, line, a.flow.msg)
+	pressDiff(d, "'", "c")
+	if _, file, line := d.flow.position(); !d.flowShown() || file != 2 || line < 0 || d.flow.msg != "mark c" {
+		t.Errorf("' c: flow %v, file %d, line %d, msg %q", d.flowShown(), file, line, d.flow.msg)
 	}
 }

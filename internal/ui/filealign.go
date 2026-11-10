@@ -34,16 +34,16 @@ func lineOf(r diff.Row, s side) int {
 // unless it is a Change row. They are computed when the row is first drawn
 // and kept until the next alignment: computing them for all rows when a
 // large change is loaded took seconds.
-func (d *fileDiff) emphOf(i int, s side) []diff.Span {
-	r := d.rows[i]
+func (a *fileAlign) emphOf(i int, s side) []diff.Span {
+	r := a.rows[i]
 	if r.Kind != diff.Change {
 		return nil
 	}
-	e, ok := d.emph[i]
+	e, ok := a.emph[i]
 	if !ok {
-		e[left], e[right] = diff.Intraline(d.lines[left][r.Left], d.lines[right][r.Right],
-			d.cfg.Settings.OnlyChangedWhitespaces)
-		d.emph[i] = e
+		e[left], e[right] = diff.Intraline(a.lines[left][r.Left], a.lines[right][r.Right],
+			a.cfg.Settings.OnlyChangedWhitespaces)
+		a.emph[i] = e
 	}
 	return e[s]
 }
@@ -104,10 +104,10 @@ type layout struct {
 	shape
 }
 
-// fileDiff is the diff of one file as the user anchored and folded it. The
+// fileAlign is the diff of one file as the user anchored and folded it. The
 // single file view, the flow view and the preview all show the same
-// fileDiff, each with its own cursor.
-type fileDiff struct {
+// fileAlign, each with its own cursor.
+type fileAlign struct {
 	cfg   *config.Config
 	names [2]string
 	lines [2][]string
@@ -160,20 +160,20 @@ type highlightCache struct {
 	ok  bool
 }
 
-func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileDiff {
-	d := &fileDiff{cfg: cfg, names: names, lines: lines, foldOpen: map[int]bool{}}
-	d.measure(left)
-	d.measure(right)
-	d.align()
-	return d
+func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileAlign {
+	a := &fileAlign{cfg: cfg, names: names, lines: lines, foldOpen: map[int]bool{}}
+	a.measure(left)
+	a.measure(right)
+	a.align()
+	return a
 }
 
 // measure forgets the widths of the lines of side s, after its lines were
 // set: see width.
-func (d *fileDiff) measure(s side) {
-	d.widths[s] = make([]int, len(d.lines[s]))
-	for i := range d.widths[s] {
-		d.widths[s][i] = -1
+func (a *fileAlign) measure(s side) {
+	a.widths[s] = make([]int, len(a.lines[s]))
+	for i := range a.widths[s] {
+		a.widths[s][i] = -1
 	}
 }
 
@@ -181,26 +181,26 @@ func (d *fileDiff) measure(s side) {
 // of a \r\n line end (see crShown). It is measured on first use: only
 // wrapping needs it, and measuring all lines took most of the time loading a
 // large change takes.
-func (d *fileDiff) width(s side, line int) int {
-	if w := d.widths[s][line]; w >= 0 {
+func (a *fileAlign) width(s side, line int) int {
+	if w := a.widths[s][line]; w >= 0 {
 		return w
 	}
-	w := ansi.StringWidth(printable(strings.TrimSuffix(d.lines[s][line], "\r")))
-	d.widths[s][line] = w
+	w := ansi.StringWidth(printable(strings.TrimSuffix(a.lines[s][line], "\r")))
+	a.widths[s][line] = w
 	return w
 }
 
 // crShown reports whether line of side s ends in a \r that is drawn in sh:
 // where it changed, or on all lines with sh.cr.
-func (d *fileDiff) crShown(s side, line int, sh shape) bool {
-	text := d.lines[s][line]
+func (a *fileAlign) crShown(s side, line int, sh shape) bool {
+	text := a.lines[s][line]
 	if !strings.HasSuffix(text, "\r") {
 		return false
 	}
 	if sh.cr {
 		return true
 	}
-	for _, sp := range d.emphOf(d.rowOf[s][line], s) {
+	for _, sp := range a.emphOf(a.rowOf[s][line], s) {
 		if sp.End == len(text) {
 			return true
 		}
@@ -213,10 +213,10 @@ func (d *fileDiff) crShown(s side, line int, sh shape) bool {
 // lines that are gone are dropped and counted. A pending mark or replace
 // prompt is cancelled. Views follow their cursor line through moved, so
 // they must catch up before the next reload.
-func (d *fileDiff) reload(s side, lines []string) (dropped int) {
-	moved := lineMap(d.lines[s], lines)
+func (a *fileAlign) reload(s side, lines []string) (dropped int) {
+	moved := lineMap(a.lines[s], lines)
 	var anchors []diff.Anchor
-	for _, an := range d.anchors {
+	for _, an := range a.anchors {
 		n := moved[anchorLine(an, s)]
 		if n < 0 {
 			dropped++
@@ -229,48 +229,48 @@ func (d *fileDiff) reload(s side, lines []string) (dropped int) {
 		}
 		anchors = append(anchors, an)
 	}
-	d.anchors = anchors
+	a.anchors = anchors
 	if s == left {
 		open := map[int]bool{}
-		for line, o := range d.foldOpen {
+		for line, o := range a.foldOpen {
 			if n := moved[line]; n >= 0 {
 				open[n] = o
 			}
 		}
-		d.foldOpen = open
+		a.foldOpen = open
 	}
-	d.pending, d.replace = nil, nil
-	d.lines[s] = lines
-	d.measure(s)
-	d.reloads, d.reloadSide, d.moved = d.reloads+1, s, moved
-	d.align()
+	a.pending, a.replace = nil, nil
+	a.lines[s] = lines
+	a.measure(s)
+	a.reloads, a.reloadSide, a.moved = a.reloads+1, s, moved
+	a.align()
 	return dropped
 }
 
 // follow returns the displayed row that now shows a line of r, a row before
 // the diff changed: its left line, else its right one, through the last
 // reload when reloaded is set. It returns -1 when neither line is left.
-func (d *fileDiff) follow(r diff.Row, reloaded bool) int {
-	if i := d.rowNow(r, reloaded); i >= 0 {
-		return d.viewOf[i]
+func (a *fileAlign) follow(r diff.Row, reloaded bool) int {
+	if i := a.rowNow(r, reloaded); i >= 0 {
+		return a.viewOf[i]
 	}
 	return -1
 }
 
 // rowAfterReload returns the index of the row that now holds a line of r, a
 // row before the last reload, as follow does, or -1.
-func (d *fileDiff) rowAfterReload(r diff.Row) int { return d.rowNow(r, true) }
+func (a *fileAlign) rowAfterReload(r diff.Row) int { return a.rowNow(r, true) }
 
 // rowNow returns the index of the row that now holds the left line of r,
 // else its right one, through the last reload when reloaded is set, or -1.
-func (d *fileDiff) rowNow(r diff.Row, reloaded bool) int {
+func (a *fileAlign) rowNow(r diff.Row, reloaded bool) int {
 	for _, s := range []side{left, right} {
 		line := lineOf(r, s)
-		if line >= 0 && reloaded && s == d.reloadSide {
-			line = d.moved[line]
+		if line >= 0 && reloaded && s == a.reloadSide {
+			line = a.moved[line]
 		}
 		if line >= 0 {
-			return d.rowOf[s][line]
+			return a.rowOf[s][line]
 		}
 	}
 	return -1
@@ -294,130 +294,130 @@ func lineMap(old, new []string) []int {
 // act runs the anchor and fold action (anchor, cancel_mark, fold or
 // fold_all) at the cursor at, in the screen lines of sh. It returns the cursor
 // afterwards and the message to show, "" for none.
-func (d *fileDiff) act(action string, at spot, sh shape) (spot, string) {
-	if d.replace != nil {
-		an := *d.replace
-		d.replace = nil
+func (a *fileAlign) act(action string, at spot, sh shape) (spot, string) {
+	if a.replace != nil {
+		an := *a.replace
+		a.replace = nil
 		switch action {
 		case "anchor":
-			for _, c := range diff.Conflicts(d.anchors, an) {
-				d.removeAnchor(c)
+			for _, c := range diff.Conflicts(a.anchors, an) {
+				a.removeAnchor(c)
 			}
-			return d.addAnchor(an, at.side, sh)
+			return a.addAnchor(an, at.side, sh)
 		case "cancel_mark":
 			return at, "replace cancelled"
 		}
 	}
 	switch action {
 	case "cancel_mark":
-		if d.pending != nil {
-			d.pending = nil
+		if a.pending != nil {
+			a.pending = nil
 			return at, "mark cancelled"
 		}
 	case "anchor":
-		return d.enter(at, sh)
+		return a.enter(at, sh)
 	case "fold":
-		return d.toggleNearestBlock(at)
+		return a.toggleNearestBlock(at)
 	case "fold_all":
-		return d.toggleAllBlocks(at)
+		return a.toggleAllBlocks(at)
 	}
 	return at, ""
 }
 
 // markPrompt returns what to do with the pending mark, "" without one: the
 // status lines show it until another message, while the mark waits.
-func (d *fileDiff) markPrompt() string {
-	if d.pending == nil {
+func (a *fileAlign) markPrompt() string {
+	if a.pending == nil {
 		return ""
 	}
-	return fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)", sideName(d.pending.side), d.pending.line+1)
+	return fmt.Sprintf("marked %s%d, pick the matching line (esc cancels)", sideName(a.pending.side), a.pending.line+1)
 }
 
 // enter implements the anchor workflow: mark a line, then pick its partner
 // in the other pane. Enter on an anchored line removes that anchor. In the
 // normal layout the line under the cursor decides the side.
-func (d *fileDiff) enter(at spot, sh shape) (spot, string) {
+func (a *fileAlign) enter(at spot, sh shape) (spot, string) {
 	if sh.unified {
-		at.side = d.unifiedSide(at, sh)
+		at.side = a.unifiedSide(at, sh)
 	}
-	line := d.lineAt(at.side, at.v)
+	line := a.lineAt(at.side, at.v)
 	if line < 0 {
-		if at.v < len(d.view) && d.view[at.v].hidden > 0 {
+		if at.v < len(a.view) && a.view[at.v].hidden > 0 {
 			return at, "unchanged lines folded, space expands"
 		}
 		return at, "no line here"
 	}
-	if an, ok := d.anchorAt(at.side, line); ok {
-		d.removeAnchor(an)
-		d.align()
-		return d.spotOf(at.side, line, sh), "removed anchor " + anchorName(an)
+	if an, ok := a.anchorAt(at.side, line); ok {
+		a.removeAnchor(an)
+		a.align()
+		return a.spotOf(at.side, line, sh), "removed anchor " + anchorName(an)
 	}
-	if d.pending == nil || d.pending.side == at.side {
-		if d.pending != nil && d.pending.line == line {
-			d.pending = nil
+	if a.pending == nil || a.pending.side == at.side {
+		if a.pending != nil && a.pending.line == line {
+			a.pending = nil
 			return at, "mark cancelled"
 		}
-		d.pending = &mark{at.side, line}
+		a.pending = &mark{at.side, line}
 		at.side = at.side.other()
-		return at, d.markPrompt()
+		return at, a.markPrompt()
 	}
 
-	an := diff.Anchor{Left: d.pending.line, Right: line}
+	an := diff.Anchor{Left: a.pending.line, Right: line}
 	if at.side == left {
-		an = diff.Anchor{Left: line, Right: d.pending.line}
+		an = diff.Anchor{Left: line, Right: a.pending.line}
 	}
-	if conflicts := diff.Conflicts(d.anchors, an); len(conflicts) > 0 {
+	if conflicts := diff.Conflicts(a.anchors, an); len(conflicts) > 0 {
 		names := make([]string, len(conflicts))
 		for i, c := range conflicts {
 			names[i] = anchorName(c)
 		}
-		d.replace = &an
+		a.replace = &an
 		return at, fmt.Sprintf("%s crosses %s: enter replaces, esc cancels",
 			anchorName(an), strings.Join(names, ", "))
 	}
-	return d.addAnchor(an, at.side, sh)
+	return a.addAnchor(an, at.side, sh)
 }
 
 // addAnchor adds an, picked last on side s, and returns the cursor on its
 // row in the screen lines of sh: the line picked last keeps its place, the
 // rest aligns around it.
-func (d *fileDiff) addAnchor(an diff.Anchor, s side, sh shape) (spot, string) {
-	i, _ := slices.BinarySearchFunc(d.anchors, an, func(x, y diff.Anchor) int {
+func (a *fileAlign) addAnchor(an diff.Anchor, s side, sh shape) (spot, string) {
+	i, _ := slices.BinarySearchFunc(a.anchors, an, func(x, y diff.Anchor) int {
 		return x.Left - y.Left
 	})
-	d.anchors = slices.Insert(d.anchors, i, an)
-	d.pending = nil
-	d.align()
-	return d.spotOf(s, anchorLine(an, s), sh), "anchored " + anchorName(an)
+	a.anchors = slices.Insert(a.anchors, i, an)
+	a.pending = nil
+	a.align()
+	return a.spotOf(s, anchorLine(an, s), sh), "anchored " + anchorName(an)
 }
 
 // unifiedSide returns the side of the line under the cursor at in the normal
 // layout with the screen lines of sh. An unchanged line belongs to both: it
 // takes the side opposite a pending mark, else the old side.
-func (d *fileDiff) unifiedSide(at spot, sh shape) side {
-	if at.v >= len(d.view) || d.view[at.v].hidden > 0 {
+func (a *fileAlign) unifiedSide(at spot, sh shape) side {
+	if at.v >= len(a.view) || a.view[at.v].hidden > 0 {
 		return at.side
 	}
-	switch r := d.rows[d.view[at.v].row]; {
+	switch r := a.rows[a.view[at.v].row]; {
 	case r.Kind == diff.Delete:
 		return left
 	case r.Kind == diff.Insert:
 		return right
 	case r.Kind == diff.Change:
-		s, _ := d.unifiedPiece(at.v, at.sub, sh)
+		s, _ := a.unifiedPiece(at.v, at.sub, sh)
 		return s
-	case d.pending != nil:
-		return d.pending.side.other()
+	case a.pending != nil:
+		return a.pending.side.other()
 	}
 	return left
 }
 
-func (d *fileDiff) removeAnchor(an diff.Anchor) {
-	d.anchors = slices.DeleteFunc(d.anchors, func(x diff.Anchor) bool { return x == an })
+func (a *fileAlign) removeAnchor(an diff.Anchor) {
+	a.anchors = slices.DeleteFunc(a.anchors, func(x diff.Anchor) bool { return x == an })
 }
 
-func (d *fileDiff) anchorAt(s side, line int) (diff.Anchor, bool) {
-	for _, an := range d.anchors {
+func (a *fileAlign) anchorAt(s side, line int) (diff.Anchor, bool) {
+	for _, an := range a.anchors {
 		if anchorLine(an, s) == line {
 			return an, true
 		}
@@ -427,70 +427,70 @@ func (d *fileDiff) anchorAt(s side, line int) (diff.Anchor, bool) {
 
 // align computes the rows from the lines and anchors, then the displayed
 // rows.
-func (d *fileDiff) align() {
-	d.rows = diff.Align(d.lines[left], d.lines[right], d.anchors)
-	d.emph = map[int][2][]diff.Span{}
-	for s := range d.rowOf {
-		d.rowOf[s] = make([]int, len(d.lines[s]))
+func (a *fileAlign) align() {
+	a.rows = diff.Align(a.lines[left], a.lines[right], a.anchors)
+	a.emph = map[int][2][]diff.Span{}
+	for s := range a.rowOf {
+		a.rowOf[s] = make([]int, len(a.lines[s]))
 	}
-	for i, r := range d.rows {
+	for i, r := range a.rows {
 		if r.Left >= 0 {
-			d.rowOf[left][r.Left] = i
+			a.rowOf[left][r.Left] = i
 		}
 		if r.Right >= 0 {
-			d.rowOf[right][r.Right] = i
+			a.rowOf[right][r.Right] = i
 		}
 	}
-	d.aligns++
-	d.buildView()
+	a.aligns++
+	a.buildView()
 }
 
 // buildView computes the displayed rows. Unchanged rows further than the
 // context from any change, anchor or pending mark form foldable blocks,
 // shown as one fold row while closed; a single such row is never a block.
 // The view is built anew, so views holding the old one can still read it.
-func (d *fileDiff) buildView() {
-	keep := make([]bool, len(d.rows))
-	ctx := max(d.cfg.Settings.Context, 0)
-	for i, r := range d.rows {
-		if r.Kind != diff.Equal || r.Anchored || d.isPending(r) {
-			for j := max(i-ctx, 0); j <= min(i+ctx, len(d.rows)-1); j++ {
+func (a *fileAlign) buildView() {
+	keep := make([]bool, len(a.rows))
+	ctx := max(a.cfg.Settings.Context, 0)
+	for i, r := range a.rows {
+		if r.Kind != diff.Equal || r.Anchored || a.isPending(r) {
+			for j := max(i-ctx, 0); j <= min(i+ctx, len(a.rows)-1); j++ {
 				keep[j] = true
 			}
 		}
 	}
 
-	d.blocks = nil
-	d.view = nil
-	d.viewOf = make([]int, len(d.rows))
-	for i := 0; i < len(d.rows); {
+	a.blocks = nil
+	a.view = nil
+	a.viewOf = make([]int, len(a.rows))
+	for i := 0; i < len(a.rows); {
 		j := i + 1
 		if !keep[i] {
-			for j < len(d.rows) && !keep[j] {
+			for j < len(a.rows) && !keep[j] {
 				j++
 			}
 		}
 		if j-i < 2 {
-			d.viewOf[i] = len(d.view)
-			d.view = append(d.view, vrow{row: i, block: -1})
+			a.viewOf[i] = len(a.view)
+			a.view = append(a.view, vrow{row: i, block: -1})
 			i = j
 			continue
 		}
-		b := len(d.blocks)
-		d.blocks = append(d.blocks, block{i, j})
-		open := d.blockOpen(d.blocks[b])
+		b := len(a.blocks)
+		a.blocks = append(a.blocks, block{i, j})
+		open := a.blockOpen(a.blocks[b])
 		for k := i; k < j; k++ {
-			d.viewOf[k] = len(d.view)
+			a.viewOf[k] = len(a.view)
 			if open {
-				d.view = append(d.view, vrow{row: k, block: b})
+				a.view = append(a.view, vrow{row: k, block: b})
 			}
 		}
 		if !open {
-			d.view = append(d.view, vrow{row: i, hidden: j - i, block: b})
+			a.view = append(a.view, vrow{row: i, hidden: j - i, block: b})
 		}
 		i = j
 	}
-	d.changes++
+	a.changes++
 }
 
 // newShape returns the shape of the screen lines of a view width columns
@@ -505,8 +505,8 @@ func newShape(cfg *config.Config, width int) shape {
 
 // contentWidth returns the columns left for the text of a line in a view
 // width columns wide, in the normal layout when unified, else side by side.
-func (d *fileDiff) contentWidth(width int, unified bool) int {
-	nw := d.numWidth()
+func (a *fileAlign) contentWidth(width int, unified bool) int {
+	nw := a.numWidth()
 	if unified {
 		return max(width-2*nw-4, 0)
 	}
@@ -515,48 +515,48 @@ func (d *fileDiff) contentWidth(width int, unified bool) int {
 
 // pieces returns the number of screen lines line of side s takes in sh: 1,
 // or the pieces it is wrapped into. A missing line takes 1.
-func (d *fileDiff) pieces(s side, line int, sh shape) int {
-	cw := d.contentWidth(sh.wrap, sh.unified)
+func (a *fileAlign) pieces(s side, line int, sh shape) int {
+	cw := a.contentWidth(sh.wrap, sh.unified)
 	if sh.wrap == 0 || line < 0 || cw == 0 {
 		return 1
 	}
-	w := d.width(s, line)
+	w := a.width(s, line)
 	if sh.lineEnd {
 		w++
 	}
-	if d.crShown(s, line, sh) {
+	if a.crShown(s, line, sh) {
 		w++
 	}
 	return max((w+cw-1)/cw, 1)
 }
 
 // rowLines returns the number of screen lines of displayed row v in sh.
-func (d *fileDiff) rowLines(v int, sh shape) int {
-	if d.view[v].hidden > 0 {
+func (a *fileAlign) rowLines(v int, sh shape) int {
+	if a.view[v].hidden > 0 {
 		return 1
 	}
-	r := d.rows[d.view[v].row]
+	r := a.rows[a.view[v].row]
 	switch {
 	case !sh.unified:
-		return max(d.pieces(left, r.Left, sh), d.pieces(right, r.Right, sh))
+		return max(a.pieces(left, r.Left, sh), a.pieces(right, r.Right, sh))
 	case r.Kind == diff.Change:
-		return d.pieces(left, r.Left, sh) + d.pieces(right, r.Right, sh)
+		return a.pieces(left, r.Left, sh) + a.pieces(right, r.Right, sh)
 	}
-	s, _ := d.unifiedPiece(v, 0, sh)
-	return d.pieces(s, lineOf(r, s), sh)
+	s, _ := a.unifiedPiece(v, 0, sh)
+	return a.pieces(s, lineOf(r, s), sh)
 }
 
 // unifiedPiece returns the side whose line screen line sub of displayed row
 // v shows in the normal layout with sh, and which piece of it.
-func (d *fileDiff) unifiedPiece(v, sub int, sh shape) (side, int) {
-	if d.view[v].hidden > 0 {
+func (a *fileAlign) unifiedPiece(v, sub int, sh shape) (side, int) {
+	if a.view[v].hidden > 0 {
 		return right, 0
 	}
-	switch r := d.rows[d.view[v].row]; r.Kind {
+	switch r := a.rows[a.view[v].row]; r.Kind {
 	case diff.Delete:
 		return left, sub
 	case diff.Change:
-		if n := d.pieces(left, r.Left, sh); sub >= n {
+		if n := a.pieces(left, r.Left, sh); sub >= n {
 			return right, sub - n
 		}
 		return left, sub
@@ -568,15 +568,15 @@ func (d *fileDiff) unifiedPiece(v, sub int, sh shape) (side, int) {
 // of side s in sh. Side by side without wrapping it is the one of the normal
 // layout: the view clamps it to the row's only line, and it keeps the side
 // for switching back.
-func (d *fileDiff) firstSub(v int, s side, sh shape) int {
+func (a *fileAlign) firstSub(v int, s side, sh shape) int {
 	if !sh.unified && sh.wrap > 0 {
 		return 0
 	}
-	r := d.rows[d.view[v].row]
-	if d.view[v].hidden > 0 || r.Kind != diff.Change || s == left {
+	r := a.rows[a.view[v].row]
+	if a.view[v].hidden > 0 || r.Kind != diff.Change || s == left {
 		return 0
 	}
-	return d.pieces(left, r.Left, sh)
+	return a.pieces(left, r.Left, sh)
 }
 
 // convertSub returns the screen line of displayed row v in sh that shows
@@ -584,56 +584,56 @@ func (d *fileDiff) firstSub(v int, s side, sh shape) int {
 // line, as far as it has one. Side by side with wrapping, active is the side
 // of the cursor. Without wrapping in either shape, sub is kept as it is, as
 // it was before lines could wrap.
-func (d *fileDiff) convertSub(v, sub int, from, sh shape, active side) int {
-	if from.wrap == 0 && sh.wrap == 0 || d.view[v].hidden > 0 {
+func (a *fileAlign) convertSub(v, sub int, from, sh shape, active side) int {
+	if from.wrap == 0 && sh.wrap == 0 || a.view[v].hidden > 0 {
 		return sub
 	}
 	s, piece := active, sub
 	switch {
 	case from.unified:
-		s, piece = d.unifiedPiece(v, sub, from)
+		s, piece = a.unifiedPiece(v, sub, from)
 	case from.wrap == 0:
-		s, piece = d.unifiedPiece(v, sub, shape{unified: true})
+		s, piece = a.unifiedPiece(v, sub, shape{unified: true})
 	}
 	if !sh.unified && sh.wrap == 0 {
-		return d.firstSub(v, s, sh)
+		return a.firstSub(v, s, sh)
 	}
-	r := d.rows[d.view[v].row]
+	r := a.rows[a.view[v].row]
 	if !sh.unified {
-		return min(piece, d.rowLines(v, sh)-1)
+		return min(piece, a.rowLines(v, sh)-1)
 	}
 	if lineOf(r, s) < 0 || (r.Kind != diff.Change && r.Kind != diff.Equal) {
-		s, _ = d.unifiedPiece(v, 0, sh) // the row shows only one side
+		s, _ = a.unifiedPiece(v, 0, sh) // the row shows only one side
 	}
-	return d.firstSub(v, s, sh) + min(piece, d.pieces(s, lineOf(r, s), sh)-1)
+	return a.firstSub(v, s, sh) + min(piece, a.pieces(s, lineOf(r, s), sh)-1)
 }
 
 // screenLines returns the screen lines of the displayed rows in sh and the
 // index of each of them. In the normal layout a block of changed rows shows
 // all its old lines, then all its new ones, as git diff does; so the two
 // lines of a changed row are not next to each other.
-func (d *fileDiff) screenLines(sh shape) (screen []sline, at map[sline]int) {
-	at = make(map[sline]int, len(d.view))
+func (a *fileAlign) screenLines(sh shape) (screen []sline, at map[sline]int) {
+	at = make(map[sline]int, len(a.view))
 	add := func(v, sub int) {
 		at[sline{v, sub}] = len(screen)
 		screen = append(screen, sline{v, sub})
 	}
-	for v := 0; v < len(d.view); {
-		if !sh.unified || !d.changed(v) {
-			for sub := range d.rowLines(v, sh) {
+	for v := 0; v < len(a.view); {
+		if !sh.unified || !a.changed(v) {
+			for sub := range a.rowLines(v, sh) {
 				add(v, sub)
 			}
 			v++
 			continue
 		}
 		end := v
-		for end < len(d.view) && d.changed(end) {
+		for end < len(a.view) && a.changed(end) {
 			end++
 		}
 		for _, s := range []side{left, right} {
 			for w := v; w < end; w++ {
-				for sub := range d.rowLines(w, sh) {
-					if of, _ := d.unifiedPiece(w, sub, sh); of == s {
+				for sub := range a.rowLines(w, sh) {
+					if of, _ := a.unifiedPiece(w, sub, sh); of == s {
 						add(w, sub)
 					}
 				}
@@ -646,70 +646,70 @@ func (d *fileDiff) screenLines(sh shape) (screen []sline, at map[sline]int) {
 
 // blockStart reports whether screen line i of screen starts a block of
 // changed rows.
-func (d *fileDiff) blockStart(screen []sline, i int) bool {
-	return d.changed(screen[i].v) && (i == 0 || !d.changed(screen[i-1].v))
+func (a *fileAlign) blockStart(screen []sline, i int) bool {
+	return a.changed(screen[i].v) && (i == 0 || !a.changed(screen[i-1].v))
 }
 
 // blockOpen reports whether b is unfolded. Blocks start closed when
 // collapse_unchanged is set; toggled state is kept by the block's first
 // line, so it survives realigning as long as the block starts there.
-func (d *fileDiff) blockOpen(b block) bool {
-	if open, ok := d.foldOpen[d.rows[b.start].Left]; ok {
+func (a *fileAlign) blockOpen(b block) bool {
+	if open, ok := a.foldOpen[a.rows[b.start].Left]; ok {
 		return open
 	}
-	return !d.cfg.Settings.CollapseUnchanged
+	return !a.cfg.Settings.CollapseUnchanged
 }
 
-func (d *fileDiff) isPending(r diff.Row) bool {
-	return d.pending != nil && lineOf(r, d.pending.side) == d.pending.line
+func (a *fileAlign) isPending(r diff.Row) bool {
+	return a.pending != nil && lineOf(r, a.pending.side) == a.pending.line
 }
 
 // toggleNearestBlock folds or unfolds the block of unchanged rows under the
 // cursor at, or else the one closest to it (the lower one on a tie). The
 // cursor stays on its row, or on the fold containing it.
-func (d *fileDiff) toggleNearestBlock(at spot) (spot, string) {
-	b := d.nearestBlock(at.v)
+func (a *fileAlign) toggleNearestBlock(at spot) (spot, string) {
+	b := a.nearestBlock(at.v)
 	if b < 0 {
 		return at, "no unchanged code to fold"
 	}
-	r := d.view[at.v].row
-	blk := d.blocks[b]
-	d.foldOpen[d.rows[blk.start].Left] = !d.blockOpen(blk)
-	d.buildView()
-	at.v = d.viewOf[r]
+	r := a.view[at.v].row
+	blk := a.blocks[b]
+	a.foldOpen[a.rows[blk.start].Left] = !a.blockOpen(blk)
+	a.buildView()
+	at.v = a.viewOf[r]
 	return at, ""
 }
 
 // toggleAllBlocks unfolds all blocks of unchanged rows when one of them is
 // folded, and folds them all otherwise. The cursor at stays on its row, or
 // on the fold containing it.
-func (d *fileDiff) toggleAllBlocks(at spot) (spot, string) {
-	if len(d.blocks) == 0 {
+func (a *fileAlign) toggleAllBlocks(at spot) (spot, string) {
+	if len(a.blocks) == 0 {
 		return at, "no unchanged code to fold"
 	}
 	open := false
-	for _, b := range d.blocks {
-		if !d.blockOpen(b) {
+	for _, b := range a.blocks {
+		if !a.blockOpen(b) {
 			open = true
 			break
 		}
 	}
-	r := d.view[at.v].row
-	for _, b := range d.blocks {
-		d.foldOpen[d.rows[b.start].Left] = open
+	r := a.view[at.v].row
+	for _, b := range a.blocks {
+		a.foldOpen[a.rows[b.start].Left] = open
 	}
-	d.buildView()
-	at.v = d.viewOf[r]
+	a.buildView()
+	at.v = a.viewOf[r]
 	return at, ""
 }
 
 // nearestBlock returns the index of the block at or closest to displayed
 // row v, or -1 when there is none.
-func (d *fileDiff) nearestBlock(v int) int {
-	for dist := 0; dist < len(d.view); dist++ {
+func (a *fileAlign) nearestBlock(v int) int {
+	for dist := 0; dist < len(a.view); dist++ {
 		for _, w := range []int{v + dist, v - dist} {
-			if w >= 0 && w < len(d.view) && d.view[w].block >= 0 {
-				return d.view[w].block
+			if w >= 0 && w < len(a.view) && a.view[w].block >= 0 {
+				return a.view[w].block
 			}
 		}
 	}
@@ -717,17 +717,17 @@ func (d *fileDiff) nearestBlock(v int) int {
 }
 
 // lineAt returns the line index shown on side s of displayed row v, or -1.
-func (d *fileDiff) lineAt(s side, v int) int {
-	if v < 0 || v >= len(d.view) || d.view[v].hidden > 0 {
+func (a *fileAlign) lineAt(s side, v int) int {
+	if v < 0 || v >= len(a.view) || a.view[v].hidden > 0 {
 		return -1
 	}
-	return lineOf(d.rows[d.view[v].row], s)
+	return lineOf(a.rows[a.view[v].row], s)
 }
 
 // changed reports whether displayed row v is a changed row, not unchanged or
 // a fold.
-func (d *fileDiff) changed(v int) bool {
-	return d.view[v].hidden == 0 && d.rows[d.view[v].row].Kind != diff.Equal
+func (a *fileAlign) changed(v int) bool {
+	return a.view[v].hidden == 0 && a.rows[a.view[v].row].Kind != diff.Equal
 }
 
 func sideName(s side) string {

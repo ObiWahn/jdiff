@@ -12,7 +12,7 @@ import (
 	"jdiff/internal/keys"
 )
 
-// switchFileMsg asks the file selector to show the next (1) or previous (-1)
+// switchFileMsg asks the file list to show the next (1) or previous (-1)
 // file.
 type switchFileMsg int
 
@@ -21,7 +21,7 @@ type switchFileMsg int
 type switchCommitMsg int
 
 // backMsg asks the log to return to the commit list, or from its flow view
-// to the file list of the commit; or the file selector to its list when it
+// to the file list of the commit; or the file list to its list when it
 // shows the flow view.
 type backMsg struct{}
 
@@ -29,7 +29,7 @@ type backMsg struct{}
 // of the commit whose files it shows: enter in that file list in flow mode.
 type flowAtMsg int
 
-// jumpMsg asks the file selector to show the line of the other end of moved
+// jumpMsg asks the file list to show the line of the other end of moved
 // code in another file: end, in the file of the group with index end.file,
 // at screen row screenRow, with message msg.
 type jumpMsg struct {
@@ -132,7 +132,7 @@ func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 type settingChangedMsg struct{ action, problem string }
 
 // toggleUntrackedMsg asks the top-level view to toggle the untracked files of
-// its git diff, which only the file selector of one has.
+// its git diff, which only the file list of one has.
 type toggleUntrackedMsg struct{}
 
 func toggleUntracked() tea.Msg { return toggleUntrackedMsg{} }
@@ -143,7 +143,7 @@ const untrackedOnlyInDiff = "untracked files: only in jdiff diff"
 // flowOnlyOfSeveral is the answer of the diff view of two files.
 const flowOnlyOfSeveral = "flow: only with a file list or the log"
 
-// toggleFlowMsg asks the log or the file selector to switch between the diff
+// toggleFlowMsg asks the log or the file list to switch between the diff
 // view of one file and the flow view of all files.
 type toggleFlowMsg struct{}
 

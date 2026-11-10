@@ -14,8 +14,8 @@ import (
 )
 
 func TestHelpPopup(t *testing.T) {
-	a := newTestApp()
-	h := WithHelp(config.Default(), a)
+	d := newTestDiff()
+	h := WithHelp(config.Default(), d)
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 76}) // room for all bindings
 	pressRoot(h, "?")
 	view := ansi.Strip(h.frame())
@@ -30,21 +30,21 @@ func TestHelpPopup(t *testing.T) {
 	}
 	// Keys do not reach the page while the popup is open.
 	pressRoot(h, "j", "enter")
-	if a.cursor != 0 || a.open != nil {
-		t.Errorf("keys reached the file list: cursor %d open %v", a.cursor, a.open)
+	if d.cursor != 0 || d.open != nil {
+		t.Errorf("keys reached the file list: cursor %d open %v", d.cursor, d.open)
 	}
 	pressRoot(h, "esc")
 	if h.open || strings.Contains(ansi.Strip(h.frame()), "╭─ keys") {
 		t.Errorf("esc did not close the help")
 	}
 	pressRoot(h, "j")
-	if a.cursor != 1 {
-		t.Errorf("j after closing: cursor %d, want 1", a.cursor)
+	if d.cursor != 1 {
+		t.Errorf("j after closing: cursor %d, want 1", d.cursor)
 	}
 }
 
 func TestHelpScrolls(t *testing.T) {
-	h := WithHelp(config.Default(), newTestApp())
+	h := WithHelp(config.Default(), newTestDiff())
 	h.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	pressRoot(h, "?")
 	if !strings.Contains(ansi.Strip(h.frame()), " 1/") {
@@ -73,8 +73,8 @@ func TestOverlayKeepsSides(t *testing.T) {
 }
 
 func TestSizeGuardWhenTooSmall(t *testing.T) {
-	a := newTestApp()
-	g := WithSizeGuard(a.cfg, a)
+	d := newTestDiff()
+	g := WithSizeGuard(d.cfg, d)
 	g.Update(tea.WindowSizeMsg{Width: 15, Height: 3})
 	view := g.frame()
 	if v := ansi.Strip(view); !strings.Contains(v, "too small") || !strings.Contains(v, "15x3, need 20x4") {
@@ -85,20 +85,20 @@ func TestSizeGuardWhenTooSmall(t *testing.T) {
 	}
 	// Keys are ignored, but ctrl+c quits.
 	pressRoot(g, "j", "enter", "?")
-	if a.cursor != 0 || a.open != nil {
-		t.Errorf("keys reached the page: cursor %d, open %v", a.cursor, a.open)
+	if d.cursor != 0 || d.open != nil {
+		t.Errorf("keys reached the page: cursor %d, open %v", d.cursor, d.open)
 	}
 	if _, cmd := g.Update(keyMsg("ctrl+c")); cmd == nil {
 		t.Error("ctrl+c does not quit while the terminal is too small")
 	}
 	// Large enough: the page again, sized while it was hidden.
 	g.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if a.width != 80 || strings.Contains(ansi.Strip(g.frame()), "too small") {
-		t.Errorf("80x20: page width %d:\n%s", a.width, ansi.Strip(g.frame()))
+	if d.width != 80 || strings.Contains(ansi.Strip(g.frame()), "too small") {
+		t.Errorf("80x20: page width %d:\n%s", d.width, ansi.Strip(g.frame()))
 	}
 	pressRoot(g, "j")
-	if a.cursor != 1 {
-		t.Errorf("80x20: j moved the cursor to %d, want 1", a.cursor)
+	if d.cursor != 1 {
+		t.Errorf("80x20: j moved the cursor to %d, want 1", d.cursor)
 	}
 }
 
@@ -127,14 +127,14 @@ func TestNoViewOverflows(t *testing.T) {
 		{"diff normal wrapped", long, []string{"o", "s", "w", "esc", "j", "j", "j", "j", "j"}},
 		{"big diff", big, []string{"]"}},
 		{"big diff normal", big, []string{"o", "s", "esc", "]"}},
-		{"file list", func() tea.Model { return newTestApp() }, nil},
-		{"flow", func() tea.Model { return newFlowApp() }, []string{"f"}},
-		{"flow wrapped", func() tea.Model { return newFlowApp() }, []string{"f", "o", "w", "esc"}},
+		{"file list", func() tea.Model { return newTestDiff() }, nil},
+		{"flow", func() tea.Model { return newFlowDiff() }, []string{"f"}},
+		{"flow wrapped", func() tea.Model { return newFlowDiff() }, []string{"f", "o", "w", "esc"}},
 		{"commit list", func() tea.Model { l, _ := newTestLog(); return l }, nil},
 		{"log flow", func() tea.Model { l, _ := newTestLog(); return l }, []string{"f", "enter"}},
-		{"help", func() tea.Model { return newTestApp() }, []string{"?"}},
+		{"help", func() tea.Model { return newTestDiff() }, []string{"?"}},
 		{"marks", func() tea.Model { return newMarkModel() }, []string{"m", "a", "\\"}},
-		{"settings", func() tea.Model { return newTestApp() }, []string{"o"}},
+		{"settings", func() tea.Model { return newTestDiff() }, []string{"o"}},
 	}
 	sizes := []int{1, 2, 3, 4, 5, 8, 12}
 	widths := []int{1, 5, 10, 15, 19, 20, 21, 25, 30, 41, 60}
@@ -144,7 +144,7 @@ func TestNoViewOverflows(t *testing.T) {
 		switch p := m.(type) {
 		case *Model:
 			cfg = p.cfg
-		case *App:
+		case *Diff:
 			cfg = p.cfg
 		case *Log:
 			cfg = p.cfg
@@ -171,7 +171,7 @@ func TestNoViewOverflows(t *testing.T) {
 func TestHelpArrowsSweep(t *testing.T) {
 	t.Parallel() // a sweep: its own config and views, nothing shared
 	// At 80 columns long lines wrap, so rows are more than lines.
-	probe := WithHelp(config.Default(), newTestApp())
+	probe := WithHelp(config.Default(), newTestDiff())
 	probe.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(probe, "?")
 	n := len(probe.rows)
@@ -185,7 +185,7 @@ func TestHelpArrowsSweep(t *testing.T) {
 		t.Run(fmt.Sprint("rows ", rows), func(t *testing.T) {
 			t.Parallel()
 			height := rows + 4
-			h := WithHelp(config.Default(), newTestApp())
+			h := WithHelp(config.Default(), newTestDiff())
 			h.Update(tea.WindowSizeMsg{Width: 80, Height: height})
 			pressRoot(h, "?")
 			rows = min(rows, n) // room for more: the box stays at the lines' height
@@ -248,7 +248,7 @@ func TestHelpArrowsSweep(t *testing.T) {
 // widest row, with border and padding.
 func TestHelpWrapsSweep(t *testing.T) {
 	t.Parallel()
-	probe := WithHelp(config.Default(), newTestApp())
+	probe := WithHelp(config.Default(), newTestDiff())
 	probe.Update(tea.WindowSizeMsg{Width: 1000, Height: 20})
 	pressRoot(probe, "?")
 	fits, keyW := probe.boxWidth, 0
@@ -259,7 +259,7 @@ func TestHelpWrapsSweep(t *testing.T) {
 	for width := keyW + 9; width <= fits+1; width++ {
 		t.Run(fmt.Sprint("width ", width), func(t *testing.T) {
 			t.Parallel()
-			h := WithHelp(config.Default(), newTestApp())
+			h := WithHelp(config.Default(), newTestDiff())
 			h.Update(tea.WindowSizeMsg{Width: width, Height: 20})
 			pressRoot(h, "?")
 			h.Update(tea.WindowSizeMsg{Width: width, Height: len(h.rows) + 4}) // all rows fit

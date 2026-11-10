@@ -14,9 +14,9 @@ import (
 )
 
 // Model is the Bubble Tea model of the diff view: a single file view of a
-// fileDiff, which other views may show and change too.
+// fileAlign, which other views may show and change too.
 type Model struct {
-	*fileDiff
+	*fileAlign
 
 	screen      []sline       // screen lines of the displayed rows
 	screenAt    map[sline]int // screen line -> its index in screen
@@ -35,7 +35,7 @@ type Model struct {
 	xoff   int // horizontal scroll in columns
 
 	width, height int
-	canBack       bool // shown from the file selector, which handles backspace
+	canBack       bool // shown from the file list, which handles backspace
 	commitNav     bool // shown from the log, which switches commits
 
 	msg   string
@@ -49,10 +49,10 @@ type Model struct {
 
 // New returns a model comparing oldLines (left) with newLines (right).
 func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
-	d := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
-	d.markPath = newName
-	(&moveGroup{}).add(d, d.names)
-	return newModel(d)
+	a := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
+	a.markPath = newName
+	(&moveGroup{}).add(a, a.names)
+	return newModel(a)
 }
 
 // NewWatched returns a model comparing the sides of f, which it reloads
@@ -64,14 +64,14 @@ func NewWatched(cfg *config.Config, f source.File) *Model {
 	return m
 }
 
-// newModel returns the single file view of d.
-func newModel(d *fileDiff) *Model {
-	m := &Model{fileDiff: d}
+// newModel returns the single file view of a.
+func newModel(a *fileAlign) *Model {
+	m := &Model{fileAlign: a}
 	m.buildScreen()
-	if slices.Equal(d.lines[left], d.lines[right]) {
+	if slices.Equal(a.lines[left], a.lines[right]) {
 		m.msg = "files are identical"
 	}
-	if w := d.cfg.Warning(); w != "" {
+	if w := a.cfg.Warning(); w != "" {
 		m.msg = w
 	}
 	return m
@@ -124,7 +124,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.key(msg.String())
 	case autoReloadMsg:
 		if msg.on && m.watch != nil { // changed while off
-			if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
+			if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
 				m.msg = msg
 			}
 		}
@@ -137,7 +137,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.cfg.AutoReload {
 			return m, nil
 		}
-		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
+		if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
 		return m, m.poll()
@@ -145,7 +145,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.w == nil || msg.w != m.disk.w {
 			return m, nil
 		}
-		if msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); msg != "" {
+		if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
 		return m, batch(m.disk.next(), m.poll())
@@ -187,7 +187,7 @@ func (m *Model) refresh(quiet bool) {
 		return
 	}
 	m.watch.OldStamp, m.watch.NewStamp = source.Stamp{}, source.Stamp{}
-	switch msg := refreshFile(m.watch, m.fileDiff, m.syncLayout); {
+	switch msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); {
 	case msg != "":
 		m.msg = msg
 	case !quiet:
@@ -202,7 +202,7 @@ func (m *Model) key(k string) tea.Cmd {
 		switch {
 		case !isMarkLetter(k):
 		case p == "set_mark":
-			m.msg = setMark(m.cfg, m.fileDiff, k, m.cursor)
+			m.msg = setMark(m.cfg, m.fileAlign, k, m.cursor)
 		default:
 			return m.gotoMark(k, m.pos()-m.top)
 		}
@@ -270,7 +270,7 @@ func (m *Model) key(k string) tea.Cmd {
 
 // gotoMark moves the cursor to the line of mark letter, at screen row
 // screenRow. A mark in another file of the diff is shown by the file
-// selector.
+// list.
 func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
 	mk, ok := m.cfg.Mark(letter)
 	switch {
@@ -303,7 +303,7 @@ func (m *Model) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
 }
 
 // jump moves the cursor to the other end of the moved line under it (see
-// jumpTo). An end in another file is shown by the file selector, at the
+// jumpTo). An end in another file is shown by the file list, at the
 // cursor's screen row.
 func (m *Model) jump() tea.Cmd {
 	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenShape)
@@ -342,7 +342,7 @@ func (m *Model) act(action string) {
 	m.keepScreenRow(func() {
 		changes := m.changes
 		var at spot
-		at, msg = m.fileDiff.act(action, spot{m.cursor, m.sub, m.active}, m.screenShape)
+		at, msg = m.fileAlign.act(action, spot{m.cursor, m.sub, m.active}, m.screenShape)
 		if m.changes != changes {
 			m.buildScreen()
 		}

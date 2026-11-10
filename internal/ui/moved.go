@@ -10,16 +10,16 @@ import (
 // commit or of a comparison of two directories, or the one file of a
 // comparison of two files. Never files of different commits.
 type moveGroup struct {
-	diffs  []*fileDiff
+	diffs  []*fileAlign
 	names  [][2]string // the names of the sides of the files, for messages
 	aligns []int       // the alignments the moves were found for
 	moves  diff.Moves
 }
 
-// add adds d, whose sides are called names, to the group.
-func (g *moveGroup) add(d *fileDiff, names [2]string) {
-	d.group, d.groupIndex = g, len(g.diffs)
-	g.diffs = append(g.diffs, d)
+// add adds a, whose sides are called names, to the group.
+func (g *moveGroup) add(a *fileAlign, names [2]string) {
+	a.group, a.groupIndex = g, len(g.diffs)
+	g.diffs = append(g.diffs, a)
 	g.names = append(g.names, names)
 	g.aligns = nil
 }
@@ -28,33 +28,33 @@ func (g *moveGroup) add(d *fileDiff, names [2]string) {
 // after an anchor was added or removed or the file was reloaded.
 func (g *moveGroup) ensure() {
 	fresh := len(g.aligns) == len(g.diffs)
-	for i, d := range g.diffs {
-		fresh = fresh && g.aligns[i] == d.aligns
+	for i, a := range g.diffs {
+		fresh = fresh && g.aligns[i] == a.aligns
 	}
 	if fresh {
 		return
 	}
 	in := make([]diff.MoveInput, len(g.diffs))
 	g.aligns = make([]int, len(g.diffs))
-	for i, d := range g.diffs {
-		in[i] = diff.MoveInput{Old: d.lines[left], New: d.lines[right], Rows: d.rows}
-		g.aligns[i] = d.aligns
+	for i, a := range g.diffs {
+		in[i] = diff.MoveInput{Old: a.lines[left], New: a.lines[right], Rows: a.rows}
+		g.aligns[i] = a.aligns
 	}
 	g.moves = diff.FindMoves(in)
 }
 
-// movedTo returns where line of side s of d moved: for a removed line the
+// movedTo returns where line of side s of a moved: for a removed line the
 // line it moved to, for an added line the line it came from.
-func (d *fileDiff) movedTo(s side, line int) (diff.Ref, bool) {
-	if d.group == nil || line < 0 {
+func (a *fileAlign) movedTo(s side, line int) (diff.Ref, bool) {
+	if a.group == nil || line < 0 {
 		return diff.Ref{}, false
 	}
-	d.group.ensure()
-	moves := d.group.moves.To
+	a.group.ensure()
+	moves := a.group.moves.To
 	if s == left {
-		moves = d.group.moves.From
+		moves = a.group.moves.From
 	}
-	r, ok := moves[d.groupIndex][line]
+	r, ok := moves[a.groupIndex][line]
 	return r, ok
 }
 
@@ -70,19 +70,19 @@ type moveEnd struct {
 // the screen lines of sh, and the message to show there, which says where
 // the cursor came from: side by side the line of the active pane, else the
 // one beside it. ok is false when neither moved.
-func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool) {
+func (a *fileAlign) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool) {
 	s := at.side
 	if sh.unified {
-		s = d.unifiedSide(at, sh)
+		s = a.unifiedSide(at, sh)
 	}
-	line := d.lineAt(s, at.v)
-	r, ok := d.movedTo(s, line)
+	line := a.lineAt(s, at.v)
+	r, ok := a.movedTo(s, line)
 	if !ok && !sh.unified {
 		// Side by side the pane is for anchors: a moved line has no line
 		// beside it, so the cursor may be in either pane.
 		s = s.other()
-		line = d.lineAt(s, at.v)
-		r, ok = d.movedTo(s, line)
+		line = a.lineAt(s, at.v)
+		r, ok = a.movedTo(s, line)
 	}
 	if !ok {
 		return moveEnd{}, "not moved", false
@@ -91,12 +91,12 @@ func (d *fileDiff) otherEnd(at spot, sh shape) (end moveEnd, msg string, ok bool
 	if s == right {
 		how = "moved to"
 	}
-	return moveEnd{r.File, s.other(), r.Line}, fmt.Sprintf("%s %s:%d", how, d.group.names[d.groupIndex][s], line+1), true
+	return moveEnd{r.File, s.other(), r.Line}, fmt.Sprintf("%s %s:%d", how, a.group.names[a.groupIndex][s], line+1), true
 }
 
-// spotOf returns the cursor on the start of line of side s of d in the
+// spotOf returns the cursor on the start of line of side s of a in the
 // screen lines of sh (see firstSub).
-func (d *fileDiff) spotOf(s side, line int, sh shape) spot {
-	v := d.viewOf[d.rowOf[s][line]]
-	return spot{v, d.firstSub(v, s, sh), s}
+func (a *fileAlign) spotOf(s side, line int, sh shape) spot {
+	v := a.viewOf[a.rowOf[s][line]]
+	return spot{v, a.firstSub(v, s, sh), s}
 }

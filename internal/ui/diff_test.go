@@ -19,21 +19,21 @@ import (
 	"jdiff/internal/source"
 )
 
-func newTestApp() *App {
-	a := NewApp(config.Default(), []source.File{
+func newTestDiff() *Diff {
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "a.go", Old: []string{"x", "y"}, New: []string{"x", "z", "w"}, InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true},
 		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	return a
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	return d
 }
 
-func pressApp(a *App, keys ...string) { pressRoot(a, keys...) }
+func pressDiff(d *Diff, keys ...string) { pressRoot(d, keys...) }
 
-func TestAppListShowsCounts(t *testing.T) {
-	a := newTestApp()
-	view := ansi.Strip(a.frame())
+func TestDiffListShowsCounts(t *testing.T) {
+	d := newTestDiff()
+	view := ansi.Strip(d.frame())
 	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", " 3 files changed  +3 -1\n\n"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("list view lacks %q:\n%s", want, view)
@@ -41,105 +41,105 @@ func TestAppListShowsCounts(t *testing.T) {
 	}
 }
 
-func TestAppOpenAndBack(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "j", "enter")
-	if a.open == nil || a.open.Path != "b.go" {
-		t.Fatalf("open = %v, want b.go", a.open)
+func TestDiffOpenAndBack(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "j", "enter")
+	if d.open == nil || d.open.Path != "b.go" {
+		t.Fatalf("open = %v, want b.go", d.open)
 	}
-	if !strings.Contains(ansi.Strip(a.frame()), "b/b.go") {
+	if !strings.Contains(ansi.Strip(d.frame()), "b/b.go") {
 		t.Errorf("diff view not shown")
 	}
-	pressApp(a, "backspace")
-	if a.open != nil {
+	pressDiff(d, "backspace")
+	if d.open != nil {
 		t.Fatalf("backspace did not return to the list")
 	}
-	if a.cursor != 1 {
-		t.Errorf("cursor = %d after back, want 1", a.cursor)
+	if d.cursor != 1 {
+		t.Errorf("cursor = %d after back, want 1", d.cursor)
 	}
 }
 
-func TestAppKeepsAnchors(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "enter")
-	v := a.open.view
+func TestDiffKeepsAnchors(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "enter")
+	v := d.open.view
 	// Anchor old "y" to new "w" instead of the positional pairing with "z".
 	v.cursor = v.viewOf[v.rowOf[left][1]]
-	pressApp(a, "enter")
+	pressDiff(d, "enter")
 	v.cursor = v.viewOf[v.rowOf[right][2]]
-	pressApp(a, "enter", "backspace", "enter")
-	if len(a.open.view.anchors) != 1 {
-		t.Fatalf("anchors = %v after reopening, want 1", a.open.view.anchors)
+	pressDiff(d, "enter", "backspace", "enter")
+	if len(d.open.view.anchors) != 1 {
+		t.Fatalf("anchors = %v after reopening, want 1", d.open.view.anchors)
 	}
-	pressApp(a, "backspace")
-	if e := a.files[0]; e.added != 2 || e.removed != 1 {
+	pressDiff(d, "backspace")
+	if e := d.files[0]; e.added != 2 || e.removed != 1 {
 		t.Errorf("stats = +%d -%d after anchoring, want +2 -1", e.added, e.removed)
 	}
 }
 
-func TestAppBinaryNotOpened(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "end", "enter")
-	if a.open != nil || !strings.Contains(a.msg, "binary") {
-		t.Errorf("binary file opened: open=%v msg=%q", a.open, a.msg)
+func TestDiffBinaryNotOpened(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "end", "enter")
+	if d.open != nil || !strings.Contains(d.msg, "binary") {
+		t.Errorf("binary file opened: open=%v msg=%q", d.open, d.msg)
 	}
 }
 
-func TestAppNextPrevFile(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "enter", "n")
-	if a.open == nil || a.open.Path != "b.go" || a.cursor != 1 {
-		t.Fatalf("n: open %v cursor %d, want b.go", a.open, a.cursor)
+func TestDiffNextPrevFile(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "enter", "n")
+	if d.open == nil || d.open.Path != "b.go" || d.cursor != 1 {
+		t.Fatalf("n: open %v cursor %d, want b.go", d.open, d.cursor)
 	}
 	// c.bin is binary and skipped: b.go is the last file that can be shown.
-	pressApp(a, "n")
-	if a.open.Path != "b.go" || !strings.Contains(a.open.view.msg, "last file") {
-		t.Errorf("n on the last file: open %s msg %q", a.open.Path, a.open.view.msg)
+	pressDiff(d, "n")
+	if d.open.Path != "b.go" || !strings.Contains(d.open.view.msg, "last file") {
+		t.Errorf("n on the last file: open %s msg %q", d.open.Path, d.open.view.msg)
 	}
-	pressApp(a, "p")
-	if a.open.Path != "a.go" || a.cursor != 0 {
-		t.Errorf("p: open %s cursor %d, want a.go", a.open.Path, a.cursor)
+	pressDiff(d, "p")
+	if d.open.Path != "a.go" || d.cursor != 0 {
+		t.Errorf("p: open %s cursor %d, want a.go", d.open.Path, d.cursor)
 	}
 	// Without a log, N and P do nothing.
-	pressApp(a, "N")
-	if a.open.Path != "a.go" {
-		t.Errorf("N outside the log switched to %s", a.open.Path)
+	pressDiff(d, "N")
+	if d.open.Path != "a.go" {
+		t.Errorf("N outside the log switched to %s", d.open.Path)
 	}
 }
 
 // A single file has its list, as many do: enter opens it, backspace goes back.
-func TestAppSingleFileShowsList(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestDiffSingleFileShowsList(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "only.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	if a.open != nil {
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if d.open != nil {
 		t.Fatalf("single file opened directly, want its list")
 	}
-	if frame := a.frame(); !strings.Contains(frame, "1 file changed") || !strings.Contains(frame, "only.go") {
+	if frame := d.frame(); !strings.Contains(frame, "1 file changed") || !strings.Contains(frame, "only.go") {
 		t.Fatalf("list of the single file:\n%s", frame)
 	}
-	pressApp(a, "enter")
-	if a.open == nil || a.open.Path != "only.go" {
+	pressDiff(d, "enter")
+	if d.open == nil || d.open.Path != "only.go" {
 		t.Fatalf("enter did not open only.go")
 	}
-	pressApp(a, "backspace")
-	if a.open != nil {
+	pressDiff(d, "backspace")
+	if d.open != nil {
 		t.Errorf("backspace did not show the list")
 	}
 }
 
 // Labels are padded by the columns they take: the names stay aligned with wide
 // characters in a label of the theme.
-func TestAppListWideLabel(t *testing.T) {
+func TestDiffListWideLabel(t *testing.T) {
 	cfg := config.Default()
 	cfg.Theme.ModifiedLabel, cfg.Theme.AddedLabel = "変更", "added"
-	a := NewApp(cfg, []source.File{
+	d := NewDiff(cfg, []source.File{
 		{Path: "f00", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "f01", New: []string{"y"}, InNew: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	lines := topLines(a, 4)
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	lines := topLines(d, 4)
 	column := func(line, name string) int { return ansi.StringWidth(line[:strings.Index(line, name)]) }
 	if c0, c1 := column(lines[2], "f00"), column(lines[3], "f01"); c0 != c1 {
 		t.Errorf("names in columns %d and %d:\n%s\n%s", c0, c1, lines[2], lines[3])
@@ -148,51 +148,51 @@ func TestAppListWideLabel(t *testing.T) {
 
 // Of an error of several lines, as git writes them, the status bar shows the
 // first.
-func TestAppRelistErrorFirstLine(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestDiffRelistErrorFirstLine(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "f00", New: []string{"x"}, InNew: true},
 		{Path: "f01", New: []string{"x"}, InNew: true},
 	}).WithRelist(func(context.Context) ([]source.File, error) { return nil, errors.New("x0\nx1") })
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	_, cmd := a.Update(refreshMsg{})
-	a.Update(cmd()) // the listing, which runs in the background
-	if a.msg != "x0" {
-		t.Errorf("listing again: %q", a.msg)
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	_, cmd := d.Update(refreshMsg{})
+	d.Update(cmd()) // the listing, which runs in the background
+	if d.msg != "x0" {
+		t.Errorf("listing again: %q", d.msg)
 	}
 }
 
-func TestAppRenameLabel(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestDiffRenameLabel(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "new.go", OldPath: "old.go", Old: []string{"x"}, New: []string{"x", "y"}, InOld: true, InNew: true},
 		{Path: "other.go", New: []string{"z"}, InNew: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	if view := ansi.Strip(a.frame()); !strings.Contains(view, "renamed:") || !strings.Contains(view, "old.go → new.go") {
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	if view := ansi.Strip(d.frame()); !strings.Contains(view, "renamed:") || !strings.Contains(view, "old.go → new.go") {
 		t.Errorf("rename not shown:\n%s", view)
 	}
-	pressApp(a, "enter")
-	if a.open.view.names != [2]string{"a/old.go", "b/new.go"} {
-		t.Errorf("diff titles = %v", a.open.view.names)
+	pressDiff(d, "enter")
+	if d.open.view.names != [2]string{"a/old.go", "b/new.go"} {
+		t.Errorf("diff titles = %v", d.open.view.names)
 	}
 }
 
-func TestAppListNextPrev(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "n", "n")
-	if a.open != nil || a.cursor != 2 {
-		t.Errorf("n n in the list: open %v cursor %d, want c.bin selected", a.open, a.cursor)
+func TestDiffListNextPrev(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "n", "n")
+	if d.open != nil || d.cursor != 2 {
+		t.Errorf("n n in the list: open %v cursor %d, want c.bin selected", d.open, d.cursor)
 	}
-	pressApp(a, "p")
-	if a.cursor != 1 {
-		t.Errorf("p in the list: cursor %d, want b.go", a.cursor)
+	pressDiff(d, "p")
+	if d.cursor != 1 {
+		t.Errorf("p in the list: cursor %d, want b.go", d.cursor)
 	}
 }
 
 func TestSpaceDoesNotNavigateLists(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, " ")
-	if a.cursor != 0 || a.open != nil {
-		t.Errorf("space in the file list: cursor %d open %v", a.cursor, a.open)
+	d := newTestDiff()
+	pressDiff(d, " ")
+	if d.cursor != 0 || d.open != nil {
+		t.Errorf("space in the file list: cursor %d open %v", d.cursor, d.open)
 	}
 	l, _ := newTestLog()
 	pressLog(l, " ")
@@ -207,12 +207,12 @@ func TestTogglesSaveState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := NewApp(cfg, []source.File{{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
+	d := NewDiff(cfg, []source.File{{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true}})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	setOption(a, a.cfg, "v", "s")
-	setOption(a, a.cfg, "W")
-	pressApp(a, "f")
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	setOption(d, d.cfg, "v", "s")
+	setOption(d, d.cfg, "W")
+	pressDiff(d, "f")
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
 		t.Fatal(err)
@@ -224,26 +224,26 @@ func TestTogglesSaveState(t *testing.T) {
 	}
 }
 
-// newRelistApp returns the file selector of a.go, b.go and c.bin that lists
+// newRelistDiff returns the file list of a.go, b.go and c.bin that lists
 // the files *files on r, or fails with *err.
-func newRelistApp(files *[]source.File, err *error) *App {
+func newRelistDiff(files *[]source.File, err *error) *Diff {
 	*files = []source.File{
 		{Path: "a.go", Old: numbered("x", 10), New: numbered("x", 10)[1:], InOld: true, InNew: true},
 		{Path: "b.go", New: []string{"new"}, InNew: true},
 		{Path: "c.bin", InOld: true, InNew: true, Binary: true},
 	}
-	a := NewApp(config.Default(), *files).WithRelist(func(context.Context) ([]source.File, error) { return *files, *err })
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	return a
+	d := NewDiff(config.Default(), *files).WithRelist(func(context.Context) ([]source.File, error) { return *files, *err })
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	return d
 }
 
-func TestAppRelist(t *testing.T) {
+func TestDiffRelist(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
-	pressApp(a, "enter")
-	a.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
-	view, d := a.open.view, a.files[0].diff
+	d := newRelistDiff(&files, &err)
+	pressDiff(d, "enter")
+	d.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
+	view, a := d.open.view, d.files[0].align
 
 	// A new file before a.go, b.go gone, a.go with a line on top.
 	files = []source.File{
@@ -251,109 +251,109 @@ func TestAppRelist(t *testing.T) {
 		{Path: "a.go", Old: numbered("x", 10), New: append([]string{"top"}, numbered("x", 10)[1:]...), InOld: true, InNew: true},
 		files[2],
 	}
-	pressApp(a, "r")
-	if a.open == nil || a.open.Path != "a.go" || a.open.view != view || a.cursor != 1 {
-		t.Fatalf("after r: open %v cursor %d; want a.go still open in its view, cursor on it", a.open, a.cursor)
+	pressDiff(d, "r")
+	if d.open == nil || d.open.Path != "a.go" || d.open.view != view || d.cursor != 1 {
+		t.Fatalf("after r: open %v cursor %d; want a.go still open in its view, cursor on it", d.open, d.cursor)
 	}
 	if view.msg != "1 new, 1 gone, 1 changed" {
 		t.Errorf("msg %q", view.msg)
 	}
-	if want := []diff.Anchor{{Left: 5, Right: 5}}; !slices.Equal(d.anchors, want) {
-		t.Errorf("anchors %v, want %v: the anchor follows its line", d.anchors, want)
+	if want := []diff.Anchor{{Left: 5, Right: 5}}; !slices.Equal(a.anchors, want) {
+		t.Errorf("anchors %v, want %v: the anchor follows its line", a.anchors, want)
 	}
 	var paths []string
-	for _, e := range a.files {
+	for _, e := range d.files {
 		paths = append(paths, e.Path)
 	}
-	if want := []string{"0.go", "a.go", "c.bin"}; !slices.Equal(paths, want) || a.list.n != 3 {
-		t.Errorf("files %v (n %d), want %v", paths, a.list.n, want)
+	if want := []string{"0.go", "a.go", "c.bin"}; !slices.Equal(paths, want) || d.list.n != 3 {
+		t.Errorf("files %v (n %d), want %v", paths, d.list.n, want)
 	}
-	if a.files[1].added != 1 || a.files[1].removed != 1 {
-		t.Errorf("a.go +%d -%d, want +1 -1", a.files[1].added, a.files[1].removed)
+	if d.files[1].added != 1 || d.files[1].removed != 1 {
+		t.Errorf("a.go +%d -%d, want +1 -1", d.files[1].added, d.files[1].removed)
 	}
 
 	// Nothing changed; F5 does the same as r.
-	pressApp(a, "f5")
+	pressDiff(d, "f5")
 	if view.msg != "nothing changed" {
 		t.Errorf("F5 without changes: msg %q", view.msg)
 	}
 
 	// git fails: everything stays.
 	err = errors.New("git diff: broken")
-	pressApp(a, "r")
-	if view.msg != "git diff: broken" || len(a.files) != 3 || a.open.view != view {
-		t.Errorf("failed R: msg %q, %d files", view.msg, len(a.files))
+	pressDiff(d, "r")
+	if view.msg != "git diff: broken" || len(d.files) != 3 || d.open.view != view {
+		t.Errorf("failed R: msg %q, %d files", view.msg, len(d.files))
 	}
 }
 
-func TestAppRelistOpenFileGone(t *testing.T) {
+func TestDiffRelistOpenFileGone(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
-	pressApp(a, "j", "enter")
+	d := newRelistDiff(&files, &err)
+	pressDiff(d, "j", "enter")
 	files = files[:1]
-	pressApp(a, "r")
-	if a.open != nil || a.cursor != 0 || a.msg != "b.go is gone; 2 gone" {
-		t.Errorf("open %v cursor %d msg %q; want the list on a.go and the message", a.open, a.cursor, a.msg)
+	pressDiff(d, "r")
+	if d.open != nil || d.cursor != 0 || d.msg != "b.go is gone; 2 gone" {
+		t.Errorf("open %v cursor %d msg %q; want the list on a.go and the message", d.open, d.cursor, d.msg)
 	}
 }
 
-func TestAppRelistBinaryCountsAsNew(t *testing.T) {
+func TestDiffRelistBinaryCountsAsNew(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
+	d := newRelistDiff(&files, &err)
 	files = slices.Clone(files)
 	files[2] = source.File{Path: "c.bin", Old: []string{"text"}, New: []string{"text", "now"}, InOld: true, InNew: true}
-	pressApp(a, "r")
-	if e := a.files[2]; a.msg != "1 new, 1 gone" || e.Binary || e.diff == nil || e.added != 1 {
-		t.Errorf("msg %q, c.bin %+v", a.msg, e)
+	pressDiff(d, "r")
+	if e := d.files[2]; d.msg != "1 new, 1 gone" || e.Binary || e.align == nil || e.added != 1 {
+		t.Errorf("msg %q, c.bin %+v", d.msg, e)
 	}
 }
 
-func TestAppRelistFindsMovesInNewFile(t *testing.T) {
+func TestDiffRelistFindsMovesInNewFile(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
+	d := newRelistDiff(&files, &err)
 	files = slices.Clone(files)
 	files[0].Old = append(slices.Clone(movedBlock), files[0].Old...)
-	pressApp(a, "r")
-	if _, ok := a.files[0].diff.movedTo(left, 0); ok {
+	pressDiff(d, "r")
+	if _, ok := d.files[0].align.movedTo(left, 0); ok {
 		t.Fatal("moved before the block was added anywhere")
 	}
 	files = append(files, source.File{Path: "d.go", New: movedBlock, InNew: true})
-	pressApp(a, "r")
-	to, ok := a.files[0].diff.movedTo(left, 0)
-	if !ok || a.fileByGroup(to.File) != 3 {
+	pressDiff(d, "r")
+	to, ok := d.files[0].align.movedTo(left, 0)
+	if !ok || d.fileByGroup(to.File) != 3 {
 		t.Errorf("a.go's removed block: moved %v to %+v, want into d.go", ok, to)
 	}
 }
 
-func TestAppRelistFlowFollowsLine(t *testing.T) {
+func TestDiffRelistFlowFollowsLine(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
-	a.cfg.Settings.CollapseUnchanged = false
-	pressApp(a, "f", "j", "j", "j") // on a.go
-	_, file, line := a.flow.position()
-	d := a.files[file].diff
-	before := d.lineAt(left, line)
+	d := newRelistDiff(&files, &err)
+	d.cfg.Settings.CollapseUnchanged = false
+	pressDiff(d, "f", "j", "j", "j") // on a.go
+	_, file, line := d.flow.position()
+	a := d.files[file].align
+	before := a.lineAt(left, line)
 	files = append([]source.File{{Path: "0.go", New: []string{"zero"}, InNew: true}}, files...)
 	files[1].New = append([]string{"top"}, files[1].New...)
-	pressApp(a, "r")
-	_, file, line = a.flow.position()
-	if file != 1 || a.files[file].diff != d || d.lineAt(left, line) != before || a.open != a.files[1] {
-		t.Errorf("flow on file %d left line %d, want a.go, now file 1, line %d", file, d.lineAt(left, line), before)
+	pressDiff(d, "r")
+	_, file, line = d.flow.position()
+	if file != 1 || d.files[file].align != a || a.lineAt(left, line) != before || d.open != d.files[1] {
+		t.Errorf("flow on file %d left line %d, want a.go, now file 1, line %d", file, a.lineAt(left, line), before)
 	}
-	if a.flow.msg != "1 new, 1 changed" {
-		t.Errorf("flow msg %q", a.flow.msg)
+	if d.flow.msg != "1 new, 1 changed" {
+		t.Errorf("flow msg %q", d.flow.msg)
 	}
 }
 
-func TestAppWithoutRelist(t *testing.T) {
-	a := newTestApp()
-	pressApp(a, "r")
-	if a.msg != "nothing to load again" {
-		t.Errorf("msg %q", a.msg)
+func TestDiffWithoutRelist(t *testing.T) {
+	d := newTestDiff()
+	pressDiff(d, "r")
+	if d.msg != "nothing to load again" {
+		t.Errorf("msg %q", d.msg)
 	}
 }
 
@@ -386,20 +386,20 @@ func newDiffSwitch(view tea.Model) (*DiffSwitch, *fakeGitDiff) {
 	return s, g
 }
 
-// shownApp returns the file selector s shows, failing when it shows another
+// shownDiff returns the file list s shows, failing when it shows another
 // view.
-func shownApp(t *testing.T, s *DiffSwitch) *App {
+func shownDiff(t *testing.T, s *DiffSwitch) *Diff {
 	t.Helper()
-	a, ok := s.view.(*App)
+	d, ok := s.view.(*Diff)
 	if !ok {
-		t.Fatalf("shows %T, want the file selector", s.view)
+		t.Fatalf("shows %T, want the file list", s.view)
 	}
-	return a
+	return d
 }
 
 func TestDiffSwitchTyped(t *testing.T) {
 	g := &fakeGitDiff{}
-	start := NewApp(config.Default(), []source.File{
+	start := NewDiff(config.Default(), []source.File{
 		{Path: "a.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "b.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	}).WithGitDiff([]string{"--cached"}, g.diff)
@@ -417,9 +417,9 @@ func TestDiffSwitchTyped(t *testing.T) {
 		t.Errorf("typed: line %q", line)
 	}
 	pressRoot(s, "enter")
-	a := shownApp(t, s)
-	if a == start || s.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
-		t.Fatalf("enter: runs %v, a new view %v", g.runs, a != start)
+	d := shownDiff(t, s)
+	if d == start || s.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
+		t.Fatalf("enter: runs %v, a new view %v", g.runs, d != start)
 	}
 	view := ansi.Strip(s.frame())
 	for _, want := range []string{"git diff HEAD~3 HEAD", "diff_HEAD~3_HEAD.go", "git diff HEAD~3 HEAD: 2 files"} {
@@ -437,12 +437,12 @@ func TestDiffSwitchTyped(t *testing.T) {
 		t.Errorf("up: %q, want the current arguments", s.input.text)
 	}
 	pressRoot(s, "esc")
-	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a || strings.Contains(s.frame(), "╭─ git diff") {
+	if s.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d || strings.Contains(s.frame(), "╭─ git diff") {
 		t.Errorf("esc: still asking %v, runs %v", s.input != nil, g.runs)
 	}
 	// enter on the empty line changes nothing.
 	pressRoot(s, "d", "enter")
-	if s.input != nil || len(g.runs) != 2 || shownApp(t, s) != a {
+	if s.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d {
 		t.Errorf("enter on the empty line: still asking %v, runs %v", s.input != nil, g.runs)
 	}
 }
@@ -463,7 +463,7 @@ func popupLine(t *testing.T, s *DiffSwitch, want string) string {
 }
 
 func TestDiffSwitchPopup(t *testing.T) {
-	s, g := newDiffSwitch(newTestApp()) // 100 columns
+	s, g := newDiffSwitch(newTestDiff()) // 100 columns
 	pressRoot(s, "d")
 	if strings.Contains(s.frame(), "↑ current") {
 		t.Error("offers the current arguments without a git diff shown")
@@ -508,17 +508,17 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 		t.Error("the log offers its current git diff arguments")
 	}
 	pressRoot(s, "HEAD", "enter")
-	if a := shownApp(t, s); a.inLog() || a.gitDiff == nil || len(g.runs) != 1 {
-		t.Errorf("from the log: in log %v, runs %v", a.inLog(), g.runs)
+	if d := shownDiff(t, s); d.inLog() || d.gitDiff == nil || len(g.runs) != 1 {
+		t.Errorf("from the log: in log %v, runs %v", d.inLog(), g.runs)
 	}
 	// backspace stays in the file list: the log is gone.
 	pressRoot(s, "backspace")
-	shownApp(t, s)
+	shownDiff(t, s)
 
 	s, g = newDiffSwitch(newTestModel([]string{"a"}, []string{"b"}))
 	pressRoot(s, "d", "--cached", "enter")
-	if a := shownApp(t, s); !slices.Equal(a.diffArgs, []string{"--cached"}) || len(g.runs) != 1 {
-		t.Errorf("from two files: args %v runs %v", a.diffArgs, g.runs)
+	if d := shownDiff(t, s); !slices.Equal(d.diffArgs, []string{"--cached"}) || len(g.runs) != 1 {
+		t.Errorf("from two files: args %v runs %v", d.diffArgs, g.runs)
 	}
 }
 
@@ -724,16 +724,16 @@ func TestFileListArrowsSweep(t *testing.T) {
 		for height := minHeight; height <= 40; height++ {
 			t.Run(fmt.Sprintf("preview %v height %d", preview, height), func(t *testing.T) {
 				t.Parallel()
-				a := NewApp(config.Default(), files)
-				a.cfg.Settings.Preview = preview
-				a.Update(tea.WindowSizeMsg{Width: 40, Height: height})
+				d := NewDiff(config.Default(), files)
+				d.cfg.Settings.Preview = preview
+				d.Update(tea.WindowSizeMsg{Width: 40, Height: height})
 				what := fmt.Sprintf("file list, height %d, preview %v", height, preview)
-				h := a.listHeight()
-				rows := func() []string { return viewRows(a.frame(), 2, 2+h) }
-				shown := checkShown(t, what, rows(), h, len(files), a.cursor, nil, index)
+				h := d.listHeight()
+				rows := func() []string { return viewRows(d.frame(), 2, 2+h) }
+				shown := checkShown(t, what, rows(), h, len(files), d.cursor, nil, index)
 				for _, k := range sweepKeys(len(files)) {
-					pressApp(a, k)
-					shown = checkShown(t, what+", "+k, rows(), h, len(files), a.cursor, shown, index)
+					pressDiff(d, k)
+					shown = checkShown(t, what+", "+k, rows(), h, len(files), d.cursor, shown, index)
 				}
 			})
 		}
@@ -774,13 +774,13 @@ func TestFileListArrows(t *testing.T) {
 		files = append(files, source.File{Path: fmt.Sprintf("f%02d.go", i), Old: []string{"a"}, New: []string{"b"},
 			InOld: true, InNew: true})
 	}
-	a := NewApp(config.Default(), files)
-	a.cfg.Settings.Preview = false
-	a.Update(tea.WindowSizeMsg{Width: 60, Height: 13}) // 10 rows
+	d := NewDiff(config.Default(), files)
+	d.cfg.Settings.Preview = false
+	d.Update(tea.WindowSizeMsg{Width: 60, Height: 13}) // 10 rows
 	name := func(r string) string { return r[strings.LastIndex(r, " ")+1:] }
 	check := func(step string, want ...string) {
 		t.Helper()
-		got := viewRows(a.frame(), 2, 2+a.listHeight())
+		got := viewRows(d.frame(), 2, 2+d.listHeight())
 		for i := range got {
 			if !strings.HasPrefix(got[i], "  ↑") && !strings.HasPrefix(got[i], "  ↓") {
 				got[i] = name(got[i])
@@ -798,25 +798,25 @@ func TestFileListArrows(t *testing.T) {
 		return out
 	}
 	check("start", append(names(0, 8), "  ↓ 21 more")...)
-	pressApp(a, "j", "j", "j", "j", "j", "j", "j", "j", "j") // f09
+	pressDiff(d, "j", "j", "j", "j", "j", "j", "j", "j", "j") // f09
 	check("past the arrow", append(append([]string{"  ↑ 2 more"}, names(2, 9)...), "  ↓ 20 more")...)
-	pressApp(a, "end")
+	pressDiff(d, "end")
 	check("end", append([]string{"  ↑ 21 more"}, names(21, 29)...)...)
 
 	// With the preview box the list takes at most half of the room.
-	a.cfg.Settings.Preview = true
-	a.scrollToCursor()
-	if h := a.listHeight(); h != 5 {
+	d.cfg.Settings.Preview = true
+	d.scrollToCursor()
+	if h := d.listHeight(); h != 5 {
 		t.Fatalf("list with the box: %d rows, want 5", h)
 	}
 	check("end with the box", append([]string{"  ↑ 26 more"}, names(26, 29)...)...)
 	// The window shrinks: the cursor's file stays in view.
-	a.Update(tea.WindowSizeMsg{Width: 60, Height: 10}) // 3 rows, 3 for the box
-	if h := a.listHeight(); h != 3 {
+	d.Update(tea.WindowSizeMsg{Width: 60, Height: 10}) // 3 rows, 3 for the box
+	if h := d.listHeight(); h != 3 {
 		t.Fatalf("smaller window: %d rows, want 3", h)
 	}
 	check("smaller window", "  ↑ 28 more", "f28.go", "f29.go")
-	pressApp(a, "home")
+	pressDiff(d, "home")
 	check("home in the smaller window", "f00.go", "f01.go", "  ↓ 28 more")
 }
 
@@ -829,17 +829,17 @@ func TestFileListRows(t *testing.T) {
 		files = append(files, source.File{Path: fmt.Sprintf("f%02d.go", i), Old: []string{"a"}, New: []string{"b"},
 			InOld: true, InNew: true})
 	}
-	a := NewApp(config.Default(), files)
-	a.cfg.Settings.Preview = true
-	a.Update(tea.WindowSizeMsg{Width: 60, Height: 60}) // room for 57 rows
-	if l, b := a.listHeight(), a.boxHeight(); l != fileListRows || b != 57-fileListRows-1 {
+	d := NewDiff(config.Default(), files)
+	d.cfg.Settings.Preview = true
+	d.Update(tea.WindowSizeMsg{Width: 60, Height: 60}) // room for 57 rows
+	if l, b := d.listHeight(), d.boxHeight(); l != fileListRows || b != 57-fileListRows-1 {
 		t.Errorf("with the preview: list %d, box %d; want %d, %d", l, b, fileListRows, 57-fileListRows-1)
 	}
-	if rows := viewRows(a.frame(), 2, 2+fileListRows); rows[fileListRows-1] != "  ↓ 16 more" {
+	if rows := viewRows(d.frame(), 2, 2+fileListRows); rows[fileListRows-1] != "  ↓ 16 more" {
 		t.Errorf("last row of the list: %q", rows[fileListRows-1])
 	}
-	a.cfg.Settings.Preview = false
-	if l := a.listHeight(); l != 57 {
+	d.cfg.Settings.Preview = false
+	if l := d.listHeight(); l != 57 {
 		t.Errorf("without the preview: list %d, want 57", l)
 	}
 	preview := true
@@ -850,7 +850,7 @@ func TestFileListRows(t *testing.T) {
 }
 
 func TestDiffSwitchBackspaceCloses(t *testing.T) {
-	s, g := newDiffSwitch(newTestApp())
+	s, g := newDiffSwitch(newTestDiff())
 	pressRoot(s, "d", "ab", "backspace")
 	if s.input == nil || s.input.text != "a" {
 		t.Fatalf("backspace on text: %v", s.input)
@@ -862,7 +862,7 @@ func TestDiffSwitchBackspaceCloses(t *testing.T) {
 }
 
 func TestDiffSwitchErrorWidens(t *testing.T) {
-	s, g := newDiffSwitch(newTestApp()) // 100 columns
+	s, g := newDiffSwitch(newTestDiff()) // 100 columns
 	msg := "git diff: fatal: ambiguous argument 'HEAD~99': unknown revision or path not in the working tree"
 	g.err = errors.New(msg + "\nmore")
 	pressRoot(s, "d", "HEAD~99", "enter")
@@ -871,13 +871,13 @@ func TestDiffSwitchErrorWidens(t *testing.T) {
 	}
 }
 
-func TestAppPathsDrawnPrintable(t *testing.T) {
+func TestDiffPathsDrawnPrintable(t *testing.T) {
 	evil := "x\x1b]0;pwned\x07.go" // would set the terminal title
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		{Path: evil, OldPath: "old" + evil, Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 		{Path: "bin" + evil, InOld: true, InNew: true, Binary: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	check := func(what, view string) {
 		t.Helper()
 		if strings.Contains(view, "\x1b]") || strings.Contains(view, "\x07") {
@@ -887,16 +887,16 @@ func TestAppPathsDrawnPrintable(t *testing.T) {
 			t.Errorf("%s does not show the path printable:\n%s", what, ansi.Strip(view))
 		}
 	}
-	check("list", a.frame())
-	pressApp(a, "j", "enter") // the binary file: not opened, named in the status
-	check("binary message", a.frame())
-	pressApp(a, "k", "enter")
-	check("diff titles", a.frame())
+	check("list", d.frame())
+	pressDiff(d, "j", "enter") // the binary file: not opened, named in the status
+	check("binary message", d.frame())
+	pressDiff(d, "k", "enter")
+	check("diff titles", d.frame())
 }
 
-// newUntrackedApp returns the file selector of a git diff of f00 and f01,
+// newUntrackedDiff returns the file list of a git diff of f00 and f01,
 // with the new file x0 while the untracked files are shown.
-func newUntrackedApp() *App {
+func newUntrackedDiff() *Diff {
 	cfg := config.Default()
 	file := func(name string) source.File {
 		return source.File{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
@@ -909,66 +909,66 @@ func newUntrackedApp() *App {
 		return files, nil
 	}
 	files, _ := list(context.Background(), nil, cfg.Settings.Untracked)
-	a := NewApp(cfg, files).WithGitDiff([]string{"HEAD"}, list)
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
-	return a
+	d := NewDiff(cfg, files).WithGitDiff([]string{"HEAD"}, list)
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	return d
 }
 
 func TestUntrackedToggle(t *testing.T) {
-	a := newUntrackedApp()
-	f00 := a.files[0]
+	d := newUntrackedDiff()
+	f00 := d.files[0]
 
 	// In the file list.
-	setOption(a, a.cfg, "u")
-	if !a.cfg.Settings.Untracked || len(a.files) != 3 || a.files[2].Path != "x0" {
-		t.Fatalf("u: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	setOption(d, d.cfg, "u")
+	if !d.cfg.Settings.Untracked || len(d.files) != 3 || d.files[2].Path != "x0" {
+		t.Fatalf("u: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if view := ansi.Strip(a.frame()); !strings.Contains(view, "git diff HEAD + untracked") {
+	if view := ansi.Strip(d.frame()); !strings.Contains(view, "git diff HEAD + untracked") {
 		t.Errorf("u: header lacks the hint:\n%s", view)
 	}
 	// Files that stay keep their entry, and so anchors and folds.
-	if a.files[0] != f00 {
+	if d.files[0] != f00 {
 		t.Error("u: f00 got a new entry")
 	}
 
-	setOption(a, a.cfg, "u")
-	if a.cfg.Settings.Untracked || len(a.files) != 2 {
-		t.Fatalf("u again: setting %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	setOption(d, d.cfg, "u")
+	if d.cfg.Settings.Untracked || len(d.files) != 2 {
+		t.Fatalf("u again: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if view := ansi.Strip(a.frame()); strings.Contains(view, "untracked") {
+	if view := ansi.Strip(d.frame()); strings.Contains(view, "untracked") {
 		t.Errorf("u again: header still has the hint:\n%s", view)
 	}
 
 	// In the diff view of a file that stays, it stays open.
-	pressApp(a, "enter")
-	setOption(a, a.cfg, "u")
-	if a.open != f00 || len(a.files) != 3 {
-		t.Errorf("u in f00's diff: open %v, %d files", a.open, len(a.files))
+	pressDiff(d, "enter")
+	setOption(d, d.cfg, "u")
+	if d.open != f00 || len(d.files) != 3 {
+		t.Errorf("u in f00's diff: open %v, %d files", d.open, len(d.files))
 	}
 	// Off in the diff view of the new file, the list is shown.
-	pressApp(a, "backspace", "end", "enter")
-	if a.open == nil || a.open.Path != "x0" {
-		t.Fatalf("x0 not open: %v", a.open)
+	pressDiff(d, "backspace", "end", "enter")
+	if d.open == nil || d.open.Path != "x0" {
+		t.Fatalf("x0 not open: %v", d.open)
 	}
-	setOption(a, a.cfg, "u")
-	if a.open != nil || len(a.files) != 2 || !strings.Contains(a.msg, "x0 is gone") {
-		t.Errorf("u in x0's diff: open %v, %d files, msg %q", a.open, len(a.files), a.msg)
+	setOption(d, d.cfg, "u")
+	if d.open != nil || len(d.files) != 2 || !strings.Contains(d.msg, "x0 is gone") {
+		t.Errorf("u in x0's diff: open %v, %d files, msg %q", d.open, len(d.files), d.msg)
 	}
 
 	// In the flow view.
-	pressApp(a, "enter", "f")
-	setOption(a, a.cfg, "u")
-	if !a.flowShown() || !a.cfg.Settings.Untracked || len(a.files) != 3 {
-		t.Errorf("u in the flow view: flow %v, setting %v, %d files", a.flowShown(), a.cfg.Settings.Untracked, len(a.files))
+	pressDiff(d, "enter", "f")
+	setOption(d, d.cfg, "u")
+	if !d.flowShown() || !d.cfg.Settings.Untracked || len(d.files) != 3 {
+		t.Errorf("u in the flow view: flow %v, setting %v, %d files", d.flowShown(), d.cfg.Settings.Untracked, len(d.files))
 	}
 }
 
 // Outside a git diff, u says so and leaves the setting alone.
 func TestUntrackedOutsideGitDiff(t *testing.T) {
-	a := newTestApp() // as for two directories
-	setOption(a, a.cfg, "u")
-	if a.cfg.Settings.Untracked || a.msg != untrackedOnlyInDiff {
-		t.Errorf("file list: setting %v, msg %q", a.cfg.Settings.Untracked, a.msg)
+	d := newTestDiff() // as for two directories
+	setOption(d, d.cfg, "u")
+	if d.cfg.Settings.Untracked || d.msg != untrackedOnlyInDiff {
+		t.Errorf("file list: setting %v, msg %q", d.cfg.Settings.Untracked, d.msg)
 	}
 
 	f := source.File{Path: "f00", Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
@@ -1004,18 +1004,18 @@ func TestRefreshedMessage(t *testing.T) {
 	}
 }
 
-func TestAppRelistDropsAnchors(t *testing.T) {
+func TestDiffRelistDropsAnchors(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
-	pressApp(a, "enter")
-	a.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
-	a.open.view.addAnchor(diff.Anchor{Left: 8, Right: 7}, right, shape{})
+	d := newRelistDiff(&files, &err)
+	pressDiff(d, "enter")
+	d.open.view.addAnchor(diff.Anchor{Left: 5, Right: 4}, right, shape{})
+	d.open.view.addAnchor(diff.Anchor{Left: 8, Right: 7}, right, shape{})
 	changed := numbered("x", 10)[1:]
 	changed[4] = "changed4"
 	files = []source.File{{Path: "a.go", Old: numbered("x", 10), New: changed, InOld: true, InNew: true}, files[1], files[2]}
-	pressApp(a, "r")
-	if m := a.open.view; m.msg != "1 changed, 1 anchor dropped" || len(m.anchors) != 1 {
+	pressDiff(d, "r")
+	if m := d.open.view; m.msg != "1 changed, 1 anchor dropped" || len(m.anchors) != 1 {
 		t.Errorf("one anchored line changed: msg %q, anchors %v", m.msg, m.anchors)
 	}
 }
@@ -1023,7 +1023,7 @@ func TestAppRelistDropsAnchors(t *testing.T) {
 // Pasted text goes into the line while the popup asks, also clearing why git
 // failed, and to the view otherwise.
 func TestDiffSwitchPaste(t *testing.T) {
-	s, g := newDiffSwitch(newTestApp())
+	s, g := newDiffSwitch(newTestDiff())
 	s.Update(tea.PasteMsg{Content: "x0"})
 	if s.input != nil {
 		t.Fatalf("pasted with the popup closed: %q", s.input.text)
@@ -1069,25 +1069,25 @@ func TestLineInputEdit(t *testing.T) {
 
 // r while the files are listed starts no second listing, but runs one once
 // the first is done: what to list may have changed meanwhile.
-func TestAppRelistWhileListing(t *testing.T) {
+func TestDiffRelistWhileListing(t *testing.T) {
 	var files []source.File
 	var err error
-	a := newRelistApp(&files, &err)
+	d := newRelistDiff(&files, &err)
 	runs := 0
-	list := a.relist
-	a.relist = func(ctx context.Context) ([]source.File, error) {
+	list := d.relist
+	d.relist = func(ctx context.Context) ([]source.File, error) {
 		runs++
 		return list(ctx)
 	}
-	_, first := a.Update(refreshMsg{})
-	if _, again := a.Update(refreshMsg{}); again != nil || runs != 0 {
+	_, first := d.Update(refreshMsg{})
+	if _, again := d.Update(refreshMsg{}); again != nil || runs != 0 {
 		t.Fatalf("r during the listing: command %v, runs %d; want none", again != nil, runs)
 	}
-	_, next := a.Update(first())
+	_, next := d.Update(first())
 	if runs != 1 || next == nil {
 		t.Fatalf("after the first listing: runs %d, next %v; want the second listing", runs, next != nil)
 	}
-	if _, last := a.Update(next()); runs != 2 || last != nil {
+	if _, last := d.Update(next()); runs != 2 || last != nil {
 		t.Errorf("after the second listing: runs %d, more %v", runs, last != nil)
 	}
 }
@@ -1095,7 +1095,7 @@ func TestAppRelistWhileListing(t *testing.T) {
 // esc while git diff runs, and a newer request, drop the files that come
 // late and end the git command.
 func TestDiffSwitchDropsLateDiff(t *testing.T) {
-	view := newTestApp()
+	view := newTestDiff()
 	s, g := newDiffSwitch(view)
 	ask := func(args string) tea.Cmd {
 		s.Update(askDiffMsg{})
@@ -1116,8 +1116,8 @@ func TestDiffSwitchDropsLateDiff(t *testing.T) {
 	newer := ask("x2")
 	s.Update(newer())
 	s.Update(older())
-	if a := shownApp(t, s); a.diffArgs[0] != "x2" {
-		t.Errorf("shows git diff %v, want x2, the newer", a.diffArgs)
+	if d := shownDiff(t, s); d.diffArgs[0] != "x2" {
+		t.Errorf("shows git diff %v, want x2, the newer", d.diffArgs)
 	}
 }
 
@@ -1157,12 +1157,12 @@ func TestPasteAndHeading(t *testing.T) {
 	if in.text != "x0 a b [2Jc d" {
 		t.Errorf("pasted: %q", in.text)
 	}
-	s, _ := newDiffSwitch(newTestApp())
+	s, _ := newDiffSwitch(newTestDiff())
 	s.Update(askDiffMsg{})
 	s.Update(tea.PasteMsg{Content: "x1\x1b[2J"})
 	cmd := s.key(keyMsg("enter"))
 	s.Update(cmd())
-	if view := shownApp(t, s).frame(); strings.Contains(view, "\x1b[2J") || !strings.Contains(ansi.Strip(view), "git diff x1[2J") {
+	if view := shownDiff(t, s).frame(); strings.Contains(view, "\x1b[2J") || !strings.Contains(ansi.Strip(view), "git diff x1[2J") {
 		t.Errorf("heading:\n%q", ansi.Strip(view))
 	}
 }

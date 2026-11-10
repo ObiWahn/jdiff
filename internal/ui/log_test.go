@@ -68,10 +68,10 @@ func pressLog(l *Log, keys ...string) { pressRoot(l, keys...) }
 
 // shownFile returns the path of the diff shown, or "" for a list.
 func shownFile(l *Log) string {
-	if l.open == nil || l.open.app.open == nil {
+	if l.open == nil || l.open.diff.open == nil {
 		return ""
 	}
-	return l.open.app.open.Path
+	return l.open.diff.open.Path
 }
 
 func TestLogListShowsCommits(t *testing.T) {
@@ -104,7 +104,7 @@ func TestLogLevelsAndBackspace(t *testing.T) {
 
 	// A commit with several files shows its file list.
 	pressLog(l, "enter")
-	if l.open == nil || shownFile(l) != "" || len(l.open.app.files) != 2 {
+	if l.open == nil || shownFile(l) != "" || len(l.open.diff.files) != 2 {
 		t.Fatalf("enter on c3: open %v, shown %q", l.open, shownFile(l))
 	}
 	pressLog(l, "enter")
@@ -122,7 +122,7 @@ func TestLogLevelsAndBackspace(t *testing.T) {
 
 	// A single-file commit shows its file list as well, with its one file.
 	pressLog(l, "j", "enter")
-	if l.open == nil || shownFile(l) != "" || len(l.open.app.files) != 1 {
+	if l.open == nil || shownFile(l) != "" || len(l.open.diff.files) != 1 {
 		t.Fatalf("enter on c2: open %v, shown %q, want its file list", l.open, shownFile(l))
 	}
 	pressLog(l, "enter")
@@ -165,8 +165,8 @@ func TestLogNextPrevCommit(t *testing.T) {
 	}
 	// c0 cannot be loaded: stay and show the error.
 	pressLog(l, "P")
-	if l.cursor != 2 || !strings.Contains(l.open.app.open.view.msg, "cannot load c0") {
-		t.Errorf("P onto a broken commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
+	if l.cursor != 2 || !strings.Contains(l.open.diff.open.view.msg, "cannot load c0") {
+		t.Errorf("P onto a broken commit: commit %d msg %q", l.cursor, l.open.diff.open.view.msg)
 	}
 	// Back via c2 (single file a.go) to c3, which changed a.go as well.
 	pressLog(l, "backspace", "N", "enter", "N")
@@ -174,8 +174,8 @@ func TestLogNextPrevCommit(t *testing.T) {
 		t.Errorf("N N: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
 	}
 	pressLog(l, "N")
-	if !strings.Contains(l.open.app.open.view.msg, "last commit") {
-		t.Errorf("N on the newest commit: msg %q", l.open.app.open.view.msg)
+	if !strings.Contains(l.open.diff.open.view.msg, "last commit") {
+		t.Errorf("N on the newest commit: msg %q", l.open.diff.open.view.msg)
 	}
 	// N/P also work from the file list, showing the list of the other
 	// commit, also of a single file.
@@ -317,8 +317,8 @@ func TestLogReversedNextPrevCommit(t *testing.T) {
 		t.Fatalf("N: commit %d shown %q, want c3 a.go", l.cursor, shownFile(l))
 	}
 	pressLog(l, "N")
-	if l.cursor != 3 || !strings.Contains(l.open.app.open.view.msg, "last commit") {
-		t.Errorf("N on the newest commit: commit %d msg %q", l.cursor, l.open.app.open.view.msg)
+	if l.cursor != 3 || !strings.Contains(l.open.diff.open.view.msg, "last commit") {
+		t.Errorf("N on the newest commit: commit %d msg %q", l.cursor, l.open.diff.open.view.msg)
 	}
 	pressLog(l, "P")
 	if l.cursor != 2 {
@@ -354,7 +354,7 @@ func TestLogFlowCommitKeys(t *testing.T) {
 		t.Errorf("N: flow at %d, want c1", flowCommitAt(l))
 	}
 	pressLog(l, "backspace")
-	if l.open == nil || l.open.Hash != "c1" || l.open.app.open != nil {
+	if l.open == nil || l.open.Hash != "c1" || l.open.diff.open != nil {
 		t.Fatalf("backspace: open %v, want c1's file list", l.open)
 	}
 	pressLog(l, "backspace")
@@ -381,7 +381,7 @@ func TestLogFlowFromDiff(t *testing.T) {
 		t.Fatalf("f in the a.go diff: flow at %d %d %d", p, f, line)
 	}
 	pressLog(l, "n", "j", "f")
-	if shownFile(l) != "b.go" || l.open.app.open.view.cursor != 0 {
+	if shownFile(l) != "b.go" || l.open.diff.open.view.cursor != 0 {
 		t.Errorf("f on the row of b.go: shown %q", shownFile(l))
 	}
 }
@@ -780,10 +780,10 @@ func relistTo(l *Log, branch string, hashes ...string) {
 func TestLogRelist(t *testing.T) {
 	l, loads := newTestLog()
 	pressLog(l, "enter", "enter") // c3, a.go
-	view := l.open.app.open.view
+	view := l.open.diff.open.view
 	relistTo(l, "topic", "c4", "c3", "c2", "c1")
 	pressLog(l, "r")
-	if l.cursor != 1 || shownFile(l) != "a.go" || l.open.app.open.view != view {
+	if l.cursor != 1 || shownFile(l) != "a.go" || l.open.diff.open.view != view {
 		t.Fatalf("after r: commit %d shown %q; want c3 a.go still open in its view", l.cursor, shownFile(l))
 	}
 	if view.msg != "1 new, 1 gone" || l.branch != "topic" || l.list.n != 4 {
@@ -877,7 +877,7 @@ func TestLogFlowBackToFiles(t *testing.T) {
 	}
 	// backspace: the file list of c3, on b.go, in flow mode.
 	pressLog(l, "backspace")
-	if l.flowShown() || l.open == nil || l.open.Hash != "c3" || l.open.app.open != nil || l.open.app.cursor != 1 {
+	if l.flowShown() || l.open == nil || l.open.Hash != "c3" || l.open.diff.open != nil || l.open.diff.cursor != 1 {
 		t.Fatalf("backspace from the flow: flow %v, open %v; want c3's file list on b.go", l.flowShown(), l.open)
 	}
 	if v := ansi.Strip(l.frame()); !strings.Contains(v, "b.go") || !strings.Contains(v, "backspace commits") {
@@ -896,7 +896,7 @@ func TestLogFlowBackToFiles(t *testing.T) {
 	// A commit of one file has its list too: backspace shows it, then the
 	// commits.
 	pressLog(l, "enter", "P", "backspace")
-	if l.open == nil || l.open.Hash != "c2" || l.open.app.open != nil {
+	if l.open == nil || l.open.Hash != "c2" || l.open.diff.open != nil {
 		t.Errorf("backspace from c2 in the flow: open %v, want c2's file list", l.open)
 	}
 	pressLog(l, "backspace")
@@ -905,7 +905,7 @@ func TestLogFlowBackToFiles(t *testing.T) {
 	}
 	// f in the file list turns flow mode off and keeps the list.
 	pressLog(l, "k", "enter", "n", "backspace", "f")
-	if l.cfg.Settings.Flow || l.open == nil || l.open.app.open != nil {
+	if l.cfg.Settings.Flow || l.open == nil || l.open.diff.open != nil {
 		t.Errorf("f in the file list: flow %v, open %v; want flow off and the list", l.cfg.Settings.Flow, l.open)
 	}
 	pressLog(l, "enter")
@@ -1054,7 +1054,7 @@ func TestLogFlowOffInCommits(t *testing.T) {
 func TestLogFlowFromFileList(t *testing.T) {
 	l, _ := newTestLog() // c3: a.go, b.go
 	pressLog(l, "enter", "j")
-	if l.open == nil || l.open.app.open != nil || l.open.app.cursor != 1 {
+	if l.open == nil || l.open.diff.open != nil || l.open.diff.cursor != 1 {
 		t.Fatalf("enter j: open %v; want c3's file list on b.go", l.open)
 	}
 	pressLog(l, "f")
@@ -1225,14 +1225,14 @@ func TestLogFlowBackWhileLoading(t *testing.T) {
 func TestLogFlowTakesLoadedFiles(t *testing.T) {
 	l, loads := newTestLog()
 	pressLog(l, "enter", "backspace", "f")
-	if loads["c3"] != 1 || l.flow.parts[0].app != l.commits[0].app {
-		t.Errorf("loads %v, the flow has the list's files %v", loads, l.flow.parts[0].app == l.commits[0].app)
+	if loads["c3"] != 1 || l.flow.parts[0].diff != l.commits[0].diff {
+		t.Errorf("loads %v, the flow has the list's files %v", loads, l.flow.parts[0].diff == l.commits[0].diff)
 	}
 	once, twice := l.flow.load(1)(), l.flow.load(1)()
 	l.Update(once)
-	app := l.commits[1].app
+	d := l.commits[1].diff
 	l.Update(twice)
-	if app == nil || l.commits[1].app != app {
+	if d == nil || l.commits[1].diff != d {
 		t.Error("the files that came again replaced the views")
 	}
 }

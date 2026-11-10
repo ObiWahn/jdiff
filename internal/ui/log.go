@@ -36,12 +36,12 @@ type countsMsg struct {
 // that they do not move with each batch.
 const countWidth = 4
 
-// commitEntry is one commit in the log. Its file selector is created on
+// commitEntry is one commit in the log. Its file list is created on
 // first open and kept, so anchors survive going back to the list.
 type commitEntry struct {
 	gitsrc.Commit
 	counted bool // Added and Removed are known
-	app     *App
+	diff    *Diff
 }
 
 // Log is the Bubble Tea model of the commit list. Enter shows the files of
@@ -242,7 +242,7 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 	if l.open != nil {
-		_, cmd := l.open.app.Update(msg)
+		_, cmd := l.open.diff.Update(msg)
 		return cmd
 	}
 	if k, ok := msg.(tea.KeyPressMsg); ok {
@@ -323,10 +323,10 @@ func (l *Log) toggleFlow() tea.Cmd {
 		switch {
 		case l.open == nil:
 			return l.showFlow(-1, nil)
-		case l.open.app.open == nil:
-			return l.showFlow(l.open.app.cursor, nil)
+		case l.open.diff.open == nil:
+			return l.showFlow(l.open.diff.cursor, nil)
 		default:
-			return l.showFlow(l.open.app.cursor, l.open.app.open.view)
+			return l.showFlow(l.open.diff.cursor, l.open.diff.open.view)
 		}
 	}
 	st.Flow = false
@@ -340,39 +340,39 @@ func (l *Log) toggleFlow() tea.Cmd {
 	p, file, line := l.flow.position()
 	screenRow := l.flow.cursor - l.flow.top
 	path := ""
-	if e := l.commits[p]; e.app != nil && file >= 0 {
-		path = e.app.files[file].Path
+	if e := l.commits[p]; e.diff != nil && file >= 0 {
+		path = e.diff.files[file].Path
 	}
 	l.open = nil
-	if l.commits[p].app == nil { // still loading: its files when they come
+	if l.commits[p].diff == nil { // still loading: its files when they come
 		return l.requestCommit(p, "")
 	}
 	if !l.openCommit(p, path) {
 		return nil
 	}
-	app := l.open.app
-	if app.open == nil && file >= 0 {
-		app.cursor = file
-		app.scrollToCursor()
+	d := l.open.diff
+	if d.open == nil && file >= 0 {
+		d.cursor = file
+		d.scrollToCursor()
 	}
-	if app.open != nil && app.open.Path == path {
-		app.open.view.takeOver(l.flow, line, screenRow)
+	if d.open != nil && d.open.Path == path {
+		d.open.view.takeOver(l.flow, line, screenRow)
 	}
 	return nil
 }
 
-// app returns the file selector of commit i, loading its files on first
+// diff returns the file list of commit i, loading its files on first
 // use.
-func (l *Log) app(i int) (*App, error) {
+func (l *Log) diff(i int) (*Diff, error) {
 	e := l.commits[i]
-	if e.app == nil {
+	if e.diff == nil {
 		files, err := l.load(l.ctx, e.Commit)
 		if err != nil {
 			return nil, err
 		}
-		e.app = newApp(l.cfg, files, &e.Commit)
+		e.diff = newDiff(l.cfg, files, &e.Commit)
 	}
-	return e.app, nil
+	return e.diff, nil
 }
 
 // openCommit shows the files of commit i, opening path directly when the
@@ -382,13 +382,13 @@ func (l *Log) openCommit(i int, path string) bool {
 		return false
 	}
 	e := l.commits[i]
-	if _, err := l.app(i); err != nil {
+	if _, err := l.diff(i); err != nil {
 		l.msg = firstLine(err)
 		return false
 	}
-	e.app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
-	if path == "" || !e.app.openPath(path) {
-		e.app.open = nil
+	e.diff.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
+	if path == "" || !e.diff.openPath(path) {
+		e.diff.open = nil
 	}
 	l.open = e
 	l.cursor = i
@@ -403,18 +403,18 @@ func (l *Log) switchCommit(dir int) tea.Cmd {
 	if l.open == nil {
 		return nil
 	}
-	app := l.open.app
+	d := l.open.diff
 	path := ""
-	if app.open != nil {
-		path = app.open.Path
+	if d.open != nil {
+		path = d.open.Path
 	}
 	i := l.cursor + l.order.step(dir)
 	if i < 0 || i >= len(l.commits) {
-		app.setMsg(ends(dir > 0, "last commit", "first commit"))
+		d.setMsg(ends(dir > 0, "last commit", "first commit"))
 		return nil
 	}
-	if app.open != nil {
-		app.open.updateStats()
+	if d.open != nil {
+		d.open.updateStats()
 	}
 	return l.requestCommit(i, path)
 }
@@ -484,9 +484,9 @@ func (l *Log) requestCommit(i int, path string) tea.Cmd {
 		return nil
 	}
 	e := l.commits[i]
-	if e.app != nil {
+	if e.diff != nil {
 		if !l.openCommit(i, path) && l.open != nil {
-			l.open.app.setMsg(l.msg)
+			l.open.diff.setMsg(l.msg)
 		}
 		return nil
 	}
@@ -501,8 +501,8 @@ func (l *Log) requestCommit(i int, path string) tea.Cmd {
 // view.
 func (l *Log) commitLoaded(msg commitLoadedMsg) tea.Cmd {
 	e := l.byHash[msg.hash]
-	if e != nil && e.app == nil && msg.err == nil {
-		e.app = newApp(l.cfg, msg.files, &e.Commit)
+	if e != nil && e.diff == nil && msg.err == nil {
+		e.diff = newDiff(l.cfg, msg.files, &e.Commit)
 	}
 	var cmd tea.Cmd
 	if msg.part != nil {
@@ -541,7 +541,7 @@ type commitsListedMsg struct {
 }
 
 // relistCommits returns the command listing the commits again (r) in the
-// background, as App.relistFiles does the files: the commits stay usable
+// background, as Diff.relistFiles does the files: the commits stay usable
 // meanwhile, and a listing asked for while one runs runs after it.
 func (l *Log) relistCommits(quiet bool) tea.Cmd {
 	if l.relist == nil {
@@ -647,19 +647,19 @@ func (l *Log) filesOfFlow() tea.Cmd {
 	l.cursor = p
 	l.scrollToCursor()
 	e := l.commits[p]
-	if e.app == nil && l.flow.parts[p].err == "" { // its list when it comes
+	if e.diff == nil && l.flow.parts[p].err == "" { // its list when it comes
 		return l.request(e, commitRequest{files: true})
 	}
-	if e.app == nil {
+	if e.diff == nil {
 		l.open, l.files = nil, false
 		return nil
 	}
-	app := e.app
-	app.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
-	app.open = nil
+	d := e.diff
+	d.Update(tea.WindowSizeMsg{Width: l.width, Height: l.height})
+	d.open = nil
 	if file >= 0 {
-		app.cursor = file
-		app.scrollToCursor()
+		d.cursor = file
+		d.scrollToCursor()
 	}
 	l.open, l.files = l.commits[p], true
 	return nil
@@ -675,12 +675,12 @@ func (l *Log) dropMsg(msg string) {
 		l.flow.msg = ""
 	}
 	for _, e := range l.commits {
-		if a := e.app; a != nil {
-			if a.msg == msg {
-				a.msg = ""
+		if d := e.diff; d != nil {
+			if d.msg == msg {
+				d.msg = ""
 			}
-			if a.open != nil && a.open.view != nil && a.open.view.msg == msg {
-				a.open.view.msg = ""
+			if d.open != nil && d.open.view != nil && d.open.view.msg == msg {
+				d.open.view.msg = ""
 			}
 		}
 	}
@@ -692,7 +692,7 @@ func (l *Log) setMsg(msg string) {
 	case l.flowShown():
 		l.flow.msg = msg
 	case l.open != nil:
-		l.open.app.setMsg(msg)
+		l.open.diff.setMsg(msg)
 	default:
 		l.msg = msg
 	}
@@ -727,7 +727,7 @@ func (l *Log) frame() string {
 		return l.flow.frame()
 	}
 	if l.open != nil {
-		return l.open.app.frame()
+		return l.open.diff.frame()
 	}
 	if l.width == 0 {
 		return ""

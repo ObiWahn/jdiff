@@ -44,7 +44,7 @@ func settingsPages() []struct {
 	make func() (tea.Model, *config.Config)
 	keys []string
 } {
-	app := func() (tea.Model, *config.Config) { a := newFlowApp(); return a, a.cfg }
+	app := func() (tea.Model, *config.Config) { d := newFlowDiff(); return d, d.cfg }
 	log := func() (tea.Model, *config.Config) { l, _ := newTestLog(); return l, l.cfg }
 	return []struct {
 		name string
@@ -115,12 +115,12 @@ func TestSettingsOptions(t *testing.T) {
 }
 
 func TestSettingsMoveAndClose(t *testing.T) {
-	a := newTestApp()
-	s := WithSettings(a.cfg, a)
+	d := newTestDiff()
+	s := WithSettings(d.cfg, d)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	pressRoot(s, "o", "j", "j", "k")
-	if s.cursor != 1 || a.cursor != 0 {
-		t.Errorf("j j k: popup cursor %d, want 1; list cursor %d, want 0: keys must not reach the page", s.cursor, a.cursor)
+	if s.cursor != 1 || d.cursor != 0 {
+		t.Errorf("j j k: popup cursor %d, want 1; list cursor %d, want 0: keys must not reach the page", s.cursor, d.cursor)
 	}
 	pressRoot(s, "k", "k", "k")
 	if s.cursor != 0 {
@@ -230,15 +230,15 @@ func TestSettingsKeyAsMarkLetter(t *testing.T) {
 func TestSettingsWrapInFlowBelowPopup(t *testing.T) {
 	probe := newTestModel([]string{"a"}, []string{"b"})
 	full := strings.Repeat("x", probe.contentWidth(80, false)+5)
-	a := NewApp(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
-	a.cfg.Settings.CollapseUnchanged = false
-	s := WithSettings(a.cfg, a)
+	d := NewDiff(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
+	d.cfg.Settings.CollapseUnchanged = false
+	s := WithSettings(d.cfg, d)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(s, "f", "o")
-	before := len(a.flow.rows)
+	before := len(d.flow.rows)
 	pressRoot(s, "w")
-	if len(a.flow.rows) <= before {
-		t.Errorf("w in the popup: %d flow rows, %d before; want more for the wrapped lines", len(a.flow.rows), before)
+	if len(d.flow.rows) <= before {
+		t.Errorf("w in the popup: %d flow rows, %d before; want more for the wrapped lines", len(d.flow.rows), before)
 	}
 	if !strings.Contains(s.frame(), "settings") {
 		t.Errorf("the popup closed on w:\n%s", s.frame())
@@ -368,16 +368,16 @@ func TestLogFlowStayInCommitKeyTells(t *testing.T) {
 }
 
 func TestUntrackedKeyOnPages(t *testing.T) {
-	a := newUntrackedApp()
-	s := WithSettings(a.cfg, a)
+	d := newUntrackedDiff()
+	s := WithSettings(d.cfg, d)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(s, "u")
-	if !a.cfg.Settings.Untracked || len(a.files) != 3 || a.files[2].Path != "x0" {
-		t.Errorf("u in a git diff: %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	if !d.cfg.Settings.Untracked || len(d.files) != 3 || d.files[2].Path != "x0" {
+		t.Errorf("u in a git diff: %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
 	pressRoot(s, "enter", "u")
-	if a.cfg.Settings.Untracked || len(a.files) != 2 {
-		t.Errorf("u in its diff view: %v, %d files", a.cfg.Settings.Untracked, len(a.files))
+	if d.cfg.Settings.Untracked || len(d.files) != 2 {
+		t.Errorf("u in its diff view: %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
 
 	m := newMarkModel()
@@ -456,19 +456,19 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 	})
 	t.Run("file list", func(t *testing.T) {
 		cfg := newCfg(t)
-		a := NewApp(cfg, files)
-		press(a, cfg, "w")
-		if !strings.HasPrefix(a.msg, "state: ") {
-			t.Errorf("msg %q", a.msg)
+		d := NewDiff(cfg, files)
+		press(d, cfg, "w")
+		if !strings.HasPrefix(d.msg, "state: ") {
+			t.Errorf("msg %q", d.msg)
 		}
 	})
 	t.Run("flow", func(t *testing.T) {
 		cfg := newCfg(t)
 		cfg.Settings.Flow = true
-		a := NewApp(cfg, files)
-		press(a, cfg, "enter", "w")
-		if !a.flowShown() || !strings.HasPrefix(a.flow.msg, "state: ") {
-			t.Errorf("flow %v, msg %q", a.flowShown(), a.flow.msg)
+		d := NewDiff(cfg, files)
+		press(d, cfg, "enter", "w")
+		if !d.flowShown() || !strings.HasPrefix(d.flow.msg, "state: ") {
+			t.Errorf("flow %v, msg %q", d.flowShown(), d.flow.msg)
 		}
 	})
 	t.Run("commit list", func(t *testing.T) {
@@ -584,12 +584,12 @@ func TestSettingsFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := NewApp(cfg, []source.File{modified("f00", []string{"x0"}, []string{"x1"}), modified("f01", []string{"x2"}, []string{"x3"})})
-	s := WithSettings(cfg, a)
+	d := NewDiff(cfg, []source.File{modified("f00", []string{"x0"}, []string{"x1"}), modified("f01", []string{"x2"}, []string{"x3"})})
+	s := WithSettings(cfg, d)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	pressRoot(s, "o", "f")
-	if !cfg.Settings.Flow || !a.flowShown() || !s.open {
-		t.Errorf("f: flow %v, shown %v, popup %v", cfg.Settings.Flow, a.flowShown(), s.open)
+	if !cfg.Settings.Flow || !d.flowShown() || !s.open {
+		t.Errorf("f: flow %v, shown %v, popup %v", cfg.Settings.Flow, d.flowShown(), s.open)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
@@ -602,8 +602,8 @@ func TestSettingsFlow(t *testing.T) {
 		t.Errorf("f is not ticked:\n%s", ansi.Strip(s.frame()))
 	}
 	pressRoot(s, "f")
-	if cfg.Settings.Flow || a.flowShown() || !s.open {
-		t.Errorf("f again: flow %v, shown %v, popup %v", cfg.Settings.Flow, a.flowShown(), s.open)
+	if cfg.Settings.Flow || d.flowShown() || !s.open {
+		t.Errorf("f again: flow %v, shown %v, popup %v", cfg.Settings.Flow, d.flowShown(), s.open)
 	}
 
 	m := newMarkModel()

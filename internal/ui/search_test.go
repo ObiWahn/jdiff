@@ -274,9 +274,9 @@ func TestFlowFindText(t *testing.T) {
 		if file < 0 || line < 0 {
 			return fmt.Sprintf("part %d file %d", p, file)
 		}
-		d := f.parts[p].app.files[file].diff
+		a := f.parts[p].diff.files[file].align
 		name := map[side]string{left: "left", right: "right"}[f.active]
-		return fmt.Sprintf("%s %s %s %d", f.parts[p].commit.Hash, f.parts[p].app.files[file].Path, name, d.lineAt(f.active, line))
+		return fmt.Sprintf("%s %s %s %d", f.parts[p].commit.Hash, f.parts[p].diff.files[file].Path, name, a.lineAt(f.active, line))
 	}
 	// "1" is in c3's a.go (old) and c2's a.go (new). The search stays in
 	// the cursor's commit: c3's match, then no further one.
@@ -309,21 +309,21 @@ func TestFlowFindText(t *testing.T) {
 
 func TestFlowFindTextOutsideLog(t *testing.T) {
 	// Without commits, the flow searches all files, without wrapping.
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "a.go", Old: []string{"one", "find"}, New: []string{"one", "other"}, InOld: true, InNew: true},
 		{Path: "b.go", Old: []string{"two"}, New: []string{"two", "find"}, InOld: true, InNew: true},
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "f")
-	a.cfg.Search.Add(config.Query{Text: "find"})
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressDiff(d, "f")
+	d.cfg.Search.Add(config.Query{Text: "find"})
 	for _, want := range []int{0, 1, 1} {
-		pressApp(a, ".")
-		if _, file, _ := a.flow.position(); file != want {
-			t.Errorf(". : on file %d, want %d (%s)", file, want, a.flow.msg)
+		pressDiff(d, ".")
+		if _, file, _ := d.flow.position(); file != want {
+			t.Errorf(". : on file %d, want %d (%s)", file, want, d.flow.msg)
 		}
 	}
-	if a.flow.msg != "/find: no match further down" {
-		t.Errorf("msg %q", a.flow.msg)
+	if d.flow.msg != "/find: no match further down" {
+		t.Errorf("msg %q", d.flow.msg)
 	}
 }
 
@@ -397,15 +397,15 @@ func TestSearchBar(t *testing.T) {
 	}
 }
 
-func TestSearchInAppReachesView(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+func TestSearchInDiffReachesView(t *testing.T) {
+	d := NewDiff(config.Default(), []source.File{
 		{Path: "a.go", Old: numbered("x", 20), New: numbered("y", 20), InOld: true, InNew: true},
 		{Path: "b.go", Old: []string{"p"}, New: []string{"q"}, InOld: true, InNew: true},
 	})
-	s := WithSearch(a.cfg, a)
+	s := WithSearch(d.cfg, d)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(s, "enter", "/", "y7", "enter")
-	if v := a.open.view; v.lineAt(v.active, v.cursor) != 7 || v.active != right {
+	if v := d.open.view; v.lineAt(v.active, v.cursor) != 7 || v.active != right {
 		t.Errorf("search from the file list's diff view: on %v line %d", v.active, v.lineAt(v.active, v.cursor))
 	}
 }
@@ -460,14 +460,14 @@ func TestSearchBarPasteLines(t *testing.T) {
 }
 
 func TestFlowSearchAgainWithoutQuery(t *testing.T) {
-	a := newFlowApp()
-	pressApp(a, "f", ".")
-	if a.flow.msg != "nothing searched yet: / searches" {
-		t.Errorf("%s: msg %q", ".", a.flow.msg)
+	d := newFlowDiff()
+	pressDiff(d, "f", ".")
+	if d.flow.msg != "nothing searched yet: / searches" {
+		t.Errorf("%s: msg %q", ".", d.flow.msg)
 	}
-	pressApp(a, "j", ",")
-	if a.flow.msg != "nothing searched yet: / searches" {
-		t.Errorf("%s: msg %q", ",", a.flow.msg)
+	pressDiff(d, "j", ",")
+	if d.flow.msg != "nothing searched yet: / searches" {
+		t.Errorf("%s: msg %q", ",", d.flow.msg)
 	}
 }
 

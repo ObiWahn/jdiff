@@ -422,13 +422,13 @@ func stale(path string, stamp source.Stamp) bool {
 }
 
 // refreshFile reloads the sides of f that changed on disk into f and into
-// its diff d, unless nil, calling after, unless nil, after each reload of d
+// its diff a, unless nil, calling after, unless nil, after each reload of a
 // so that views follow their cursor line before the next one. It returns the
 // message to show, "" when nothing changed. A side changed when its stamp
 // did, or, while its modification time is recent, its content. A side that
 // cannot be read is checked again next time; a side that became binary keeps
 // its content.
-func refreshFile(f *source.File, d *fileDiff, after func()) string {
+func refreshFile(f *source.File, a *fileAlign, after func()) string {
 	type sideFile struct {
 		path  string
 		stamp *source.Stamp
@@ -456,8 +456,8 @@ func refreshFile(f *source.File, d *fileDiff, after func()) string {
 			continue
 		}
 		*sf.stamp, *sf.lines, reloaded = st, lines, true
-		if d != nil {
-			dropped += d.reload(side(s), lines)
+		if a != nil {
+			dropped += a.reload(side(s), lines)
 			if after != nil {
 				after()
 			}

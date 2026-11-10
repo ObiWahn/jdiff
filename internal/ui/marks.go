@@ -12,7 +12,7 @@ import (
 	"jdiff/internal/keys"
 )
 
-// markJumpMsg asks the file selector to show mark letter in another file of
+// markJumpMsg asks the file list to show mark letter in another file of
 // the diff, at screen row screenRow.
 type markJumpMsg struct {
 	letter    string
@@ -46,25 +46,25 @@ func repoPath(repo, file string) string {
 	return abs
 }
 
-// setMark sets mark letter on the new-file line of displayed row v of d and
+// setMark sets mark letter on the new-file line of displayed row v of a and
 // returns the message to show.
-func setMark(cfg *config.Config, d *fileDiff, letter string, v int) string {
-	line := d.lineAt(right, v)
+func setMark(cfg *config.Config, a *fileAlign, letter string, v int) string {
+	line := a.lineAt(right, v)
 	if line < 0 {
 		return "no line of the new file here"
 	}
-	m := config.Mark{Path: d.markPath, Line: line + 1, Text: strings.TrimSuffix(d.lines[right][line], "\r")}
+	m := config.Mark{Path: a.markPath, Line: line + 1, Text: strings.TrimSuffix(a.lines[right][line], "\r")}
 	if err := cfg.SetMark(letter, m); err != nil {
 		return "marks: " + err.Error()
 	}
 	return fmt.Sprintf("mark %s: %s:%d", letter, m.Path, m.Line)
 }
 
-// markLine returns the new-file line of mark m in d: its line when it still
+// markLine returns the new-file line of mark m in a: its line when it still
 // holds its text, else the nearest line that does, else its line number
 // within the file, with a note. ok is false for an empty new file.
-func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
-	lines := d.lines[right]
+func (a *fileAlign) markLine(m config.Mark) (line int, note string, ok bool) {
+	lines := a.lines[right]
 	if len(lines) == 0 {
 		return 0, "", false
 	}
@@ -82,18 +82,18 @@ func (d *fileDiff) markLine(m config.Mark) (line int, note string, ok bool) {
 	return max(min(want, len(lines)-1), 0), "line changed", true
 }
 
-// reveal returns the cursor on line of side s of d in the screen lines of
+// reveal returns the cursor on line of side s of a in the screen lines of
 // sh, unfolding the block of unchanged rows the line is in.
-func (d *fileDiff) reveal(s side, line int, sh shape) spot {
-	row := d.rowOf[s][line]
-	for _, b := range d.blocks {
-		if row >= b.start && row < b.end && !d.blockOpen(b) {
-			d.foldOpen[d.rows[b.start].Left] = true
-			d.buildView()
+func (a *fileAlign) reveal(s side, line int, sh shape) spot {
+	row := a.rowOf[s][line]
+	for _, b := range a.blocks {
+		if row >= b.start && row < b.end && !a.blockOpen(b) {
+			a.foldOpen[a.rows[b.start].Left] = true
+			a.buildView()
 			break
 		}
 	}
-	return d.spotOf(s, line, sh)
+	return a.spotOf(s, line, sh)
 }
 
 // markMsg returns the message for having jumped to mark letter.

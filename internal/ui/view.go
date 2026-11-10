@@ -150,8 +150,8 @@ func dropJoiners(text string, spans, matches []diff.Span) (string, []diff.Span, 
 
 // sideStyles returns the styles of side s for whole-line changes, the
 // unchanged parts of changed lines, changed words and changed whitespace.
-func (d *fileDiff) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) {
-	t := d.cfg.Theme
+func (a *fileAlign) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Style) {
+	t := a.cfg.Theme
 	if s == left {
 		return t.Minus, t.MinusNonEmph, t.MinusEmph, t.MinusIndent
 	}
@@ -188,8 +188,8 @@ func (m *Model) frame() string {
 	return b.String()
 }
 
-func (d *fileDiff) numWidth() int {
-	return len(strconv.Itoa(max(len(d.lines[left]), len(d.lines[right]), 1)))
+func (a *fileAlign) numWidth() int {
+	return len(strconv.Itoa(max(len(a.lines[left]), len(a.lines[right]), 1)))
 }
 
 // header renders the file names above both panes.
@@ -205,11 +205,11 @@ func (m *Model) screenLine(s sline, cursor bool) string {
 
 // render renders screen line s in layout lo, marked as the cursor line when
 // cursor is set.
-func (d *fileDiff) render(s sline, cursor bool, lo layout) string {
+func (a *fileAlign) render(s sline, cursor bool, lo layout) string {
 	if lo.unified {
-		return d.unifiedLine(s.v, s.sub, cursor, lo)
+		return a.unifiedLine(s.v, s.sub, cursor, lo)
 	}
-	return d.bodyRow(s.v, s.sub, cursor, lo)
+	return a.bodyRow(s.v, s.sub, cursor, lo)
 }
 
 // startCol returns the first column of a line shown in a pane width columns
@@ -225,14 +225,14 @@ func startCol(piece, width int, lo layout) int {
 // marker, old and new line number, separator and the content. Unchanged
 // lines show both numbers, changed ones the number of their side, further
 // pieces of a wrapped line none.
-func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
-	if d.view[v].hidden > 0 {
-		return d.fold(v, cursor, lo.width)
+func (a *fileAlign) unifiedLine(v, sub int, cursor bool, lo layout) string {
+	if a.view[v].hidden > 0 {
+		return a.fold(v, cursor, lo.width)
 	}
-	t := d.cfg.Theme
-	row := d.rows[d.view[v].row]
-	s, piece := d.unifiedPiece(v, sub, lo.shape)
-	nw := d.numWidth()
+	t := a.cfg.Theme
+	row := a.rows[a.view[v].row]
+	s, piece := a.unifiedPiece(v, sub, lo.shape)
+	nw := a.numWidth()
 	changed := row.Kind != diff.Equal
 	number := func(line int, of side) string {
 		if line < 0 || (changed && of != s) || piece > 0 {
@@ -241,23 +241,23 @@ func (d *fileDiff) unifiedLine(v, sub int, cursor bool, lo layout) string {
 		return fmt.Sprintf("%*d", nw, line+1)
 	}
 	nums := number(row.Left, left) + " " + number(row.Right, right)
-	pending := piece == 0 && d.isPending(row) && (row.Kind == diff.Equal || d.pending.side == s)
+	pending := piece == 0 && a.isPending(row) && (row.Kind == diff.Equal || a.pending.side == s)
 	line := lineOf(row, s)
-	_, moved := d.movedTo(s, line)
-	gutter := d.gutter(row, s, changed, pending, moved, piece > 0, nums, t.Decoration, cursor, cursor)
-	width := d.contentWidth(lo.width, true)
-	return gutter + d.content(s, row, line, width, cursor, moved, startCol(piece, width, lo), lo.wrap == 0)
+	_, moved := a.movedTo(s, line)
+	gutter := a.gutter(row, s, changed, pending, moved, piece > 0, nums, t.Decoration, cursor, cursor)
+	width := a.contentWidth(lo.width, true)
+	return gutter + a.content(s, row, line, width, cursor, moved, startCol(piece, width, lo), lo.wrap == 0)
 }
 
 // bodyRow renders line sub of displayed row v side by side, marked as the
 // cursor row when cursor is set.
-func (d *fileDiff) bodyRow(v, sub int, cursor bool, lo layout) string {
-	if d.view[v].hidden > 0 {
-		return d.fold(v, cursor, lo.width)
+func (a *fileAlign) bodyRow(v, sub int, cursor bool, lo layout) string {
+	if a.view[v].hidden > 0 {
+		return a.fold(v, cursor, lo.width)
 	}
-	w, nw := (lo.width-1)/2, d.numWidth()
-	return d.cell(left, v, sub, w, nw, cursor, lo) + d.cfg.Theme.Decoration.Render("│") +
-		d.cell(right, v, sub, w, nw, cursor, lo)
+	w, nw := (lo.width-1)/2, a.numWidth()
+	return a.cell(left, v, sub, w, nw, cursor, lo) + a.cfg.Theme.Decoration.Render("│") +
+		a.cell(right, v, sub, w, nw, cursor, lo)
 }
 
 func (m *Model) status() string {
@@ -276,14 +276,14 @@ func (m *Model) status() string {
 
 // fold renders displayed row v, a fold of unchanged rows, across both panes
 // of a view width columns wide.
-func (d *fileDiff) fold(v int, cursor bool, width int) string {
-	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", d.view[v].hidden)
+func (a *fileAlign) fold(v int, cursor bool, width int) string {
+	label := fmt.Sprintf(" ⋯ %d unchanged lines ⋯ ", a.view[v].hidden)
 	if cursor {
-		label = d.cfg.Theme.Cursor.Render(label)
+		label = a.cfg.Theme.Cursor.Render(label)
 	}
 	side := max(width-ansi.StringWidth(label), 0)
-	line := d.cfg.Theme.Decoration.Render(strings.Repeat("─", side/2)) + label +
-		d.cfg.Theme.Decoration.Render(strings.Repeat("─", side-side/2))
+	line := a.cfg.Theme.Decoration.Render(strings.Repeat("─", side/2)) + label +
+		a.cfg.Theme.Decoration.Render(strings.Repeat("─", side-side/2))
 	return ansi.Truncate(line, width, "")
 }
 
@@ -292,10 +292,10 @@ func (d *fileDiff) fold(v int, cursor bool, width int) string {
 // number, and a side without that piece is empty. On the cursor row both
 // sides are bold, and the line number of the active side is in the cursor
 // style.
-func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo layout) string {
-	t := d.cfg.Theme
-	row := d.rows[d.view[v].row]
-	line := d.lineAt(s, v)
+func (a *fileAlign) cell(s side, v, piece, width, numWidth int, cursor bool, lo layout) string {
+	t := a.cfg.Theme
+	row := a.rows[a.view[v].row]
+	line := a.lineAt(s, v)
 	changed := row.Kind != diff.Equal && line >= 0
 	sepStyle := t.NumLeft
 	if s == right {
@@ -304,23 +304,23 @@ func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo l
 
 	contentWidth := max(width-numWidth-3, 0)
 	num := strings.Repeat(" ", numWidth)
-	if line >= 0 && piece >= d.pieces(s, line, lo.shape) {
+	if line >= 0 && piece >= a.pieces(s, line, lo.shape) {
 		// The other side's line takes more pieces.
 		return strings.Repeat(" ", 1+numWidth) + sepStyle.Render("│") + strings.Repeat(" ", 1+contentWidth)
 	}
 	if line >= 0 && piece == 0 {
 		num = fmt.Sprintf("%*d", numWidth, line+1)
 	}
-	pending := piece == 0 && d.pending != nil && d.pending.side == s && d.pending.line == line && line >= 0
-	_, moved := d.movedTo(s, line)
-	gutter := d.gutter(row, s, changed, pending, moved, piece > 0 && line >= 0, num, sepStyle, cursor,
+	pending := piece == 0 && a.pending != nil && a.pending.side == s && a.pending.line == line && line >= 0
+	_, moved := a.movedTo(s, line)
+	gutter := a.gutter(row, s, changed, pending, moved, piece > 0 && line >= 0, num, sepStyle, cursor,
 		cursor && s == lo.active)
 
 	if line < 0 {
 		return gutter + t.Filler.Render(strings.Repeat("╱", contentWidth))
 	}
 
-	return gutter + d.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo), lo.wrap == 0)
+	return gutter + a.content(s, row, line, contentWidth, cursor, moved, startCol(piece, contentWidth, lo), lo.wrap == 0)
 }
 
 // gutter renders what precedes a line of side s in row: the marker, the line
@@ -329,12 +329,12 @@ func (d *fileDiff) cell(s side, v, piece, width, numWidth int, cursor bool, lo l
 // or + on changed lines, in the moved style for moved ones; changed lines
 // also have their side's number style. On the cursor line marker and numbers
 // are bold, with active the numbers are in the cursor style.
-func (d *fileDiff) gutter(row diff.Row, s side, changed, pending, moved, cont bool, nums string,
+func (a *fileAlign) gutter(row diff.Row, s side, changed, pending, moved, cont bool, nums string,
 	sepStyle lipgloss.Style, cursor, active bool) string {
-	t := d.cfg.Theme
-	lineStyle, _, _, _ := d.sideStyles(s)
+	t := a.cfg.Theme
+	lineStyle, _, _, _ := a.sideStyles(s)
 	if moved {
-		lineStyle = d.movedStyle(s)
+		lineStyle = a.movedStyle(s)
 	}
 	numStyle := t.NumZero
 	marker := " "
@@ -377,11 +377,11 @@ func boldIf(style lipgloss.Style, on bool) lipgloss.Style {
 }
 
 // movedStyle returns the style of moved lines of side s.
-func (d *fileDiff) movedStyle(s side) lipgloss.Style {
+func (a *fileAlign) movedStyle(s side) lipgloss.Style {
 	if s == left {
-		return d.cfg.Theme.MinusMoved
+		return a.cfg.Theme.MinusMoved
 	}
-	return d.cfg.Theme.PlusMoved
+	return a.cfg.Theme.PlusMoved
 }
 
 // content renders line of side s, shown in row, width columns wide with
@@ -389,35 +389,35 @@ func (d *fileDiff) movedStyle(s side) lipgloss.Style {
 // is bold; a moved line is drawn in the moved style, without emphasis.
 // With cut, a line that goes on past the pane ends in Extends, one with
 // text scrolled out to the left starts with Precedes.
-func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved bool, from int, cut bool) string {
-	t := d.cfg.Theme
-	lineStyle, nonEmph, emph, indent := d.sideStyles(s)
+func (a *fileAlign) content(s side, row diff.Row, line, width int, cursor, moved bool, from int, cut bool) string {
+	t := a.cfg.Theme
+	lineStyle, nonEmph, emph, indent := a.sideStyles(s)
 	st := lineStyles{base: boldIf(t.Zero, cursor && row.Kind == diff.Equal), ws: t.Whitespace,
-		showAll: d.cfg.Settings.ShowWhitespaces, plainSpace: !d.cfg.Settings.MarkWhitespace,
-		trailing: t.TrailingWhitespace, showTrailing: d.cfg.Settings.ShowTrailing, lineEnd: d.cfg.Settings.LineEnd,
-		cr: d.cfg.Settings.CREnd, showCR: d.cfg.Settings.ShowCR, hidden: t.HiddenChar}
+		showAll: a.cfg.Settings.ShowWhitespaces, plainSpace: !a.cfg.Settings.MarkWhitespace,
+		trailing: t.TrailingWhitespace, showTrailing: a.cfg.Settings.ShowTrailing, lineEnd: a.cfg.Settings.LineEnd,
+		cr: a.cfg.Settings.CREnd, showCR: a.cfg.Settings.ShowCR, hidden: t.HiddenChar}
 	var spans []diff.Span
 	switch {
 	case row.Kind == diff.Equal:
 	case moved:
-		st.base = d.movedStyle(s)
+		st.base = a.movedStyle(s)
 	case row.Kind == diff.Change:
-		st.base, st.emph, st.space, spans = nonEmph, emph, indent, d.emphOf(d.rowOf[s][line], s)
-		if !d.cfg.Settings.BoldChanges {
+		st.base, st.emph, st.space, spans = nonEmph, emph, indent, a.emphOf(a.rowOf[s][line], s)
+		if !a.cfg.Settings.BoldChanges {
 			st.emph, st.space = st.emph.UnsetBold(), st.space.UnsetBold()
 		}
 	default:
 		st.base = lineStyle
 	}
-	if m := matcherOf(d.cfg.Search.Query); m != nil && (d.cfg.Settings.SearchAll || row.Kind != diff.Equal) {
-		st.matches, st.match = m.spans(d.lines[s][line]), t.Search
+	if m := matcherOf(a.cfg.Search.Query); m != nil && (a.cfg.Settings.SearchAll || row.Kind != diff.Equal) {
+		st.matches, st.match = m.spans(a.lines[s][line]), t.Search
 	}
 	// The pieces of a wrapped line are drawn from one highlight of it.
-	key := highlightKey{line, d.aligns, cursor, moved, d.cfg.Search.Query, d.cfg.Settings, t}
-	if c := &d.highlighted[s]; !c.ok || c.key != key {
-		*c = highlightCache{key, highlight(d.lines[s][line], spans, st), true}
+	key := highlightKey{line, a.aligns, cursor, moved, a.cfg.Search.Query, a.cfg.Settings, t}
+	if c := &a.highlighted[s]; !c.ok || c.key != key {
+		*c = highlightCache{key, highlight(a.lines[s][line], spans, st), true}
 	}
-	content := d.highlighted[s].out
+	content := a.highlighted[s].out
 	plain := lipgloss.NewStyle()
 	if !cut { // a piece of a wrapped line
 		return pad(ansi.Cut(content, from, from+width), width, plain)
@@ -428,12 +428,12 @@ func (d *fileDiff) content(s side, row diff.Row, line, width int, cursor, moved 
 	content = fit(cutLeft(content, from), width)
 	// The edges say where the line goes on.
 	if width >= 2 {
-		mark := d.cfg.Theme.Overflow
+		mark := a.cfg.Theme.Overflow
 		if full > from+width {
-			content = fit(content, width-1) + mark.Render(d.cfg.Settings.Extends)
+			content = fit(content, width-1) + mark.Render(a.cfg.Settings.Extends)
 		}
 		if from > 0 && full > 0 {
-			content = mark.Render(d.cfg.Settings.Precedes) + fit(cutLeft(content, 1), width-1)
+			content = mark.Render(a.cfg.Settings.Precedes) + fit(cutLeft(content, 1), width-1)
 		}
 	}
 	return content

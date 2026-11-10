@@ -457,8 +457,8 @@ func (s *DiffSwitch) share() {
 // current returns the arguments of the git diff shown, and whether the view
 // shows one.
 func (s *DiffSwitch) current() ([]string, bool) {
-	if a, ok := s.view.(*App); ok && a.gitDiff != nil {
-		return a.diffArgs, true
+	if d, ok := s.view.(*Diff); ok && d.gitDiff != nil {
+		return d.diffArgs, true
 	}
 	return nil, false
 }
@@ -668,11 +668,11 @@ func (s *DiffSwitch) showDiff(msg diffListedMsg) tea.Cmd {
 	if v, ok := s.view.(interface{ stop() }); ok {
 		v.stop()
 	}
-	a := NewApp(s.cfg, files).WithGitDiff(args, s.gitDiff)
+	d := NewDiff(s.cfg, files).WithGitDiff(args, s.gitDiff)
 	if len(files) > 0 {
-		a.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
+		d.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 	}
-	s.view, s.Model = a, s.wrap(a)
+	s.view, s.Model = d, s.wrap(d)
 	s.share()
 	s.Model.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
 	cmd := s.Model.Init()

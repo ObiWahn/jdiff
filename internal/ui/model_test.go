@@ -483,14 +483,14 @@ func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
 		t.Errorf("t: setting %v, row %q; want the trailing spaces shown", m.cfg.Settings.ShowTrailing,
 			ansi.Strip(m.screenLine(m.screen[0], false)))
 	}
-	a := newFlowApp()
-	setOption(a, a.cfg, "t")
-	if !a.cfg.Settings.ShowTrailing {
+	d := newFlowDiff()
+	setOption(d, d.cfg, "t")
+	if !d.cfg.Settings.ShowTrailing {
 		t.Error("t in the file list did not toggle show_trailing")
 	}
-	pressApp(a, "f")
-	setOption(a, a.cfg, "t")
-	if a.cfg.Settings.ShowTrailing {
+	pressDiff(d, "f")
+	setOption(d, d.cfg, "t")
+	if d.cfg.Settings.ShowTrailing {
 		t.Error("t in the flow view did not toggle show_trailing")
 	}
 
@@ -727,14 +727,14 @@ func TestMarkWhitespaceToggle(t *testing.T) {
 	if m.cfg.Settings.MarkWhitespace || strings.Contains(ansi.Strip(row), "·") {
 		t.Errorf("W: setting %v, row %q; want the changed space plain", m.cfg.Settings.MarkWhitespace, ansi.Strip(row))
 	}
-	a := newFlowApp()
-	setOption(a, a.cfg, "ctrl+w")
-	if a.cfg.Settings.MarkWhitespace {
+	d := newFlowDiff()
+	setOption(d, d.cfg, "ctrl+w")
+	if d.cfg.Settings.MarkWhitespace {
 		t.Error("W in the file list did not toggle mark_whitespace")
 	}
-	pressApp(a, "f")
-	setOption(a, a.cfg, "ctrl+w")
-	if !a.cfg.Settings.MarkWhitespace {
+	pressDiff(d, "f")
+	setOption(d, d.cfg, "ctrl+w")
+	if !d.cfg.Settings.MarkWhitespace {
 		t.Error("W in the flow view did not toggle mark_whitespace")
 	}
 }
@@ -932,24 +932,24 @@ func TestCursorLine(t *testing.T) {
 
 func TestReloadCarriesAnchors(t *testing.T) {
 	m := newTestModel(numbered("x", 10), numbered("x", 10))
-	d := m.fileDiff
-	d.addAnchor(diff.Anchor{Left: 3, Right: 5}, right, shape{})
-	d.addAnchor(diff.Anchor{Left: 7, Right: 8}, right, shape{})
+	a := m.fileAlign
+	a.addAnchor(diff.Anchor{Left: 3, Right: 5}, right, shape{})
+	a.addAnchor(diff.Anchor{Left: 7, Right: 8}, right, shape{})
 
 	// Two lines inserted above both anchors on the right: they move along.
-	if dropped := d.reload(right, append([]string{"new1", "new2"}, numbered("x", 10)...)); dropped != 0 {
+	if dropped := a.reload(right, append([]string{"new1", "new2"}, numbered("x", 10)...)); dropped != 0 {
 		t.Errorf("insert: %d anchors dropped, want 0", dropped)
 	}
-	if want := []diff.Anchor{{Left: 3, Right: 7}, {Left: 7, Right: 10}}; !slices.Equal(d.anchors, want) {
-		t.Errorf("insert: anchors %v, want %v", d.anchors, want)
+	if want := []diff.Anchor{{Left: 3, Right: 7}, {Left: 7, Right: 10}}; !slices.Equal(a.anchors, want) {
+		t.Errorf("insert: anchors %v, want %v", a.anchors, want)
 	}
 	// The line of the second anchor changed: that anchor is dropped.
-	lines := slices.Clone(d.lines[right])
+	lines := slices.Clone(a.lines[right])
 	lines[10] = "changed"
-	if dropped := d.reload(right, lines); dropped != 1 || !slices.Equal(d.anchors, []diff.Anchor{{Left: 3, Right: 7}}) {
-		t.Errorf("change: %d dropped, anchors %v; want 1 and L4↔R8 kept", dropped, d.anchors)
+	if dropped := a.reload(right, lines); dropped != 1 || !slices.Equal(a.anchors, []diff.Anchor{{Left: 3, Right: 7}}) {
+		t.Errorf("change: %d dropped, anchors %v; want 1 and L4↔R8 kept", dropped, a.anchors)
 	}
-	for _, r := range d.rows {
+	for _, r := range a.rows {
 		if r.Anchored && (r.Left != 3 || r.Right != 7) {
 			t.Errorf("rows not realigned: anchored row %+v", r)
 		}
@@ -958,21 +958,21 @@ func TestReloadCarriesAnchors(t *testing.T) {
 
 func TestReloadCancelsMarkAndKeepsFolds(t *testing.T) {
 	// Changes at both ends; the fold between them starts at left line 4, x3.
-	a := append(append([]string{"old"}, numbered("x", 20)...), "old2")
-	m := newTestModel(a, append(append([]string{"new"}, numbered("x", 20)...), "new2"))
-	d := m.fileDiff
+	old := append(append([]string{"old"}, numbered("x", 20)...), "old2")
+	m := newTestModel(old, append(append([]string{"new"}, numbered("x", 20)...), "new2"))
+	a := m.fileAlign
 	press(m, " ") // open the fold
-	if len(folds(d.view)) != 0 {
-		t.Fatalf("fold not opened: %v", folds(d.view))
+	if len(folds(a.view)) != 0 {
+		t.Fatalf("fold not opened: %v", folds(a.view))
 	}
-	d.pending = &mark{left, 20}
+	a.pending = &mark{left, 20}
 	// Lines inserted into the change at the top on the left: the open fold
 	// now starts at left line 7, still x3.
-	d.reload(left, append([]string{"y0", "y1", "y2"}, a...))
-	if d.pending != nil || d.replace != nil {
-		t.Errorf("reload kept the mark %v or prompt %v", d.pending, d.replace)
+	a.reload(left, append([]string{"y0", "y1", "y2"}, old...))
+	if a.pending != nil || a.replace != nil {
+		t.Errorf("reload kept the mark %v or prompt %v", a.pending, a.replace)
 	}
-	if got := folds(d.view); len(got) != 0 {
+	if got := folds(a.view); len(got) != 0 {
 		t.Errorf("the opened fold closed after the reload: %v", got)
 	}
 }
@@ -1143,14 +1143,14 @@ func TestBoldChangesToggle(t *testing.T) {
 	}
 
 	// The file list and the flow view toggle the same setting.
-	a := newFlowApp()
-	setOption(a, a.cfg, "b")
-	if a.cfg.Settings.BoldChanges {
+	d := newFlowDiff()
+	setOption(d, d.cfg, "b")
+	if d.cfg.Settings.BoldChanges {
 		t.Error("b in the file list did not toggle bold_changes")
 	}
-	pressApp(a, "f")
-	setOption(a, a.cfg, "b")
-	if !a.cfg.Settings.BoldChanges {
+	pressDiff(d, "f")
+	setOption(d, d.cfg, "b")
+	if !d.cfg.Settings.BoldChanges {
 		t.Error("b in the flow view did not toggle bold_changes")
 	}
 }
@@ -1202,7 +1202,7 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	// Anchoring X to Y splits the block: an inserted line, then the
 	// anchored change. Its old line X is the block's first screen line.
 	m := newTestModel([]string{"a", "X", "b"}, []string{"a", "ins", "Y", "b"})
-	m.fileDiff.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
+	m.fileAlign.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
 	m.realign()
 	setOption(m, m.cfg, "s")
 	press(m, "home", "]")
@@ -1279,41 +1279,41 @@ func TestMarkPromptStays(t *testing.T) {
 }
 
 func TestFlowMarkPromptStays(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		modified("x0", numbered("x", 10), numbered("y", 10)),
 		modified("x1", []string{"x"}, []string{"y"}),
 	})
-	a.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	view := func() string { return ansi.Strip(a.frame()) }
-	pressApp(a, "f", "j", "enter")
-	prompt := a.flow.msg
+	d.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	view := func() string { return ansi.Strip(d.frame()) }
+	pressDiff(d, "f", "j", "enter")
+	prompt := d.flow.msg
 	if !strings.HasPrefix(prompt, "marked ") {
 		t.Fatalf("enter: msg %q", prompt)
 	}
 	for _, k := range []string{"j", "k", "tab"} {
-		pressApp(a, k)
+		pressDiff(d, k)
 		if !strings.Contains(view(), prompt) {
 			t.Errorf("%s: no prompt:\n%s", k, view())
 		}
 	}
 	// Also with the cursor in another file than the mark.
-	pressApp(a, "n")
-	if _, file, _ := a.flow.position(); file != 1 || !strings.Contains(view(), prompt) {
+	pressDiff(d, "n")
+	if _, file, _ := d.flow.position(); file != 1 || !strings.Contains(view(), prompt) {
 		t.Errorf("n: file %d:\n%s", file, view())
 	}
-	pressApp(a, "'", "q")
+	pressDiff(d, "'", "q")
 	if !strings.Contains(view(), "no mark q") {
 		t.Errorf("' q:\n%s", view())
 	}
-	pressApp(a, "j")
+	pressDiff(d, "j")
 	if !strings.Contains(view(), prompt) {
 		t.Errorf("after the message:\n%s", view())
 	}
-	pressApp(a, "esc")
+	pressDiff(d, "esc")
 	if !strings.Contains(view(), "mark cancelled") {
 		t.Errorf("esc:\n%s", view())
 	}
-	pressApp(a, "k")
+	pressDiff(d, "k")
 	if strings.Contains(view(), "marked ") {
 		t.Errorf("mark cancelled, k:\n%s", view())
 	}
@@ -1386,21 +1386,21 @@ func TestOtherKeyCancelsReplace(t *testing.T) {
 }
 
 func TestFlowOtherKeyCancelsReplace(t *testing.T) {
-	a := NewApp(config.Default(), []source.File{
+	d := NewDiff(config.Default(), []source.File{
 		modified("x0", []string{"1", "2", "3", "4"}, []string{"w", "x", "y", "z"}),
 		modified("x1", []string{"x"}, []string{"y"}),
 	})
-	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	pressApp(a, "enter")
-	m := a.open.view
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressDiff(d, "enter")
+	m := d.open.view
 	newReplacePrompt(t, m)
-	pressApp(a, "f", "enter")
-	if a.flow.replacing == nil || m.replace == nil {
-		t.Fatalf("no replace prompt in the flow: msg %q", a.flow.msg)
+	pressDiff(d, "f", "enter")
+	if d.flow.replacing == nil || m.replace == nil {
+		t.Fatalf("no replace prompt in the flow: msg %q", d.flow.msg)
 	}
-	pressApp(a, "j")
-	if a.flow.replacing != nil || m.replace != nil || a.flow.msg != "" {
-		t.Errorf("j: replacing %v, replace %v, msg %q; want the question gone", a.flow.replacing, m.replace, a.flow.msg)
+	pressDiff(d, "j")
+	if d.flow.replacing != nil || m.replace != nil || d.flow.msg != "" {
+		t.Errorf("j: replacing %v, replace %v, msg %q; want the question gone", d.flow.replacing, m.replace, d.flow.msg)
 	}
 	if want := []diff.Anchor{{Left: 1, Right: 2}}; !slices.Equal(m.anchors, want) {
 		t.Errorf("anchors %v, want %v", m.anchors, want)
@@ -1411,7 +1411,7 @@ func TestFlowOtherKeyCancelsReplace(t *testing.T) {
 func TestQuitKeys(t *testing.T) {
 	model := func() tea.Model { return newTestModel([]string{"x0"}, []string{"x1"}) }
 	commits := func() tea.Model { l, _ := newTestLog(); return l }
-	files := func() tea.Model { return newFlowApp() }
+	files := func() tea.Model { return newFlowDiff() }
 	help := func() tea.Model { return WithHelp(config.Default(), model()) }
 	marks := func() tea.Model { return WithMarks(config.Default(), model()) }
 	search := func() tea.Model { return newSearchBar(model()) }

@@ -377,7 +377,7 @@ func TestLoadDirs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := m.(*ui.App); !ok {
+	if _, ok := m.(*ui.Diff); !ok {
 		t.Fatalf("two directories: %T, want the file selector", m)
 	}
 	if view := shown(m); !strings.Contains(view, "f01") || strings.Contains(view, "f02") {
