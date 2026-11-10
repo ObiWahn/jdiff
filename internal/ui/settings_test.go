@@ -755,7 +755,7 @@ func TestKeybindingsDoc(t *testing.T) {
 			}
 		}
 	}
-	p, err := keys.Read(keys.BuiltinText)
+	p, err := keys.Parse(keys.BuiltinText)
 	if err != nil {
 		t.Fatal(err)
 	}

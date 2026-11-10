@@ -49,53 +49,54 @@ var settingTable = []settingOption{
 }
 
 // settingOptions returns the lines of the settings popup, with their keys and
-// what they do from k, in its order.
-func settingOptions(k *keys.Map) []settingOption {
-	options, _ := orderSettings(k.Order(), settingWords(k, settingTable), nil)
+// what they do from km, in its order.
+func settingOptions(km *keys.Map) []settingOption {
+	options, _ := orderSettings(km.Order(), settingWords(km, settingTable), nil)
 	return options
 }
 
-// helpLines returns the lines of the help popup, from k, the settings in its
+// helpLines returns the lines of the help popup, from km, the settings in its
 // order.
-func helpLines(k *keys.Map) []binding {
-	_, bs := orderSettings(k.Order(), settingWords(k, settingTable), helpBindings(k))
+func helpLines(km *keys.Map) []binding {
+	_, bs := orderSettings(km.Order(), settingWords(km, settingTable), helpBindings(km))
 	return bs
 }
 
-// settingWords returns options with their keys and what they do from k.
-func settingWords(k *keys.Map, options []settingOption) []settingOption {
+// settingWords returns options with their keys and what they do from km.
+func settingWords(km *keys.Map, options []settingOption) []settingOption {
 	options = slices.Clone(options)
 	for i := range options {
-		r := k.Row(options[i].action)
+		r := km.Row(options[i].action)
 		if len(r.Keys) > 0 {
 			options[i].key = r.Keys[0]
 		}
-		options[i].what = k.Text(r.Setting)
+		options[i].what = km.Text(r.Setting)
 	}
 	return options
 }
 
-// isAction reports whether key k does action on all pages of k: the popups
+// isAction reports whether key k does action on all pages of km: the popups
 // over them open and close on such keys.
 func isAction(km *keys.Map, k, action string) bool {
 	return km.Key(keys.Everywhere, k).Action == action
 }
 
 // orderSettings returns options and bindings with the settings in the order of
-// keys. Options not in keys, as c and C, which keybindings.toml lists with the
-// flow view, stay behind, as they are; the other bindings stay where they are.
-func orderSettings(keys []string, options []settingOption, bs []binding) ([]settingOption, []binding) {
+// the keys order. Options not in it, as c and C, which keybindings.toml lists
+// with the flow view, stay behind, as they are; the other bindings stay where
+// they are.
+func orderSettings(order []string, options []settingOption, bs []binding) ([]settingOption, []binding) {
 	rank := func(k string) int {
-		if i := slices.Index(keys, k); i >= 0 {
+		if i := slices.Index(order, k); i >= 0 {
 			return i
 		}
-		return len(keys)
+		return len(order)
 	}
 	options = slices.Clone(options)
 	slices.SortStableFunc(options, func(a, b settingOption) int { return cmp.Compare(rank(a.key), rank(b.key)) })
 
 	isSetting := func(b binding) bool {
-		return b.key != "" && slices.Contains(keys, b.key) && slices.ContainsFunc(options, func(o settingOption) bool { return o.key == b.key })
+		return b.key != "" && slices.Contains(order, b.key) && slices.ContainsFunc(options, func(o settingOption) bool { return o.key == b.key })
 	}
 	bs = slices.Clone(bs)
 	var at []int
@@ -117,7 +118,7 @@ func orderSettings(keys []string, options []settingOption, bs []binding) ([]sett
 // that does not exist or stands twice, a setting missing or without words, and
 // the problems of its keys by themselves (keys.Map.Problems).
 func keyOrderProblems(text string) []string {
-	p, err := keys.Read(text)
+	p, err := keys.Parse(text)
 	if err != nil {
 		return []string{err.Error()}
 	}

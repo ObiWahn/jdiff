@@ -446,10 +446,10 @@ func (f *Flow) refresh(reload func(after func(*fileAlign))) {
 }
 
 // followFiles keeps the cursor on its file of part when the files were
-// listed again, from old to new: on the file's row, or for a file that is
+// listed again, from before to after: on the file's row, or for a file that is
 // gone on the bar of the next file left, else of the last. The rows are
 // rebuilt next.
-func (f *Flow) followFiles(part int, old, new []*fileEntry) {
+func (f *Flow) followFiles(part int, before, after []*fileEntry) {
 	if f.cursor >= len(f.rows) {
 		return
 	}
@@ -458,8 +458,8 @@ func (f *Flow) followFiles(part int, old, new []*fileEntry) {
 		return
 	}
 	f.stale = true
-	for i := r.file; i < len(old); i++ {
-		if j := slices.Index(new, old[i]); j >= 0 {
+	for i := r.file; i < len(before); i++ {
+		if j := slices.Index(after, before[i]); j >= 0 {
 			if i == r.file {
 				r.file = j
 			} else {
@@ -468,7 +468,7 @@ func (f *Flow) followFiles(part int, old, new []*fileEntry) {
 			return
 		}
 	}
-	*r = flowRow{flowFile, part, len(new) - 1, 0, 0}
+	*r = flowRow{flowFile, part, len(after) - 1, 0, 0}
 }
 
 // followParts keeps the cursor on its commit when the commits were listed

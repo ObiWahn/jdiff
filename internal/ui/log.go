@@ -69,11 +69,11 @@ type Log struct {
 	commits []*commitEntry
 	order   historyOrder // of commits
 	list
-	open   *commitEntry // commit whose files are shown, nil for the list
-	files  bool         // in flow mode: the file list of open, not the flow view
-	flow   *Flow        // all commits one after the other
-	msg    string
-	prefix string // the action, "jump", while waiting for the letter of a mark
+	open     *commitEntry // commit whose files are shown, nil for the list
+	fileList bool         // in flow mode: the file list of open, not the flow view
+	flow     *Flow        // all commits one after the other
+	msg      string
+	prefix   string // the action, "jump", while waiting for the letter of a mark
 }
 
 // NewLog returns the commit list for commits of branch, in the order of git
@@ -205,7 +205,7 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 		if l.flowShown() {
 			return l.filesOfFlow()
 		}
-		l.open, l.files = nil, false
+		l.open, l.fileList = nil, false
 		return nil
 	case flowAtMsg:
 		return l.showFlow(int(msg), nil)
@@ -293,7 +293,7 @@ func (l *Log) key(k string) tea.Cmd {
 }
 
 // flowShown reports whether the flow view is shown.
-func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && !l.files }
+func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && !l.fileList }
 
 // showFlow shows the flow view on file of the commit under the cursor,
 // where its diff view from leaves it, or on its bar for from nil and on the
@@ -305,7 +305,7 @@ func (l *Log) showFlow(file int, from *FileDiff) tea.Cmd {
 		l.msg = "no commits"
 		return nil
 	}
-	l.open, l.files = l.commits[l.cursor], false
+	l.open, l.fileList = l.commits[l.cursor], false
 	l.flow.width, l.flow.height = l.width, l.height
 	l.flow.showFrom(l.cursor, file, from)
 	return l.flow.nextLoad()
@@ -331,8 +331,8 @@ func (l *Log) toggleFlow() tea.Cmd {
 	if l.open == nil {
 		return nil
 	}
-	if l.files { // the file list stays
-		l.files = false
+	if l.fileList { // the file list stays
+		l.fileList = false
 		return nil
 	}
 	p, file, line := l.flow.position()
@@ -645,7 +645,7 @@ func (l *Log) filesOfFlow() tea.Cmd {
 		return l.request(e, commitRequest{files: true})
 	}
 	if e.diff == nil {
-		l.open, l.files = nil, false
+		l.open, l.fileList = nil, false
 		return nil
 	}
 	d := e.diff
@@ -655,7 +655,7 @@ func (l *Log) filesOfFlow() tea.Cmd {
 		d.cursor = file
 		d.scrollToCursor()
 	}
-	l.open, l.files = l.commits[p], true
+	l.open, l.fileList = l.commits[p], true
 	return nil
 }
 

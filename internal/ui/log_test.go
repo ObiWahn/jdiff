@@ -1230,15 +1230,15 @@ func TestLogFlowBackWhileLoading(t *testing.T) {
 	}
 	_, back := l.Update(keyMsg("backspace"))
 	_, load := l.Update(back())
-	if load == nil || l.files {
-		t.Fatalf("backspace: load %v, files shown %v", load != nil, l.files)
+	if load == nil || l.fileList {
+		t.Fatalf("backspace: load %v, files shown %v", load != nil, l.fileList)
 	}
 	drain(l, load)
 	for _, cmd := range held {
 		drain(l, cmd)
 	}
-	if !l.files || l.open != l.commits[p] {
-		t.Errorf("files shown %v, open %v; want the list of commit %d", l.files, l.open, p)
+	if !l.fileList || l.open != l.commits[p] {
+		t.Errorf("files shown %v, open %v; want the list of commit %d", l.fileList, l.open, p)
 	}
 }
 

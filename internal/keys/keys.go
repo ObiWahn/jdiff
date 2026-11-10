@@ -52,17 +52,17 @@ type page struct {
 	rows *[]Row
 }
 
-// pages returns the pages of p in the order of keybindings.toml, which
+// pages returns the pages of km in the order of keybindings.toml, which
 // decides which page's row Row and RowsOf return.
-func (p *Map) pages() []page {
+func (km *Map) pages() []page {
 	return []page{
-		{"everywhere", &p.Everywhere}, {"diff_view", &p.DiffView}, {"flow_view", &p.FlowView},
-		{"commit_list", &p.CommitList}, {"file_list", &p.FileList}, {"doc_view", &p.DocView},
+		{"everywhere", &km.Everywhere}, {"diff_view", &km.DiffView}, {"flow_view", &km.FlowView},
+		{"commit_list", &km.CommitList}, {"file_list", &km.FileList}, {"doc_view", &km.DocView},
 	}
 }
 
-// Read returns the keybindings.toml text.
-func Read(text string) (Map, error) {
+// Parse returns the Map of text, a keybindings.toml.
+func Parse(text string) (Map, error) {
 	var p Map
 	_, err := toml.Decode(text, &p)
 	return p, err
@@ -71,7 +71,7 @@ func Read(text string) (Map, error) {
 // builtin is BuiltinText, read. It is part of the program, so that failing to
 // read it is a bug, which TestKeybindingsFile finds.
 var builtin = func() Map {
-	p, err := Read(BuiltinText)
+	p, err := Parse(BuiltinText)
 	if err != nil {
 		panic(err)
 	}
@@ -83,8 +83,8 @@ func Builtin() *Map { return &builtin }
 
 // Row returns the row that gives the keys and words of action; see
 // keybindings.toml for the order. Without one, it has no keys.
-func (p Map) Row(action string) Row {
-	if rows := p.RowsOf(action); len(rows) > 0 {
+func (km Map) Row(action string) Row {
+	if rows := km.RowsOf(action); len(rows) > 0 {
 		return rows[0]
 	}
 	return Row{}
@@ -92,8 +92,8 @@ func (p Map) Row(action string) Row {
 
 // RowsOf returns the rows of action in the first page that has it, in the
 // order of Row.
-func (p Map) RowsOf(action string) []Row {
-	for _, pg := range p.pages() {
+func (km Map) RowsOf(action string) []Row {
+	for _, pg := range km.pages() {
 		var of []Row
 		for _, r := range *pg.rows {
 			if r.Action == action {
@@ -112,11 +112,11 @@ var placeholder = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
 
 // Text returns s with each placeholder replaced by the keys of its row, ""
 // for a row that does not exist.
-func (p Map) Text(s string) string {
+func (km Map) Text(s string) string {
 	return placeholder.ReplaceAllStringFunc(s, func(m string) string {
 		sub := placeholder.FindStringSubmatch(m)
 		n, _ := strconv.Atoi(sub[2])
-		if rows := p.RowsOf(sub[1]); n < len(rows) {
+		if rows := km.RowsOf(sub[1]); n < len(rows) {
 			return strings.Join(rows[n].Keys, " ")
 		}
 		return ""
@@ -132,12 +132,12 @@ type userRow struct {
 	Keys   []string
 }
 
-// ApplyUserKeys returns p with the keys of text, the user's
+// ApplyUserKeys returns km with the keys of text, the user's
 // keybindings.toml, applied over them, and what is wrong with it. The rows of
 // an action on a page replace all its rows there, keeping their words; a file
 // with a problem changes nothing, so that a mistake cannot take away the keys
 // to quit or get help.
-func (p Map) ApplyUserKeys(text string) (Map, []string) {
+func (km Map) ApplyUserKeys(text string) (Map, []string) {
 	var u struct {
 		CommitList []userRow `toml:"commit_list"`
 		FileList   []userRow `toml:"file_list"`
@@ -148,13 +148,13 @@ func (p Map) ApplyUserKeys(text string) (Map, []string) {
 	}
 	md, err := toml.Decode(text, &u)
 	if err != nil {
-		return p, []string{err.Error()}
+		return km, []string{err.Error()}
 	}
 	var problems []string
 	for _, k := range md.Undecoded() {
 		problems = append(problems, "unknown "+k.String())
 	}
-	merged := p
+	merged := km
 	fromFile := map[string][]userRow{
 		"everywhere": u.Everywhere, "diff_view": u.DiffView, "flow_view": u.FlowView,
 		"commit_list": u.CommitList, "file_list": u.FileList, "doc_view": u.DocView,
@@ -174,7 +174,7 @@ func (p Map) ApplyUserKeys(text string) (Map, []string) {
 	}
 	problems = append(problems, merged.conflicts()...)
 	if len(problems) > 0 {
-		return p, problems
+		return km, problems
 	}
 	return merged, nil
 }
@@ -259,25 +259,25 @@ type Hit struct {
 }
 
 // tables returns the rows the keys of page pg are looked up in, in order.
-func (p Map) tables(pg Page) [][]Row {
+func (km Map) tables(pg Page) [][]Row {
 	switch pg {
 	case CommitList:
-		return [][]Row{p.CommitList, p.Everywhere}
+		return [][]Row{km.CommitList, km.Everywhere}
 	case FileList:
-		return [][]Row{p.FileList, p.Everywhere}
+		return [][]Row{km.FileList, km.Everywhere}
 	case DiffView:
-		return [][]Row{p.DiffView, p.Everywhere}
+		return [][]Row{km.DiffView, km.Everywhere}
 	case FlowView:
-		return [][]Row{p.FlowView, p.DiffView, p.Everywhere}
+		return [][]Row{km.FlowView, km.DiffView, km.Everywhere}
 	case DocView:
-		return [][]Row{p.DocView, p.Everywhere}
+		return [][]Row{km.DocView, km.Everywhere}
 	}
-	return [][]Row{p.Everywhere}
+	return [][]Row{km.Everywhere}
 }
 
 // Key returns what key k, as Bubble Tea names it, does on page pg.
-func (p Map) Key(pg Page, k string) Hit {
-	for _, rows := range p.tables(pg) {
+func (km Map) Key(pg Page, k string) Hit {
+	for _, rows := range km.tables(pg) {
 		for _, r := range rows {
 			for i, name := range r.Keys {
 				if Name(name) == k {
@@ -313,9 +313,9 @@ func (r Row) LabelIn(state int) string {
 
 // Order returns the first key of each row of everywhere, which decides the
 // order of the settings.
-func (p Map) Order() []string {
+func (km Map) Order() []string {
 	var keys []string
-	for _, r := range p.Everywhere {
+	for _, r := range km.Everywhere {
 		if len(r.Keys) > 0 {
 			keys = append(keys, r.Keys[0])
 		}
@@ -323,30 +323,30 @@ func (p Map) Order() []string {
 	return keys
 }
 
-// Problems returns what is wrong with p by itself: a key with two actions on
+// Problems returns what is wrong with km by itself: a key with two actions on
 // one page, a line of the help with an action that has no help, a placeholder
 // without its row. What the settings and the help need of it is checked by
 // the package ui.
-func (p Map) Problems() []string {
-	problems := p.conflicts()
-	for _, r := range p.Help {
-		if r.Action != "" && p.Row(r.Action).Help == "" {
+func (km Map) Problems() []string {
+	problems := km.conflicts()
+	for _, r := range km.Help {
+		if r.Action != "" && km.Row(r.Action).Help == "" {
 			problems = append(problems, "the help's action "+r.Action+" has no help")
 		}
 	}
 	var words []string
-	for _, pg := range p.pages() {
+	for _, pg := range km.pages() {
 		for _, r := range *pg.rows {
 			words = append(words, r.Help, r.Setting)
 		}
 	}
-	for _, r := range p.Help {
+	for _, r := range km.Help {
 		words = append(words, r.Note)
 	}
 	for _, w := range words {
 		for _, m := range placeholder.FindAllStringSubmatch(w, -1) {
 			n, _ := strconv.Atoi(m[2])
-			if n >= len(p.RowsOf(m[1])) {
+			if n >= len(km.RowsOf(m[1])) {
 				problems = append(problems, "placeholder "+m[0]+" has no row")
 			}
 		}
@@ -355,9 +355,9 @@ func (p Map) Problems() []string {
 }
 
 // conflicts returns the keys with two actions on one page.
-func (p Map) conflicts() []string {
+func (km Map) conflicts() []string {
 	var problems []string
-	for _, pg := range p.pages() {
+	for _, pg := range km.pages() {
 		actions := map[string]string{}
 		for _, r := range *pg.rows {
 			for _, name := range r.Keys {

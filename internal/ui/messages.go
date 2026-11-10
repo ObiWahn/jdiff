@@ -138,8 +138,8 @@ type toggleSettingMsg struct{ action string }
 // settingKey returns the command toggling the option of action, nil when no
 // option has it or, outside the log's flow view (logFlow), one that only
 // matters there.
-func settingKey(k *keys.Map, action string, logFlow bool) tea.Cmd {
-	options := settingWords(k, settingTable)
+func settingKey(km *keys.Map, action string, logFlow bool) tea.Cmd {
+	options := settingWords(km, settingTable)
 	i := slices.IndexFunc(options, func(o settingOption) bool { return o.key != "" && o.action == action })
 	if i < 0 || options[i].logFlow && !logFlow {
 		return nil
@@ -152,7 +152,7 @@ func settingKey(k *keys.Map, action string, logFlow bool) tea.Cmd {
 // action, see settingKey; nil when h is none of them. The pages hand them on,
 // and not the popups themselves as the help and the marks: o is a mark letter
 // too, which m and ' take before the page looks at the key.
-func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
+func pageKey(km *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 	switch h.Action {
 	case "reload":
 		return refreshAll
@@ -163,7 +163,7 @@ func pageKey(k *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 	case "settings":
 		return askSettings
 	}
-	return settingKey(k, h.Action, logFlow)
+	return settingKey(km, h.Action, logFlow)
 }
 
 // settingChangedMsg tells the page below SettingsPopup that a toggle or a

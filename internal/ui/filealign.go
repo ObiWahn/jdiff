@@ -276,19 +276,19 @@ func (a *fileAlign) rowNow(r diff.Row, reloaded bool) int {
 	return -1
 }
 
-// lineMap maps the indices of old to those of the same lines in new, -1
-// for lines that are not in new. It keeps the order of the lines.
-func lineMap(old, new []string) []int {
-	moved := make([]int, len(old))
-	for i := range moved {
-		moved[i] = -1
+// lineMap maps the indices of before to those of the same lines in after, -1
+// for lines that are not in after. It keeps the order of the lines.
+func lineMap(before, after []string) []int {
+	to := make([]int, len(before))
+	for i := range to {
+		to[i] = -1
 	}
-	for _, r := range diff.Align(old, new, nil) {
+	for _, r := range diff.Align(before, after, nil) {
 		if r.Kind == diff.Equal {
-			moved[r.Left] = r.Right
+			to[r.Left] = r.Right
 		}
 	}
-	return moved
+	return to
 }
 
 // act runs the anchor and fold action (anchor, cancel_mark, fold or

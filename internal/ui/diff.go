@@ -135,9 +135,9 @@ type Diff struct {
 	// are those of the files shown.
 	gitDiff  DiffFunc
 	diffArgs []string
-	// disk watches the files on disk while auto reload is on, from watch on;
-	// those near the cursor that it does not watch are checked every
-	// watch_interval. touched is the file the cursor was on last.
+	// disk watches the files on disk while auto reload is on, from
+	// watchFiles on; those near the cursor that it does not watch are checked
+	// every watch_interval. touched is the file the cursor was on last.
 	disk     diskWatch
 	watching bool
 	touched  *fileEntry
@@ -277,13 +277,13 @@ func (d *Diff) Init() tea.Cmd {
 	if d.inLog() {
 		return nil
 	}
-	return d.watch()
+	return d.watchFiles()
 }
 
-// watch watches the files on disk, in place of those before, while auto
+// watchFiles watches the files on disk, in place of those before, while auto
 // reload is on, and returns the command waiting for their changes and the
 // check of those not watched; off, it watches none.
-func (d *Diff) watch() tea.Cmd {
+func (d *Diff) watchFiles() tea.Cmd {
 	if !d.cfg.AutoReload {
 		d.disk.stop()
 		d.watching = false
@@ -503,7 +503,7 @@ func (d *Diff) filesListed(res filesListedMsg) tea.Cmd {
 	if d.inLog() {
 		return next
 	}
-	return batch(d.watch(), next)
+	return batch(d.watchFiles(), next)
 }
 
 // batch returns the commands that are not nil, as one: tea.Batch of them
@@ -552,7 +552,7 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.touched = nil
 			d.refresh(func(int) bool { return true })
 		}
-		return d, d.watch()
+		return d, d.watchFiles()
 	case watchTickMsg:
 		if !d.disk.ticked(d.cfg, d, msg) {
 			return d, nil

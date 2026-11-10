@@ -178,13 +178,13 @@ func (r Repo) Log(args []string) ([]Commit, error) {
 			continue
 		}
 		header, _, _ := strings.Cut(rec, "\x1d")
-		f := strings.Split(header, "\x1f")
-		if len(f) != 7 {
+		fields := strings.Split(header, "\x1f")
+		if len(fields) != 7 {
 			return nil, fmt.Errorf("git log: unexpected record %q", header)
 		}
-		c := Commit{Hash: f[0], Short: f[1], Author: f[2], Date: f[3], Subject: f[5],
-			Body: strings.TrimSpace(f[6])}
-		c.Parent, _, _ = strings.Cut(f[4], " ")
+		c := Commit{Hash: fields[0], Short: fields[1], Author: fields[2], Date: fields[3],
+			Subject: fields[5], Body: strings.TrimSpace(fields[6])}
+		c.Parent, _, _ = strings.Cut(fields[4], " ")
 		commits = append(commits, c)
 	}
 	return commits, nil
@@ -591,28 +591,28 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 
 	// A side of a file, in the order of the files and old before new: a
 	// blob, or the working copy for the zero id.
-	type sideOf struct {
+	type fileSide struct {
 		blob int // index into specs, -1 for the working copy
 		path string
 	}
 	var files []source.File
-	var sides []sideOf
+	var sides []fileSide
 	var specs []string
 	for _, e := range entries {
 		f := e.file
 		files = append(files, f)
-		for _, sd := range []struct {
+		for _, want := range []struct {
 			in   bool
 			id   string
 			path string
 		}{{f.InOld, e.oldID, f.PathInOld()}, {f.InNew, e.newID, f.Path}} {
-			if !sd.in {
+			if !want.in {
 				continue
 			}
-			s := sideOf{blob: -1, path: sd.path}
-			if strings.Trim(sd.id, "0") != "" {
+			s := fileSide{blob: -1, path: want.path}
+			if strings.Trim(want.id, "0") != "" {
 				s.blob = len(specs)
-				specs = append(specs, sd.id)
+				specs = append(specs, want.id)
 			}
 			sides = append(sides, s)
 		}
@@ -629,14 +629,14 @@ func (r Repo) diff(env, args []string) ([]source.File, error) {
 			if (old && !f.InOld) || (!old && !f.InNew) {
 				continue
 			}
-			sd := sides[n]
+			side := sides[n]
 			n++
 			var content []string
 			binary := false
-			if sd.blob >= 0 {
-				content, binary = lines(blobs[sd.blob], false)
+			if side.blob >= 0 {
+				content, binary = lines(blobs[side.blob], false)
 			} else {
-				path := filepath.Join(top, filepath.FromSlash(sd.path))
+				path := filepath.Join(top, filepath.FromSlash(side.path))
 				w := readWorking(path)
 				content, binary = w.lines, w.binary
 				if w.watch {
@@ -764,12 +764,12 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 			return fail(fmt.Errorf("git cat-file: %w", err))
 		}
 		// "<oid> <type> <size>" or "<object> missing"
-		f := strings.Fields(header)
-		if len(f) != 3 {
+		fields := strings.Fields(header)
+		if len(fields) != 3 {
 			blobs[i].missing = true
 			continue
 		}
-		size, err := strconv.Atoi(f[2])
+		size, err := strconv.Atoi(fields[2])
 		if err != nil {
 			return fail(fmt.Errorf("git cat-file: bad header %q", header))
 		}
@@ -777,7 +777,7 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		if _, err := io.ReadFull(rd, data); err != nil {
 			return fail(fmt.Errorf("git cat-file: %w", err))
 		}
-		blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}
+		blobs[i] = blob{data: data[:size], missing: fields[1] != "blob"}
 	}
 	if err := cmd.Wait(); err != nil {
 		return nil, r.gitError("cat-file", &stderr, err)

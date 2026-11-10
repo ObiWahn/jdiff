@@ -37,8 +37,8 @@ type FileDiff struct {
 	canBack       bool // shown from the file list, which handles backspace
 	commitNav     bool // shown from the log, which switches commits
 
-	msg   string
-	watch *source.File // the files on disk, reloaded when they change; nil when not watched
+	msg    string
+	onDisk *source.File // the files on disk, reloaded when they change; nil when not watched
 	// disk watches them; those it does not watch are checked every
 	// watch_interval.
 	disk   diskWatch
@@ -57,7 +57,7 @@ func NewFileDiff(cfg *config.Config, oldName, newName string, oldLines, newLines
 // when they change on disk (see watch_interval).
 func NewWatchedFileDiff(cfg *config.Config, f source.File) *FileDiff {
 	m := NewFileDiff(cfg, f.OldFile, f.NewFile, f.Old, f.New)
-	m.watch = &f
+	m.onDisk = &f
 	m.markPath = repoPath(cfg.Repo(), f.NewFile)
 	return m
 }
@@ -82,14 +82,14 @@ func (m *FileDiff) Init() tea.Cmd { return m.watchFiles() }
 // on, and returns the command waiting for their changes and the check of
 // those not watched; off, it watches them no more.
 func (m *FileDiff) watchFiles() tea.Cmd {
-	if m.watch == nil {
+	if m.onDisk == nil {
 		return nil
 	}
 	if !m.cfg.AutoReload {
 		m.disk.stop()
 		return nil
 	}
-	cmd, msg := m.disk.set(m.cfg, diskPaths(*m.watch))
+	cmd, msg := m.disk.set(m.cfg, diskPaths(*m.onDisk))
 	if msg != "" {
 		m.msg = msg
 	}
@@ -102,10 +102,10 @@ func (m *FileDiff) shareWatcher(w *watch.Watcher) { m.disk.share(w) }
 // poll returns the next check of the files, unless one is pending or both
 // are watched.
 func (m *FileDiff) poll() tea.Cmd {
-	if m.watch == nil {
+	if m.onDisk == nil {
 		return nil
 	}
-	return m.disk.poll(m.cfg, m, diskPaths(*m.watch))
+	return m.disk.poll(m.cfg, m, diskPaths(*m.onDisk))
 }
 
 func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -119,8 +119,8 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m, m.key(msg.String())
 	case autoReloadMsg:
-		if msg.on && m.watch != nil { // changed while off
-			if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
+		if msg.on && m.onDisk != nil { // changed while off
+			if msg := refreshFile(m.onDisk, m.fileAlign, m.syncLayout); msg != "" {
 				m.msg = msg
 			}
 		}
@@ -129,7 +129,7 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.disk.ticked(m.cfg, m, msg) {
 			return m, nil
 		}
-		if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
+		if msg := refreshFile(m.onDisk, m.fileAlign, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
 		return m, m.poll()
@@ -137,7 +137,7 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.w == nil || msg.w != m.disk.w {
 			return m, nil
 		}
-		if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
+		if msg := refreshFile(m.onDisk, m.fileAlign, m.syncLayout); msg != "" {
 			m.msg = msg
 		}
 		return m, batch(m.disk.next(), m.poll())
@@ -174,12 +174,12 @@ func (m *FileDiff) stop() { m.disk.stop() }
 // refresh reads both files again, whether their stamps changed or not. With
 // quiet, it does not say when nothing changed.
 func (m *FileDiff) refresh(quiet bool) {
-	if m.watch == nil {
+	if m.onDisk == nil {
 		m.msg = nothingToReload
 		return
 	}
-	m.watch.OldStamp, m.watch.NewStamp = source.Stamp{}, source.Stamp{}
-	switch msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); {
+	m.onDisk.OldStamp, m.onDisk.NewStamp = source.Stamp{}, source.Stamp{}
+	switch msg := refreshFile(m.onDisk, m.fileAlign, m.syncLayout); {
 	case msg != "":
 		m.msg = msg
 	case !quiet:

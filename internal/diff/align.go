@@ -37,7 +37,7 @@ type Row struct {
 // Align computes the display rows for old lines a and new lines b. anchors
 // must be sorted by Left and must not cross (see Conflicts).
 func Align(a, b []string, anchors []Anchor) []Row {
-	al := aligner{a: a, b: b, ka: keys(a), kb: keys(b)}
+	al := aligner{a: a, b: b, ka: trimmed(a), kb: trimmed(b)}
 	pa, pb := 0, 0
 	for _, an := range anchors {
 		al.section(pa, an.Left, pb, an.Right)
@@ -83,7 +83,7 @@ func Stats(rows []Row) (added, removed int) {
 	return added, removed
 }
 
-func keys(lines []string) []string {
+func trimmed(lines []string) []string {
 	out := make([]string, len(lines))
 	for i, l := range lines {
 		out[i] = strings.TrimSpace(l)

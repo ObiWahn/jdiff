@@ -62,44 +62,44 @@ type diskWatch struct {
 	ticking bool
 }
 
-// share makes d watch by w, which App shares; a pending check stays.
-func (d *diskWatch) share(w *watch.Watcher) { d.w, d.own = w, false }
+// share makes dw watch by w, which App shares; a pending check stays.
+func (dw *diskWatch) share(w *watch.Watcher) { dw.w, dw.own = w, false }
 
 // poll returns the next check, for owner, of the files at paths, the view's
 // to check, unless one is pending, auto reload is off, there is no
 // watch_interval or all of them are watched.
-func (d *diskWatch) poll(cfg *config.Config, owner tea.Model, paths []string) tea.Cmd {
-	if d.ticking || !cfg.AutoReload || cfg.Settings.WatchInterval <= 0 || !d.unwatched(paths) {
+func (dw *diskWatch) poll(cfg *config.Config, owner tea.Model, paths []string) tea.Cmd {
+	if dw.ticking || !cfg.AutoReload || cfg.Settings.WatchInterval <= 0 || !dw.unwatched(paths) {
 		return nil
 	}
-	d.ticking = true
+	dw.ticking = true
 	return watchTick(cfg, owner)
 }
 
 // ticked reports whether owner checks its files for msg: it is owner's check
 // or anyone's, which is then no longer pending, and auto reload is on.
-func (d *diskWatch) ticked(cfg *config.Config, owner tea.Model, msg watchTickMsg) bool {
+func (dw *diskWatch) ticked(cfg *config.Config, owner tea.Model, msg watchTickMsg) bool {
 	if msg.owner != nil && msg.owner != owner {
 		return false
 	}
-	d.ticking = false
+	dw.ticking = false
 	return cfg.AutoReload
 }
 
 // unwatched reports whether a change of a file at paths is not reported.
-func (d *diskWatch) unwatched(paths []string) bool {
-	return slices.ContainsFunc(paths, func(p string) bool { return !d.watched(p) })
+func (dw *diskWatch) unwatched(paths []string) bool {
+	return slices.ContainsFunc(paths, func(p string) bool { return !dw.watched(p) })
 }
 
 // set watches the files at paths in place of those before, starting the
 // view's own watcher when it has none, there are files and inotify_max_dirs
 // allows one. It returns the command waiting for the changes of a watcher
 // just started, and why the system refused, or "".
-func (d *diskWatch) set(cfg *config.Config, paths []string) (cmd tea.Cmd, msg string) {
+func (dw *diskWatch) set(cfg *config.Config, paths []string) (cmd tea.Cmd, msg string) {
 	if cfg.Settings.WatchInterval <= 0 {
 		return nil, ""
 	}
-	if d.w == nil {
+	if dw.w == nil {
 		if cfg.Settings.InotifyMaxDirs <= 0 || len(paths) == 0 {
 			return nil, ""
 		}
@@ -107,9 +107,9 @@ func (d *diskWatch) set(cfg *config.Config, paths []string) (cmd tea.Cmd, msg st
 		if err != nil {
 			return nil, refused(cfg, err)
 		}
-		d.w, d.own, cmd = w, true, waitChanges(w)
+		dw.w, dw.own, cmd = w, true, waitChanges(w)
 	}
-	if err := d.w.SetFiles(paths); err != nil {
+	if err := dw.w.SetFiles(paths); err != nil {
 		msg = refused(cfg, err)
 	}
 	return cmd, msg
@@ -126,52 +126,52 @@ func refused(cfg *config.Config, err error) string {
 
 // next returns the command waiting for the next changes of the view's own
 // watcher, nil for the shared one, which App waits on.
-func (d *diskWatch) next() tea.Cmd {
-	if !d.own || d.w == nil {
+func (dw *diskWatch) next() tea.Cmd {
+	if !dw.own || dw.w == nil {
 		return nil
 	}
-	return waitChanges(d.w)
+	return waitChanges(dw.w)
 }
 
 // watched reports whether a change of the file at path is reported.
-func (d *diskWatch) watched(path string) bool { return d.w != nil && d.w.Watched(path) }
+func (dw *diskWatch) watched(path string) bool { return dw.w != nil && dw.w.Watched(path) }
 
 // touch counts the directories of the files at paths as used.
-func (d *diskWatch) touch(paths []string) {
-	if d.w != nil {
-		d.w.Touch(paths)
+func (dw *diskWatch) touch(paths []string) {
+	if dw.w != nil {
+		dw.w.Touch(paths)
 	}
 }
 
 // limit applies inotify_max_dirs, set in the settings popup, also to the
 // shared watcher, before the view's next poll; App applies it too, see "Kept
 // on purpose" in doc/development.md.
-func (d *diskWatch) limit(cfg *config.Config) {
-	if d.w != nil {
-		d.w.SetLimit(cfg.Settings.InotifyMaxDirs)
+func (dw *diskWatch) limit(cfg *config.Config) {
+	if dw.w != nil {
+		dw.w.SetLimit(cfg.Settings.InotifyMaxDirs)
 	}
 }
 
 // ended reports whether w, which stopped reporting, was the watcher, which
 // is then dropped.
-func (d *diskWatch) ended(w *watch.Watcher) bool {
-	if w == nil || w != d.w {
+func (dw *diskWatch) ended(w *watch.Watcher) bool {
+	if w == nil || w != dw.w {
 		return false
 	}
-	d.w = nil
+	dw.w = nil
 	return true
 }
 
 // stop stops watching the files: the view's own watcher is closed, the
 // shared one, which stays, watches them no more.
-func (d *diskWatch) stop() {
+func (dw *diskWatch) stop() {
 	switch {
-	case d.w == nil:
-	case d.own:
-		d.w.Close()
-		d.w = nil
+	case dw.w == nil:
+	case dw.own:
+		dw.w.Close()
+		dw.w = nil
 	default:
-		d.w.SetFiles(nil)
+		dw.w.SetFiles(nil)
 	}
 }
 

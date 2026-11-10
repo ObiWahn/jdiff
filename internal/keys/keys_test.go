@@ -23,7 +23,7 @@ diff_view = [{ keys = ["t"] }]
 `
 
 func TestKeyOrder(t *testing.T) {
-	p, err := Read(orderedKeys)
+	p, err := Parse(orderedKeys)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,7 +44,7 @@ func Intraline(a, b string, splitIndent bool) (ea, eb []Span) {
 	for _, p := range pairs {
 		ma[p.a], mb[p.b] = true, true
 	}
-	// keep holds the bytes at the start and the end of an unmatched token
+	// ka and kb hold the bytes at the start and the end of an unmatched token
 	// that are the same as on the other side.
 	ka, kb := make([]kept, len(ta)), make([]kept, len(tb))
 	if splitIndent {

@@ -15,19 +15,19 @@ import (
 // binding is a key and what it does; a binding without key is a heading.
 type binding struct{ key, what string }
 
-// helpBindings returns the lines of the help popup of k, in the order of its
+// helpBindings returns the lines of the help popup of km, in the order of its
 // help; helpLines puts the settings in their order.
-func helpBindings(p *keys.Map) []binding {
+func helpBindings(km *keys.Map) []binding {
 	var bs []binding
-	for _, h := range p.Help {
+	for _, h := range km.Help {
 		switch {
 		case h.Heading != "":
 			bs = append(bs, binding{"", h.Heading})
 		case h.Note != "":
-			bs = append(bs, binding{"", "  " + p.Text(h.Note)})
+			bs = append(bs, binding{"", "  " + km.Text(h.Note)})
 		default:
-			r := p.Row(h.Action)
-			bs = append(bs, binding{strings.Join(r.Keys, " "), p.Text(r.Help)})
+			r := km.Row(h.Action)
+			bs = append(bs, binding{strings.Join(r.Keys, " "), km.Text(r.Help)})
 		}
 	}
 	return bs
