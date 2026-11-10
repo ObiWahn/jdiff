@@ -745,9 +745,14 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 	}()
 
 	// fail stops git, which may be blocked writing output no longer read.
+	// When the context was cancelled, git was killed and err is only the
+	// end of its output: the context's error is returned, as by run.
 	fail := func(err error) ([]blob, error) {
 		cmd.Process.Kill()
 		cmd.Wait()
+		if r.ctx != nil && r.ctx.Err() != nil {
+			return nil, r.ctx.Err()
+		}
 		return nil, err
 	}
 

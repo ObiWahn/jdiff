@@ -355,10 +355,7 @@ func TestLogErrors(t *testing.T) {
 // reported even while git keeps writing output that is no longer read.
 func TestCatFilesErrorStopsGit(t *testing.T) {
 	// A fake git that answers with a bad header and then writes on and on.
-	// It is a Go program, so that it runs as git also on Windows, where a
-	// script would not.
-	dir := t.TempDir()
-	fake := `package main
+	fakeGit(t, `package main
 
 import "os"
 
@@ -370,17 +367,7 @@ func main() {
 		}
 	}
 }
-`
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(fake), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	build := exec.Command("go", "build", "-o", filepath.Join(dir, "git"+exeSuffix()), "main.go")
-	build.Dir = dir
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("building the fake git: %v\n%s", err, out)
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
+`)
 	done := make(chan error, 1)
 	go func() {
 		_, err := Repo{}.catFiles([]string{"HEAD:a.txt"})
@@ -393,6 +380,73 @@ func main() {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("catFiles hangs after a bad header")
+	}
+}
+
+// fakeGit builds main, the source of a Go program, and puts it first in
+// PATH as git. A Go program runs as git also on Windows, where a script
+// would not.
+func fakeGit(t *testing.T, main string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(main), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	build := exec.Command("go", "build", "-o", filepath.Join(dir, "git"+exeSuffix()), "main.go")
+	build.Dir = dir
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building the fake git: %v\n%s", err, out)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestCatFilesCancelledWhileReading checks that catFiles, cancelled while it
+// reads what git cat-file writes, returns the context's error, not the end of
+// git's output.
+func TestCatFilesCancelledWhileReading(t *testing.T) {
+	// A fake git that starts an answer, says so by creating $STARTED, and
+	// then hangs until it is killed.
+	fakeGit(t, `package main
+
+import (
+	"os"
+	"time"
+)
+
+func main() {
+	os.Stdout.WriteString("x0 blob 10\n")
+	os.WriteFile(os.Getenv("STARTED"), nil, 0o644)
+	time.Sleep(time.Hour)
+}
+`)
+	started := filepath.Join(t.TempDir(), "started")
+	t.Setenv("STARTED", started)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := Repo{}.WithContext(ctx).catFiles([]string{"HEAD:x0"})
+		done <- err
+	}()
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(started); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the fake git did not start")
+		}
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("catFiles hangs after its context was cancelled")
+	}
+	if !Wait(time.Second) {
+		t.Error("git cat-file still running")
 	}
 }
 
