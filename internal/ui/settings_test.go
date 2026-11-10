@@ -647,7 +647,7 @@ func TestOrderSettings(t *testing.T) {
 // The settings and the help follow the order and the keys of the user's file.
 func TestSettingsOfUserKeys(t *testing.T) {
 	cfg := config.Default()
-	p, problems := cfg.Keys.User(`everywhere = [
+	p, problems := cfg.Keys.ApplyUserKeys(`everywhere = [
     { action = "wrap", keys = ["W2"] },
     { action = "layout", keys = ["S"] },
 ]`)

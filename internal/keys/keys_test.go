@@ -3,6 +3,7 @@ package keys
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -93,7 +94,7 @@ func TestKeyText(t *testing.T) {
 // The user's file replaces the rows of an action on a page, keeping their
 // words, and leaves the built-in keys as they are.
 func TestUserKeys(t *testing.T) {
-	p, problems := Builtin().User(`commit_list = [{ action = "move", keys = ["x", "y"] }]
+	p, problems := Builtin().ApplyUserKeys(`commit_list = [{ action = "move", keys = ["x", "y"] }]
 everywhere = [{ action = "settings", keys = ["O"] }]
 `)
 	if len(problems) != 0 {
@@ -145,7 +146,7 @@ func TestUserKeysProblems(t *testing.T) {
 		{`diff_view = [{ action = "pane", keys = ["j"] }]`, "key j has two actions in diff_view"},
 		{`diff_view = [{ action = "pane", keys = [] }]`, "pane in diff_view has no keys"},
 	} {
-		p, problems := Builtin().User(c.text)
+		p, problems := Builtin().ApplyUserKeys(c.text)
 		if len(problems) == 0 || !strings.Contains(strings.Join(problems, "; "), c.want) {
 			t.Errorf("%s: problems %q, want %q", c.text, problems, c.want)
 		}
@@ -178,5 +179,27 @@ func TestLoad(t *testing.T) {
 	}
 	if Builtin().Row("settings").Keys[0] != "o" {
 		t.Errorf("the built-in keys changed")
+	}
+}
+
+// TestPagesComplete checks that pages returns each page of Map once, by its
+// toml name, so that no page is left out of the checks.
+func TestPagesComplete(t *testing.T) {
+	var m Map
+	ty := reflect.TypeOf(m)
+	var want []string
+	for i := range ty.NumField() {
+		if f := ty.Field(i); f.Type == reflect.TypeOf([]Row(nil)) {
+			want = append(want, f.Tag.Get("toml"))
+		}
+	}
+	var got []string
+	for _, pg := range m.pages() {
+		got = append(got, pg.name)
+	}
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("pages: %q, want the pages %q", got, want)
 	}
 }

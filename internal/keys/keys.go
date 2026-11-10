@@ -46,6 +46,21 @@ type Map struct {
 	Help       []HelpRow `toml:"help"`
 }
 
+// page is a page of keybindings.toml: its name and its rows.
+type page struct {
+	name string
+	rows *[]Row
+}
+
+// pages returns the pages of p in the order of keybindings.toml, which
+// decides which page's row Row and RowsOf return.
+func (p *Map) pages() []page {
+	return []page{
+		{"everywhere", &p.Everywhere}, {"diff_view", &p.DiffView}, {"flow_view", &p.FlowView},
+		{"commit_list", &p.CommitList}, {"file_list", &p.FileList}, {"doc_view", &p.DocView},
+	}
+}
+
 // Read returns the keybindings.toml text.
 func Read(text string) (Map, error) {
 	var p Map
@@ -78,9 +93,9 @@ func (p Map) Row(action string) Row {
 // RowsOf returns the rows of action in the first page that has it, in the
 // order of Row.
 func (p Map) RowsOf(action string) []Row {
-	for _, rows := range [][]Row{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} {
+	for _, pg := range p.pages() {
 		var of []Row
-		for _, r := range rows {
+		for _, r := range *pg.rows {
 			if r.Action == action {
 				of = append(of, r)
 			}
@@ -117,11 +132,11 @@ type userRow struct {
 	Keys   []string
 }
 
-// User returns p with the keys of text, the user's keybindings.toml, and
-// what is wrong with it. The rows of an action on a page replace all its rows
+// ApplyUserKeys returns p with the keys of text, the user's
+// keybindings.toml, applied over them, and what is wrong with it. The rows of an action on a page replace all its rows
 // there, keeping their words; a file with a problem changes nothing, so that
 // a mistake cannot take away the keys to quit or get help.
-func (p Map) User(text string) (Map, []string) {
+func (p Map) ApplyUserKeys(text string) (Map, []string) {
 	var u struct {
 		CommitList []userRow `toml:"commit_list"`
 		FileList   []userRow `toml:"file_list"`
@@ -139,26 +154,22 @@ func (p Map) User(text string) (Map, []string) {
 		problems = append(problems, "unknown "+k.String())
 	}
 	merged := p
-	for _, t := range []struct {
-		name string
-		rows *[]Row
-		user []userRow
-	}{
-		{"everywhere", &merged.Everywhere, u.Everywhere}, {"diff_view", &merged.DiffView, u.DiffView},
-		{"flow_view", &merged.FlowView, u.FlowView}, {"commit_list", &merged.CommitList, u.CommitList},
-		{"file_list", &merged.FileList, u.FileList}, {"doc_view", &merged.DocView, u.DocView},
-	} {
-		for _, r := range t.user {
+	fromFile := map[string][]userRow{
+		"everywhere": u.Everywhere, "diff_view": u.DiffView, "flow_view": u.FlowView,
+		"commit_list": u.CommitList, "file_list": u.FileList, "doc_view": u.DocView,
+	}
+	for _, pg := range merged.pages() {
+		for _, r := range fromFile[pg.name] {
 			switch {
-			case !slices.ContainsFunc(*t.rows, func(b Row) bool { return b.Action == r.Action }):
-				problems = append(problems, "no action "+r.Action+" in "+t.name)
+			case !slices.ContainsFunc(*pg.rows, func(b Row) bool { return b.Action == r.Action }):
+				problems = append(problems, "no action "+r.Action+" in "+pg.name)
 			case len(r.Keys) == 0:
-				problems = append(problems, r.Action+" in "+t.name+" has no keys")
+				problems = append(problems, r.Action+" in "+pg.name+" has no keys")
 			case slices.Contains(twoWay, r.Action) && len(r.Keys) != 2:
-				problems = append(problems, r.Action+" in "+t.name+" takes two keys, one each way")
+				problems = append(problems, r.Action+" in "+pg.name+" takes two keys, one each way")
 			}
 		}
-		*t.rows = replaceKeys(*t.rows, t.user)
+		*pg.rows = replaceKeys(*pg.rows, fromFile[pg.name])
 	}
 	problems = append(problems, merged.conflicts()...)
 	if len(problems) > 0 {
@@ -219,7 +230,7 @@ func Load(dir string) (*Map, []string) {
 	if err != nil {
 		return Builtin(), []string{err.Error()}
 	}
-	p, problems := Builtin().User(string(data))
+	p, problems := Builtin().ApplyUserKeys(string(data))
 	if len(problems) > 0 {
 		return Builtin(), problems
 	}
@@ -323,8 +334,8 @@ func (p Map) Problems() []string {
 		}
 	}
 	var words []string
-	for _, rows := range [][]Row{p.Everywhere, p.DiffView, p.FlowView, p.CommitList, p.FileList, p.DocView} {
-		for _, r := range rows {
+	for _, pg := range p.pages() {
+		for _, r := range *pg.rows {
 			words = append(words, r.Help, r.Setting)
 		}
 	}
@@ -345,16 +356,12 @@ func (p Map) Problems() []string {
 // conflicts returns the keys with two actions on one page.
 func (p Map) conflicts() []string {
 	var problems []string
-	for _, t := range []struct {
-		name string
-		rows []Row
-	}{{"everywhere", p.Everywhere}, {"diff_view", p.DiffView}, {"flow_view", p.FlowView}, {"commit_list", p.CommitList}, {"file_list", p.FileList},
-		{"doc_view", p.DocView}} {
+	for _, pg := range p.pages() {
 		actions := map[string]string{}
-		for _, r := range t.rows {
+		for _, r := range *pg.rows {
 			for _, name := range r.Keys {
 				if a, ok := actions[Name(name)]; ok && a != r.Action {
-					problems = append(problems, "key "+name+" has two actions in "+t.name+": "+a+", "+r.Action)
+					problems = append(problems, "key "+name+" has two actions in "+pg.name+": "+a+", "+r.Action)
 				}
 				actions[Name(name)] = r.Action
 			}
