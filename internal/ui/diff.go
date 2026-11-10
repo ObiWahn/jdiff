@@ -298,7 +298,9 @@ func (d *Diff) watchFiles() tea.Cmd {
 		d.setMsg(msg)
 	}
 	d.watching = true
-	return batch(cmd, d.poll())
+	// The cursor's file counts as used from the start, not only from the
+	// next message on: under inotify_max_dirs its directories go first.
+	return batch(cmd, d.followCursor(), d.poll())
 }
 
 // poll returns the next check of the files near the cursor, the current one

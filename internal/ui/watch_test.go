@@ -404,6 +404,13 @@ func TestDiffCursorWatches(t *testing.T) {
 		}
 		files = append(files, source.File{Path: filepath.Base(p), NewFile: p, New: lines, NewStamp: st, InNew: true})
 	}
+	// f1 is the newer one, as when the two writes fall on both sides of a
+	// tick of the file system's clock: the cursor's f0 is watched anyway.
+	earlier := time.Now().Add(-time.Second)
+	if err := os.Chtimes(files[0].NewFile, earlier, earlier); err != nil {
+		t.Fatal(err)
+	}
+	files[0].NewStamp.ModTime = earlier
 	cfg := config.Default()
 	cfg.Settings.InotifyMaxDirs = 1
 	cfg.AutoReload = true
