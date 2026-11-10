@@ -511,8 +511,9 @@ func TestSettingsNumberPasteClearsError(t *testing.T) {
 	}
 }
 
-// The last option has no key: enter on it asks for the minutes in a line: enter sets and saves them, what is no
-// number stays asked for, esc keeps them. The columns stay aligned.
+// The last option has no key: enter on it asks for the minutes in a line:
+// enter sets and saves them, what is no number stays asked for, esc keeps
+// them. The columns stay aligned.
 func TestSettingsNumber(t *testing.T) {
 	dir := t.TempDir()
 	cfg, err := config.Load(dir, nil, "", "")

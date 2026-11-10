@@ -93,9 +93,8 @@ func (d *diskWatch) unwatched(paths []string) bool {
 
 // set watches the files at paths in place of those before, starting the
 // view's own watcher when it has none, there are files and inotify_max_dirs
-// allows one. It
-// returns the command waiting for the changes of a watcher just started, and
-// why the system refused, or "".
+// allows one. It returns the command waiting for the changes of a watcher
+// just started, and why the system refused, or "".
 func (d *diskWatch) set(cfg *config.Config, paths []string) (cmd tea.Cmd, msg string) {
 	if cfg.Settings.WatchInterval <= 0 {
 		return nil, ""

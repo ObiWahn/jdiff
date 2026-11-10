@@ -150,7 +150,7 @@ type Diff struct {
 	open       *fileEntry // file whose diff view is shown, nil for the list
 	flow       *Flow      // flow view outside the log, created on first use
 	msg        string
-	prefix     string // "'" while waiting for the letter of a mark
+	prefix     string // the action, "jump", while waiting for the letter of a mark
 }
 
 // NewDiff returns the file list for files.

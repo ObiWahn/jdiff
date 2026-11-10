@@ -47,8 +47,8 @@ type Settings struct {
 
 // Toggles are the settings switched by keys, which state.toml keeps as last
 // set; their TOML keys are on the same level as the other settings. The keys
-// are those of the action named with each, in keybindings.toml of package ui,
-// which the user may change.
+// are those of the action named with each, in keybindings.toml of package
+// keys, which the user may change.
 type Toggles struct {
 	// Flow (flow) shows all files one after the other instead of one file
 	// at a time; action flow.

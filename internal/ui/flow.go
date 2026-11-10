@@ -75,7 +75,7 @@ type Flow struct {
 	active    side
 	marked    *fileAlign // diff holding a pending mark
 	replacing *fileAlign // diff waiting for confirmation to replace anchors
-	prefix    string     // "m" or "'" while waiting for the letter of a jump mark
+	prefix    string     // the action, "set_mark" or "jump", while waiting for the letter of a mark
 
 	width, height int
 	msg           string

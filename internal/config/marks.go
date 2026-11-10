@@ -108,5 +108,5 @@ func (c *Config) saveMarks() error {
 	if c.marks.path == "" {
 		return nil
 	}
-	return writeTOML(c.marks.path, "# Written by jdiff: jump marks per repository (m<letter> sets, '<letter> jumps).\n", c.marks.all)
+	return writeTOML(c.marks.path, "# Written by jdiff: jump marks per repository.\n", c.marks.all)
 }

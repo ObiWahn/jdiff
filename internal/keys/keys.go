@@ -133,9 +133,10 @@ type userRow struct {
 }
 
 // ApplyUserKeys returns p with the keys of text, the user's
-// keybindings.toml, applied over them, and what is wrong with it. The rows of an action on a page replace all its rows
-// there, keeping their words; a file with a problem changes nothing, so that
-// a mistake cannot take away the keys to quit or get help.
+// keybindings.toml, applied over them, and what is wrong with it. The rows of
+// an action on a page replace all its rows there, keeping their words; a file
+// with a problem changes nothing, so that a mistake cannot take away the keys
+// to quit or get help.
 func (p Map) ApplyUserKeys(text string) (Map, []string) {
 	var u struct {
 		CommitList []userRow `toml:"commit_list"`

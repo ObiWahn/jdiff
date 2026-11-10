@@ -73,7 +73,7 @@ type Log struct {
 	files  bool         // in flow mode: the file list of open, not the flow view
 	flow   *Flow        // all commits one after the other
 	msg    string
-	prefix string // "'" while waiting for the letter of a mark
+	prefix string // the action, "jump", while waiting for the letter of a mark
 }
 
 // NewLog returns the commit list for commits of branch, in the order of git
@@ -633,8 +633,9 @@ func (l *Log) commitsListed(res commitsListedMsg) tea.Cmd {
 
 // filesOfFlow shows the file list of the commit under the flow view's
 // cursor, on its file, as backspace does from a diff view. A commit that
-// cannot be loaded has no list to show: the commits are shown, on it. A commit still loading shows its list when its files come;
-// it returns the command loading them.
+// cannot be loaded has no list to show: the commits are shown, on it. A
+// commit still loading shows its list when its files come; it returns the
+// command loading them.
 func (l *Log) filesOfFlow() tea.Cmd {
 	p, file, _ := l.flow.position()
 	l.cursor = p

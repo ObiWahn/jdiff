@@ -42,7 +42,7 @@ type FileDiff struct {
 	// disk watches them; those it does not watch are checked every
 	// watch_interval.
 	disk   diskWatch
-	prefix string // "m" or "'" while waiting for the letter of a mark
+	prefix string // the action, "set_mark" or "jump", while waiting for the letter of a mark
 }
 
 // NewFileDiff returns a model comparing oldLines (left) with newLines (right).
