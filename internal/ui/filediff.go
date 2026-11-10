@@ -220,12 +220,12 @@ func (m *FileDiff) key(k string) tea.Cmd {
 	case "pane":
 		m.active = m.active.other()
 	case "half_page":
-		m.scroll(direction(h.Index == 1) * (page / 2))
+		m.scroll(halfPage(h, page))
 	case "scroll":
 		if h.Index == 0 {
-			m.xoff = max(m.xoff-8, 0)
+			m.xoff = max(m.xoff-scrollStep, 0)
 		} else {
-			m.xoff += 8
+			m.xoff += scrollStep
 		}
 	case "change":
 		m.nextChange(direction(h.Index == 0))

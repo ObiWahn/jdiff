@@ -194,12 +194,12 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "pane":
 		f.active = f.active.other()
 	case "half_page":
-		f.scroll(direction(h.Index == 1) * (page / 2))
+		f.scroll(halfPage(h, page))
 	case "scroll":
 		if h.Index == 0 {
-			f.xoff = max(f.xoff-8, 0)
+			f.xoff = max(f.xoff-scrollStep, 0)
 		} else {
-			f.xoff += 8
+			f.xoff += scrollStep
 		}
 	case "change":
 		f.nextChange(direction(h.Index == 0))

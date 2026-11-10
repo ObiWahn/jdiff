@@ -264,6 +264,14 @@ func motion(h keys.Hit, page, far int) (delta int, paging, ok bool) {
 	return 0, false, false
 }
 
+// scrollStep is how many columns the scroll keys move the lines sideways,
+// in the diff view and the flow view alike.
+const scrollStep = 8
+
+// halfPage returns how many rows half_page key h scrolls, half of page rows,
+// the paging step, in the diff view and the flow view alike.
+func halfPage(h keys.Hit, page int) int { return direction(h.Index == 1) * (page / 2) }
+
 func direction(forward bool) int {
 	if forward {
 		return 1
