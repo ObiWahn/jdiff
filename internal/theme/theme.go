@@ -40,6 +40,9 @@ type Theme struct {
 	CommitHash                      lipgloss.Style // commit hashes in the log
 	Branch                          lipgloss.Style // branch above the commit list
 	DocHeading, DocCode, DocLink    lipgloss.Style // --readme: headings, code, links
+	Heading                         lipgloss.Style // headings of lists and boxes, the active pane's title
+	InactiveHeading                 lipgloss.Style // the inactive pane's title, side by side
+	Key                             lipgloss.Style // the keys in the help
 
 	AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
@@ -161,5 +164,8 @@ func Resolve(sp Spec) *Theme {
 	t.DocHeading = styleOrStyle("doc-heading-style", sp.DocHeadingStyle, t.Branch)
 	t.DocCode = styleOrStyle("doc-code-style", sp.DocCodeStyle, t.Title)
 	t.DocLink = style("doc-link-style", sp.DocLinkStyle, def.DocLinkStyle)
+	t.Heading = style("heading-style", sp.HeadingStyle, def.HeadingStyle)
+	t.InactiveHeading = style("inactive-heading-style", sp.InactiveHeadingStyle, def.InactiveHeadingStyle)
+	t.Key = style("key-style", sp.KeyStyle, def.KeyStyle)
 	return t
 }

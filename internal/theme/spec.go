@@ -67,6 +67,9 @@ type Spec struct {
 	DocHeadingStyle         *string `toml:"doc-heading-style" git:"jdiff"`         // headings of --readme; unset: branch-style
 	DocCodeStyle            *string `toml:"doc-code-style" git:"jdiff"`            // code in --readme; unset: file-style
 	DocLinkStyle            *string `toml:"doc-link-style" git:"jdiff"`            // links in --readme
+	HeadingStyle            *string `toml:"heading-style" git:"jdiff"`             // headings of lists and boxes, the active pane's title
+	InactiveHeadingStyle    *string `toml:"inactive-heading-style" git:"jdiff"`    // the inactive pane's title, side by side
+	KeyStyle                *string `toml:"key-style" git:"jdiff"`                 // the keys in the help
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`
@@ -142,7 +145,10 @@ func Builtin() Spec {
 		OverflowStyle:           str("blue"),
 		SearchStyle:             str("black yellow"),
 		// Links as browsers draw them.
-		DocLinkStyle: str("bright-blue bold"),
+		DocLinkStyle:         str("bright-blue bold"),
+		HeadingStyle:         str("bold"),
+		InactiveHeadingStyle: str("dim"),
+		KeyStyle:             str("bold"),
 	}
 }
 

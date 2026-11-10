@@ -28,6 +28,11 @@
   4. the option in the list of theme options in `doc/config.md`.
 - After a change of colors, check that `internal/ui` sets none itself: no `lipgloss.Color`,
   `Foreground`, `Background` or escape sequences outside `internal/theme`.
+- Bold, dim and italic are looks too and come from the theme (`heading-style`, `key-style` …).
+  Allowed in `internal/ui` are only emphasis that follows state, not looks: the bold of the
+  cursor row (`boldIf`, the lists' `s.Bold(i == cursor)`) and `bold_changes` off
+  (`UnsetBold`); the markdown's own bold and italic in `--readme`; and `lipgloss.NewStyle()`
+  without attributes, for padding.
 
 ## Keys and status bars
 

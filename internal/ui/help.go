@@ -145,7 +145,7 @@ func (h *Help) wrap() {
 		case b.key == "":
 			h.rows = append(h.rows, wrapRows(strings.Repeat(" ", keyW+2), keyW+2, strings.TrimSpace(b.what), inner, t.Hint)...)
 		default:
-			key := lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  "
+			key := t.Key.Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  "
 			h.rows = append(h.rows, wrapRows(key, keyW+4, b.what, inner, lipgloss.NewStyle())...)
 		}
 	}

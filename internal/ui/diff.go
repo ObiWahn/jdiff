@@ -861,7 +861,7 @@ func (d *Diff) previewStart(e *fileEntry, screen []sline, at map[sline]int) int 
 // the context of the first change, or where pgup and pgdn scrolled it.
 func (d *Diff) preview(e *fileEntry, height int) string {
 	t := d.cfg.Theme
-	title := lipgloss.NewStyle().Bold(true).Render(" " + e.name() + " ")
+	title := t.Heading.Render(" " + e.name() + " ")
 	if e.Binary {
 		return box(t, d.width, height, title, []string{t.Hint.Render("binary file")})
 	}
@@ -904,14 +904,14 @@ func (d *Diff) frame() string {
 
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
-	bold := lipgloss.NewStyle().Bold(true)
+	heading := t.Heading
 	changed := fmt.Sprintf("%d files changed", len(d.files))
 	if len(d.files) == 1 {
 		changed = "1 file changed"
 	}
-	head := " " + bold.Render(changed)
+	head := " " + heading.Render(changed)
 	if c := d.commit; c != nil {
-		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
+		head = " " + t.CommitHash.Render(c.Short) + " " + heading.Render(c.Subject)
 	}
 	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 	if c := d.commit; c != nil {

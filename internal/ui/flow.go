@@ -956,7 +956,7 @@ func (f *Flow) row(i int) string {
 		case 0:
 			return mark + bar(" "+line, t.CommitBar)
 		case 2:
-			return mark + text(line, t.Zero.Bold(true))
+			return mark + text(line, t.Heading.Inherit(t.Zero))
 		}
 		return mark + text(line, t.Zero)
 	case flowFile:

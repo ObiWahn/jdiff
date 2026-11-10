@@ -736,7 +736,7 @@ func (l *Log) frame() string {
 	if len(l.commits) == 1 {
 		count = "(1 commit)"
 	}
-	head := " " + t.Branch.Render(l.branch) + " " + lipgloss.NewStyle().Bold(true).Render(count)
+	head := " " + t.Branch.Render(l.branch) + " " + t.Heading.Render(count)
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
 		c := l.commits[i]
 		author := pad(ansi.Truncate(c.Author, maxAuthorWidth, "…"), authW, lipgloss.NewStyle())
@@ -754,7 +754,7 @@ func (l *Log) frame() string {
 // with the hash in the top border. A last … line marks a cut message.
 func (l *Log) messageBox(c gitsrc.Commit, height int) string {
 	t := l.cfg.Theme
-	lines := []string{t.Zero.Bold(true).Render(c.Subject)}
+	lines := []string{t.Heading.Inherit(t.Zero).Render(c.Subject)}
 	if c.Body != "" {
 		lines = append(lines, "")
 		for line := range strings.SplitSeq(c.Body, "\n") {

@@ -261,6 +261,27 @@ func TestDocStyles(t *testing.T) {
 	}
 }
 
+// The headings, the inactive pane's title and the keys of the help: bold, dim
+// and bold by default, as they were drawn before they were options.
+func TestHeadingAndKeyStyles(t *testing.T) {
+	th := Default()
+	if !th.Heading.GetBold() || !th.InactiveHeading.GetFaint() || th.InactiveHeading.GetBold() || !th.Key.GetBold() {
+		t.Errorf("default: heading bold %v, inactive faint %v bold %v, key bold %v; want bold, dim, bold",
+			th.Heading.GetBold(), th.InactiveHeading.GetFaint(), th.InactiveHeading.GetBold(), th.Key.GetBold())
+	}
+	if th.Heading.GetForeground() != (lipgloss.NoColor{}) || th.Key.GetForeground() != (lipgloss.NoColor{}) {
+		t.Errorf("default: heading %v, key %v; want no color", th.Heading.GetForeground(), th.Key.GetForeground())
+	}
+	th = Resolve(FromGit(Config{"jdiff.heading-style": "magenta", "jdiff.inactive-heading-style": "bright-black",
+		"jdiff.key-style": "cyan bold"}, nil))
+	if th.Heading.GetForeground() != lipgloss.Color("5") || th.Heading.GetBold() ||
+		th.InactiveHeading.GetForeground() != lipgloss.Color("8") || th.InactiveHeading.GetFaint() ||
+		th.Key.GetForeground() != lipgloss.Color("6") || !th.Key.GetBold() {
+		t.Errorf("set: %v bold %v, %v faint %v, %v; want magenta, bright black, cyan bold", th.Heading.GetForeground(),
+			th.Heading.GetBold(), th.InactiveHeading.GetForeground(), th.InactiveHeading.GetFaint(), th.Key.GetForeground())
+	}
+}
+
 func TestSearchStyle(t *testing.T) {
 	if st := Default().Search; st.GetForeground() != lipgloss.Color("0") || st.GetBackground() != lipgloss.Color("3") {
 		t.Errorf("search matches %v on %v, want black on yellow", st.GetForeground(), st.GetBackground())

@@ -19,9 +19,9 @@ import (
 func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
 	w := (width - 1) / 2
 	title := func(s side) string {
-		style := lipgloss.NewStyle().Bold(true)
+		style := t.Heading
 		if sideBySide && s != active {
-			style = lipgloss.NewStyle().Faint(true)
+			style = t.InactiveHeading
 		}
 		return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
 	}
