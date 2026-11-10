@@ -55,10 +55,40 @@ func waitChanges(w *watch.Watcher) tea.Cmd {
 // shares, which it gives the view before Init (shareWatcher) and waits on, or
 // by one of the view's own, which the view waits on and closes. The files it
 // does not watch, all without a watcher, the view checks every
-// watch_interval.
+// watch_interval (poll), ticking while such a check is pending.
 type diskWatch struct {
-	w   *watch.Watcher
-	own bool
+	w       *watch.Watcher
+	own     bool
+	ticking bool
+}
+
+// share makes d watch by w, which App shares; a pending check stays.
+func (d *diskWatch) share(w *watch.Watcher) { d.w, d.own = w, false }
+
+// poll returns the next check, for owner, of the files at paths, the view's
+// to check, unless one is pending, auto reload is off, there is no
+// watch_interval or all of them are watched.
+func (d *diskWatch) poll(cfg *config.Config, owner tea.Model, paths []string) tea.Cmd {
+	if d.ticking || !cfg.AutoReload || cfg.Settings.WatchInterval <= 0 || !d.unwatched(paths) {
+		return nil
+	}
+	d.ticking = true
+	return watchTick(cfg, owner)
+}
+
+// ticked reports whether owner checks its files for msg: it is owner's check
+// or anyone's, which is then no longer pending, and auto reload is on.
+func (d *diskWatch) ticked(cfg *config.Config, owner tea.Model, msg watchTickMsg) bool {
+	if msg.owner != nil && msg.owner != owner {
+		return false
+	}
+	d.ticking = false
+	return cfg.AutoReload
+}
+
+// unwatched reports whether a change of a file at paths is not reported.
+func (d *diskWatch) unwatched(paths []string) bool {
+	return slices.ContainsFunc(paths, func(p string) bool { return !d.watched(p) })
 }
 
 // set watches the files at paths in place of those before, starting the

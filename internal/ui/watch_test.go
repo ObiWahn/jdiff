@@ -338,8 +338,8 @@ func TestDiffInotifyLimit(t *testing.T) {
 	}
 	d, _ := newWatchedDiff(t) // the old and the new directory
 	d.cfg.Settings.InotifyMaxDirs = 1
-	if d.Init() == nil || d.disk.w == nil || !d.ticking {
-		t.Errorf("two directories, inotify_max_dirs 1: watcher %v ticking %v; want one watched and polling", d.disk.w, d.ticking)
+	if d.Init() == nil || d.disk.w == nil || !d.disk.ticking {
+		t.Errorf("two directories, inotify_max_dirs 1: watcher %v ticking %v; want one watched and polling", d.disk.w, d.disk.ticking)
 	}
 	t.Cleanup(d.stop)
 	f := d.files[0].File
@@ -378,7 +378,7 @@ func TestDiffRelistKeepsWatcher(t *testing.T) {
 	if d.disk.w != w || d.disk.watched(third) {
 		t.Fatalf("after r: watcher replaced %v, e.txt watched %v; want the same watcher, e.txt over the limit", d.disk.w != w, d.disk.watched(third))
 	}
-	if d.ticking {
+	if d.disk.ticking {
 		t.Error("polling while the files near the cursor are watched")
 	}
 	writeLines(t, filepath.Join(dir, "b.txt"), numbered("x", 12))
@@ -424,8 +424,8 @@ func TestDiffCursorWatches(t *testing.T) {
 	if d.files[1].added != 5 {
 		t.Errorf("f1 +%d, want the 5 lines read again", d.files[1].added)
 	}
-	if cmd == nil || !d.ticking {
-		t.Errorf("Init: command %v, ticking %v; want f1, next to the cursor and not watched, checked", cmd != nil, d.ticking)
+	if cmd == nil || !d.disk.ticking {
+		t.Errorf("Init: command %v, ticking %v; want f1, next to the cursor and not watched, checked", cmd != nil, d.disk.ticking)
 	}
 	writeLines(t, files[1].NewFile, numbered("x", 7))
 	d.Update(awaitMsg(t, waitChanges(d.disk.w)))
@@ -474,6 +474,55 @@ func TestStaleTickDropped(t *testing.T) {
 		if _, cmd := v.Update(watchTickMsg{owner: v}); cmd == nil {
 			t.Errorf("%T: its own tick does not schedule the next one", v)
 		}
+	}
+}
+
+// TestDiskWatchPoll checks when diskWatch checks the files it does not watch,
+// which Diff and FileDiff rely on alike.
+func TestDiskWatchPoll(t *testing.T) {
+	owner, other := newTestDiff(), newTestDiff()
+	paths := []string{"/x0", "/x1"}
+	for _, c := range []struct {
+		name string
+		set  func(cfg *config.Config, d *diskWatch)
+	}{
+		{"auto reload off", func(cfg *config.Config, _ *diskWatch) { cfg.AutoReload = false }},
+		{"no watch_interval", func(cfg *config.Config, _ *diskWatch) { cfg.Settings.WatchInterval = 0 }},
+		{"pending", func(_ *config.Config, d *diskWatch) { d.ticking = true }},
+	} {
+		cfg, d := polling(), &diskWatch{}
+		c.set(cfg, d)
+		if d.poll(cfg, owner, paths) != nil {
+			t.Errorf("%s: polls", c.name)
+		}
+	}
+	cfg, d := polling(), &diskWatch{}
+	if d.poll(cfg, owner, nil) != nil || d.ticking {
+		t.Error("no files: polls")
+	}
+	if d.poll(cfg, owner, paths) == nil || !d.ticking {
+		t.Fatal("files not watched: no check")
+	}
+	if d.poll(cfg, owner, paths) != nil {
+		t.Error("polls again while one is pending")
+	}
+	if d.ticked(cfg, owner, watchTickMsg{owner: other}) || !d.ticking {
+		t.Error("another view's check is taken, or ends the pending one")
+	}
+	if !d.ticked(cfg, owner, watchTickMsg{owner: owner}) || d.ticking {
+		t.Error("its own check is not taken, or stays pending")
+	}
+	d.ticking = true
+	if !d.ticked(cfg, owner, watchTickMsg{}) || d.ticking {
+		t.Error("a check without owner is not taken, or stays pending")
+	}
+	d.ticking, cfg.AutoReload = true, false
+	if d.ticked(cfg, owner, watchTickMsg{owner: owner}) || d.ticking {
+		t.Error("auto reload off: the check is taken, or stays pending")
+	}
+	d.ticking = true
+	if d.share(nil); !d.ticking {
+		t.Error("share drops the pending check")
 	}
 }
 
@@ -806,8 +855,8 @@ func TestWatchEndedPolls(t *testing.T) {
 	if _, cmd := d.Update(watchEndedMsg{&watch.Watcher{}}); cmd != nil || d.disk.w != old {
 		t.Fatalf("another watcher ended: command %v, watcher changed %v", cmd != nil, d.disk.w != old)
 	}
-	if _, cmd := d.Update(watchEndedMsg{old}); cmd == nil || d.disk.w != nil || !d.ticking {
-		t.Errorf("its watcher ended: command %v, watcher %v, ticking %v; want polling", cmd != nil, d.disk.w, d.ticking)
+	if _, cmd := d.Update(watchEndedMsg{old}); cmd == nil || d.disk.w != nil || !d.disk.ticking {
+		t.Errorf("its watcher ended: command %v, watcher %v, ticking %v; want polling", cmd != nil, d.disk.w, d.disk.ticking)
 	}
 }
 
@@ -834,8 +883,8 @@ func TestAutoReloadSwitchesWatching(t *testing.T) {
 	d, dir := newWatchedDiff(t)
 	d.cfg.AutoReload = false
 	d.cfg.Settings.AutoReloadInterval = 3600 // the tests send the ticks
-	if cmd := d.Init(); cmd != nil || d.disk.w != nil || d.ticking {
-		t.Fatalf("off: Init %v, watcher %v, ticking %v; want nothing", cmd != nil, d.disk.w, d.ticking)
+	if cmd := d.Init(); cmd != nil || d.disk.w != nil || d.disk.ticking {
+		t.Fatalf("off: Init %v, watcher %v, ticking %v; want nothing", cmd != nil, d.disk.w, d.disk.ticking)
 	}
 	if _, cmd := d.Update(watchTickMsg{owner: d}); cmd != nil {
 		t.Error("off: a tick checks on")
@@ -845,8 +894,8 @@ func TestAutoReloadSwitchesWatching(t *testing.T) {
 	s.Init()
 	t.Cleanup(s.stop)
 	writeLines(t, filepath.Join(dir, "a.txt"), append(numbered("x", 10), "added", "more"))
-	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.gitMode || repo.ctx != nil || !d.ticking || cmd == nil {
-		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.gitMode, repo.ctx != nil, d.ticking)
+	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.gitMode || repo.ctx != nil || !d.disk.ticking || cmd == nil {
+		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.gitMode, repo.ctx != nil, d.disk.ticking)
 	}
 	if d.files[0].added != 2 {
 		t.Errorf("a.txt +%d, want 2: changed while off", d.files[0].added)

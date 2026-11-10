@@ -137,11 +137,9 @@ type Diff struct {
 	diffArgs []string
 	// disk watches the files on disk while auto reload is on, from watch on;
 	// those near the cursor that it does not watch are checked every
-	// watch_interval, ticking while such a check is pending. touched is the
-	// file the cursor was on last.
+	// watch_interval. touched is the file the cursor was on last.
 	disk     diskWatch
 	watching bool
-	ticking  bool
 	touched  *fileEntry
 	list
 	// previewTop is the first screen line of the preview scrolled by pgup
@@ -219,7 +217,7 @@ func (d *Diff) stop() {
 }
 
 // shareWatcher makes d watch its files by w, which App shares.
-func (d *Diff) shareWatcher(w *watch.Watcher) { d.disk = diskWatch{w: w} }
+func (d *Diff) shareWatcher(w *watch.Watcher) { d.disk.share(w) }
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -307,11 +305,11 @@ func (d *Diff) watch() tea.Cmd {
 // and its neighbors, that are not watched; nil while one is pending, or when
 // none is to be checked.
 func (d *Diff) poll() tea.Cmd {
-	if d.ticking || !d.cfg.AutoReload || d.cfg.Settings.WatchInterval <= 0 || !slices.ContainsFunc(d.nearCursor(), d.unwatched) {
-		return nil
+	var paths []string
+	for _, i := range d.nearCursor() {
+		paths = append(paths, diskPaths(d.files[i].File)...)
 	}
-	d.ticking = true
-	return watchTick(d.cfg, d)
+	return d.disk.poll(d.cfg, d, paths)
 }
 
 // nearCursor returns the indices of the current file and its neighbors.
@@ -327,7 +325,7 @@ func (d *Diff) nearCursor() []int {
 
 // unwatched reports whether a side of file i on disk is not watched.
 func (d *Diff) unwatched(i int) bool {
-	return slices.ContainsFunc(diskPaths(d.files[i].File), func(p string) bool { return !d.disk.watched(p) })
+	return d.disk.unwatched(diskPaths(d.files[i].File))
 }
 
 // current returns the index of the file the cursor is on: in the flow view,
@@ -556,11 +554,7 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return d, d.watch()
 	case watchTickMsg:
-		if msg.owner != nil && msg.owner != d {
-			return d, nil
-		}
-		d.ticking = false
-		if !d.cfg.AutoReload {
+		if !d.disk.ticked(d.cfg, d, msg) {
 			return d, nil
 		}
 		near := d.nearCursor()

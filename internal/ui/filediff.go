@@ -40,10 +40,9 @@ type FileDiff struct {
 	msg   string
 	watch *source.File // the files on disk, reloaded when they change; nil when not watched
 	// disk watches them; those it does not watch are checked every
-	// watch_interval, ticking while such a check is pending.
-	disk    diskWatch
-	ticking bool
-	prefix  string // "m" or "'" while waiting for the letter of a mark
+	// watch_interval.
+	disk   diskWatch
+	prefix string // "m" or "'" while waiting for the letter of a mark
 }
 
 // NewFileDiff returns a model comparing oldLines (left) with newLines (right).
@@ -98,17 +97,15 @@ func (m *FileDiff) watchFiles() tea.Cmd {
 }
 
 // shareWatcher makes m watch its files by w, which App shares.
-func (m *FileDiff) shareWatcher(w *watch.Watcher) { m.disk = diskWatch{w: w} }
+func (m *FileDiff) shareWatcher(w *watch.Watcher) { m.disk.share(w) }
 
 // poll returns the next check of the files, unless one is pending or both
 // are watched.
 func (m *FileDiff) poll() tea.Cmd {
-	if m.ticking || m.watch == nil || !m.cfg.AutoReload || m.cfg.Settings.WatchInterval <= 0 ||
-		!slices.ContainsFunc(diskPaths(*m.watch), func(p string) bool { return !m.disk.watched(p) }) {
+	if m.watch == nil {
 		return nil
 	}
-	m.ticking = true
-	return watchTick(m.cfg, m)
+	return m.disk.poll(m.cfg, m, diskPaths(*m.watch))
 }
 
 func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -129,11 +126,7 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.watchFiles()
 	case watchTickMsg:
-		if msg.owner != nil && msg.owner != m {
-			return m, nil
-		}
-		m.ticking = false
-		if !m.cfg.AutoReload {
+		if !m.disk.ticked(m.cfg, m, msg) {
 			return m, nil
 		}
 		if msg := refreshFile(m.watch, m.fileAlign, m.syncLayout); msg != "" {
