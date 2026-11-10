@@ -99,15 +99,22 @@ func (r Repo) run(env []string, stdin []byte, args ...string) ([]byte, error) {
 	out, err := cmd.Output()
 	running.Done()
 	if err != nil {
-		if r.ctx != nil && r.ctx.Err() != nil {
-			return nil, r.ctx.Err() // killed: what git says is of no interest
-		}
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return nil, fmt.Errorf("git %s: %s", args[0], msg)
-		}
-		return nil, fmt.Errorf("git %s: %w", args[0], err)
+		return nil, r.gitError(args[0], &stderr, err)
 	}
 	return out, nil
+}
+
+// gitError returns the error of git name that failed with err: the context's
+// error when it was cancelled, as what git says then is of no interest, else
+// what git wrote to stderr, else err.
+func (r Repo) gitError(name string, stderr *bytes.Buffer, err error) error {
+	if r.ctx != nil && r.ctx.Err() != nil {
+		return r.ctx.Err()
+	}
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		return fmt.Errorf("git %s: %s", name, msg)
+	}
+	return fmt.Errorf("git %s: %w", name, err)
 }
 
 // Reversed reports whether git log lists the commits of args oldest first:
@@ -248,6 +255,12 @@ func (r Repo) WatchPaths() ([]string, error) {
 	if ref, err := r.git("symbolic-ref", "-q", "HEAD"); err == nil {
 		names = append(names, strings.TrimSpace(string(ref)))
 	}
+	return r.gitPaths(names...)
+}
+
+// gitPaths returns where git keeps the files names, also in a worktree:
+// absolute and cleaned, as git gives them relative to where it ran.
+func (r Repo) gitPaths(names ...string) ([]string, error) {
 	args := []string{"rev-parse"}
 	for _, n := range names {
 		args = append(args, "--git-path", n)
@@ -539,14 +552,11 @@ func readableFile(path string) bool {
 // copyIndex copies the index into dir and returns the path of the copy. A
 // repository without an index yet leaves nothing to copy.
 func (r Repo) copyIndex(dir string) (string, error) {
-	out, err := r.git("rev-parse", "--git-path", "index")
+	paths, err := r.gitPaths("index")
 	if err != nil {
 		return "", err
 	}
-	from := strings.TrimSpace(string(out))
-	if !filepath.IsAbs(from) {
-		from = filepath.Join(r.Dir, from)
-	}
+	from := paths[0]
 	to := filepath.Join(dir, "index")
 	data, err := os.ReadFile(from)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -765,13 +775,7 @@ func (r Repo) catFiles(specs []string) ([]blob, error) {
 		blobs[i] = blob{data: data[:size], missing: f[1] != "blob"}
 	}
 	if err := cmd.Wait(); err != nil {
-		if r.ctx != nil && r.ctx.Err() != nil {
-			return nil, r.ctx.Err()
-		}
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return nil, fmt.Errorf("git cat-file: %s", msg)
-		}
-		return nil, fmt.Errorf("git cat-file: %w", err)
+		return nil, r.gitError("cat-file", &stderr, err)
 	}
 	return blobs, nil
 }

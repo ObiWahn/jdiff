@@ -998,6 +998,31 @@ func TestCatFilesReportsGit(t *testing.T) {
 	}
 }
 
+// gitError, which run and catFiles share: a cancelled context wins over what
+// git says, which wins over the exit status, which stays wrapped.
+func TestGitError(t *testing.T) {
+	exit := errors.New("exit status 128")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, c := range []struct {
+		name   string
+		r      Repo
+		stderr string
+		want   string
+		wrap   error
+	}{
+		{"cancelled", Repo{ctx: ctx}, "fatal: x0\n", "context canceled", context.Canceled},
+		{"stderr", Repo{}, "  fatal: x0\n", "git log: fatal: x0", nil},
+		{"stderr, context running", Repo{ctx: context.Background()}, "fatal: x0", "git log: fatal: x0", nil},
+		{"no stderr", Repo{}, " \n", "git log: exit status 128", exit},
+	} {
+		err := c.r.gitError("log", bytes.NewBufferString(c.stderr), exit)
+		if err == nil || err.Error() != c.want || c.wrap != nil && !errors.Is(err, c.wrap) {
+			t.Errorf("%s: %v, want %q", c.name, err, c.want)
+		}
+	}
+}
+
 // Files asks git cat-file only for the sides a file has: an added file has
 // no old side, a deleted one no new side.
 func TestFilesAddedAndDeletedSides(t *testing.T) {
