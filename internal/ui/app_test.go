@@ -107,14 +107,22 @@ func TestAppNextPrevFile(t *testing.T) {
 	}
 }
 
-func TestAppSingleFileOpensDirectly(t *testing.T) {
+// A single file has its list, as many do: enter opens it, backspace goes back.
+func TestAppSingleFileShowsList(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{
 		{Path: "only.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	})
-	if a.open == nil || a.open.Path != "only.go" {
-		t.Fatalf("single file not opened directly")
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if a.open != nil {
+		t.Fatalf("single file opened directly, want its list")
 	}
-	// Outside the log, backspace still shows the list.
+	if frame := a.frame(); !strings.Contains(frame, "1 file changed") || !strings.Contains(frame, "only.go") {
+		t.Fatalf("list of the single file:\n%s", frame)
+	}
+	pressApp(a, "enter")
+	if a.open == nil || a.open.Path != "only.go" {
+		t.Fatalf("enter did not open only.go")
+	}
 	pressApp(a, "backspace")
 	if a.open != nil {
 		t.Errorf("backspace did not show the list")

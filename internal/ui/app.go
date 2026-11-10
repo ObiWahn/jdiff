@@ -119,7 +119,7 @@ const fileListRows = 15
 
 // App is the Bubble Tea model of the file selector. It shows the diff view
 // of the selected file and returns to the list on backspace. A single file
-// is opened directly, except in the log, where a commit shows its list.
+// has its list too, as many do.
 type App struct {
 	cfg    *config.Config
 	commit *gitsrc.Commit // whose files are shown, nil outside the log
@@ -199,9 +199,6 @@ func newApp(cfg *config.Config, files []source.File, commit *gitsrc.Commit) *App
 	if w := cfg.Warning(); w != "" {
 		a.msg = w
 	}
-	if a.single() && !a.inLog() {
-		a.openFile()
-	}
 	return a
 }
 
@@ -234,10 +231,6 @@ func diffCommand(args []string) string {
 // inLog reports whether a is part of the log: backspace and N/P go to the
 // log.
 func (a *App) inLog() bool { return a.commit != nil }
-
-// single reports whether there is exactly one file and it can be shown,
-// which a comparison outside the log opens directly.
-func (a *App) single() bool { return len(a.files) == 1 && !a.files[0].Binary }
 
 // openPath opens the file with the given path and reports whether it could.
 func (a *App) openPath(path string) bool {
@@ -924,7 +917,11 @@ func (a *App) frame() string {
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
 	bold := lipgloss.NewStyle().Bold(true)
-	head := " " + bold.Render(fmt.Sprintf("%d files changed", len(a.files)))
+	changed := fmt.Sprintf("%d files changed", len(a.files))
+	if len(a.files) == 1 {
+		changed = "1 file changed"
+	}
+	head := " " + bold.Render(changed)
 	if c := a.commit; c != nil {
 		head = " " + t.CommitHash.Render(c.Short) + " " + bold.Render(c.Subject)
 	}

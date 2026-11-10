@@ -739,8 +739,11 @@ func (l *Log) frame() string {
 	fixedW := l.cols.fixed + 1 + 2 + (addW + 1) + 1 + (remW + 1) + 2 + 2 + authW + 2
 	subjW := max(min(l.cols.subject, l.width-fixedW), 1)
 
-	head := " " + t.Branch.Render(l.branch) + " " +
-		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("(%d commits)", len(l.commits)))
+	count := fmt.Sprintf("(%d commits)", len(l.commits))
+	if len(l.commits) == 1 {
+		count = "(1 commit)"
+	}
+	head := " " + t.Branch.Render(l.branch) + " " + lipgloss.NewStyle().Bold(true).Render(count)
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
 		c := l.commits[i]
 		author := pad(ansi.Truncate(c.Author, maxAuthorWidth, "…"), authW, lipgloss.NewStyle())

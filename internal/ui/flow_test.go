@@ -434,6 +434,7 @@ func TestWrapInFlowKeepsCursorLine(t *testing.T) {
 	a := NewApp(config.Default(), []source.File{modified("a.go", wrapLines("x"), b)})
 	a.cfg.Settings.CollapseUnchanged = false
 	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	pressApp(a, "enter")
 	d := a.files[0].diff
 	d.buildView()
 	at := d.spotOf(right, 15, a.open.view.shape())

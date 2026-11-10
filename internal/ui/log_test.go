@@ -90,6 +90,15 @@ func TestLogListShowsCommits(t *testing.T) {
 	}
 }
 
+// One commit is counted in the singular, as one file is in the file list.
+func TestLogListOneCommit(t *testing.T) {
+	l := NewLog(config.Default(), "main", []gitsrc.Commit{{Hash: "c0", Short: "c0", Subject: "subject c0"}}, false, nil, nil)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 12})
+	if top := topLines(l, 1); top[0] != " main (1 commit)" {
+		t.Errorf("top line %q, want \" main (1 commit)\"", top[0])
+	}
+}
+
 func TestLogLevelsAndBackspace(t *testing.T) {
 	l, loads := newTestLog()
 
