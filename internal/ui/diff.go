@@ -27,7 +27,7 @@ type fileEntry struct {
 	source.File
 	added, removed int
 	align          *fileAlign
-	view           *Model
+	view           *FileDiff
 }
 
 // label returns the status label, using delta's file labels.
@@ -702,16 +702,16 @@ func (d *Diff) key(k string) tea.Cmd {
 // diffOf returns the diff of e, creating it on first use.
 func (d *Diff) diffOf(e *fileEntry) *fileAlign {
 	if e.align == nil {
-		e.align = newFileDiff(d.cfg, e.paneNames(), [2][]string{e.Old, e.New})
+		e.align = newFileAlign(d.cfg, e.paneNames(), [2][]string{e.Old, e.New})
 		e.align.markPath = e.Path
 	}
 	return e.align
 }
 
 // viewOf returns the diff view of e, creating it on first use.
-func (d *Diff) viewOf(e *fileEntry) *Model {
+func (d *Diff) viewOf(e *fileEntry) *FileDiff {
 	if e.view == nil {
-		e.view = newModel(d.diffOf(e))
+		e.view = newFileDiff(d.diffOf(e))
 		e.view.canBack = true
 		e.view.commitNav = d.inLog()
 	}
@@ -737,7 +737,7 @@ func (d *Diff) openFile() {
 
 // showFlow shows the flow view on file, where its diff view from leaves
 // it, or on its bar for from nil (see Flow.showFrom).
-func (d *Diff) showFlow(file int, from *Model) {
+func (d *Diff) showFlow(file int, from *FileDiff) {
 	if d.flow == nil {
 		d.flow = flowOfDiff(d)
 	}

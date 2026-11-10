@@ -18,7 +18,7 @@ import (
 var movedBlock = []string{"func helper(x int) int {", "	return x * 2", "}"}
 
 // renderedLine returns the screen line of m showing line of side s.
-func renderedLine(t *testing.T, m *Model, s side, line int) string {
+func renderedLine(t *testing.T, m *FileDiff, s side, line int) string {
 	t.Helper()
 	for _, sl := range m.screen {
 		if m.lineAt(s, sl.v) == line {
@@ -33,7 +33,7 @@ func TestMovedLinesMarked(t *testing.T) {
 	stay := []string{"stay one", "stay two", "stay three", "stay four"}
 	a := append(append(append([]string{}, movedBlock...), stay...), "old line")
 	b := append(append(append([]string{}, stay...), movedBlock...), "new line")
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	from, to := renderedLine(t, m, left, 0), renderedLine(t, m, right, 4)
@@ -51,7 +51,7 @@ func TestMovedLinesMarked(t *testing.T) {
 
 func TestAnchorEndsMove(t *testing.T) {
 	stay := []string{"stay one", "stay two", "stay three", "stay four"}
-	m := newTestModel(append(append([]string{}, movedBlock...), stay...), append(append([]string{}, stay...), movedBlock...))
+	m := newTestFileDiff(append(append([]string{}, movedBlock...), stay...), append(append([]string{}, stay...), movedBlock...))
 	if _, ok := m.movedTo(left, 0); !ok {
 		t.Fatal("block not found as moved")
 	}
@@ -80,7 +80,7 @@ func TestMovedAcrossFilesInDiff(t *testing.T) {
 func TestReloadUpdatesMoves(t *testing.T) {
 	stay := []string{"stay one", "stay two", "stay three", "stay four"}
 	old := append(append([]string{}, movedBlock...), stay...)
-	m, dir := newWatchedModel(t, old, old)
+	m, dir := newWatchedFileDiff(t, old, old)
 	if _, ok := m.movedTo(left, 0); ok {
 		t.Fatal("identical files have moved code")
 	}
@@ -92,14 +92,14 @@ func TestReloadUpdatesMoves(t *testing.T) {
 	}
 }
 
-// newMovedModel returns a view of a file whose first three lines moved
+// newMovedFileDiff returns a view of a file whose first three lines moved
 // below 40 lines that stay, more than a screen, followed by 30 lines and a
 // last line that changed in place.
-func newMovedModel() *Model {
+func newMovedFileDiff() *FileDiff {
 	stay, tail := numbered("stay line ", 40), numbered("tail line ", 30)
 	a := append(append(append(append([]string{}, movedBlock...), stay...), tail...), "old line")
 	b := append(append(append(append([]string{}, stay...), movedBlock...), tail...), "new line")
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	return m
@@ -107,7 +107,7 @@ func newMovedModel() *Model {
 
 func TestJumpWithinFile(t *testing.T) {
 	for _, layout := range []string{"side by side", "normal"} {
-		m := newMovedModel()
+		m := newMovedFileDiff()
 		if layout == "normal" {
 			setOption(m, m.cfg, "s")
 		}
@@ -133,7 +133,7 @@ func TestJumpWithinFile(t *testing.T) {
 }
 
 func TestJumpFromEitherPane(t *testing.T) {
-	m := newMovedModel()
+	m := newMovedFileDiff()
 	moveTo(t, m, left, 1) // "return x * 2", moved down; nothing on the right
 	press(m, "tab")       // the right pane, empty in this row
 	press(m, "g")
@@ -156,7 +156,7 @@ func TestFlowJumpFromEitherPane(t *testing.T) {
 }
 
 func TestJumpNotMoved(t *testing.T) {
-	m := newMovedModel()
+	m := newMovedFileDiff()
 	moveTo(t, m, left, 73) // the line changed in place
 	cursor := m.cursor
 	press(m, "g")
@@ -254,7 +254,7 @@ func TestJumpOnScreenDoesNotScroll(t *testing.T) {
 	stay := numbered("stay line ", 5)
 	a := append(append(append([]string{}, numbered("top line ", 10)...), movedBlock...), stay...)
 	b := append(append(append([]string{}, numbered("top line ", 10)...), stay...), movedBlock...)
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	moveTo(t, m, left, 11)

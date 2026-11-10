@@ -57,7 +57,7 @@ func settingsPages() []struct {
 		{"diff", app, []string{"enter"}},
 		{"flow", app, []string{"f"}},
 		{"log flow", log, []string{"f"}},
-		{"single diff", func() (tea.Model, *config.Config) { m := newMarkModel(); return m, m.cfg }, nil},
+		{"single diff", func() (tea.Model, *config.Config) { m := newMarkFileDiff(); return m, m.cfg }, nil},
 	}
 }
 
@@ -88,7 +88,7 @@ func TestSettingsOptions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		s := WithSettings(cfg, newTestModel(numbered("x", 10), numbered("y", 10)))
+		s := WithSettings(cfg, newTestFileDiff(numbered("x", 10), numbered("y", 10)))
 		s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		was := *o.setting(cfg)
 		pressRoot(s, "o", o.key)
@@ -202,7 +202,7 @@ func TestSettingsStayInCommitMessage(t *testing.T) {
 
 // o is a mark letter too: after m and ' it names the mark, not the popup.
 func TestSettingsKeyAsMarkLetter(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	s := WithSettings(m.cfg, m)
 	s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	line := m.lineAt(right, m.cursor)
@@ -228,7 +228,7 @@ func TestSettingsKeyAsMarkLetter(t *testing.T) {
 // The flow view lays out its rows anew on a toggle while the popup stays open
 // over it.
 func TestSettingsWrapInFlowBelowPopup(t *testing.T) {
-	probe := newTestModel([]string{"a"}, []string{"b"})
+	probe := newTestFileDiff([]string{"a"}, []string{"b"})
 	full := strings.Repeat("x", probe.contentWidth(80, false)+5)
 	d := NewDiff(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
 	d.cfg.Settings.CollapseUnchanged = false
@@ -254,7 +254,7 @@ func TestSettingsPopupSweep(t *testing.T) {
 		t.Run(fmt.Sprint("height ", height), func(t *testing.T) {
 			t.Parallel()
 			cfg := config.Default()
-			s := WithSettings(cfg, newTestModel(numbered("x", 40), numbered("y", 40)))
+			s := WithSettings(cfg, newTestFileDiff(numbered("x", 40), numbered("y", 40)))
 			s.Update(tea.WindowSizeMsg{Width: 30, Height: height})
 			pressRoot(s, "o")
 			rows := max(min(n, height-4), 1)
@@ -380,7 +380,7 @@ func TestUntrackedKeyOnPages(t *testing.T) {
 		t.Errorf("u in its diff view: %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
 
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	s = WithSettings(m.cfg, m)
 	pressRoot(s, "u")
 	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
@@ -390,7 +390,7 @@ func TestUntrackedKeyOnPages(t *testing.T) {
 
 // After m and ' the letters are mark letters, in a line of text they are text.
 func TestSettingKeysGiveWay(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	cfg := m.cfg
 	before := cfg.Settings.SideBySide
 	s := WithSearch(cfg, WithSettings(cfg, m))
@@ -415,7 +415,7 @@ func TestSettingKeySaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := WithSettings(cfg, New(cfg, "old", "new", []string{"x0"}, []string{"x1"}))
+	s := WithSettings(cfg, NewFileDiff(cfg, "old", "new", []string{"x0"}, []string{"x1"}))
 	pressRoot(s, "W")
 	data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
 	if err != nil {
@@ -448,7 +448,7 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 	}
 	t.Run("diff view", func(t *testing.T) {
 		cfg := newCfg(t)
-		m := New(cfg, "old", "new", files[0].Old, files[0].New)
+		m := NewFileDiff(cfg, "old", "new", files[0].Old, files[0].New)
 		press(m, cfg, "w")
 		if !strings.HasPrefix(m.msg, "state: ") {
 			t.Errorf("msg %q", m.msg)
@@ -483,7 +483,7 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 	// With the popup open it shows there, and not on the page below.
 	t.Run("popup", func(t *testing.T) {
 		cfg := newCfg(t)
-		m := New(cfg, "old", "new", files[0].Old, files[0].New)
+		m := NewFileDiff(cfg, "old", "new", files[0].Old, files[0].New)
 		s := WithSettings(cfg, m)
 		s.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 		pressRoot(s, "o", "w")
@@ -495,7 +495,7 @@ func TestSettingKeyTellsWhyNotSaved(t *testing.T) {
 
 // Pasted text changes the number typed, as a key does: why it was none is gone.
 func TestSettingsNumberPasteClearsError(t *testing.T) {
-	s := WithSettings(config.Default(), newTestModel(numbered("x", 30), numbered("y", 30)))
+	s := WithSettings(config.Default(), newTestFileDiff(numbered("x", 30), numbered("y", 30)))
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	pressRoot(s, "o")
 	for range len(settingOptions(keys.Builtin())) - 1 {
@@ -522,7 +522,7 @@ func TestSettingsNumber(t *testing.T) {
 	if cfg.Settings.AutoReloadTimeout != 5 {
 		t.Errorf("default timeout %d, want 5", cfg.Settings.AutoReloadTimeout)
 	}
-	s := WithSettings(cfg, newTestModel(numbered("x", 30), numbered("y", 30)))
+	s := WithSettings(cfg, newTestFileDiff(numbered("x", 30), numbered("y", 30)))
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	// a is free, on the page and in the popup.
 	pressRoot(s, "a")
@@ -606,7 +606,7 @@ func TestSettingsFlow(t *testing.T) {
 		t.Errorf("f again: flow %v, shown %v, popup %v", cfg.Settings.Flow, d.flowShown(), s.open)
 	}
 
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	s = WithSettings(m.cfg, m)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	pressRoot(s, "o", "f")

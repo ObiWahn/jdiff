@@ -15,16 +15,16 @@ import (
 	"jdiff/internal/source"
 )
 
-// newMarkModel returns the view of 40 lines with line 5 changed, the
+// newMarkFileDiff returns the view of 40 lines with line 5 changed, the
 // unchanged lines folded.
-func newMarkModel() *Model {
+func newMarkFileDiff() *FileDiff {
 	b := numbered("x", 40)
 	b[4] = "changed"
-	return newTestModel(numbered("x", 40), b)
+	return newTestFileDiff(numbered("x", 40), b)
 }
 
 func TestMarkSetAndJump(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	press(m, "ctrl+space") // unfold all
 	moveTo(t, m, right, 30)
 	press(m, "m", "a")
@@ -47,7 +47,7 @@ func TestMarkSetAndJump(t *testing.T) {
 }
 
 func TestMarkMessages(t *testing.T) {
-	m := newTestModel([]string{"keep", "gone", "stay"}, []string{"keep", "stay"})
+	m := newTestFileDiff([]string{"keep", "gone", "stay"}, []string{"keep", "stay"})
 	moveTo(t, m, left, 1) // the removed line
 	press(m, "m", "b")
 	if _, ok := m.cfg.Mark("b"); ok || m.msg != "no line of the new file here" {
@@ -67,7 +67,7 @@ func TestMarkMessages(t *testing.T) {
 }
 
 func TestMarkFindsLineInShrunkFile(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	press(m, "ctrl+space")
 	moveTo(t, m, right, 30)
 	press(m, "m", "a")
@@ -81,7 +81,7 @@ func TestMarkFindsLineInShrunkFile(t *testing.T) {
 }
 
 func TestMarkFindsMovedLine(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	press(m, "ctrl+space")
 	moveTo(t, m, right, 30)
 	press(m, "m", "a")
@@ -147,7 +147,7 @@ func TestFlowMarkStaysInCommit(t *testing.T) {
 }
 
 func TestMarksPopup(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	p := WithMarks(m.cfg, m)
 	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	pressRoot(p, "\\")
@@ -211,7 +211,7 @@ func rawText(view string, width int) string {
 }
 
 func TestMarksPopupExpandsTabs(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	p := WithMarks(m.cfg, m)
 	p.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	if err := m.cfg.SetMark("t", config.Mark{Path: "new", Line: 1, Text: "a\tb\x01c"}); err != nil {
@@ -250,7 +250,7 @@ func popupRows(view string) []string {
 }
 
 func TestMarksPopupArrows(t *testing.T) {
-	m := newMarkModel()
+	m := newMarkFileDiff()
 	for i := range 26 {
 		if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: i + 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
 			t.Fatal(err)
@@ -314,7 +314,7 @@ func TestMarksPopupArrowsSweep(t *testing.T) {
 	for height := minHeight; height <= n+5; height++ {
 		t.Run(fmt.Sprint("height ", height), func(t *testing.T) {
 			t.Parallel()
-			m := newTestModel([]string{"a"}, []string{"b"})
+			m := newTestFileDiff([]string{"a"}, []string{"b"})
 			for i := range n {
 				if err := m.cfg.SetMark(string(rune('a'+i)), config.Mark{Path: "new", Line: 1, Text: fmt.Sprintf("t%02d", i)}); err != nil {
 					t.Fatal(err)
@@ -398,7 +398,7 @@ func TestWatchedMarkIsRelativeToRepo(t *testing.T) {
 		New: numbered("x", 3), Old: numbered("x", 3), InOld: true, InNew: true}
 	cfg := polling()
 	cfg.LoadMarks(dir)
-	m := NewWatched(cfg, f)
+	m := NewWatchedFileDiff(cfg, f)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	press(m, "ctrl+space")
 	moveTo(t, m, right, 2)
@@ -427,7 +427,7 @@ func TestIsMarkLetter(t *testing.T) {
 }
 
 func TestMarkOnEmptyNewFile(t *testing.T) {
-	m := newTestModel([]string{"x0"}, nil)
+	m := newTestFileDiff([]string{"x0"}, nil)
 	if err := m.cfg.SetMark("a", config.Mark{Path: "new", Line: 1, Text: "x0"}); err != nil {
 		t.Fatal(err)
 	}

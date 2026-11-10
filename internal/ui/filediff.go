@@ -13,9 +13,9 @@ import (
 	"jdiff/watch"
 )
 
-// Model is the Bubble Tea model of the diff view: a single file view of a
+// FileDiff is the Bubble Tea model of the diff view: a single file view of a
 // fileAlign, which other views may show and change too.
-type Model struct {
+type FileDiff struct {
 	*fileAlign
 
 	screen      []sline       // screen lines of the displayed rows
@@ -47,26 +47,26 @@ type Model struct {
 	prefix  string // "m" or "'" while waiting for the letter of a mark
 }
 
-// New returns a model comparing oldLines (left) with newLines (right).
-func New(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *Model {
-	a := newFileDiff(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
+// NewFileDiff returns a model comparing oldLines (left) with newLines (right).
+func NewFileDiff(cfg *config.Config, oldName, newName string, oldLines, newLines []string) *FileDiff {
+	a := newFileAlign(cfg, [2]string{oldName, newName}, [2][]string{oldLines, newLines})
 	a.markPath = newName
 	(&moveGroup{}).add(a, a.names)
-	return newModel(a)
+	return newFileDiff(a)
 }
 
-// NewWatched returns a model comparing the sides of f, which it reloads
+// NewWatchedFileDiff returns a model comparing the sides of f, which it reloads
 // when they change on disk (see watch_interval).
-func NewWatched(cfg *config.Config, f source.File) *Model {
-	m := New(cfg, f.OldFile, f.NewFile, f.Old, f.New)
+func NewWatchedFileDiff(cfg *config.Config, f source.File) *FileDiff {
+	m := NewFileDiff(cfg, f.OldFile, f.NewFile, f.Old, f.New)
 	m.watch = &f
 	m.markPath = repoPath(cfg.Repo(), f.NewFile)
 	return m
 }
 
-// newModel returns the single file view of a.
-func newModel(a *fileAlign) *Model {
-	m := &Model{fileAlign: a}
+// newFileDiff returns the single file view of a.
+func newFileDiff(a *fileAlign) *FileDiff {
+	m := &FileDiff{fileAlign: a}
 	m.buildScreen()
 	if slices.Equal(a.lines[left], a.lines[right]) {
 		m.msg = "files are identical"
@@ -78,12 +78,12 @@ func newModel(a *fileAlign) *Model {
 }
 
 // Init starts watching the files, when they are on disk, see watchFiles.
-func (m *Model) Init() tea.Cmd { return m.watchFiles() }
+func (m *FileDiff) Init() tea.Cmd { return m.watchFiles() }
 
 // watchFiles watches the files, when they are on disk, while auto reload is
 // on, and returns the command waiting for their changes and the check of
 // those not watched; off, it watches them no more.
-func (m *Model) watchFiles() tea.Cmd {
+func (m *FileDiff) watchFiles() tea.Cmd {
 	if m.watch == nil {
 		return nil
 	}
@@ -99,11 +99,11 @@ func (m *Model) watchFiles() tea.Cmd {
 }
 
 // shareWatcher makes m watch its files by w, which DiffSwitch shares.
-func (m *Model) shareWatcher(w *watch.Watcher) { m.disk = diskWatch{w: w} }
+func (m *FileDiff) shareWatcher(w *watch.Watcher) { m.disk = diskWatch{w: w} }
 
 // poll returns the next check of the files, unless one is pending or both
 // are watched.
-func (m *Model) poll() tea.Cmd {
+func (m *FileDiff) poll() tea.Cmd {
 	if m.ticking || m.watch == nil || !m.cfg.AutoReload || m.cfg.Settings.WatchInterval <= 0 ||
 		!slices.ContainsFunc(diskPaths(*m.watch), func(p string) bool { return !m.disk.watched(p) }) {
 		return nil
@@ -112,7 +112,7 @@ func (m *Model) poll() tea.Cmd {
 	return watchTick(m.cfg, m)
 }
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.syncLayout()
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -177,11 +177,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // stop stops watching the files: the view is replaced.
-func (m *Model) stop() { m.disk.stop() }
+func (m *FileDiff) stop() { m.disk.stop() }
 
 // refresh reads both files again, whether their stamps changed or not. With
 // quiet, it does not say when nothing changed.
-func (m *Model) refresh(quiet bool) {
+func (m *FileDiff) refresh(quiet bool) {
 	if m.watch == nil {
 		m.msg = "nothing to load again"
 		return
@@ -195,7 +195,7 @@ func (m *Model) refresh(quiet bool) {
 	}
 }
 
-func (m *Model) key(k string) tea.Cmd {
+func (m *FileDiff) key(k string) tea.Cmd {
 	m.msg = ""
 	if p := m.prefix; p != "" {
 		m.prefix = ""
@@ -271,7 +271,7 @@ func (m *Model) key(k string) tea.Cmd {
 // gotoMark moves the cursor to the line of mark letter, at screen row
 // screenRow. A mark in another file of the diff is shown by the file
 // list.
-func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
+func (m *FileDiff) gotoMark(letter string, screenRow int) tea.Cmd {
 	mk, ok := m.cfg.Mark(letter)
 	switch {
 	case !ok:
@@ -292,7 +292,7 @@ func (m *Model) gotoMark(letter string, screenRow int) tea.Cmd {
 // markSpot returns the cursor on the line of mark mk, called letter, of
 // this file, unfolding it, and sets the message. ok is false for an empty
 // new file.
-func (m *Model) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
+func (m *FileDiff) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
 	line, note, ok := m.markLine(mk)
 	if !ok {
 		m.msg = markMsg(letter, "the new file is empty")
@@ -305,7 +305,7 @@ func (m *Model) markSpot(letter string, mk config.Mark) (at spot, ok bool) {
 // jump moves the cursor to the other end of the moved line under it (see
 // jumpTo). An end in another file is shown by the file list, at the
 // cursor's screen row.
-func (m *Model) jump() tea.Cmd {
+func (m *FileDiff) jump() tea.Cmd {
 	end, msg, ok := m.otherEnd(spot{m.cursor, m.sub, m.active}, m.screenShape)
 	if !ok {
 		m.msg = msg
@@ -322,7 +322,7 @@ func (m *Model) jump() tea.Cmd {
 
 // jumpTo puts the cursor on at, for a jump within this view (g, '): the
 // screen stays when at is on it, see jumpTop.
-func (m *Model) jumpTo(at spot) {
+func (m *FileDiff) jumpTo(at spot) {
 	m.syncLayout() // a fold opened for at: the cursor keeps its line
 	from := m.pos()
 	m.active, m.cursor, m.sub = at.side, at.v, at.sub
@@ -330,14 +330,14 @@ func (m *Model) jumpTo(at spot) {
 }
 
 // show puts the cursor on at, at screen row screenRow.
-func (m *Model) show(at spot, screenRow int) {
+func (m *FileDiff) show(at spot, screenRow int) {
 	m.active = at.side
 	m.place(at.v, at.sub, screenRow)
 }
 
 // act runs an anchor or fold action on the diff at the cursor, which stays on
 // its screen row.
-func (m *Model) act(action string) {
+func (m *FileDiff) act(action string) {
 	var msg string
 	m.keepScreenRow(func() {
 		changes := m.changes
@@ -354,7 +354,7 @@ func (m *Model) act(action string) {
 }
 
 // realign recomputes the diff, after its settings changed.
-func (m *Model) realign() {
+func (m *FileDiff) realign() {
 	m.align()
 	m.buildScreen()
 	m.cursor = min(m.cursor, max(len(m.view)-1, 0))
@@ -362,11 +362,11 @@ func (m *Model) realign() {
 
 // shape returns the shape of the screen lines for the current layout and
 // width.
-func (m *Model) shape() shape { return newShape(m.cfg, m.width) }
+func (m *FileDiff) shape() shape { return newShape(m.cfg, m.width) }
 
 // buildScreen computes the screen lines of the displayed rows for the
 // current layout and width.
-func (m *Model) buildScreen() {
+func (m *FileDiff) buildScreen() {
 	m.screenShape = m.shape()
 	m.screen, m.screenAt = m.screenLines(m.screenShape)
 	m.screenChanges, m.screenReloads, m.screenView, m.screenRows = m.changes, m.reloads, m.view, m.rows
@@ -376,7 +376,7 @@ func (m *Model) buildScreen() {
 // the diff, keeping the cursor on its line, or when the layout was switched,
 // here or in another view, or wrapped lines need other pieces, keeping the
 // cursor on its line, piece and screen row.
-func (m *Model) syncLayout() {
+func (m *FileDiff) syncLayout() {
 	switch {
 	case m.screenChanges != m.changes:
 		m.cursor = m.cursorAfterChange()
@@ -396,7 +396,7 @@ func (m *Model) syncLayout() {
 // cursorAfterChange returns the displayed row that shows the line of the
 // cursor's row in the rows screen was built for: its old line, else its new
 // one, followed through a reload since.
-func (m *Model) cursorAfterChange() int {
+func (m *FileDiff) cursorAfterChange() int {
 	if m.cursor >= len(m.screenView) || len(m.view) == 0 {
 		return 0
 	}
@@ -407,7 +407,7 @@ func (m *Model) cursorAfterChange() int {
 }
 
 // pos returns the screen line of the cursor.
-func (m *Model) pos() int {
+func (m *FileDiff) pos() int {
 	if m.cursor >= len(m.view) {
 		return 0
 	}
@@ -416,7 +416,7 @@ func (m *Model) pos() int {
 
 // place puts the cursor on line sub of displayed row v at screen row
 // screenRow.
-func (m *Model) place(v, sub, screenRow int) {
+func (m *FileDiff) place(v, sub, screenRow int) {
 	m.syncLayout()
 	m.cursor, m.sub = v, sub
 	m.top = m.pos() - screenRow
@@ -426,7 +426,7 @@ func (m *Model) place(v, sub, screenRow int) {
 // takeOver continues where flow f leaves this file: with its pane and
 // scrolling, and, unless line is -1, its cursor on diff row line at screen
 // row screenRow.
-func (m *Model) takeOver(f *Flow, line, screenRow int) {
+func (m *FileDiff) takeOver(f *Flow, line, screenRow int) {
 	m.active, m.xoff = f.active, f.xoff
 	if line >= 0 {
 		m.place(line, f.cursorSub(), screenRow)
@@ -434,7 +434,7 @@ func (m *Model) takeOver(f *Flow, line, screenRow int) {
 }
 
 // moveCursor moves the cursor by delta screen lines.
-func (m *Model) moveCursor(delta int) {
+func (m *FileDiff) moveCursor(delta int) {
 	if len(m.screen) == 0 {
 		return
 	}
@@ -445,7 +445,7 @@ func (m *Model) moveCursor(delta int) {
 
 // scroll moves the window by delta screen lines, as far as it can, and the
 // cursor along, so that the cursor keeps its screen row.
-func (m *Model) scroll(delta int) {
+func (m *FileDiff) scroll(delta int) {
 	if len(m.screen) == 0 {
 		return
 	}
@@ -456,7 +456,7 @@ func (m *Model) scroll(delta int) {
 
 // nextChange moves the cursor to the first line of the next (dir > 0) or
 // previous block of changed rows.
-func (m *Model) nextChange(dir int) {
+func (m *FileDiff) nextChange(dir int) {
 	for i := m.pos() + dir; i >= 0 && i < len(m.screen); i += dir {
 		if m.blockStart(m.screen, i) {
 			m.cursor, m.sub = m.screen[i].v, m.screen[i].sub
@@ -467,18 +467,18 @@ func (m *Model) nextChange(dir int) {
 	m.msg = "no more changes"
 }
 
-func (m *Model) bodyHeight() int { return max(m.height-2, 1) }
+func (m *FileDiff) bodyHeight() int { return max(m.height-2, 1) }
 
 // keepScreenRow runs f, which may rebuild the view, move the cursor or
 // resize, and then scrolls so that the cursor stays on the same screen row.
 // Near the start or end of the file it moves as little as possible.
-func (m *Model) keepScreenRow(f func()) {
+func (m *FileDiff) keepScreenRow(f func()) {
 	offset := m.pos() - m.top
 	f()
 	m.top = m.pos() - offset
 	m.scrollToCursor()
 }
 
-func (m *Model) scrollToCursor() {
+func (m *FileDiff) scrollToCursor() {
 	m.top = scrollWindow(m.pos(), m.top, m.bodyHeight(), len(m.screen))
 }

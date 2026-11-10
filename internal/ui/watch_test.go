@@ -46,9 +46,9 @@ func polling() *config.Config {
 // tickOf returns the regular check of auto reload that s waits for.
 func tickOf(s *DiffSwitch) autoTickMsg { return autoTickMsg{s.autoGen, s.tick} }
 
-// newWatchedModel returns the watched diff view of two files with lines a
+// newWatchedFileDiff returns the watched diff view of two files with lines a
 // and b in a new directory, checked by polling.
-func newWatchedModel(t *testing.T, a, b []string) (*Model, string) {
+func newWatchedFileDiff(t *testing.T, a, b []string) (*FileDiff, string) {
 	t.Helper()
 	dir := t.TempDir()
 	f := source.File{Path: "new.txt", OldFile: filepath.Join(dir, "old.txt"), NewFile: filepath.Join(dir, "new.txt"),
@@ -62,13 +62,13 @@ func newWatchedModel(t *testing.T, a, b []string) (*Model, string) {
 	if f.New, f.NewStamp, err = source.Read(f.NewFile); err != nil {
 		t.Fatal(err)
 	}
-	m := NewWatched(polling(), f)
+	m := NewWatchedFileDiff(polling(), f)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m, dir
 }
 
-func TestWatchedModelReloads(t *testing.T) {
-	m, dir := newWatchedModel(t, numbered("x", 30), numbered("x", 30))
+func TestWatchedFileDiffReloads(t *testing.T) {
+	m, dir := newWatchedFileDiff(t, numbered("x", 30), numbered("x", 30))
 	if m.Init() == nil {
 		t.Fatal("Init does not start watching")
 	}
@@ -107,7 +107,7 @@ func TestWatchedModelReloads(t *testing.T) {
 }
 
 func TestWatchKeepsContentOnBinaryOrMissing(t *testing.T) {
-	m, dir := newWatchedModel(t, []string{"a"}, []string{"b"})
+	m, dir := newWatchedFileDiff(t, []string{"a"}, []string{"b"})
 	path := filepath.Join(dir, "new.txt")
 	if err := os.WriteFile(path, []byte("bin\x00ary"), 0o644); err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestWatchKeepsContentOnBinaryOrMissing(t *testing.T) {
 }
 
 func TestWatchOff(t *testing.T) {
-	m, dir := newWatchedModel(t, []string{"a"}, []string{"b"})
+	m, dir := newWatchedFileDiff(t, []string{"a"}, []string{"b"})
 	m.cfg.Settings.WatchInterval = 0
 	if m.Init() != nil {
 		t.Error("Init starts watching with watch_interval 0")
@@ -142,7 +142,7 @@ func TestWatchOff(t *testing.T) {
 	if _, cmd := m.Update(watchTickMsg{}); cmd != nil {
 		t.Error("a tick with watch_interval 0 schedules the next one")
 	}
-	if New(config.Default(), "a", "b", nil, nil).Init() != nil {
+	if NewFileDiff(config.Default(), "a", "b", nil, nil).Init() != nil {
 		t.Error("a model without files on disk starts watching")
 	}
 }
@@ -233,7 +233,7 @@ func TestFlowFollowsLineWhenBothSidesReload(t *testing.T) {
 }
 
 func TestWatchSeesQuickSameSizeChange(t *testing.T) {
-	m, dir := newWatchedModel(t, []string{"aaa"}, []string{"bbb"})
+	m, dir := newWatchedFileDiff(t, []string{"aaa"}, []string{"bbb"})
 	path := filepath.Join(dir, "new.txt")
 	// Rewritten at once with the same size: the modification time may not
 	// have changed yet, the content has.
@@ -251,8 +251,8 @@ func TestWatchSeesQuickSameSizeChange(t *testing.T) {
 	}
 }
 
-func TestWatchedModelRefresh(t *testing.T) {
-	m, dir := newWatchedModel(t, numbered("x", 5), numbered("x", 5))
+func TestWatchedFileDiffRefresh(t *testing.T) {
+	m, dir := newWatchedFileDiff(t, numbered("x", 5), numbered("x", 5))
 	m.cfg.Settings.WatchInterval = 0
 	pressRoot(m, "r")
 	if m.msg != "nothing changed" {
@@ -263,7 +263,7 @@ func TestWatchedModelRefresh(t *testing.T) {
 	if m.msg != "new.txt reloaded" || len(m.lines[right]) != 6 {
 		t.Errorf("F5 after a change: msg %q, %d lines", m.msg, len(m.lines[right]))
 	}
-	plain := newTestModel(numbered("x", 2), numbered("x", 2))
+	plain := newTestFileDiff(numbered("x", 2), numbered("x", 2))
 	pressRoot(plain, "r")
 	if plain.msg != "nothing to load again" {
 		t.Errorf("R without files: msg %q", plain.msg)
@@ -434,11 +434,11 @@ func TestDiffCursorWatches(t *testing.T) {
 	}
 }
 
-func TestModelInotify(t *testing.T) {
+func TestFileDiffInotify(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("inotify is Linux only")
 	}
-	m, dir := newWatchedModel(t, numbered("x", 5), numbered("x", 5))
+	m, dir := newWatchedFileDiff(t, numbered("x", 5), numbered("x", 5))
 	m.cfg.Settings.InotifyMaxDirs = 1
 	cmd := m.Init()
 	if m.disk.w == nil {
@@ -465,7 +465,7 @@ func TestDiffSwitchStopsWatching(t *testing.T) {
 }
 
 func TestStaleTickDropped(t *testing.T) {
-	m, _ := newWatchedModel(t, numbered("x", 2), numbered("x", 2))
+	m, _ := newWatchedFileDiff(t, numbered("x", 2), numbered("x", 2))
 	d, _ := newWatchedDiff(t)
 	for _, v := range []tea.Model{m, d} {
 		if _, cmd := v.Update(watchTickMsg{owner: newTestDiff()}); cmd != nil {
@@ -478,7 +478,7 @@ func TestStaleTickDropped(t *testing.T) {
 }
 
 func TestWatchDropsAnchors(t *testing.T) {
-	m, dir := newWatchedModel(t, numbered("x", 30), numbered("x", 30))
+	m, dir := newWatchedFileDiff(t, numbered("x", 30), numbered("x", 30))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	m.fileAlign.addAnchor(diff.Anchor{Left: 10, Right: 10}, right, shape{})

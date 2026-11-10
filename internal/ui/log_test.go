@@ -946,7 +946,7 @@ func TestStatusBarKeys(t *testing.T) {
 		t.Errorf("normal layout: %q", got)
 	}
 	// Two files, without a list: neither N/P, f nor backspace.
-	m := newTestModel([]string{"a"}, []string{"b"})
+	m := newTestFileDiff([]string{"a"}, []string{"b"})
 	if got := m.help(); got != "enter mark/anchor · s unified · d git diff · o settings · ? help · q quit" {
 		t.Errorf("two files: %q", got)
 	}

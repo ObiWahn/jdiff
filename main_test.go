@@ -353,7 +353,7 @@ func TestLoadFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := m.(*ui.Model); !ok {
+	if _, ok := m.(*ui.FileDiff); !ok {
 		t.Fatalf("two files: %T, want the diff view", m)
 	}
 	if view := shown(m); !strings.Contains(view, "x0") || !strings.Contains(view, "x1") {

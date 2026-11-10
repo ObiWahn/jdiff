@@ -298,7 +298,7 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 	if f.New, f.NewStamp, err = source.Read(newPath); err != nil {
 		return nil, fmt.Errorf("%s: %w", newPath, err)
 	}
-	return ui.NewWatched(cfg, f), nil
+	return ui.NewWatchedFileDiff(cfg, f), nil
 }
 
 // loadLog opens the commit list for the commits git log selects with args.

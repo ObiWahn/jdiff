@@ -515,7 +515,7 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 	pressRoot(s, "backspace")
 	shownDiff(t, s)
 
-	s, g = newDiffSwitch(newTestModel([]string{"a"}, []string{"b"}))
+	s, g = newDiffSwitch(newTestFileDiff([]string{"a"}, []string{"b"}))
 	pressRoot(s, "d", "--cached", "enter")
 	if d := shownDiff(t, s); !slices.Equal(d.diffArgs, []string{"--cached"}) || len(g.runs) != 1 {
 		t.Errorf("from two files: args %v runs %v", d.diffArgs, g.runs)
@@ -523,7 +523,7 @@ func TestDiffSwitchFromLogAndTwoFiles(t *testing.T) {
 }
 
 func TestDiffSwitchFails(t *testing.T) {
-	m := newTestModel([]string{"a"}, []string{"b"})
+	m := newTestFileDiff([]string{"a"}, []string{"b"})
 	s, g := newDiffSwitch(m)
 	g.err = errors.New("git diff: fatal: bad revision 'HEAD~99'\nmore lines of git")
 	pressRoot(s, "d", "HEAD~99", "enter")
@@ -972,7 +972,7 @@ func TestUntrackedOutsideGitDiff(t *testing.T) {
 	}
 
 	f := source.File{Path: "f00", Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
-	m := New(config.Default(), "old", "new", f.Old, f.New)
+	m := NewFileDiff(config.Default(), "old", "new", f.Old, f.New)
 	setOption(m, m.cfg, "u")
 	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
 		t.Errorf("two files: setting %v, msg %q", m.cfg.Settings.Untracked, m.msg)

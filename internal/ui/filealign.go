@@ -160,7 +160,7 @@ type highlightCache struct {
 	ok  bool
 }
 
-func newFileDiff(cfg *config.Config, names [2]string, lines [2][]string) *fileAlign {
+func newFileAlign(cfg *config.Config, names [2]string, lines [2][]string) *fileAlign {
 	a := &fileAlign{cfg: cfg, names: names, lines: lines, foldOpen: map[int]bool{}}
 	a.measure(left)
 	a.measure(right)

@@ -757,9 +757,9 @@ func (f *Flow) show(part, file, line, sub, screenRow int) {
 
 // showFrom shows file of part where its diff view from leaves it: on the
 // cursor's line at its screen row, in its pane. For from nil it shows the
-// file's bar, or the commit's bar for file -1. Model.takeOver is the way
+// file's bar, or the commit's bar for file -1. FileDiff.takeOver is the way
 // back.
-func (f *Flow) showFrom(part, file int, from *Model) {
+func (f *Flow) showFrom(part, file int, from *FileDiff) {
 	if from == nil {
 		f.show(part, file, -1, 0, 0)
 		return

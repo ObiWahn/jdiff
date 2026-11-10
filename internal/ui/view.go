@@ -160,7 +160,7 @@ func (a *fileAlign) sideStyles(s side) (line, nonEmph, emph, indent lipgloss.Sty
 
 // help returns the keys of the status bar: backspace and f when shown from a
 // file list, N/P in the log.
-func (m *Model) help() string {
+func (m *FileDiff) help() string {
 	k := barKeys{enter: "anchor", commits: m.commitNav, flow: m.canBack}
 	if m.canBack {
 		k.back = "to_files"
@@ -168,9 +168,9 @@ func (m *Model) help() string {
 	return statusKeys(m.cfg, k)
 }
 
-func (m *Model) View() tea.View { return tea.NewView(m.frame()) }
+func (m *FileDiff) View() tea.View { return tea.NewView(m.frame()) }
 
-func (m *Model) frame() string {
+func (m *FileDiff) frame() string {
 	if m.width == 0 {
 		return ""
 	}
@@ -193,13 +193,13 @@ func (a *fileAlign) numWidth() int {
 }
 
 // header renders the file names above both panes.
-func (m *Model) header() string {
+func (m *FileDiff) header() string {
 	return paneTitles(m.cfg.Theme, m.names, m.active, m.cfg.Settings.SideBySide, m.width)
 }
 
 // screenLine renders screen line s in the current layout, marked as the
 // cursor line when cursor is set.
-func (m *Model) screenLine(s sline, cursor bool) string {
+func (m *FileDiff) screenLine(s sline, cursor bool) string {
 	return m.render(s, cursor, layout{m.width, m.xoff, m.active, m.screenShape})
 }
 
@@ -260,7 +260,7 @@ func (a *fileAlign) bodyRow(v, sub int, cursor bool, lo layout) string {
 		a.cell(right, v, sub, w, nw, cursor, lo)
 }
 
-func (m *Model) status() string {
+func (m *FileDiff) status() string {
 	msg := m.msg
 	if msg == "" {
 		msg = m.markPrompt()

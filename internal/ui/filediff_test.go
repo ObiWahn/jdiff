@@ -17,8 +17,8 @@ import (
 	"jdiff/internal/source"
 )
 
-func newTestModel(a, b []string) *Model {
-	m := New(config.Default(), "old", "new", a, b)
+func newTestFileDiff(a, b []string) *FileDiff {
+	m := NewFileDiff(config.Default(), "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m
 }
@@ -64,7 +64,7 @@ func keyMsg(k string) tea.KeyPressMsg {
 	return runeKey(k)
 }
 
-func press(m *Model, keys ...string) {
+func press(m *FileDiff, keys ...string) {
 	for _, k := range keys {
 		for _, msg := range keyMsgs(k) {
 			m.Update(msg)
@@ -86,7 +86,7 @@ func pressRoot(m tea.Model, keys ...string) {
 }
 
 // moveTo puts the cursor on the row showing line of side s.
-func moveTo(t *testing.T, m *Model, s side, line int) {
+func moveTo(t *testing.T, m *FileDiff, s side, line int) {
 	t.Helper()
 	if m.active != s {
 		press(m, "tab")
@@ -95,7 +95,7 @@ func moveTo(t *testing.T, m *Model, s side, line int) {
 }
 
 func TestEnterMarksAndJumpsToOtherPane(t *testing.T) {
-	m := newTestModel([]string{"a", "b"}, []string{"a", "c"})
+	m := newTestFileDiff([]string{"a", "b"}, []string{"a", "c"})
 	press(m, "j", "enter")
 	if m.pending == nil || *m.pending != (mark{left, 1}) {
 		t.Fatalf("pending = %+v, want left line 1", m.pending)
@@ -106,7 +106,7 @@ func TestEnterMarksAndJumpsToOtherPane(t *testing.T) {
 }
 
 func TestAnchorCreateAndDelete(t *testing.T) {
-	m := newTestModel([]string{"foo", "bar"}, []string{"bar", "foo"})
+	m := newTestFileDiff([]string{"foo", "bar"}, []string{"bar", "foo"})
 
 	moveTo(t, m, left, 1)
 	press(m, "enter")
@@ -131,7 +131,7 @@ func TestAnchorCreateAndDelete(t *testing.T) {
 }
 
 func TestAnchorStartedFromRightPane(t *testing.T) {
-	m := newTestModel([]string{"foo", "bar"}, []string{"bar", "foo"})
+	m := newTestFileDiff([]string{"foo", "bar"}, []string{"bar", "foo"})
 	moveTo(t, m, right, 1)
 	press(m, "enter")
 	if m.active != left {
@@ -145,7 +145,7 @@ func TestAnchorStartedFromRightPane(t *testing.T) {
 }
 
 func TestEscAndReenterCancelMark(t *testing.T) {
-	m := newTestModel([]string{"a"}, []string{"a"})
+	m := newTestFileDiff([]string{"a"}, []string{"a"})
 	press(m, "enter", "esc")
 	if m.pending != nil {
 		t.Errorf("esc did not cancel the mark")
@@ -160,7 +160,7 @@ func TestEscAndReenterCancelMark(t *testing.T) {
 func TestCrossingAnchorAsksBeforeReplacing(t *testing.T) {
 	a := []string{"1", "2", "3", "4"}
 	b := []string{"w", "x", "y", "z"}
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.anchors = []diff.Anchor{{Left: 1, Right: 2}}
 	m.realign()
 
@@ -187,7 +187,7 @@ func TestCrossingAnchorAsksBeforeReplacing(t *testing.T) {
 }
 
 func TestEnterOnFillerDoesNothing(t *testing.T) {
-	m := newTestModel([]string{"a"}, []string{"a", "b"})
+	m := newTestFileDiff([]string{"a"}, []string{"a", "b"})
 	press(m, "j", "enter")
 	if m.pending != nil {
 		t.Errorf("marked a filler row")
@@ -195,7 +195,7 @@ func TestEnterOnFillerDoesNothing(t *testing.T) {
 }
 
 func TestViewFitsWidth(t *testing.T) {
-	m := newTestModel([]string{"\tshort", strings.Repeat("x", 200)}, []string{"\t\tshort", "y"})
+	m := newTestFileDiff([]string{"\tshort", strings.Repeat("x", 200)}, []string{"\t\tshort", "y"})
 	press(m, "enter")
 	for i, l := range strings.Split(m.frame(), "\n") {
 		if w := ansi.StringWidth(l); w > 80 {
@@ -227,7 +227,7 @@ func TestFoldUnchanged(t *testing.T) {
 	// 20 unchanged lines, one change, 20 unchanged lines.
 	a := append(append(numbered("x", 20), "old"), numbered("y", 20)...)
 	b := append(append(numbered("x", 20), "new"), numbered("y", 20)...)
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 
 	// Context 3: rows 0-16 and 24-40 are folded around the change at row 20.
 	if got, want := folds(m.view), []vrow{{0, 17, 0}, {24, 17, 1}}; !slices.Equal(got, want) {
@@ -276,14 +276,14 @@ func TestFoldShortRunsAndAnchors(t *testing.T) {
 	// One unchanged row between the contexts is shown, not folded.
 	a := append(append(numbered("x", 4), "old1"), append(numbered("y", 7), "old2")...)
 	b := append(append(numbered("x", 4), "new1"), append(numbered("y", 7), "new2")...)
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	if got, want := folds(m.view), []vrow(nil); !slices.Equal(got, want) {
 		t.Errorf("folds = %v, want none", got)
 	}
 
 	// An anchored unchanged line stays visible with its context.
 	a, b = numbered("x", 30), numbered("x", 30)
-	m = newTestModel(a, b)
+	m = newTestFileDiff(a, b)
 	m.anchors = []diff.Anchor{{Left: 15, Right: 15}}
 	m.realign()
 	if got, want := folds(m.view), []vrow{{0, 12, 0}, {19, 11, 1}}; !slices.Equal(got, want) {
@@ -295,7 +295,7 @@ func TestCollapseUnchangedSetting(t *testing.T) {
 	cfg := config.Default()
 	cfg.Settings.CollapseUnchanged = false
 	a, b := numbered("x", 30), append(numbered("x", 30), "new")
-	m := New(cfg, "old", "new", a, b)
+	m := NewFileDiff(cfg, "old", "new", a, b)
 	if len(folds(m.view)) != 0 || len(m.blocks) != 1 {
 		t.Errorf("collapse_unchanged=false: %d folds, %d blocks, want 0 and 1", len(folds(m.view)), len(m.blocks))
 	}
@@ -306,10 +306,10 @@ func TestCollapseUnchangedSetting(t *testing.T) {
 }
 
 // screenRow returns the screen row of the cursor within the diff body.
-func screenRow(m *Model) int { return m.cursor - m.top }
+func screenRow(m *FileDiff) int { return m.cursor - m.top }
 
 func TestPageKeysKeepScreenRow(t *testing.T) {
-	m := newTestModel(numbered("a", 100), numbered("b", 100)) // all changed: no folds
+	m := newTestFileDiff(numbered("a", 100), numbered("b", 100)) // all changed: no folds
 	press(m, "j", "j", "j", "j", "j")
 	for _, k := range []string{"pgdown", "ctrl+d", "ctrl+f", "pgup", "ctrl+u", "ctrl+b"} {
 		top := m.top
@@ -343,7 +343,7 @@ func TestCursorKeepsScreenRow(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.Settings.CollapseUnchanged = false
-	m := New(cfg, "old", "new", a, b)
+	m := NewFileDiff(cfg, "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20}) // body height 18
 
 	// Line 100 is context after the change at 99; the block below it folds.
@@ -384,7 +384,7 @@ func TestCursorKeepsScreenRow(t *testing.T) {
 func TestCursorScreenRowAtFileEdges(t *testing.T) {
 	a := append(numbered("x", 40), "old")
 	b := append(numbered("x", 40), "new")
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	press(m, " ")
 
 	// Near the start the view cannot scroll above line 1.
@@ -477,7 +477,7 @@ func TestHighlightTrailingAndLineEnds(t *testing.T) {
 }
 
 func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
-	m := newTestModel([]string{"x  "}, []string{"y  "})
+	m := newTestFileDiff([]string{"x  "}, []string{"y  "})
 	setOption(m, m.cfg, "t")
 	if !m.cfg.Settings.ShowTrailing || !strings.Contains(ansi.Strip(m.screenLine(m.screen[0], false)), "y··") {
 		t.Errorf("t: setting %v, row %q; want the trailing spaces shown", m.cfg.Settings.ShowTrailing,
@@ -496,11 +496,11 @@ func TestTrailingToggleAndWrappedLineEnd(t *testing.T) {
 
 	// With wrapping, a line as wide as its pane gets a piece for ¶ when w
 	// shows line ends.
-	m = newTestModel([]string{"same"}, []string{"same"})
+	m = newTestFileDiff([]string{"same"}, []string{"same"})
 	setOption(m, m.cfg, "s")
 	setOption(m, m.cfg, "w")
 	full := strings.Repeat("x", m.contentWidth(m.width, true))
-	m = newTestModel([]string{full}, []string{full})
+	m = newTestFileDiff([]string{full}, []string{full})
 	setOption(m, m.cfg, "s")
 	setOption(m, m.cfg, "w")
 	if len(m.screen) != 1 {
@@ -600,7 +600,7 @@ func TestHighlightVisibleSpacesAndEmoji(t *testing.T) {
 }
 
 func TestLineEndChangeShows(t *testing.T) {
-	m := newTestModel([]string{"same\r", "x"}, []string{"same\r", "x\r"})
+	m := newTestFileDiff([]string{"same\r", "x"}, []string{"same\r", "x\r"})
 	if m.rows[1].Kind != diff.Change {
 		t.Fatalf("x against x\\r: row kind %v, want a change", m.rows[1].Kind)
 	}
@@ -620,9 +620,9 @@ func TestLineEndChangeShows(t *testing.T) {
 	}
 
 	// With wrapping, ␍ takes a column only where it is drawn.
-	probe := newTestModel([]string{"x"}, []string{"x"})
+	probe := newTestFileDiff([]string{"x"}, []string{"x"})
 	full := strings.Repeat("x", probe.contentWidth(80, true)) + "\r"
-	m = newTestModel([]string{full, "a"}, []string{full, "b"})
+	m = newTestFileDiff([]string{full, "a"}, []string{full, "b"})
 	setOption(m, m.cfg, "s")
 	setOption(m, m.cfg, "w")
 	if m.rowLines(0, m.screenShape) != 1 {
@@ -635,7 +635,7 @@ func TestLineEndChangeShows(t *testing.T) {
 }
 
 func TestMarksIgnoreCarriageReturn(t *testing.T) {
-	m := newTestModel([]string{"a\r", "b\r"}, []string{"a\r", "b\r", "c\r"})
+	m := newTestFileDiff([]string{"a\r", "b\r"}, []string{"a\r", "b\r", "c\r"})
 	if line, note, _ := m.markLine(config.Mark{Path: "new", Line: 3, Text: "b"}); line != 1 || note != "" {
 		t.Errorf("mark \"b\" in a CRLF file: line %d note %q, want line 2 found by its text", line+1, note)
 	}
@@ -647,11 +647,11 @@ func TestMarksIgnoreCarriageReturn(t *testing.T) {
 }
 
 func TestCutLineMarkers(t *testing.T) {
-	probe := newTestModel([]string{"x"}, []string{"x"})
+	probe := newTestFileDiff([]string{"x"}, []string{"x"})
 	cw := probe.contentWidth(80, false)
 	long := strings.Repeat("abcdefghij", 10)
 	exact := strings.Repeat("y", cw)
-	m := newTestModel([]string{long, exact, "short"}, []string{long, exact, "short"})
+	m := newTestFileDiff([]string{long, exact, "short"}, []string{long, exact, "short"})
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	cell := func(v int, s side) string {
@@ -679,7 +679,7 @@ func TestCutLineMarkers(t *testing.T) {
 	// Scrolled into a wide character, and one at the right edge: the row
 	// keeps the width of the view.
 	wide := "1234567日本語" + strings.Repeat("語", cw)
-	w := newTestModel([]string{wide, "x"}, []string{wide, "y"})
+	w := newTestFileDiff([]string{wide, "x"}, []string{wide, "y"})
 	press(w, "l")
 	want := ansi.StringWidth(w.screenLine(w.screen[1], false)) // a row of a short line
 	if got := ansi.StringWidth(w.screenLine(w.screen[0], false)); got != want {
@@ -717,7 +717,7 @@ func TestHighlightPlainChangedWhitespace(t *testing.T) {
 }
 
 func TestMarkWhitespaceToggle(t *testing.T) {
-	m := newTestModel([]string{"a   b"}, []string{"a b"})
+	m := newTestFileDiff([]string{"a   b"}, []string{"a b"})
 	row := m.screenLine(m.screen[0], false)
 	if !strings.Contains(ansi.Strip(row), "a ··b") {
 		t.Fatalf("the two removed spaces not marked by default: %q", ansi.Strip(row))
@@ -742,26 +742,26 @@ func TestMarkWhitespaceToggle(t *testing.T) {
 func TestShowWhitespacesSetting(t *testing.T) {
 	cfg := config.Default()
 	cfg.Settings.ShowWhitespaces = true
-	m := New(cfg, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
+	m := NewFileDiff(cfg, "old", "new", []string{"\tsame", "x"}, []string{"\tsame", "y"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	if view := ansi.Strip(m.frame()); !strings.Contains(view, "→   same") {
 		t.Errorf("unchanged tab not shown:\n%s", view)
 	}
 }
 
-// newUnifiedTestModel returns a model with an unchanged, a changed, an
+// newUnifiedTestFileDiff returns a model with an unchanged, a changed, an
 // unchanged and a removed line, nothing folded, in the normal layout.
-func newUnifiedTestModel() *Model {
+func newUnifiedTestFileDiff() *FileDiff {
 	cfg := config.Default()
 	cfg.Settings.CollapseUnchanged = false
-	m := New(cfg, "old", "new", []string{"same", "alpha beta", "keep", "gone"}, []string{"same", "alpha gamma", "keep"})
+	m := NewFileDiff(cfg, "old", "new", []string{"same", "alpha beta", "keep", "gone"}, []string{"same", "alpha gamma", "keep"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	setOption(m, m.cfg, "s")
 	return m
 }
 
 func TestUnifiedLayout(t *testing.T) {
-	m := newUnifiedTestModel()
+	m := newUnifiedTestFileDiff()
 	lines := strings.Split(ansi.Strip(m.frame()), "\n")
 	for i, want := range []string{" 1 1│ same", "-2  │ alpha beta", "+  2│ alpha gamma", " 3 3│ keep", "-4  │ gone"} {
 		if !strings.HasPrefix(lines[i+1], want) {
@@ -771,7 +771,7 @@ func TestUnifiedLayout(t *testing.T) {
 }
 
 func TestUnifiedCursor(t *testing.T) {
-	m := newUnifiedTestModel()
+	m := newUnifiedTestFileDiff()
 	// j steps through both lines of the changed row.
 	var got []string
 	for range 4 {
@@ -794,7 +794,7 @@ func TestUnifiedCursor(t *testing.T) {
 }
 
 func TestUnifiedShowsAnchors(t *testing.T) {
-	m := newUnifiedTestModel()
+	m := newUnifiedTestFileDiff()
 	setOption(m, m.cfg, "s")
 	moveTo(t, m, left, 1)
 	press(m, "enter", "enter")
@@ -809,12 +809,12 @@ func TestUnifiedShowsAnchors(t *testing.T) {
 }
 
 // cursorLine returns the screen line under the cursor without styles.
-func cursorLine(m *Model) string {
+func cursorLine(m *FileDiff) string {
 	return ansi.Strip(m.screenLine(m.screen[m.pos()], false))
 }
 
 func TestUnifiedMarks(t *testing.T) {
-	m := newUnifiedTestModel()
+	m := newUnifiedTestFileDiff()
 	// An unchanged line without a pending mark takes the old side.
 	press(m, "enter")
 	if m.pending == nil || *m.pending != (mark{left, 0}) {
@@ -852,7 +852,7 @@ func TestAnchorKeepsLastPickOnScreenRow(t *testing.T) {
 	a, b = append(a, numbered("y", 40)...), append(b, numbered("y", 40)...)
 	cfg := config.Default()
 	cfg.Settings.CollapseUnchanged = false
-	m := New(cfg, "old", "new", a, b)
+	m := NewFileDiff(cfg, "old", "new", a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	moveTo(t, m, left, 43)
 	press(m, "enter")
@@ -871,7 +871,7 @@ func TestToggleAllBlocks(t *testing.T) {
 	a := numbered("x", 60)
 	b := slices.Clone(a)
 	b[9], b[39] = "new9", "new39"
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	if len(folds(m.view)) != 3 {
 		t.Fatalf("%d folds at start, want 3", len(folds(m.view)))
 	}
@@ -893,7 +893,7 @@ func TestToggleAllBlocks(t *testing.T) {
 }
 
 func TestCursorOnFold(t *testing.T) {
-	m := newTestModel(append(numbered("x", 20), "old"), append(numbered("x", 20), "new"))
+	m := newTestFileDiff(append(numbered("x", 20), "old"), append(numbered("x", 20), "new"))
 	if m.view[0].hidden == 0 {
 		t.Fatalf("first row %v, want a fold", m.view[0])
 	}
@@ -907,7 +907,7 @@ func TestCursorOnFold(t *testing.T) {
 
 func TestCursorLine(t *testing.T) {
 	reverse := regexp.MustCompile(`\x1b\[(\d+;)*7(;\d+)*m`)
-	m := newTestModel([]string{"same", "old"}, []string{"same", "new"})
+	m := newTestFileDiff([]string{"same", "old"}, []string{"same", "new"})
 	for _, layout := range []string{"side by side", "normal"} {
 		// The unchanged line: its number reversed in the active pane only,
 		// its text bold.
@@ -931,7 +931,7 @@ func TestCursorLine(t *testing.T) {
 }
 
 func TestReloadCarriesAnchors(t *testing.T) {
-	m := newTestModel(numbered("x", 10), numbered("x", 10))
+	m := newTestFileDiff(numbered("x", 10), numbered("x", 10))
 	a := m.fileAlign
 	a.addAnchor(diff.Anchor{Left: 3, Right: 5}, right, shape{})
 	a.addAnchor(diff.Anchor{Left: 7, Right: 8}, right, shape{})
@@ -959,7 +959,7 @@ func TestReloadCarriesAnchors(t *testing.T) {
 func TestReloadCancelsMarkAndKeepsFolds(t *testing.T) {
 	// Changes at both ends; the fold between them starts at left line 4, x3.
 	old := append(append([]string{"old"}, numbered("x", 20)...), "old2")
-	m := newTestModel(old, append(append([]string{"new"}, numbered("x", 20)...), "new2"))
+	m := newTestFileDiff(old, append(append([]string{"new"}, numbered("x", 20)...), "new2"))
 	a := m.fileAlign
 	press(m, " ") // open the fold
 	if len(folds(a.view)) != 0 {
@@ -978,7 +978,7 @@ func TestReloadCancelsMarkAndKeepsFolds(t *testing.T) {
 }
 
 func TestViewFollowsItsLineThroughReload(t *testing.T) {
-	m := newTestModel(numbered("x", 40), numbered("x", 40))
+	m := newTestFileDiff(numbered("x", 40), numbered("x", 40))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	moveTo(t, m, left, 30)
@@ -999,7 +999,7 @@ func TestViewFollowsItsLineThroughReload(t *testing.T) {
 }
 
 func TestHeaderFocus(t *testing.T) {
-	m := newTestModel([]string{"a"}, []string{"b"})
+	m := newTestFileDiff([]string{"a"}, []string{"b"})
 	press(m, "tab") // the new side
 	if h := m.header(); !strings.Contains(h, "\x1b[2m old") || !strings.Contains(h, "\x1b[1m new") {
 		t.Errorf("side by side: header %q, want the old name faint and the active new one bold", h)
@@ -1022,12 +1022,12 @@ func wrapLines(prefix string) []string {
 
 // cursorRow returns the screen row of the cursor of m, counting the pieces
 // of wrapped lines.
-func cursorRow(m *Model) int { return m.pos() - m.top }
+func cursorRow(m *FileDiff) int { return m.pos() - m.top }
 
 func TestWrapKeepsCursorLine(t *testing.T) {
 	b := wrapLines("x")
 	b[12] = "changed " + b[12]
-	m := newTestModel(wrapLines("x"), b)
+	m := newTestFileDiff(wrapLines("x"), b)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	moveTo(t, m, right, 15)
@@ -1065,7 +1065,7 @@ func TestWrapKeepsCursorLine(t *testing.T) {
 func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 	a, b := wrapLines("x"), wrapLines("x")
 	b[6] = "changed " + b[6] // a changed row of two wrapped lines
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	setOption(m, m.cfg, "s")
 	moveTo(t, m, right, 6)
 	m.sub = 1 // the new line of the changed row
@@ -1088,7 +1088,7 @@ func TestWrapKeepsSideInNormalLayout(t *testing.T) {
 }
 
 func TestWrapFollowsResize(t *testing.T) {
-	m := newTestModel(wrapLines("x"), wrapLines("y"))
+	m := newTestFileDiff(wrapLines("x"), wrapLines("y"))
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	setOption(m, m.cfg, "w")
@@ -1116,7 +1116,7 @@ func TestBoldChangesToggle(t *testing.T) {
 		}
 		return ""
 	}
-	m := newTestModel([]string{"same", "x := compute(a, b)"}, []string{"same", "x := compute(a, c)"})
+	m := newTestFileDiff([]string{"same", "x := compute(a, b)"}, []string{"same", "x := compute(a, c)"})
 	row := m.screenLine(m.screen[1], false)
 	if !bold.MatchString(emph(row)) {
 		t.Fatalf("changed word %q in %q, want bold by default", emph(row), row)
@@ -1157,7 +1157,7 @@ func TestBoldChangesToggle(t *testing.T) {
 
 // screenTexts returns the screen lines of m without styles and trailing
 // blanks.
-func screenTexts(m *Model) []string {
+func screenTexts(m *FileDiff) []string {
 	var out []string
 	for _, s := range m.screen {
 		out = append(out, strings.TrimRight(ansi.Strip(m.screenLine(s, false)), " "))
@@ -1166,7 +1166,7 @@ func screenTexts(m *Model) []string {
 }
 
 func TestNormalLayoutShowsBlocks(t *testing.T) {
-	m := newTestModel([]string{"same", "old1", "old2", "old3", "end"}, []string{"same", "new1", "new2", "add", "add2", "end"})
+	m := newTestFileDiff([]string{"same", "old1", "old2", "old3", "end"}, []string{"same", "new1", "new2", "add", "add2", "end"})
 	setOption(m, m.cfg, "s")
 	// As git diff: the old lines of the block, then the new ones.
 	want := []string{"1 1│ same", "2  │ old1", "3  │ old2", "4  │ old3", "  2│ new1", "  3│ new2", "  4│ add", "  5│ add2", "5 6│ end"}
@@ -1201,7 +1201,7 @@ func TestNormalLayoutShowsBlocks(t *testing.T) {
 func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 	// Anchoring X to Y splits the block: an inserted line, then the
 	// anchored change. Its old line X is the block's first screen line.
-	m := newTestModel([]string{"a", "X", "b"}, []string{"a", "ins", "Y", "b"})
+	m := newTestFileDiff([]string{"a", "X", "b"}, []string{"a", "ins", "Y", "b"})
 	m.fileAlign.addAnchor(diff.Anchor{Left: 1, Right: 2}, right, shape{})
 	m.realign()
 	setOption(m, m.cfg, "s")
@@ -1215,7 +1215,7 @@ func TestNormalLayoutBlockStartsWithOldLine(t *testing.T) {
 func TestKeyClearsMessage(t *testing.T) {
 	a, b := numbered("x", 30), numbered("x", 30)
 	b[5], b[20] = "new5", "new20"
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	press(m, "]", "]", "]")
 	if m.msg != "no more changes" {
 		t.Fatalf("] past the last change: msg %q", m.msg)
@@ -1242,8 +1242,8 @@ func TestKeyClearsMessage(t *testing.T) {
 // another key too.
 func TestMarkPromptStays(t *testing.T) {
 	const prompt = "marked L4, pick the matching line (esc cancels)"
-	status := func(m *Model) string { return ansi.Strip(m.status()) }
-	m := newTestModel(numbered("x", 10), numbered("y", 10))
+	status := func(m *FileDiff) string { return ansi.Strip(m.status()) }
+	m := newTestFileDiff(numbered("x", 10), numbered("y", 10))
 	moveTo(t, m, left, 3)
 	press(m, "enter")
 	for _, k := range []string{"j", "k", "tab"} {
@@ -1320,7 +1320,7 @@ func TestFlowMarkPromptStays(t *testing.T) {
 }
 
 func TestScrollsSideways(t *testing.T) {
-	m := newTestModel([]string{"x0"}, []string{"x1"})
+	m := newTestFileDiff([]string{"x0"}, []string{"x1"})
 	for _, c := range []struct {
 		key  string
 		want int
@@ -1335,7 +1335,7 @@ func TestScrollsSideways(t *testing.T) {
 func TestChangesBothWays(t *testing.T) {
 	a, b := numbered("x", 30), numbered("x", 30)
 	b[5], b[20] = "new5", "new20"
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	for _, c := range []struct {
@@ -1358,7 +1358,7 @@ func TestChangesBothWays(t *testing.T) {
 
 // newReplacePrompt gives m, of two files of 4 lines, an anchor, a mark on left
 // line 3 and the cursor on right line 0: enter there crosses the anchor.
-func newReplacePrompt(t *testing.T, m *Model) {
+func newReplacePrompt(t *testing.T, m *FileDiff) {
 	t.Helper()
 	m.anchors = []diff.Anchor{{Left: 1, Right: 2}}
 	m.realign()
@@ -1369,7 +1369,7 @@ func newReplacePrompt(t *testing.T, m *Model) {
 
 // Any key but enter and esc ends the question, and does what it does.
 func TestOtherKeyCancelsReplace(t *testing.T) {
-	m := newTestModel([]string{"1", "2", "3", "4"}, []string{"w", "x", "y", "z"})
+	m := newTestFileDiff([]string{"1", "2", "3", "4"}, []string{"w", "x", "y", "z"})
 	newReplacePrompt(t, m)
 	press(m, "enter")
 	if m.replace == nil {
@@ -1409,7 +1409,7 @@ func TestFlowOtherKeyCancelsReplace(t *testing.T) {
 
 // q quits where it is no text and closes no popup, ctrl+c everywhere.
 func TestQuitKeys(t *testing.T) {
-	model := func() tea.Model { return newTestModel([]string{"x0"}, []string{"x1"}) }
+	model := func() tea.Model { return newTestFileDiff([]string{"x0"}, []string{"x1"}) }
 	commits := func() tea.Model { l, _ := newTestLog(); return l }
 	files := func() tea.Model { return newFlowDiff() }
 	help := func() tea.Model { return WithHelp(config.Default(), model()) }
@@ -1453,7 +1453,7 @@ func TestQuitKeys(t *testing.T) {
 // The emphasis of a changed row is computed when it is drawn; an anchor or a
 // reload, which align anew, do not leave that of the rows before.
 func TestEmphasisAfterAlign(t *testing.T) {
-	m := newTestModel([]string{"x0 a", "x1 b", "x2 c"}, []string{"x0 A", "x1 b", "x2 C"})
+	m := newTestFileDiff([]string{"x0 a", "x1 b", "x2 c"}, []string{"x0 A", "x1 b", "x2 C"})
 	check := func(when string) {
 		t.Helper()
 		_ = m.frame()

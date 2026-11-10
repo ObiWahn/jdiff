@@ -507,7 +507,7 @@ func TestFlowNormalLayoutShowsBlocks(t *testing.T) {
 }
 
 func TestFlowLineEndTakesPieceWhenWrapped(t *testing.T) {
-	probe := newTestModel([]string{"x"}, []string{"x"})
+	probe := newTestFileDiff([]string{"x"}, []string{"x"})
 	full := strings.Repeat("x", probe.contentWidth(80, false))
 	d := NewDiff(config.Default(), []source.File{modified("a.go", []string{full, "old"}, []string{full, "new"})})
 	d.cfg.Settings.CollapseUnchanged = false

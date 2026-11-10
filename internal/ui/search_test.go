@@ -53,20 +53,20 @@ func TestMatcherSpans(t *testing.T) {
 	}
 }
 
-// newSearchModel returns the diff view of 40 numbered lines, in which line
+// newSearchFileDiff returns the diff view of 40 numbered lines, in which line
 // 5 changed and line 30 is only in the old file, with the unchanged lines
 // folded.
-func newSearchModel() *Model {
+func newSearchFileDiff() *FileDiff {
 	a, b := numbered("x", 40), numbered("x", 40)
 	b[5] = "x5 changed"
 	b = slices.Delete(b, 30, 31)
-	m := newTestModel(a, b)
+	m := newTestFileDiff(a, b)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	return m
 }
 
-func TestModelFindText(t *testing.T) {
-	m := newSearchModel()
+func TestFileDiffFindText(t *testing.T) {
+	m := newSearchFileDiff()
 	m.cfg.Settings.SearchAll = true // also in the unchanged lines
 	press(m, ".")
 	if m.msg != "nothing searched yet: / searches" {
@@ -114,7 +114,7 @@ func TestModelFindText(t *testing.T) {
 }
 
 func TestFindChangedOnly(t *testing.T) {
-	m := newSearchModel() // x5 changed, x30 removed
+	m := newSearchFileDiff() // x5 changed, x30 removed
 	m.cfg.Search.Add(config.Query{Text: "x3"})
 	// By default only in changed lines: the removed x30, then no further.
 	press(m, ".")
@@ -151,7 +151,7 @@ func TestSearchBarToggles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := newSearchModel()
+	m := newSearchFileDiff()
 	m.cfg = cfg
 	s := WithSearch(cfg, m)
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
@@ -216,7 +216,7 @@ func TestSearchBarToggles(t *testing.T) {
 
 func TestFindScrollsToMatch(t *testing.T) {
 	long := strings.Repeat("a", 150) + "needle" + strings.Repeat("b", 50)
-	m := newTestModel([]string{"x", long}, []string{"y", long})
+	m := newTestFileDiff([]string{"x", long}, []string{"y", long})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	m.cfg.Settings.Wrap, m.cfg.Settings.SearchAll = false, true // the long line is unchanged
 	m.cfg.Search.Add(config.Query{Text: "needle"})
@@ -240,7 +240,7 @@ func TestFindScrollsToMatch(t *testing.T) {
 }
 
 func TestFindHighlights(t *testing.T) {
-	m := newSearchModel()
+	m := newSearchFileDiff()
 	m.cfg.Settings.CollapseUnchanged = false
 	m.realign()
 	match := m.cfg.Theme.Search.Render("changed")
@@ -330,7 +330,7 @@ func TestFlowFindTextOutsideLog(t *testing.T) {
 // newSearchBar returns the search bar around the help popup around m.
 func newSearchBar(m tea.Model) *SearchBar {
 	cfg := config.Default()
-	if v, ok := m.(*Model); ok {
+	if v, ok := m.(*FileDiff); ok {
 		cfg = v.cfg
 	}
 	s := WithSearch(cfg, WithHelp(cfg, m))
@@ -339,7 +339,7 @@ func newSearchBar(m tea.Model) *SearchBar {
 }
 
 func TestSearchBar(t *testing.T) {
-	m := newSearchModel()
+	m := newSearchFileDiff()
 	s := newSearchBar(m)
 	status := func() string { v := ansi.Strip(s.frame()); return v[strings.LastIndex(v, "\n")+1:] }
 	before := status()
@@ -412,7 +412,7 @@ func TestSearchInDiffReachesView(t *testing.T) {
 
 // Pasted text changes the line, as a key does: why it did not compile is gone.
 func TestSearchBarPasteClearsError(t *testing.T) {
-	s := newSearchBar(newSearchModel())
+	s := newSearchBar(newSearchFileDiff())
 	pressRoot(s, "/", "shift+tab")
 	s.Update(tea.PasteMsg{Content: "("})
 	pressRoot(s, "enter")
@@ -426,7 +426,7 @@ func TestSearchBarPasteClearsError(t *testing.T) {
 }
 
 func TestSearchBarPaste(t *testing.T) {
-	m := newSearchModel()
+	m := newSearchFileDiff()
 	s := newSearchBar(m)
 	s.Update(tea.PasteMsg{Content: "x3"})
 	if s.input != nil || s.cfg.Search.Query != (config.Query{}) {
@@ -447,7 +447,7 @@ func TestSearchBarPaste(t *testing.T) {
 // Text with line ends, as a selection of several lines, leaves the bar in one
 // line and the frame in its height.
 func TestSearchBarPasteLines(t *testing.T) {
-	s := newSearchBar(newSearchModel())
+	s := newSearchBar(newSearchFileDiff())
 	want := strings.Count(s.frame(), "\n")
 	pressRoot(s, "/")
 	s.Update(tea.PasteMsg{Content: "x0\nx1\tx2\r\n"})

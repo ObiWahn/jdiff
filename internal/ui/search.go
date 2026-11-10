@@ -264,7 +264,7 @@ func scope(st settings.Settings) string {
 // what config.Search searched for, past the cursor's own line; past the
 // last or first match it stays. Without wrapping lines, it scrolls the
 // match into view.
-func (m *Model) findText(dir int) {
+func (m *FileDiff) findText(dir int) {
 	q := m.cfg.Search.Query
 	mt := matcherOf(q)
 	if mt == nil {

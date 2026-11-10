@@ -109,12 +109,12 @@ func TestNoViewOverflows(t *testing.T) {
 	long := func() tea.Model {
 		a, b := numbered("a fairly long line of code number ", 40), numbered("a fairly long line of code number ", 40)
 		b[4] = "changed and longer than before"
-		return newTestModel(a, b)
+		return newTestFileDiff(a, b)
 	}
 	big := func() tea.Model { // 10000 lines: line numbers of 5 digits
 		b := numbered("x", 10000)
 		b[5000] = "changed"
-		return newTestModel(numbered("x", 10000), b)
+		return newTestFileDiff(numbered("x", 10000), b)
 	}
 	views := []struct {
 		name string
@@ -133,7 +133,7 @@ func TestNoViewOverflows(t *testing.T) {
 		{"commit list", func() tea.Model { l, _ := newTestLog(); return l }, nil},
 		{"log flow", func() tea.Model { l, _ := newTestLog(); return l }, []string{"f", "enter"}},
 		{"help", func() tea.Model { return newTestDiff() }, []string{"?"}},
-		{"marks", func() tea.Model { return newMarkModel() }, []string{"m", "a", "\\"}},
+		{"marks", func() tea.Model { return newMarkFileDiff() }, []string{"m", "a", "\\"}},
 		{"settings", func() tea.Model { return newTestDiff() }, []string{"o"}},
 	}
 	sizes := []int{1, 2, 3, 4, 5, 8, 12}
@@ -142,7 +142,7 @@ func TestNoViewOverflows(t *testing.T) {
 		m := v.make()
 		cfg := config.Default()
 		switch p := m.(type) {
-		case *Model:
+		case *FileDiff:
 			cfg = p.cfg
 		case *Diff:
 			cfg = p.cfg

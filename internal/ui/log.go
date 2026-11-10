@@ -302,7 +302,7 @@ func (l *Log) flowShown() bool { return l.open != nil && l.cfg.Settings.Flow && 
 // commit's bar for file -1 (see Flow.showFrom), and returns the command
 // loading the commits on the screen. A list that loading again emptied has
 // no commit to show.
-func (l *Log) showFlow(file int, from *Model) tea.Cmd {
+func (l *Log) showFlow(file int, from *FileDiff) tea.Cmd {
 	if len(l.commits) == 0 {
 		l.msg = "no commits"
 		return nil
