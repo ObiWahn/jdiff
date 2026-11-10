@@ -83,3 +83,25 @@ The packages under `internal/`, and `watch` beside them, which uses nothing of j
 | `ui` | the Bubble Tea views: commit list, file list, diff view, flow view, popups |
 
 `internal/keys/keybindings.toml` binds the keys of all pages to actions, and holds the words of the status bar, the help and the settings popup, and the order of the settings.
+
+## Kept on purpose
+
+Things that look like a mistake or a duplicate but are not; read this before "fixing" them.
+
+### inotify_max_dirs is applied twice to the shared watcher
+
+The views share one watcher, owned by `App` (`app.go`). A change of `inotify_max_dirs` in the
+settings popup reaches it twice: `Diff` and `FileDiff` call `diskWatch.limit` when they handle
+`settingChangedMsg`, and `App.Update` applies it again at its end if it differs from `App.limit`.
+Both are needed:
+
+- `SettingsPopup` is one of the wrappers inside `App.Model`: it changes the setting and calls the
+  view's `Update` with `settingChangedMsg` directly, so the message never passes through `App`,
+  and `App` cannot apply the limit before the view sees it. The view polls right after, and that
+  poll has to see what is watched with the new limit.
+- Views without files on disk (`Log`, `Flow`) have no `diskWatch`; for them only `App`'s check
+  applies it.
+
+The second call changes no watch: with the limit unchanged, `Watcher.apply` finds the directories
+it keeps already watched. Moving it into one place would mean routing the popup's messages through
+`App` or giving every view a `diskWatch`.

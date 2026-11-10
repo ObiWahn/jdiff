@@ -144,7 +144,9 @@ func (d *diskWatch) touch(paths []string) {
 	}
 }
 
-// limit applies inotify_max_dirs, set in the settings popup.
+// limit applies inotify_max_dirs, set in the settings popup, also to the
+// shared watcher, before the view's next poll; App applies it too, see "Kept
+// on purpose" in doc/development.md.
 func (d *diskWatch) limit(cfg *config.Config) {
 	if d.w != nil {
 		d.w.SetLimit(cfg.Settings.InotifyMaxDirs)

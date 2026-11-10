@@ -158,7 +158,10 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	s.Model, cmd = s.Model.Update(msg)
-	if s.w != nil && s.limit != s.cfg.Settings.InotifyMaxDirs { // set in the settings popup
+	// Set in the settings popup; Diff and FileDiff applied it already
+	// (diskWatch.limit), not the views without files on disk. See "Kept on
+	// purpose" in doc/development.md.
+	if s.w != nil && s.limit != s.cfg.Settings.InotifyMaxDirs {
 		s.limit = s.cfg.Settings.InotifyMaxDirs
 		s.w.SetLimit(s.limit)
 	}
