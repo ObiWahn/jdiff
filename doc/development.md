@@ -88,6 +88,12 @@ The packages under `internal/`, and `watch` beside them, which uses nothing of j
 
 Things that look like a mistake or a duplicate but are not; read this before "fixing" them.
 
+### watch is not under internal/
+
+The package `watch` stands at the top level, beside `internal/`, so that other programs can
+import it: it uses nothing of jdiff and is meant to be used elsewhere. Keep it free of jdiff's
+packages, and do not move it under `internal/`.
+
 ### inotify_max_dirs is applied twice to the shared watcher
 
 The views share one watcher, owned by `App` (`app.go`). A change of `inotify_max_dirs` in the
