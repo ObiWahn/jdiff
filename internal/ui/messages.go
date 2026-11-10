@@ -48,6 +48,19 @@ func refreshAll() tea.Msg { return refreshMsg{} }
 // nothingChanged is the message after loading again the same.
 const nothingChanged = "nothing changed"
 
+// The messages of loading again: nothingToReload where nothing is shown that
+// could be, reloading while it runs in the background.
+const (
+	nothingToReload = "nothing to load again"
+	reloading       = "loading again…"
+)
+
+// The prompts of the keys of marks, until the letter is pressed.
+const (
+	setMarkPrompt = "set mark: press a letter"
+	jumpPrompt    = "jump to mark: press its letter"
+)
+
 // relistState is the state of listing again in the background, which Diff
 // (its files) and Log (its commits) must keep the same way: while a listing
 // runs, another one is not started, but run once it is done, quietly only

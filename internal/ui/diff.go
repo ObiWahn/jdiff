@@ -405,14 +405,14 @@ func (d *Diff) relistFiles(quiet bool) tea.Cmd {
 		list = func(ctx context.Context) ([]source.File, error) { return gitDiff(ctx, args, untracked) }
 	}
 	if list == nil {
-		d.setMsg("nothing to load again")
+		d.setMsg(nothingToReload)
 		return nil
 	}
 	if !d.relisting.start(quiet) {
 		return nil
 	}
 	if !quiet {
-		d.setMsg("loading again…")
+		d.setMsg(reloading)
 	}
 	ctx := d.ctx
 	return func() tea.Msg {
@@ -679,7 +679,7 @@ func (d *Diff) key(k string) tea.Cmd {
 	case "flow":
 		return toggleFlow
 	case "jump":
-		d.prefix, d.msg = h.Action, "jump to mark: press its letter"
+		d.prefix, d.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(d.cfg.Keys, h, false)
 	}

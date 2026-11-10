@@ -175,7 +175,7 @@ func (m *FileDiff) stop() { m.disk.stop() }
 // quiet, it does not say when nothing changed.
 func (m *FileDiff) refresh(quiet bool) {
 	if m.watch == nil {
-		m.msg = "nothing to load again"
+		m.msg = nothingToReload
 		return
 	}
 	m.watch.OldStamp, m.watch.NewStamp = source.Stamp{}, source.Stamp{}
@@ -251,9 +251,9 @@ func (m *FileDiff) key(k string) tea.Cmd {
 	case "moved":
 		return m.jump()
 	case "set_mark":
-		m.prefix, m.msg = h.Action, "set mark: press a letter"
+		m.prefix, m.msg = h.Action, setMarkPrompt
 	case "jump":
-		m.prefix, m.msg = h.Action, "jump to mark: press its letter"
+		m.prefix, m.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(m.cfg.Keys, h, false)
 	}

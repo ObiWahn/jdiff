@@ -376,8 +376,13 @@ func TestReadmeSearch(t *testing.T) {
 	}
 	r.cfg.Search.Add(config.Query{Text: "x77"})
 	pressRoot(r, ".")
-	if r.msg != "no match for x77 in this page" {
+	if r.msg != "/x77: no match in this page" {
 		t.Errorf("x77: %q", r.msg)
+	}
+	r.cfg.Search.Add(config.Query{Text: "x7[7]", Regex: true})
+	pressRoot(r, ".")
+	if r.msg != "regex /x7[7]: no match in this page" {
+		t.Errorf("regex x7[7]: %q", r.msg)
 	}
 }
 

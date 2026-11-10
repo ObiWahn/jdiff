@@ -285,7 +285,7 @@ func (l *Log) key(k string) tea.Cmd {
 			l.msg = ends(dir > 0, "last commit", "first commit")
 		}
 	case "jump":
-		l.prefix, l.msg = h.Action, "jump to mark: press its letter"
+		l.prefix, l.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(l.cfg.Keys, h, false)
 	}
@@ -543,14 +543,14 @@ type commitsListedMsg struct {
 // meanwhile, and a listing asked for while one runs runs after it.
 func (l *Log) relistCommits(quiet bool) tea.Cmd {
 	if l.relist == nil {
-		l.setMsg("nothing to load again")
+		l.setMsg(nothingToReload)
 		return nil
 	}
 	if !l.relisting.start(quiet) {
 		return nil
 	}
 	if !quiet {
-		l.setMsg("loading again…")
+		l.setMsg(reloading)
 	}
 	ctx, list := l.ctx, l.relist
 	return func() tea.Msg {

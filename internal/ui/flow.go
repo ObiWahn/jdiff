@@ -224,9 +224,9 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "moved":
 		f.jump()
 	case "set_mark":
-		f.prefix, f.msg = h.Action, "set mark: press a letter"
+		f.prefix, f.msg = h.Action, setMarkPrompt
 	case "jump":
-		f.prefix, f.msg = h.Action, "jump to mark: press its letter"
+		f.prefix, f.msg = h.Action, jumpPrompt
 	default:
 		return pageKey(f.cfg.Keys, h, f.inLog())
 	}

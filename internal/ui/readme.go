@@ -300,7 +300,7 @@ func (r *Readme) findText(dir int) {
 		}
 	}
 	if len(hits) == 0 {
-		r.msg = "no match for " + q.Text + " in this page"
+		r.msg = noMatch(q, "this page")
 		return
 	}
 	i, ok := nextHit(len(hits), dir, func(i int) int { return cmp.Compare(hits[i], r.cursor) })

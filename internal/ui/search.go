@@ -252,6 +252,11 @@ func noFurther(q config.Query, dir int, where string) string {
 	return queryName(q) + ": " + ends(dir > 0, "no match further down", "no match further up") + strings.Replace(where, " of ", " in ", 1)
 }
 
+// noMatch returns the status message when q is found nowhere in where.
+func noMatch(q config.Query, where string) string {
+	return queryName(q) + ": no match in " + where
+}
+
 // scope returns where / searches, as messages name it.
 func scope(st settings.Settings) string {
 	if st.SearchAll {
@@ -273,7 +278,7 @@ func (m *FileDiff) findText(dir int) {
 	}
 	hits := m.hits(mt, m.cfg.Settings.SearchAll)
 	if len(hits) == 0 {
-		m.msg = "no match for " + q.Text + " in " + scope(m.cfg.Settings)
+		m.msg = noMatch(q, scope(m.cfg.Settings))
 		return
 	}
 	m.syncLayout()
@@ -338,7 +343,7 @@ func (f *Flow) findText(dir int) {
 		}
 	}
 	if len(hits) == 0 {
-		f.msg = "no match for " + q.Text + " in " + scope(f.cfg.Settings) + where
+		f.msg = noMatch(q, scope(f.cfg.Settings)+where)
 		return
 	}
 	// The cursor's position: a commit's or file's own rows come before the

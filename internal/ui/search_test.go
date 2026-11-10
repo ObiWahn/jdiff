@@ -74,7 +74,7 @@ func TestFileDiffFindText(t *testing.T) {
 	}
 	m.cfg.Search.Add(config.Query{Text: "nothing like it"})
 	press(m, ".")
-	if !strings.HasPrefix(m.msg, "no match for nothing like it") {
+	if !strings.HasPrefix(m.msg, "/nothing like it: no match in ") {
 		t.Errorf("no match: %q", m.msg)
 	}
 	// x3 is in both files, folded: . unfolds it, on the left line first.
@@ -127,7 +127,7 @@ func TestFindChangedOnly(t *testing.T) {
 	}
 	m.cfg.Search.Add(config.Query{Text: "x2"})
 	press(m, ",")
-	if m.msg != "no match for x2 in changed lines" {
+	if m.msg != "/x2: no match in changed lines" {
 		t.Errorf("only in unchanged lines: %q", m.msg)
 	}
 	// Only changed lines are highlighted.
@@ -296,7 +296,7 @@ func TestFlowFindText(t *testing.T) {
 	}
 	// In c1, which has no 1.
 	pressLog(l, "P", ".")
-	if f.msg != "no match for 1 in changed lines of this commit" {
+	if f.msg != "/1: no match in changed lines of this commit" {
 		t.Errorf("in c1: msg %q", f.msg)
 	}
 	// A regular expression: q or y, in c1's c.go.
