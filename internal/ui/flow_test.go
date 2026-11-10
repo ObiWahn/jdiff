@@ -620,7 +620,7 @@ func TestFlowAsksForDiff(t *testing.T) {
 	for name, view := range map[string]tea.Model{"files": newFlowDiff(), "log": log} {
 		s, _ := newTestApp(view)
 		pressRoot(s, "f", "d")
-		if s.input == nil {
+		if s.popup.input == nil {
 			t.Errorf("%s: d in the flow does not ask", name)
 		}
 	}

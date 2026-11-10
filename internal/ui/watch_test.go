@@ -44,7 +44,7 @@ func polling() *config.Config {
 }
 
 // tickOf returns the regular check of auto reload that s waits for.
-func tickOf(s *App) autoTickMsg { return autoTickMsg{s.autoGen, s.tick} }
+func tickOf(s *App) autoTickMsg { return autoTickMsg{s.auto.gen, s.auto.tick} }
 
 // newWatchedFileDiff returns the watched diff view of two files with lines a
 // and b in a new directory, checked by polling.
@@ -634,14 +634,14 @@ func TestAutoReloadOnAndOff(t *testing.T) {
 		t.Errorf("the badge does not show:\n%s", ansi.Strip(s.frame()))
 	}
 	// The same status does not load again, nor say so; a new one loads.
-	gen := s.autoGen
-	s.statusRuns++
+	gen := s.auto.gen
+	s.auto.statusRuns++
 	s.Update(autoStatusMsg{gen: gen, status: "s0"})
 	if len(g.runs) != 1 {
 		t.Errorf("same status: runs %v", g.runs)
 	}
 	repo.status = "s1"
-	s.statusRuns++
+	s.auto.statusRuns++
 	_, cmd = s.Update(autoStatusMsg{gen: gen, status: "s1"})
 	loadNow(t, s, cmd)
 	if len(g.runs) != 2 {
@@ -652,13 +652,13 @@ func TestAutoReloadOnAndOff(t *testing.T) {
 	}
 	// Off: results and ticks under way are dropped.
 	s.Update(askAutoReloadMsg{})
-	s.statusRuns++
+	s.auto.statusRuns++
 	s.Update(autoStatusMsg{gen: gen, status: "s2"})
-	if _, cmd := s.Update(autoTickMsg{gen, s.tick}); s.cfg.AutoReload || s.pins != nil || len(g.runs) != 2 || cmd != nil {
-		t.Errorf("off: on %v, pinned %v, runs %v, tick goes on %v", s.cfg.AutoReload, s.pins, g.runs, cmd != nil)
+	if _, cmd := s.Update(autoTickMsg{gen, s.auto.tick}); s.cfg.AutoReload || s.auto.pins != nil || len(g.runs) != 2 || cmd != nil {
+		t.Errorf("off: on %v, pinned %v, runs %v, tick goes on %v", s.cfg.AutoReload, s.auto.pins, g.runs, cmd != nil)
 	}
-	if s.statusRuns != 0 {
-		t.Errorf("checks under way: %d", s.statusRuns)
+	if s.auto.statusRuns != 0 {
+		t.Errorf("checks under way: %d", s.auto.statusRuns)
 	}
 }
 
@@ -668,39 +668,39 @@ func TestAutoReloadTimeout(t *testing.T) {
 	s, _, _, _ := newAutoReload(t)
 	const idle = 6 * time.Minute
 	s.Update(askAutoReloadMsg{})
-	gen := s.autoGen
-	if _, cmd := s.Update(tickOf(s)); cmd == nil || s.statusRuns != 1 {
-		t.Fatalf("active: cmd %v, checks %d; want a check", cmd != nil, s.statusRuns)
+	gen := s.auto.gen
+	if _, cmd := s.Update(tickOf(s)); cmd == nil || s.auto.statusRuns != 1 {
+		t.Fatalf("active: cmd %v, checks %d; want a check", cmd != nil, s.auto.statusRuns)
 	}
 	// While git is at it, no second check starts.
-	if s.Update(tickOf(s)); s.statusRuns != 1 {
-		t.Errorf("checks %d, want 1", s.statusRuns)
+	if s.Update(tickOf(s)); s.auto.statusRuns != 1 {
+		t.Errorf("checks %d, want 1", s.auto.statusRuns)
 	}
-	s.lastActive = time.Now().Add(-idle)
+	s.auto.lastActive = time.Now().Add(-idle)
 	s.Update(autoStatusMsg{gen: gen, status: "s0"})
-	if time.Since(s.lastActive) < idle {
+	if time.Since(s.auto.lastActive) < idle {
 		t.Error("the same status counts as activity")
 	}
 	s.Update(keyMsg("j"))
-	if time.Since(s.lastActive) >= idle {
+	if time.Since(s.auto.lastActive) >= idle {
 		t.Error("a key does not count as activity")
 	}
-	s.lastActive = time.Now().Add(-idle)
-	s.statusRuns++
+	s.auto.lastActive = time.Now().Add(-idle)
+	s.auto.statusRuns++
 	s.Update(autoStatusMsg{gen: gen, status: "s1"})
-	if time.Since(s.lastActive) >= idle {
+	if time.Since(s.auto.lastActive) >= idle {
 		t.Error("a change does not count as activity")
 	}
 	s.cfg.Settings.AutoReloadTimeout = 0
-	s.lastActive = time.Now().Add(-idle)
+	s.auto.lastActive = time.Now().Add(-idle)
 	if s.Update(tickOf(s)); !s.cfg.AutoReload {
 		t.Error("timeout 0 ended it")
 	}
-	s.statusRuns = 0
+	s.auto.statusRuns = 0
 	s.cfg.Settings.AutoReloadTimeout = 5
 	_, cmd := s.Update(tickOf(s))
-	if s.cfg.AutoReload || s.pins != nil || s.statusRuns != 0 || cmd == nil {
-		t.Fatalf("idle: on %v, pinned %v, checks %d", s.cfg.AutoReload, s.pins, s.statusRuns)
+	if s.cfg.AutoReload || s.auto.pins != nil || s.auto.statusRuns != 0 || cmd == nil {
+		t.Fatalf("idle: on %v, pinned %v, checks %d", s.cfg.AutoReload, s.auto.pins, s.auto.statusRuns)
 	}
 	s.Update(cmd())
 	if view := ansi.Strip(s.frame()); !strings.Contains(view, "auto reload off: 5 min") {
@@ -711,10 +711,10 @@ func TestAutoReloadTimeout(t *testing.T) {
 func TestAutoReloadSurvivesDiffSwitch(t *testing.T) {
 	s, g, _, _ := newAutoReload(t)
 	s.Update(askAutoReloadMsg{})
-	gen := s.autoGen
-	s.input = &lineInput{}
+	gen := s.auto.gen
+	s.popup.input = &lineInput{}
 	s.Update(s.show([]string{"HEAD~1"})()) // git diff, which runs in the background
-	s.statusRuns++
+	s.auto.statusRuns++
 	_, cmd := s.Update(autoStatusMsg{gen: gen, status: "s1"})
 	loadNow(t, s, cmd)
 	if !s.cfg.AutoReload || len(g.runs) < 2 || !slices.Equal(g.runs[len(g.runs)-1], []string{"HEAD~1"}) {
@@ -737,8 +737,8 @@ func TestAutoReloadErrors(t *testing.T) {
 	if !s.cfg.AutoReload {
 		t.Fatal("does not start")
 	}
-	s.statusRuns++
-	_, cmd = s.Update(autoStatusMsg{gen: s.autoGen, err: errors.New("gone")})
+	s.auto.statusRuns++
+	_, cmd = s.Update(autoStatusMsg{gen: s.auto.gen, err: errors.New("gone")})
 	s.Update(cmd())
 	if s.cfg.AutoReload || !strings.Contains(ansi.Strip(s.frame()), "auto reload: gone") {
 		t.Errorf("on %v:\n%s", s.cfg.AutoReload, ansi.Strip(s.frame()))
@@ -764,7 +764,7 @@ func startAutoReload(t *testing.T, s *App) {
 	}
 	s.Update(askAutoReloadMsg{})
 	s.Update(s.watchRepo()())
-	if len(s.pins) == 0 {
+	if len(s.auto.pins) == 0 {
 		t.Fatal("the repository is not watched")
 	}
 }
@@ -783,26 +783,26 @@ func TestAutoReloadWatcher(t *testing.T) {
 		s.Update(awaitMsg(t, waitChanges(s.w)))
 	}
 	changed(file)
-	if s.statusRuns != 1 {
-		t.Errorf("repository changed: checks %d, want 1", s.statusRuns)
+	if s.auto.statusRuns != 1 {
+		t.Errorf("repository changed: checks %d, want 1", s.auto.statusRuns)
 	}
 	// While git is at it, once more after.
 	changed(filepath.Join(tree, "new.txt"))
-	if s.statusRuns != 1 || !s.statusAgain {
-		t.Errorf("working tree changed during a check: checks %d, again %v; want 1, true", s.statusRuns, s.statusAgain)
+	if s.auto.statusRuns != 1 || !s.auto.statusAgain {
+		t.Errorf("working tree changed during a check: checks %d, again %v; want 1, true", s.auto.statusRuns, s.auto.statusAgain)
 	}
-	if _, cmd := s.Update(autoStatusMsg{gen: s.autoGen, status: "s0"}); s.statusRuns != 1 || cmd == nil {
-		t.Errorf("after the check: checks %d; want the one more", s.statusRuns)
+	if _, cmd := s.Update(autoStatusMsg{gen: s.auto.gen, status: "s0"}); s.auto.statusRuns != 1 || cmd == nil {
+		t.Errorf("after the check: checks %d; want the one more", s.auto.statusRuns)
 	}
-	s.statusRuns = 0
+	s.auto.statusRuns = 0
 	changed(filepath.Join(tree, ".new.txt.swp"))
-	if s.statusRuns != 0 {
-		t.Errorf("swap file changed: checks %d, want none", s.statusRuns)
+	if s.auto.statusRuns != 0 {
+		t.Errorf("swap file changed: checks %d, want none", s.auto.statusRuns)
 	}
 	s.cfg.AutoReload = false
 	changed(filepath.Join(tree, "other.txt"))
-	if s.statusRuns != 0 {
-		t.Errorf("auto reload off: checks %d, want none", s.statusRuns)
+	if s.auto.statusRuns != 0 {
+		t.Errorf("auto reload off: checks %d, want none", s.auto.statusRuns)
 	}
 }
 
@@ -819,8 +819,8 @@ func TestAutoReloadOffUnwatches(t *testing.T) {
 	late := s.watchRepo()()
 	s.Update(askAutoReloadMsg{})
 	s.Update(late)
-	if s.w.Watched(file) || s.w.Watched(filepath.Join(tree, "x")) || s.pins != nil {
-		t.Errorf("off: watched %v %v, pinned %v", s.w.Watched(file), s.w.Watched(filepath.Join(tree, "x")), s.pins)
+	if s.w.Watched(file) || s.w.Watched(filepath.Join(tree, "x")) || s.auto.pins != nil {
+		t.Errorf("off: watched %v %v, pinned %v", s.w.Watched(file), s.w.Watched(filepath.Join(tree, "x")), s.auto.pins)
 	}
 }
 
@@ -894,14 +894,14 @@ func TestAutoReloadSwitchesWatching(t *testing.T) {
 	s.Init()
 	t.Cleanup(s.stop)
 	writeLines(t, filepath.Join(dir, "a.txt"), append(numbered("x", 10), "added", "more"))
-	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.gitMode || repo.ctx != nil || !d.disk.ticking || cmd == nil {
-		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.gitMode, repo.ctx != nil, d.disk.ticking)
+	if _, cmd := s.Update(askAutoReloadMsg{}); !s.cfg.AutoReload || s.auto.gitMode || repo.ctx != nil || !d.disk.ticking || cmd == nil {
+		t.Fatalf("on: %v, git %v, status run %v, ticking %v", s.cfg.AutoReload, s.auto.gitMode, repo.ctx != nil, d.disk.ticking)
 	}
 	if d.files[0].added != 2 {
 		t.Errorf("a.txt +%d, want 2: changed while off", d.files[0].added)
 	}
-	if _, cmd := s.Update(tickOf(s)); s.statusRuns != 0 || cmd == nil {
-		t.Errorf("tick: checks %d, next tick %v; want no git status, a next tick", s.statusRuns, cmd != nil)
+	if _, cmd := s.Update(tickOf(s)); s.auto.statusRuns != 0 || cmd == nil {
+		t.Errorf("tick: checks %d, next tick %v; want no git status, a next tick", s.auto.statusRuns, cmd != nil)
 	}
 	s.Update(askAutoReloadMsg{})
 	if _, cmd := d.Update(watchTickMsg{owner: d}); cmd != nil || d.watching {
@@ -917,15 +917,15 @@ func TestAutoReloadChangeResetsTick(t *testing.T) {
 	old := tickOf(s)
 	writeLines(t, file, []string{"x1"})
 	_, cmd := s.Update(awaitMsg(t, waitChanges(s.w)))
-	if s.statusRuns != 1 || s.tick == old.tick || cmd == nil {
-		t.Fatalf("change: checks %d, tick %d (was %d)", s.statusRuns, s.tick, old.tick)
+	if s.auto.statusRuns != 1 || s.auto.tick == old.tick || cmd == nil {
+		t.Fatalf("change: checks %d, tick %d (was %d)", s.auto.statusRuns, s.auto.tick, old.tick)
 	}
-	if _, cmd := s.Update(old); cmd != nil || s.statusRuns != 1 {
-		t.Errorf("the old tick: command %v, checks %d; want it dropped", cmd != nil, s.statusRuns)
+	if _, cmd := s.Update(old); cmd != nil || s.auto.statusRuns != 1 {
+		t.Errorf("the old tick: command %v, checks %d; want it dropped", cmd != nil, s.auto.statusRuns)
 	}
-	s.statusRuns = 0
-	if _, cmd := s.Update(tickOf(s)); cmd == nil || s.statusRuns != 1 {
-		t.Errorf("the new tick: command %v, checks %d; want a check", cmd != nil, s.statusRuns)
+	s.auto.statusRuns = 0
+	if _, cmd := s.Update(tickOf(s)); cmd == nil || s.auto.statusRuns != 1 {
+		t.Errorf("the new tick: command %v, checks %d; want a check", cmd != nil, s.auto.statusRuns)
 	}
 }
 

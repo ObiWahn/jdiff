@@ -23,41 +23,27 @@ type App struct {
 	view      tea.Model // the view itself
 	wrap      func(tea.Model) tea.Model
 	cfg       *config.Config
-	gitDiff   DiffFunc
 	// w is the watcher the views share, nil where the system has none;
 	// limit is the inotify_max_dirs it has.
-	w     *watch.Watcher
-	limit int
-	// Auto reload: repoStatus returns the state of the repository, which is
-	// checked, while gitMode is set, every auto_reload_interval and at once
-	// when w reports a change of the files of repoPaths, pinned, or in the
-	// directories of workDirs. statusRuns counts the checks under way,
-	// statusAgain asks for one more after them; tick numbers the regular
-	// checks, of which only the last counts; autoGen tells this run of auto
-	// reload from earlier ones; autoCtx ends its git commands, autoCancel
-	// ends autoCtx.
-	repoStatus  func(ctx context.Context) (string, error)
-	repoPaths   func() ([]string, error)
-	workDirs    func(ignore func(rel string) bool) (map[string]time.Time, error)
-	gitMode     bool
-	tick        int
-	pins        []string
-	statusAgain bool
-	lastStatus  string
-	lastActive  time.Time
-	statusRuns  int
-	autoGen     int
-	autoCtx     context.Context
-	autoCancel  context.CancelFunc
-	input       *lineInput // while it asks
-	err         string     // why git failed, until the next key
-	// running is set while git diff runs for the request number diffGen of
-	// show; diffCancel ends it.
-	running    bool
-	diffGen    int
-	diffCancel context.CancelFunc
-	width      int
-	height     int
+	w      *watch.Watcher
+	limit  int
+	auto   autoReload
+	popup  diffPopup
+	width  int
+	height int
+}
+
+// diffPopup is the popup of git diff of App: run lists the diff of the
+// arguments asked for in input, which is set while it asks; err is why git
+// failed, until the next key. running is set while git diff runs for the
+// request number gen of show; cancel ends it.
+type diffPopup struct {
+	run     DiffFunc
+	input   *lineInput
+	err     string
+	running bool
+	gen     int
+	cancel  context.CancelFunc
 }
 
 // NewApp returns the app showing view in the search bar, the help, the
@@ -72,7 +58,7 @@ func NewApp(cfg *config.Config, view tea.Model, gitDiff DiffFunc) *App {
 // newApp returns the app showing view, which wrap puts in its wrappers, as
 // it does the views that replace it. The tests choose the wrappers.
 func newApp(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, gitDiff DiffFunc) *App {
-	return &App{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, gitDiff: gitDiff}
+	return &App{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, popup: diffPopup{run: gitDiff}}
 }
 
 // WithAutoReload sets how auto reload gets the state of the repository, the
@@ -80,7 +66,7 @@ func newApp(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, 
 // and returns s.
 func (s *App) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error),
 	dirs func(ignore func(rel string) bool) (map[string]time.Time, error)) *App {
-	s.repoStatus, s.repoPaths, s.workDirs = status, paths, dirs
+	s.auto.repoStatus, s.auto.repoPaths, s.auto.workDirs = status, paths, dirs
 	return s
 }
 
@@ -118,7 +104,7 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width, s.height = msg.Width, msg.Height
 	case askDiffMsg:
-		s.input, s.err = &lineInput{}, ""
+		s.popup.input, s.popup.err = &lineInput{}, ""
 		s.endDiff()
 		return s, nil
 	case diffListedMsg:
@@ -144,15 +130,15 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.onRepoWatch(msg)
 		return s, nil
 	case tea.KeyPressMsg:
-		s.lastActive = time.Now()
-		if s.input != nil {
-			s.err = ""
+		s.auto.lastActive = time.Now()
+		if s.popup.input != nil {
+			s.popup.err = ""
 			return s, s.key(msg)
 		}
 	case tea.PasteMsg:
-		if s.input != nil {
-			s.err = ""
-			s.input.paste(msg.Content)
+		if s.popup.input != nil {
+			s.popup.err = ""
+			s.popup.input.paste(msg.Content)
 			return s, nil
 		}
 	}
@@ -173,12 +159,12 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // the line; with nothing typed it closes the popup, as esc and backspace on
 // it do.
 func (s *App) key(k tea.KeyPressMsg) tea.Cmd {
-	in := s.input
+	in := s.popup.input
 	switch {
 	case k.String() == "ctrl+c":
 		return tea.Quit
 	case in.cancels(k):
-		s.input = nil
+		s.popup.input = nil
 		s.endDiff()
 		return nil
 	}
@@ -186,11 +172,11 @@ func (s *App) key(k tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		args, err := splitArgs(in.text)
 		if err != nil {
-			s.err = err.Error()
+			s.popup.err = err.Error()
 			return nil
 		}
 		if len(args) == 0 {
-			s.input = nil
+			s.popup.input = nil
 			return nil
 		}
 		return s.show(args)
@@ -259,10 +245,10 @@ func joinArgs(args []string) string {
 // endDiff ends the git diff of the popup, if one runs: its files are no
 // longer wanted.
 func (s *App) endDiff() {
-	s.running = false
-	if s.diffCancel != nil {
-		s.diffCancel()
-		s.diffCancel = nil
+	s.popup.running = false
+	if s.popup.cancel != nil {
+		s.popup.cancel()
+		s.popup.cancel = nil
 	}
 }
 
@@ -292,11 +278,11 @@ type diffListedMsg struct {
 // and drops the files, as another request does.
 func (s *App) show(args []string) tea.Cmd {
 	s.endDiff()
-	s.diffGen++
-	s.running = true
+	s.popup.gen++
+	s.popup.running = true
 	ctx, cancel := context.WithCancel(context.Background())
-	s.diffCancel = cancel
-	gen, untracked, gitDiff := s.diffGen, s.cfg.Settings.Untracked, s.gitDiff
+	s.popup.cancel = cancel
+	gen, untracked, gitDiff := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run
 	return func() tea.Msg {
 		files, err := gitDiff(ctx, args, untracked)
 		return diffListedMsg{gen, args, files, err}
@@ -308,20 +294,20 @@ func (s *App) show(args []string) tea.Cmd {
 // closed or asked again meanwhile, it drops them. When git failed, the view
 // and the popup stay, which shows the first line of git's message.
 func (s *App) showDiff(msg diffListedMsg) tea.Cmd {
-	if msg.gen != s.diffGen || !s.running { // closed or opened again meanwhile
+	if msg.gen != s.popup.gen || !s.popup.running { // closed or opened again meanwhile
 		return nil
 	}
 	s.endDiff()
 	args, files := msg.args, msg.files
 	if msg.err != nil {
-		s.err = firstLine(msg.err)
+		s.popup.err = firstLine(msg.err)
 		return nil
 	}
-	s.input = nil
+	s.popup.input = nil
 	if v, ok := s.view.(interface{ stop() }); ok {
 		v.stop()
 	}
-	d := NewDiff(s.cfg, files).WithGitDiff(args, s.gitDiff)
+	d := NewDiff(s.cfg, files).WithGitDiff(args, s.popup.run)
 	if len(files) > 0 {
 		d.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 	}
@@ -329,7 +315,7 @@ func (s *App) showDiff(msg diffListedMsg) tea.Cmd {
 	s.share()
 	s.Model.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
 	cmd := s.Model.Init()
-	if s.cfg.AutoReload && !s.gitMode { // now git diff: checked by git status
+	if s.cfg.AutoReload && !s.auto.gitMode { // now git diff: checked by git status
 		s.stopAutoReload()
 		cmd = batch(cmd, s.toggleAutoReload())
 	}
@@ -344,7 +330,7 @@ func (s *App) View() tea.View { return tea.NewView(s.frame()) }
 
 func (s *App) frame() string {
 	base := s.Model.View().Content
-	if s.input == nil || s.width == 0 {
+	if s.popup.input == nil || s.width == 0 {
 		return base
 	}
 	t := s.cfg.Theme
@@ -353,9 +339,9 @@ func (s *App) frame() string {
 		keys = "enter show · ↑ current · esc cancel"
 	}
 	msg := ""
-	if s.running {
+	if s.popup.running {
 		msg = "running git diff…"
 	}
-	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.input.text), s.err, true)
+	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.popup.input.text), s.popup.err, true)
 	return overlay(base, pop, w, s.width)
 }

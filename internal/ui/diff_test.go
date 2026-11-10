@@ -404,10 +404,10 @@ func TestAppDiffTyped(t *testing.T) {
 		{Path: "b.go", Old: []string{"x"}, New: []string{"y"}, InOld: true, InNew: true},
 	}).WithGitDiff([]string{"--cached"}, g.diff)
 	s, _ := newTestApp(start)
-	s.gitDiff = g.diff
+	s.popup.run = g.diff
 
 	pressRoot(s, "d")
-	if popup := ansi.Strip(s.frame()); s.input == nil ||
+	if popup := ansi.Strip(s.frame()); s.popup.input == nil ||
 		!strings.Contains(popup, "╭─ git diff  enter show · ↑ current · esc cancel") || strings.Contains(popup, "working tree") {
 		t.Errorf("d: popup\n%s", popup)
 	}
@@ -418,7 +418,7 @@ func TestAppDiffTyped(t *testing.T) {
 	}
 	pressRoot(s, "enter")
 	d := shownDiff(t, s)
-	if d == start || s.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
+	if d == start || s.popup.input != nil || len(g.runs) != 1 || !slices.Equal(g.runs[0], []string{"HEAD~3", "HEAD"}) {
 		t.Fatalf("enter: runs %v, a new view %v", g.runs, d != start)
 	}
 	view := ansi.Strip(s.frame())
@@ -433,17 +433,17 @@ func TestAppDiffTyped(t *testing.T) {
 		t.Errorf("r after the switch: runs %v", g.runs)
 	}
 	pressRoot(s, "d", "up")
-	if s.input.text != "HEAD~3 HEAD" {
-		t.Errorf("up: %q, want the current arguments", s.input.text)
+	if s.popup.input.text != "HEAD~3 HEAD" {
+		t.Errorf("up: %q, want the current arguments", s.popup.input.text)
 	}
 	pressRoot(s, "esc")
-	if s.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d || strings.Contains(s.frame(), "╭─ git diff") {
-		t.Errorf("esc: still asking %v, runs %v", s.input != nil, g.runs)
+	if s.popup.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d || strings.Contains(s.frame(), "╭─ git diff") {
+		t.Errorf("esc: still asking %v, runs %v", s.popup.input != nil, g.runs)
 	}
 	// enter on the empty line changes nothing.
 	pressRoot(s, "d", "enter")
-	if s.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d {
-		t.Errorf("enter on the empty line: still asking %v, runs %v", s.input != nil, g.runs)
+	if s.popup.input != nil || len(g.runs) != 2 || shownDiff(t, s) != d {
+		t.Errorf("enter on the empty line: still asking %v, runs %v", s.popup.input != nil, g.runs)
 	}
 }
 
@@ -529,7 +529,7 @@ func TestDiffSwitchFails(t *testing.T) {
 	pressRoot(s, "d", "HEAD~99", "enter")
 	// The popup stays with the line typed, to be fixed, and git's first line.
 	view := ansi.Strip(s.frame())
-	if s.view != m || s.input == nil || !strings.Contains(view, " HEAD~99█ ") ||
+	if s.view != m || s.popup.input == nil || !strings.Contains(view, " HEAD~99█ ") ||
 		!strings.Contains(view, "bad revision 'HEAD~99'") || strings.Contains(view, "more lines") {
 		t.Fatalf("failed git: shows %T, popup\n%s", s.view, view)
 	}
@@ -539,8 +539,8 @@ func TestDiffSwitchFails(t *testing.T) {
 		t.Error("the message stays after the next key")
 	}
 	pressRoot(s, "esc")
-	if s.input != nil || s.view != m {
-		t.Errorf("esc after the failure: still asking %v, shows %T", s.input != nil, s.view)
+	if s.popup.input != nil || s.view != m {
+		t.Errorf("esc after the failure: still asking %v, shows %T", s.popup.input != nil, s.view)
 	}
 }
 
@@ -852,12 +852,12 @@ func TestFileListRows(t *testing.T) {
 func TestDiffSwitchBackspaceCloses(t *testing.T) {
 	s, g := newTestApp(newTestDiff())
 	pressRoot(s, "d", "ab", "backspace")
-	if s.input == nil || s.input.text != "a" {
-		t.Fatalf("backspace on text: %v", s.input)
+	if s.popup.input == nil || s.popup.input.text != "a" {
+		t.Fatalf("backspace on text: %v", s.popup.input)
 	}
 	pressRoot(s, "backspace", "backspace")
-	if s.input != nil || len(g.runs) != 0 {
-		t.Errorf("backspace on nothing typed: open %v, runs %v; want closed, no git", s.input != nil, g.runs)
+	if s.popup.input != nil || len(g.runs) != 0 {
+		t.Errorf("backspace on nothing typed: open %v, runs %v; want closed, no git", s.popup.input != nil, g.runs)
 	}
 }
 
@@ -1025,23 +1025,23 @@ func TestDiffRelistDropsAnchors(t *testing.T) {
 func TestDiffSwitchPaste(t *testing.T) {
 	s, g := newTestApp(newTestDiff())
 	s.Update(tea.PasteMsg{Content: "x0"})
-	if s.input != nil {
-		t.Fatalf("pasted with the popup closed: %q", s.input.text)
+	if s.popup.input != nil {
+		t.Fatalf("pasted with the popup closed: %q", s.popup.input.text)
 	}
 	pressRoot(s, "d")
 	s.Update(tea.PasteMsg{Content: "x0 "})
 	s.Update(tea.PasteMsg{Content: "x1"})
-	if s.input == nil || s.input.text != "x0 x1" {
-		t.Fatalf("pasted: %+v", s.input)
+	if s.popup.input == nil || s.popup.input.text != "x0 x1" {
+		t.Fatalf("pasted: %+v", s.popup.input)
 	}
 	g.err = errors.New("x2")
 	pressRoot(s, "enter")
-	if s.err != "x2" {
-		t.Fatalf("git failed: err %q", s.err)
+	if s.popup.err != "x2" {
+		t.Fatalf("git failed: err %q", s.popup.err)
 	}
 	s.Update(tea.PasteMsg{Content: "x3"})
-	if s.err != "" || s.input.text != "x0 x1x3" {
-		t.Errorf("pasted after the failure: err %q, line %q", s.err, s.input.text)
+	if s.popup.err != "" || s.popup.input.text != "x0 x1x3" {
+		t.Errorf("pasted after the failure: err %q, line %q", s.popup.err, s.popup.input.text)
 	}
 }
 
