@@ -130,8 +130,8 @@ func (r *Readme) moveTo(i int) {
 func (r *Readme) key(k string) tea.Cmd {
 	r.msg = ""
 	h := r.cfg.Keys.Key(keys.DocView, k)
-	body := r.bodyHeight()
-	if delta, paging, ok := motion(h, max(body-1, 1), len(r.rendered.lines)); ok {
+	page := max(r.bodyHeight()-1, 1)
+	if delta, paging, ok := motion(h, page, len(r.rendered.lines)); ok {
 		if paging {
 			r.scrollTo(r.top + delta)
 		}
@@ -142,7 +142,7 @@ func (r *Readme) key(k string) tea.Cmd {
 	case "quit":
 		return tea.Quit
 	case "half_page":
-		delta := direction(h.Index == 1) * (body / 2)
+		delta := halfPage(h, page)
 		r.scrollTo(r.top + delta)
 		r.moveTo(r.cursor + delta)
 	case "link":

@@ -321,13 +321,15 @@ func globDocs(t *testing.T) []string {
 	return out
 }
 
+// A page is the 10 lines of the body less one, half a page half of that,
+// as in the diff view.
 func TestReadmePagesAndScroll(t *testing.T) {
 	r := newTestReadme(t, 80, 12)
 	for _, c := range []struct {
 		keys        string
 		cursor, top int
 	}{
-		{"j", 1, 0}, {"k", 0, 0}, {"k", 0, 0}, {"pgdown", 9, 9}, {"ctrl+d", 14, 14}, {"ctrl+u", 9, 9},
+		{"j", 1, 0}, {"k", 0, 0}, {"k", 0, 0}, {"pgdown", 9, 9}, {"ctrl+d", 13, 13}, {"ctrl+u", 9, 9},
 		{"pgup", 0, 0}, {"end", 60, 51}, {"j", 60, 51}, {"home", 0, 0},
 	} {
 		pressRoot(r, c.keys)
