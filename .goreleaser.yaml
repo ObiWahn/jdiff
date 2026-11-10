@@ -62,8 +62,12 @@ nfpms:
     maintainer: "Jan Christoph Uhde <jan@uhde.io>"
     license: MIT
     formats: [deb, rpm, apk, archlinux]
-    # gitsrc and the theme's git config call git.
+    # gitsrc and the theme's git config call git. Fedora's git adds perl and
+    # the tools written in it to git-core, which jdiff does not need.
     dependencies: [git]
+    overrides:
+      rpm:
+        dependencies: [git-core]
     contents:
       - src: LICENSE
         dst: /usr/share/licenses/jdiff/LICENSE

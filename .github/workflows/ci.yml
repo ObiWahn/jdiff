@@ -118,7 +118,7 @@ jobs:
           - { runner: ubuntu-24.04-arm, image: "archlinux:latest" }
         include:
           - { image: "debian:stable", install: "apt-get update -qq && apt-get install -y ./jdiff_*_$(dpkg --print-architecture).deb" }
-          - { image: "fedora:latest", install: "dnf install -y ./jdiff-*.$(uname -m).rpm" }
+          - { image: "fedora:latest", install: "dnf install -y --setopt=install_weak_deps=False ./jdiff-*.$(uname -m).rpm" }
           - { image: "alpine:latest", install: "apk add --allow-untrusted ./jdiff_*_$(uname -m).apk" }
           - { image: "archlinux:latest", install: "pacman -Sy --noconfirm && pacman -U --noconfirm ./jdiff-*-$(uname -m).pkg.tar.zst" }
     name: packages (${{ matrix.image }}, ${{ matrix.runner }})
