@@ -137,7 +137,7 @@ git runs in the directory jdiff was started in, also when it compares two direct
 It is kept in `state.toml`, so later runs show them too; `jdiff -u diff` (`--untracked`) shows them for that run only, without changing `state.toml`.
 
 - They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits.
-- Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`.
+- Your index stays as it is: jdiff marks them in a temporary copy of it, and the line above the files says `WORK+UNTRACKED`, or `WORK+INDEX+UNTRACKED`.
 - Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out.
 
 ### Settings popup

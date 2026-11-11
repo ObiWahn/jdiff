@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -468,6 +469,21 @@ func TestLoadDiffFollowsUntracked(t *testing.T) {
 	}
 	if _, err := loadDiff(cfg, []string{"no-such-rev"}); err == nil {
 		t.Error("bad revision: no error")
+	}
+}
+
+// git tells revisions from paths before --: a.txt is a path, shown at the
+// end of the line above the files, HEAD a revision, the left side.
+func TestLoadDiffSides(t *testing.T) {
+	newRepo(t)
+	write(t, "a.txt", "x0\nchanged\nx2\n")
+	m, err := loadDiff(config.Default(), []string{"HEAD", "a.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, _, _ := strings.Cut(shown(m), "\n")
+	if !regexp.MustCompile(`^ HEAD +1 file changed  \+1 -1 │ WORK\+INDEX +a\.txt $`).MatchString(top) {
+		t.Errorf("top line %q", top)
 	}
 }
 

@@ -34,11 +34,13 @@ type App struct {
 }
 
 // diffPopup is the popup of git diff of App: run lists the diff of the
-// arguments asked for in input, which is set while it asks; err is why git
-// failed, until the next key. running is set while git diff runs for the
+// arguments asked for in input, which is set while it asks, isRev tells
+// their revisions from paths, see SplitDiffArgs; err is why git failed,
+// until the next key. running is set while git diff runs for the
 // request number gen of show; cancel ends it.
 type diffPopup struct {
 	run     DiffFunc
+	isRev   func(ctx context.Context, arg string) bool
 	input   *lineInput
 	err     string
 	running bool
@@ -59,6 +61,14 @@ func NewApp(cfg *config.Config, view tea.Model, gitDiff DiffFunc) *App {
 // it does the views that replace it. The tests choose the wrappers.
 func newApp(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, gitDiff DiffFunc) *App {
 	return &App{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, popup: diffPopup{run: gitDiff}}
+}
+
+// WithRevisions sets how the popup of git diff tells revisions from paths,
+// for the line above the files, and returns s. Without, all arguments
+// before -- count as revisions.
+func (s *App) WithRevisions(isRev func(ctx context.Context, arg string) bool) *App {
+	s.popup.isRev = isRev
+	return s
 }
 
 // WithAutoReload sets how auto reload gets the state of the repository, the
@@ -274,6 +284,7 @@ func (s *App) stop() {
 type diffListedMsg struct {
 	gen   int
 	args  []string
+	sides DiffSides
 	files []source.File
 	err   error
 }
@@ -287,10 +298,14 @@ func (s *App) show(args []string) tea.Cmd {
 	s.popup.running = true
 	ctx, cancel := context.WithCancel(context.Background())
 	s.popup.cancel = cancel
-	gen, untracked, gitDiff := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run
+	gen, untracked, gitDiff, isRev := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run, s.popup.isRev
 	return func() tea.Msg {
 		files, err := gitDiff(ctx, args, untracked)
-		return diffListedMsg{gen, args, files, err}
+		var rev func(string) bool
+		if isRev != nil {
+			rev = func(arg string) bool { return isRev(ctx, arg) }
+		}
+		return diffListedMsg{gen, args, SplitDiffArgs(args, rev), files, err}
 	}
 }
 
@@ -312,7 +327,7 @@ func (s *App) showDiff(msg diffListedMsg) tea.Cmd {
 	if v, ok := s.view.(interface{ stop() }); ok {
 		v.stop()
 	}
-	d := NewDiff(s.cfg, files).WithGitDiff(args, s.popup.run)
+	d := NewDiff(s.cfg, files).WithGitDiff(args, s.popup.run).WithSides(msg.sides)
 	if len(files) > 0 {
 		d.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 	}

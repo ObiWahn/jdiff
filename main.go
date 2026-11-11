@@ -247,7 +247,7 @@ func start(o options, mode string, args []string) {
 	}
 	// d replaces whatever is shown by the files of git diff, which runs in
 	// the current directory.
-	run(ui.WithSizeGuard(cfg, ui.NewApp(cfg, m, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))
+	run(ui.WithSizeGuard(cfg, ui.NewApp(cfg, m, gitDiff).WithRevisions(isRevision).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -282,7 +282,8 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
 			return nil, err
 		}
 		relist := func(context.Context) ([]source.File, error) { return source.LoadDirs(oldPath, newPath) }
-		return ui.NewDiff(cfg, files).WithRelist(relist), nil
+		sides := ui.DiffSides{Left: oldPath, Right: newPath}
+		return ui.NewDiff(cfg, files).WithRelist(relist).WithSides(sides), nil
 	}
 
 	// Path names the file in messages; the panes show the paths as given.
@@ -328,7 +329,8 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff), nil
+	sides := ui.SplitDiffArgs(args, gitsrc.Repo{}.IsRevision)
+	return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff).WithSides(sides), nil
 }
 
 // gitDiff runs git diff with args, with the untracked files when untracked
@@ -339,6 +341,12 @@ func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File,
 		return repo.DiffUntracked(args)
 	}
 	return repo.Diff(args)
+}
+
+// isRevision reports whether git knows arg as a revision, for the popup of
+// git diff; see ui.App.WithRevisions.
+func isRevision(ctx context.Context, arg string) bool {
+	return gitsrc.Repo{}.WithContext(ctx).IsRevision(arg)
 }
 
 // gitStatus returns the state of the repository for auto reload, see

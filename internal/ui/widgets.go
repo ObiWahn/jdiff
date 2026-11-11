@@ -45,6 +45,22 @@ func paneTitles(t *theme.Theme, names [2]string, removed, added int, active side
 	return title(left) + t.Decoration.Render("│") + title(right)
 }
 
+// sideCells renders the line above the names of a git diff or of two
+// directories, in two cells split as paneTitles splits the names: in each
+// its label in the commit hash style, then its tail right aligned. Each
+// cell is cut on the right where it does not fit, so that the labels show
+// longest.
+func sideCells(t *theme.Theme, labels, tails [2]string, width int) string {
+	w := (width - 1) / 2
+	cell := func(s side) string {
+		label := t.CommitHash.Render(printable(labels[s]))
+		gap := max(w-2-ansi.StringWidth(label)-ansi.StringWidth(tails[s]), 2)
+		c := " " + label + strings.Repeat(" ", gap) + tails[s] + " "
+		return pad(ansi.Truncate(c, w, "…"), w, lipgloss.NewStyle())
+	}
+	return cell(left) + t.Decoration.Render("│") + cell(right)
+}
+
 // statusLine renders the status bar with left, already styled, and right,
 // in the hint style, aligned to its edges; left is shortened when both do
 // not fit.

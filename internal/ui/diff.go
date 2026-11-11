@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -135,6 +136,7 @@ type Diff struct {
 	// are those of the files shown.
 	gitDiff  DiffFunc
 	diffArgs []string
+	sides    DiffSides // what the line above the files names, see WithSides
 	// disk watches the files on disk while auto reload is on, from
 	// watchFiles on; those near the cursor that it does not watch are checked
 	// every watch_interval. touched is the file the cursor was on last.
@@ -169,7 +171,14 @@ type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source
 // WithGitDiff makes d the files of git diff with args, which r runs again,
 // and returns d.
 func (d *Diff) WithGitDiff(args []string, gitDiff DiffFunc) *Diff {
-	d.gitDiff, d.diffArgs = gitDiff, args
+	d.gitDiff, d.diffArgs, d.sides = gitDiff, args, SplitDiffArgs(args, nil)
+	return d
+}
+
+// WithSides sets what the line above the files names, of git diff those
+// SplitDiffArgs returns with the revisions git knows, and returns d.
+func (d *Diff) WithSides(s DiffSides) *Diff {
+	d.sides = s
 	return d
 }
 
@@ -218,6 +227,62 @@ func (d *Diff) stop() {
 
 // shareWatcher makes d watch its files by w, which App shares.
 func (d *Diff) shareWatcher(w *watch.Watcher) { d.disk.share(w) }
+
+// DiffSides are what the line above the files names of a git diff or of
+// two directories: the labels of the old and the new side, Work when the
+// new side is the working tree, where the untracked files show, and the
+// paths the comparison is limited to.
+type DiffSides struct {
+	Left, Right string
+	Work        bool
+	Paths       []string
+}
+
+// SplitDiffArgs returns the sides git diff compares with args. Flags are
+// left out but --cached and --staged. Before --, an argument with .. in it
+// is a range, the others are revisions while isRev takes them, and paths
+// from the first it does not take, as git takes them; nil isRev takes all.
+// After -- all are paths. Revisions keep their names as typed.
+func SplitDiffArgs(args []string, isRev func(arg string) bool) DiffSides {
+	var revs, paths []string
+	cached := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			paths = append(paths, args[i+1:]...)
+			i = len(args)
+		case a == "--cached" || a == "--staged":
+			cached = true
+		case strings.HasPrefix(a, "-"):
+		case len(paths) == 0 && (strings.Contains(a, "..") || isRev == nil || isRev(a)):
+			revs = append(revs, a)
+		default:
+			paths = append(paths, a)
+		}
+	}
+	s := DiffSides{Paths: paths}
+	orHead := func(rev string) string { return cmp.Or(rev, "HEAD") }
+	switch {
+	case len(revs) == 0 && cached:
+		s.Left, s.Right = "HEAD", "INDEX"
+	case len(revs) == 0:
+		s.Left, s.Right, s.Work = "INDEX", "WORK", true
+	case len(revs) > 1:
+		s.Left, s.Right = strings.Join(revs[:len(revs)-1], " "), revs[len(revs)-1]
+	case strings.Contains(revs[0], "..."): // from the merge base
+		_, to, _ := strings.Cut(revs[0], "...")
+		s.Left, s.Right = revs[0], orHead(to)
+	case strings.Contains(revs[0], ".."):
+		from, to, _ := strings.Cut(revs[0], "..")
+		s.Left, s.Right = orHead(from), orHead(to)
+	case cached:
+		s.Left, s.Right = revs[0], "INDEX"
+	default:
+		s.Left, s.Right, s.Work = revs[0], "WORK+INDEX", true
+	}
+	return s
+}
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -726,9 +791,7 @@ func (d *Diff) openFile() {
 		return
 	}
 	v := d.viewOf(e)
-	if d.inLog() {
-		v.head = d.commitLine()
-	}
+	v.head = d.headLine()
 	v.Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
 	d.open = e
 }
@@ -900,14 +963,30 @@ func (d *Diff) totals() (added, removed int) {
 	return added, removed
 }
 
-// commitLine renders the line of the commit of the log, d.commit, as the
-// file list, its single file view and the flow view of the log show it:
-// hash, subject, the totals of its files, author and date.
-func (d *Diff) commitLine() string {
-	t, c := d.cfg.Theme, d.commit
+// headLine renders the line above the files, as the file list, its single
+// file view and its flow view show it: of the commit of the log its hash,
+// subject, the totals of its files, author and date; else in two cells the
+// sides, the right one with the untracked files when they show, and how
+// many files changed with the totals and the paths at their ends.
+func (d *Diff) headLine() string {
+	// Styles are rendered side by side: lipgloss underlining breaks nested
+	// escape sequences.
+	t := d.cfg.Theme
 	added, removed := d.totals()
-	return " " + t.CommitHash.Render(c.Short) + " " + t.Heading.Render(c.Subject) + "  " + totals(t, added, removed) +
-		"  " + t.Decoration.Render(c.Author+"  "+c.Date)
+	if c := d.commit; c != nil {
+		return " " + t.CommitHash.Render(c.Short) + " " + t.Heading.Render(c.Subject) + "  " + totals(t, added, removed) +
+			"  " + t.Decoration.Render(c.Author+"  "+c.Date)
+	}
+	changed := fmt.Sprintf("%d files changed", len(d.files))
+	if len(d.files) == 1 {
+		changed = "1 file changed"
+	}
+	right := d.sides.Right
+	if d.sides.Work && d.cfg.Settings.Untracked {
+		right += "+UNTRACKED"
+	}
+	paths := t.Decoration.Render(printable(strings.Join(d.sides.Paths, " ")))
+	return sideCells(t, [2]string{d.sides.Left, right}, [2]string{t.Heading.Render(changed) + "  " + totals(t, added, removed), paths}, d.width)
 }
 
 func (d *Diff) frame() string {
@@ -915,6 +994,7 @@ func (d *Diff) frame() string {
 		return d.flow.frame()
 	}
 	if d.open != nil {
+		d.open.view.head = d.headLine() // the totals and the untracked files change while it is open
 		return d.open.view.frame()
 	}
 	if d.width == 0 {
@@ -922,7 +1002,6 @@ func (d *Diff) frame() string {
 	}
 
 	t := d.cfg.Theme
-	added, removed := d.totals()
 	addW, remW, lblW := 1, 1, 0
 	for _, e := range d.files {
 		addW = max(addW, len(fmt.Sprint(e.added)))
@@ -930,24 +1009,7 @@ func (d *Diff) frame() string {
 		lblW = max(lblW, ansi.StringWidth(e.label(t)))
 	}
 
-	// Styles are rendered side by side: lipgloss underlining breaks nested
-	// escape sequences.
-	heading := t.Heading
-	changed := fmt.Sprintf("%d files changed", len(d.files))
-	if len(d.files) == 1 {
-		changed = "1 file changed"
-	}
-	head := " " + heading.Render(changed) + "  " + totals(t, added, removed)
-	if d.commit != nil {
-		head = d.commitLine()
-	}
-	if d.gitDiff != nil {
-		cmd := diffCommand(d.diffArgs)
-		if d.cfg.Settings.Untracked {
-			cmd += " + untracked"
-		}
-		head += "  " + t.Hint.Render(printable(cmd))
-	}
+	head := d.headLine()
 
 	item := func(i int, st func(lipgloss.Style) lipgloss.Style) string {
 		e := d.files[i]

@@ -64,6 +64,17 @@ func newRepo(t *testing.T) Repo {
 	return Repo{Dir: dir}
 }
 
+// Revisions, also relative ones, are known; paths and names of nothing are not.
+func TestIsRevision(t *testing.T) {
+	r := newRepo(t)
+	for arg, want := range map[string]bool{"HEAD": true, "HEAD~1": true, "main": true, "side": true, "HEAD^1": true,
+		"a.txt": false, "no-such-rev": false} {
+		if got := r.IsRevision(arg); got != want {
+			t.Errorf("IsRevision(%q) = %v, want %v", arg, got, want)
+		}
+	}
+}
+
 func TestLog(t *testing.T) {
 	r := newRepo(t)
 	t.Setenv("TZ", "UTC")

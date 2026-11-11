@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -31,10 +32,78 @@ func newTestDiff() *Diff {
 
 func pressDiff(d *Diff, keys ...string) { pressRoot(d, keys...) }
 
+// The sides of git diff by its arguments: flags left out, revisions as
+// typed, paths after -- and those isRev does not take, here p and q.
+func TestSplitDiffArgs(t *testing.T) {
+	isRev := func(a string) bool { return a != "p" && a != "q" }
+	for _, c := range []struct {
+		args        []string
+		left, right string
+		work        bool
+		paths       []string
+	}{
+		{nil, "INDEX", "WORK", true, nil},
+		{[]string{"--cached"}, "HEAD", "INDEX", false, nil},
+		{[]string{"--staged", "-w"}, "HEAD", "INDEX", false, nil},
+		{[]string{"HEAD"}, "HEAD", "WORK+INDEX", true, nil},
+		{[]string{"-w", "12334fdf", "--stat"}, "12334fdf", "WORK+INDEX", true, nil},
+		{[]string{"--cached", "HEAD~1"}, "HEAD~1", "INDEX", false, nil},
+		{[]string{"12334fdf", "HEAD"}, "12334fdf", "HEAD", false, nil},
+		{[]string{"HEAD~5", "HEAD^1"}, "HEAD~5", "HEAD^1", false, nil},
+		{[]string{"HEAD~5..HEAD^1"}, "HEAD~5", "HEAD^1", false, nil},
+		{[]string{"main.."}, "main", "HEAD", false, nil},
+		{[]string{"..main"}, "HEAD", "main", false, nil},
+		{[]string{"main...topic"}, "main...topic", "topic", false, nil},
+		{[]string{"main..."}, "main...", "HEAD", false, nil},
+		{[]string{"HEAD", "--", "internal/ui"}, "HEAD", "WORK+INDEX", true, []string{"internal/ui"}},
+		{[]string{"HEAD", "p", "q"}, "HEAD", "WORK+INDEX", true, []string{"p", "q"}},
+		{[]string{"p"}, "INDEX", "WORK", true, []string{"p"}},
+		{[]string{"--", "HEAD"}, "INDEX", "WORK", true, []string{"HEAD"}},
+	} {
+		s := SplitDiffArgs(c.args, isRev)
+		if s.Left != c.left || s.Right != c.right || s.Work != c.work || !slices.Equal(s.Paths, c.paths) {
+			t.Errorf("%q: %+v, want %s/%s work %v paths %q", c.args, s, c.left, c.right, c.work, c.paths)
+		}
+	}
+	if s := SplitDiffArgs([]string{"HEAD", "p"}, nil); s.Left != "HEAD" || s.Right != "p" || s.Paths != nil {
+		t.Errorf("without isRev all are revisions: %+v", s)
+	}
+}
+
+// The file list, its single file view and its flow view show the sides
+// above the names in two cells split as the names are: the labels, the
+// totals and the paths at the ends, the untracked files while shown. Narrow,
+// the cells are cut on the right, and the labels show longest.
+func TestDiffSidesLine(t *testing.T) {
+	d := newUntrackedDiff() // git diff HEAD
+	d.WithSides(SplitDiffArgs([]string{"HEAD", "--", "f00", "f01"}, nil))
+	setOption(d, d.cfg, "u")
+	line := regexp.MustCompile(`^ HEAD +3 files changed  \+3 -2 │ WORK\+INDEX\+UNTRACKED +f00 f01 $`)
+	names := regexp.MustCompile(`^ a/f00 +-1 │ b/f00 +\+1 $`)
+	if top := topLines(d, 1)[0]; !line.MatchString(top) || ansi.StringWidth(top) != 79 {
+		t.Errorf("file list: %q", top)
+	}
+	for _, key := range []string{"enter", "f"} {
+		pressDiff(d, key)
+		if top := topLines(d, 2); !line.MatchString(top[0]) || !names.MatchString(top[1]) {
+			t.Errorf("after %s: %q", key, top)
+		}
+	}
+	d.Update(tea.WindowSizeMsg{Width: 30, Height: 12})
+	if top := topLines(d, 1)[0]; top != " HEAD  3 file…│ WORK+INDEX+U…" {
+		t.Errorf("narrow: %q", top)
+	}
+
+	dirs := newTestDiff().WithSides(DiffSides{Left: "../v1/src", Right: "./src"})
+	if top := topLines(dirs, 1)[0]; !regexp.MustCompile(`^ \.\./v1/src +3 files changed  \+3 -1 │ \./src +$`).MatchString(top) {
+		t.Errorf("two directories: %q", top)
+	}
+}
+
 func TestDiffListShowsCounts(t *testing.T) {
 	d := newTestDiff()
 	view := ansi.Strip(d.frame())
-	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", " 3 files changed  +3 -1\n\n"} {
+	for _, want := range []string{"+2 -1  a.go", "added:  +1     b.go", "binary", "3 files changed  +3 -1 │ "} {
 		if !strings.Contains(view, want) {
 			t.Errorf("list view lacks %q:\n%s", want, view)
 		}
@@ -941,8 +1010,8 @@ func TestUntrackedToggle(t *testing.T) {
 	if !d.cfg.Settings.Untracked || len(d.files) != 3 || d.files[2].Path != "x0" {
 		t.Fatalf("u: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if view := ansi.Strip(d.frame()); !strings.Contains(view, "git diff HEAD + untracked") {
-		t.Errorf("u: header lacks the hint:\n%s", view)
+	if top := topLines(d, 1)[0]; !strings.HasPrefix(top, " HEAD ") || !strings.Contains(top, "│ WORK+INDEX+UNTRACKED ") {
+		t.Errorf("u: header lacks the untracked files: %q", top)
 	}
 	// Files that stay keep their entry, and so anchors and folds.
 	if d.files[0] != f00 {
@@ -953,8 +1022,8 @@ func TestUntrackedToggle(t *testing.T) {
 	if d.cfg.Settings.Untracked || len(d.files) != 2 {
 		t.Fatalf("u again: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if view := ansi.Strip(d.frame()); strings.Contains(view, "untracked") {
-		t.Errorf("u again: header still has the hint:\n%s", view)
+	if top := topLines(d, 1)[0]; strings.Contains(top, "UNTRACKED") || !strings.Contains(top, "│ WORK+INDEX ") {
+		t.Errorf("u again: header %q, want WORK+INDEX only", top)
 	}
 
 	// In the diff view of a file that stays, it stays open.

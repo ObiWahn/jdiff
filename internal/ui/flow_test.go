@@ -204,12 +204,38 @@ func topLines(m tea.Model, n int) []string {
 func TestFlowHeaderFollowsFile(t *testing.T) {
 	d := newFlowDiff()
 	pressDiff(d, "f")
-	if top := topLines(d, 1)[0]; !strings.Contains(top, "a/a.go") || !strings.Contains(top, "│ b/a.go") {
-		t.Errorf("top line on a.go: %q", top)
+	if top := topLines(d, 2); !strings.Contains(top[0], "3 files changed") || !strings.Contains(top[1], "a/a.go") || !strings.Contains(top[1], "│ b/a.go") {
+		t.Errorf("top lines on a.go: %q", top)
 	}
 	pressDiff(d, "n", "n")
-	if top := topLines(d, 1)[0]; !strings.Contains(top, "a/c.go") || !strings.Contains(top, "│ b/c.go") {
-		t.Errorf("top line on c.go: %q", top)
+	if top := topLines(d, 2); !strings.Contains(top[0], "3 files changed") || !strings.Contains(top[1], "a/c.go") || !strings.Contains(top[1], "│ b/c.go") {
+		t.Errorf("top lines on c.go: %q", top)
+	}
+}
+
+// Outside the log the flow view has two lines above the rows too, the line
+// of the file list and the names: at each height, from minHeight (one row)
+// up and past all fits (39 rows at height 42), the frame fills the terminal
+// with them on top, and end shows the last row above the status bar.
+func TestFlowDiffHeaderSweep(t *testing.T) {
+	for h := minHeight; h <= 45; h++ {
+		t.Run(fmt.Sprint(h), func(t *testing.T) {
+			t.Parallel()
+			d := newFlowDiff()
+			pressDiff(d, "f")
+			d.Update(tea.WindowSizeMsg{Width: 80, Height: h})
+			lines := strings.Split(ansi.Strip(d.frame()), "\n")
+			if len(lines) != h || !strings.Contains(lines[0], "3 files changed") || !strings.Contains(lines[1], "a/a.go") {
+				t.Fatalf("%d lines, top %q; want %d, the sides, the names", len(lines), lines[:min(2, len(lines))], h)
+			}
+			pressDiff(d, "end")
+			lines = strings.Split(ansi.Strip(d.frame()), "\n")
+			rows := len(d.flow.rows)
+			last := min(h-2, rows+1) // above the status bar, or the last row when all fit
+			if !strings.Contains(lines[last], "new") {
+				t.Errorf("end: row %d %q, want the last row of c.go", last, lines[last])
+			}
+		})
 	}
 }
 

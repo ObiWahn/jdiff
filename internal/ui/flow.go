@@ -800,14 +800,9 @@ func (f *Flow) position() (part, file, line int) {
 	return r.part, r.file, line
 }
 
-// headerLines is the number of lines above the rows: the commit in the log,
-// and the file names.
-func (f *Flow) headerLines() int {
-	if f.inLog() {
-		return 2
-	}
-	return 1
-}
+// headerLines is the number of lines above the rows: the line of the
+// commit or of the file list, and the file names.
+func (f *Flow) headerLines() int { return 2 }
 
 // cursorSub returns the line of the cursor within its diff row.
 func (f *Flow) cursorSub() int {
@@ -853,17 +848,20 @@ func (f *Flow) frame() string {
 	return b.String()
 }
 
-// header renders the lines above the rows: in the log the commit of the
-// cursor, then the names of its file as in the single file view.
+// header renders the lines above the rows: the line of the commit of the
+// cursor, outside the log of the file list, then the names of its file as in
+// the single file view.
 func (f *Flow) header() string {
 	t := f.cfg.Theme
 	p, file, _ := f.position()
 	var b strings.Builder
-	if f.inLog() && p < len(f.parts) {
-		part := f.parts[p]
-		line := " " + t.CommitHash.Render(part.commit.Short) + " " + t.Heading.Render(part.commit.Subject)
-		if part.diff != nil {
-			line = part.diff.commitLine()
+	if p < len(f.parts) {
+		part, line := f.parts[p], ""
+		switch {
+		case part.diff != nil:
+			line = part.diff.headLine()
+		case part.commit != nil: // still loading
+			line = " " + t.CommitHash.Render(part.commit.Short) + " " + t.Heading.Render(part.commit.Subject)
 		}
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}

@@ -435,6 +435,13 @@ func parseRaw(out []byte) ([]rawEntry, error) {
 	return entries, nil
 }
 
+// IsRevision reports whether git knows arg as a revision, as git diff tells
+// revisions from paths before --.
+func (r Repo) IsRevision(arg string) bool {
+	_, err := r.git("rev-parse", "--verify", "--quiet", arg)
+	return err == nil
+}
+
 // Diff returns the files git diff compares with args, the arguments of git
 // diff: the working tree against the index without any, --cached for the
 // index against HEAD, commits and paths. Sides in the working tree, which
