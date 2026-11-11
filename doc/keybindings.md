@@ -88,7 +88,7 @@ The keys of the diff view, and:
 | `d` | [show another `git diff`](#another-git-diff) |
 | `s` | side by side or normal layout, also of the preview |
 | `f` | flow view of all files or commits; in it, the single file view |
-| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); not saved |
+| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); kept in `state.toml` |
 | `w` | wrap long lines or cut them |
 | `W` | show all whitespace and line ends or only changed |
 | `ctrl+w` | mark changed whitespace or not |
@@ -134,7 +134,7 @@ git runs in the directory jdiff was started in, also when it compares two direct
 ### Untracked files
 
 `u` also shows the untracked files that are not ignored, as added, and lists the files anew.
-Unlike the other toggles it is not saved: each run starts without them, `jdiff -u diff` (`--untracked`) with them.
+It is kept in `state.toml`, so later runs show them too; `jdiff -u diff` (`--untracked`) shows them for that run only, without changing `state.toml`.
 
 - They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits.
 - Your index stays as it is: jdiff marks them in a temporary copy of it, and the header says `+ untracked`.
@@ -157,5 +157,6 @@ The status bar says `auto reload` while it is on; off, nothing is watched nor ch
 - Of the working tree it watches the directories with tracked or untracked files, not ignored ones, nor those of version control (`.git`, `.svn`, `.hg` …) or nested repositories, up to `inotify_max_dirs` together with the files of the diff; changes elsewhere take up to `auto_reload_interval`. `HEAD` and the index are watched beyond that; with `inotify_max_dirs` 0 the working tree is not even looked at.
 - Comparing two files or directories, it only watches the files shown: a file new in a directory still needs `r`, which reads all files.
 - Changes of editors' files, as Vim's swap files, run no `git status`: see `watch_ignore`.
-- After the minutes set in the settings (5) without a key pressed or a change it ends, and with it its git commands.
-- It is not saved: off at each start.
+- After the minutes set in the settings (15) without a key pressed or a change it ends, and with it its git commands.
+- It is kept in `state.toml`: on, the next start starts it too. Its end after the minutes leaves it on there.
+- `jdiff -R` (`--auto-reload`) starts it for that run only, without changing `state.toml`, and it does not end after the minutes; `R` then switches it as usual.

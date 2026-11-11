@@ -37,11 +37,6 @@ type Settings struct {
 	// to the left; one column wide each.
 	Extends  string `toml:"extends"`
 	Precedes string `toml:"precedes"`
-	// Untracked (untracked) also shows the untracked files in jdiff diff,
-	// as added, where it compares with the working tree. The key of action
-	// untracked toggles it and --untracked turns it on, for the run only: it
-	// is the one toggle state.toml does not keep.
-	Untracked bool `toml:"untracked"`
 	Toggles
 }
 
@@ -95,6 +90,15 @@ type Toggles struct {
 	// changed ones, added, removed and moved. tab in the search bar toggles
 	// it.
 	SearchAll bool `toml:"search_all"`
+	// Untracked (untracked) also shows the untracked files in jdiff diff,
+	// as added, where it compares with the working tree; action untracked.
+	// --untracked turns it on for the run only, see config.Flags.
+	Untracked bool `toml:"untracked"`
+	// AutoReload (auto_reload) starts with auto reload on, see
+	// config.Config.AutoReload; action auto_reload sets it. Its end after
+	// AutoReloadTimeout leaves it on; --auto-reload does not set it, see
+	// config.Flags.
+	AutoReload bool `toml:"auto_reload"`
 	// AutoReloadTimeout (auto_reload_timeout) is after how many minutes
 	// without a key pressed or a change of the repository auto reload ends,
 	// and with it its git commands; 0 is never. The settings popup sets it.
@@ -129,7 +133,7 @@ func Default() Settings {
 			BoldChanges:     true,
 			FullMessages:    true,
 
-			AutoReloadTimeout: 5,
+			AutoReloadTimeout: 15,
 			InotifyMaxDirs:    100,
 		},
 	}

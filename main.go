@@ -60,8 +60,8 @@ func main() {
 
 // options are the flags of the command line.
 type options struct {
-	version, license, readme, untracked bool
-	features                            string
+	version, license, readme, untracked, autoReload bool
+	features                                        string
 }
 
 // newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
@@ -115,8 +115,10 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 	f.BoolVar(&o.license, "license", false, "print the license and those of the libraries")
 	f.BoolVar(&o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
 		"when the output is no terminal")
-	f.BoolVarP(&o.untracked, "untracked", "u", false, "also show the untracked files in a git diff; u in the view switches them.\n"+
-		"Neither is saved")
+	f.BoolVarP(&o.untracked, "untracked", "u", false, "also show the untracked files in a git diff, for this run: state.toml keeps its\n"+
+		"value; u in the view switches them and saves that")
+	f.BoolVarP(&o.autoReload, "auto-reload", "R", false, "start with auto reload on, for this run and without its timeout: state.toml\n"+
+		"keeps its value; R in the view switches it and saves that")
 	f.StringVar(&o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
 		"sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
 		"which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
@@ -224,9 +226,7 @@ func start(o options, mode string, args []string) {
 	if err != nil {
 		repo = "" // not in a repository: marks with absolute paths
 	}
-	if o.untracked {
-		cfg.Settings.Untracked = true
-	}
+	cfg.SetFlags(config.Flags{Untracked: o.untracked, AutoReload: o.autoReload})
 	cfg.LoadMarks(repo)
 
 	if mode == "readme" {

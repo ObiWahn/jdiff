@@ -914,6 +914,24 @@ func newUntrackedDiff() *Diff {
 	return d
 }
 
+// u saves the untracked files, also after --untracked, whose value it ends.
+func TestUntrackedSaved(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.SetFlags(config.Flags{Untracked: true})
+	d := newUntrackedDiff()
+	d.cfg = cfg
+	setOption(d, d.cfg, "u") // off
+	setOption(d, d.cfg, "u") // on, by key
+	again, err := config.Load(dir, nil, "", "")
+	if err != nil || !again.Settings.Untracked || cfg.Flags.Untracked {
+		t.Errorf("u after --untracked: saved %v, flag %v, %v; want on, ended", again.Settings.Untracked, cfg.Flags.Untracked, err)
+	}
+}
+
 func TestUntrackedToggle(t *testing.T) {
 	d := newUntrackedDiff()
 	f00 := d.files[0]

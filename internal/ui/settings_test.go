@@ -520,8 +520,8 @@ func TestSettingsNumber(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Settings.AutoReloadTimeout != 5 {
-		t.Errorf("default timeout %d, want 5", cfg.Settings.AutoReloadTimeout)
+	if cfg.Settings.AutoReloadTimeout != 15 {
+		t.Errorf("default timeout %d, want 15", cfg.Settings.AutoReloadTimeout)
 	}
 	s := WithSettings(cfg, newTestFileDiff(numbered("x", 30), numbered("y", 30)))
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -539,18 +539,18 @@ func TestSettingsNumber(t *testing.T) {
 		pressRoot(s, "j")
 	}
 	pressRoot(s, "enter")
-	if s.input == nil || s.input.text != "5" {
+	if s.input == nil || s.input.text != "15" {
 		t.Fatalf("enter on the minutes: input %+v, want them to edit", s.input)
 	}
 	if view := ansi.Strip(s.frame()); !strings.Contains(view, "auto reload timeout") {
 		t.Errorf("the line is not shown:\n%s", view)
 	}
 	pressRoot(s, "ctrl+u", "x", "enter")
-	if s.input == nil || !strings.Contains(ansi.Strip(s.frame()), "a whole number") || cfg.Settings.AutoReloadTimeout != 5 {
+	if s.input == nil || !strings.Contains(ansi.Strip(s.frame()), "a whole number") || cfg.Settings.AutoReloadTimeout != 15 {
 		t.Errorf("x: input %+v, timeout %d; want it asked for again", s.input, cfg.Settings.AutoReloadTimeout)
 	}
 	pressRoot(s, "esc")
-	if s.input != nil || !s.open || cfg.Settings.AutoReloadTimeout != 5 {
+	if s.input != nil || !s.open || cfg.Settings.AutoReloadTimeout != 15 {
 		t.Errorf("esc: input %+v, open %v, timeout %d", s.input, s.open, cfg.Settings.AutoReloadTimeout)
 	}
 	pressRoot(s, "enter", "ctrl+u", "1", "2", "0", "enter")

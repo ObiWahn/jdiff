@@ -71,16 +71,21 @@ func (s *App) WithAutoReload(status func(ctx context.Context) (string, error), p
 }
 
 // Init starts the watcher the views share, unless watching is off, and
-// gives it to the view, before it starts.
+// gives it to the view, before it starts; then auto reload, when saved on
+// or asked for by --auto-reload.
 func (s *App) Init() tea.Cmd {
-	var wait tea.Cmd
+	var wait, auto tea.Cmd
 	if s.cfg.Settings.WatchInterval > 0 {
 		if w, err := watch.New(s.cfg.Settings.InotifyMaxDirs); err == nil {
 			s.w, s.limit, wait = w, s.cfg.Settings.InotifyMaxDirs, waitChanges(w)
 			s.share()
 		}
 	}
-	return batch(s.Model.Init(), wait)
+	init := s.Model.Init()
+	if s.cfg.Settings.AutoReload || s.cfg.Flags.AutoReload {
+		auto = s.toggleAutoReload()
+	}
+	return batch(init, wait, auto)
 }
 
 // share gives the watcher to the view, if it watches files.
@@ -110,7 +115,7 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case diffListedMsg:
 		return s, s.showDiff(msg)
 	case askAutoReloadMsg:
-		return s, s.toggleAutoReload()
+		return s, s.switchAutoReload()
 	case autoTickMsg:
 		return s, s.onAutoTick(msg)
 	case autoStatusMsg:

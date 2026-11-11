@@ -609,8 +609,13 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.setMsg(untrackedOnlyInDiff)
 			return d, nil
 		}
-		d.cfg.Settings.Untracked = !d.cfg.Settings.Untracked // not saved
-		return d, d.relistFiles(false)
+		d.cfg.Flags.Untracked = false // switched by key: saved
+		w := toggle(d.cfg, &d.cfg.Settings.Untracked)
+		cmd := d.relistFiles(false)
+		if w != "" {
+			d.setMsg(w)
+		}
+		return d, cmd
 	}
 	if d.flowShown() {
 		_, cmd := d.flow.Update(msg)

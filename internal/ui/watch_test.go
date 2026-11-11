@@ -831,24 +831,79 @@ func TestAutoReloadOffUnwatches(t *testing.T) {
 	}
 }
 
-// Auto reload is not saved, the timeout is.
-func TestAutoReloadNotSaved(t *testing.T) {
+// R saves whether auto reload is on, and a start with it saved on starts it;
+// its end after the timeout leaves it saved on, as does the timeout set.
+func TestAutoReloadSaved(t *testing.T) {
+	s, _, _, _ := newAutoReload(t)
 	dir := t.TempDir()
 	cfg, err := config.Load(dir, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.AutoReload = true
-	cfg.Settings.AutoReloadTimeout = 7
-	if err := cfg.SaveState(); err != nil {
-		t.Fatal(err)
+	cfg.Settings.AutoReloadInterval, cfg.Settings.AutoReloadTimeout = 3600, 7
+	s.cfg = cfg
+	s.Update(askAutoReloadMsg{})
+	if !cfg.AutoReload || !cfg.Settings.AutoReload {
+		t.Fatalf("R: on %v, saved %v", cfg.AutoReload, cfg.Settings.AutoReload)
+	}
+	s.auto.lastActive = time.Now().Add(-8 * time.Minute)
+	if s.Update(tickOf(s)); cfg.AutoReload || !cfg.Settings.AutoReload {
+		t.Errorf("timeout: on %v, saved %v; want off, saved on", cfg.AutoReload, cfg.Settings.AutoReload)
 	}
 	again, err := config.Load(dir, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.AutoReload || again.Settings.AutoReloadTimeout != 7 {
-		t.Errorf("after a restart: on %v, timeout %d; want off, 7", again.AutoReload, again.Settings.AutoReloadTimeout)
+	if again.AutoReload || !again.Settings.AutoReload || again.Settings.AutoReloadTimeout != 7 {
+		t.Errorf("after a restart: on %v, saved %v, timeout %d; want off until Init, on, 7",
+			again.AutoReload, again.Settings.AutoReload, again.Settings.AutoReloadTimeout)
+	}
+	again.Settings.AutoReloadInterval = 3600
+	g := &fakeGitDiff{}
+	repo := &fakeRepo{status: "s0"}
+	d := NewDiff(again, nil).WithGitDiff(nil, g.diff)
+	started := newApp(again, d, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	t.Cleanup(started.stop)
+	if started.Init(); !again.AutoReload || !started.auto.gitMode {
+		t.Errorf("start: on %v, git status %v", again.AutoReload, started.auto.gitMode)
+	}
+	started.Update(askAutoReloadMsg{})
+	if again, err = config.Load(dir, nil, "", ""); err != nil || again.Settings.AutoReload {
+		t.Errorf("R off: saved %v, %v", again.Settings.AutoReload, err)
+	}
+}
+
+// --auto-reload starts auto reload without the timeout and saves nothing;
+// R ends the flag, and the next start by key has the timeout again.
+func TestAutoReloadFlag(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Settings.AutoReloadInterval = 3600
+	cfg.SetFlags(config.Flags{AutoReload: true})
+	g := &fakeGitDiff{}
+	repo := &fakeRepo{status: "s0"}
+	d := NewDiff(cfg, nil).WithGitDiff(nil, g.diff)
+	s := newApp(cfg, d, func(m tea.Model) tea.Model { return m }, g.diff).WithAutoReload(repo.getStatus, repo.getPaths, repo.getDirs)
+	t.Cleanup(s.stop)
+	s.Init()
+	s.auto.lastActive = time.Now().Add(-time.Duration(cfg.Settings.AutoReloadTimeout+1) * time.Minute)
+	if s.Update(tickOf(s)); !cfg.AutoReload || cfg.Settings.AutoReload {
+		t.Errorf("flag, idle: on %v, saved %v; want on, not saved", cfg.AutoReload, cfg.Settings.AutoReload)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state.toml")); !os.IsNotExist(err) {
+		t.Errorf("state.toml written: %v", err)
+	}
+	s.Update(askAutoReloadMsg{}) // off
+	s.Update(askAutoReloadMsg{}) // on, by key
+	if cfg.Flags.AutoReload || !cfg.Settings.AutoReload {
+		t.Errorf("R: flag %v, saved %v; want ended, on", cfg.Flags.AutoReload, cfg.Settings.AutoReload)
+	}
+	s.auto.lastActive = time.Now().Add(-time.Duration(cfg.Settings.AutoReloadTimeout+1) * time.Minute)
+	if s.Update(tickOf(s)); cfg.AutoReload {
+		t.Error("started by key, it does not time out")
 	}
 }
 

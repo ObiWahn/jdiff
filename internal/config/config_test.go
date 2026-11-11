@@ -248,23 +248,52 @@ func TestSaveState(t *testing.T) {
 	}
 }
 
-// The untracked files are not kept in state.toml: main.toml may turn them
-// on, state.toml of earlier versions is read without them or a warning.
-func TestUntrackedNotSaved(t *testing.T) {
-	dir := writeFiles(t, map[string]string{"state.toml": "untracked = true\nflow = true\n"})
+// The flags turn the untracked files on and ask for auto reload for the run
+// only: SaveState keeps the values of the files, until a key ends the flag.
+func TestFlagsNotSaved(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"state.toml": "flow = true\n"})
 	c, err := Load(dir, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Settings.Untracked || !c.Settings.Flow || c.Warning() != "" {
-		t.Errorf("untracked %v, flow %v, warning %q; want off, on, none", c.Settings.Untracked, c.Settings.Flow, c.Warning())
+	c.SetFlags(Flags{Untracked: true, AutoReload: true})
+	if !c.Settings.Untracked || c.Settings.AutoReload {
+		t.Errorf("flags: untracked %v, auto reload saved %v; want on, off", c.Settings.Untracked, c.Settings.AutoReload)
 	}
-	c.Settings.Untracked = true
 	if err := c.SaveState(); err != nil {
 		t.Fatal(err)
 	}
-	if data, err := os.ReadFile(filepath.Join(dir, "state.toml")); err != nil || strings.Contains(string(data), "untracked") {
-		t.Errorf("state.toml, %v:\n%s", err, data)
+	if c, err = Load(dir, nil, "", ""); err != nil || c.Settings.Untracked || c.Settings.AutoReload || !c.Settings.Flow {
+		t.Errorf("saved with flags: untracked %v, auto reload %v, flow %v, %v", c.Settings.Untracked, c.Settings.AutoReload, c.Settings.Flow, err)
+	}
+	c.SetFlags(Flags{Untracked: true})
+	c.Flags.Untracked = false // a key switched it, on again
+	if err := c.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(dir, nil, "", ""); err != nil || !c.Settings.Untracked {
+		t.Errorf("switched by key: untracked %v, %v", c.Settings.Untracked, err)
+	}
+}
+
+// The untracked files and auto reload are kept in state.toml, and main.toml
+// may turn them on.
+func TestUntrackedAutoReloadSaved(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"state.toml": "untracked = true\nauto_reload = true\n"})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Settings.Untracked || !c.Settings.AutoReload || c.AutoReload || c.Warning() != "" {
+		t.Errorf("untracked %v, auto reload %v (now %v), warning %q; want on, on (off), none",
+			c.Settings.Untracked, c.Settings.AutoReload, c.AutoReload, c.Warning())
+	}
+	c.Settings.Untracked, c.Settings.AutoReload = false, false
+	if err := c.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(dir, nil, "", ""); err != nil || c.Settings.Untracked || c.Settings.AutoReload {
+		t.Errorf("saved off: untracked %v, auto reload %v, %v", c.Settings.Untracked, c.Settings.AutoReload, err)
 	}
 	dir = writeFiles(t, map[string]string{"main.toml": "untracked = true\n"})
 	if c, err = Load(dir, nil, "", ""); err != nil || !c.Settings.Untracked {

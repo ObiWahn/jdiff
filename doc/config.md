@@ -7,7 +7,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `s` `f` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` (not `u`: untracked files are off at each start), the minutes of auto reload, the directories watched, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `s` `f` `u` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` `R`, the minutes of auto reload, the directories watched, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 | `keybindings.toml` | [your keys](#keybindingstoml), where they differ from the built-in ones |
 
@@ -30,11 +30,11 @@ line_end = "¶"                  # drawn at the end of lines while W shows all w
 cr_end = "␍"                    # drawn for the \r of \r\n line ends that changed, or all with e; one column
 extends = "»"                   # last column of a line cut at the pane's edge (lines not wrapped); one column
 precedes = "«"                  # first column of a line scrolled out to the left; one column
-untracked = false               # jdiff diff also shows untracked files; u and --untracked switch it, not saved
 
 # The toggles, also kept in state.toml:
 side_by_side = true
 flow = false
+untracked = false               # jdiff diff also shows untracked files (u)
 wrap = false
 show_whitespaces = false
 mark_whitespace = true
@@ -46,7 +46,8 @@ full_messages = true
 stay_in_commit = false
 search_regex = false            # / searches for a regular expression (shift+tab in its bar)
 search_all = false              # / searches all lines, not only changed ones (tab)
-auto_reload_timeout = 5         # minutes without keys or changes until auto reload (R) ends; 0 never
+auto_reload = false             # start with auto reload (R) on; -R only for a run
+auto_reload_timeout = 15        # minutes without keys or changes until auto reload (R) ends; 0 never
 inotify_max_dirs = 100          # while R is on, Linux: the most directories watched, the most recently used, besides HEAD and the index; 0 those only
 ```
 

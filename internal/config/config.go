@@ -45,13 +45,40 @@ type Config struct {
 	watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
 
 	// AutoReload is whether what is shown is loaded again when the repository
-	// changes; R toggles it. It is not saved, so it is off at each start, as
-	// it ends by itself: see Settings.AutoReloadTimeout.
+	// changes, now; R toggles it. It ends by itself, see
+	// Settings.AutoReloadTimeout, and starts on with Settings.AutoReload.
 	AutoReload bool
+
+	// Flags are the toggles the command line turned on, for the run only:
+	// see SetFlags. A key switching one ends its flag, so that it is saved
+	// again.
+	Flags Flags
+	// savedUntracked is what SaveState writes for untracked while the flag
+	// is set: the value of the files.
+	savedUntracked bool
 
 	// Search is what / searched for, which . and , search again and the
 	// views highlight; it is not saved.
 	Search Search
+}
+
+// Flags are what the command line turns on for the run only, without
+// changing state.toml.
+type Flags struct {
+	// Untracked (--untracked) shows the untracked files; SaveState keeps the
+	// value of the files.
+	Untracked bool
+	// AutoReload (--auto-reload) starts auto reload, which then does not end
+	// after Settings.AutoReloadTimeout; Settings.AutoReload stays as saved.
+	AutoReload bool
+}
+
+// SetFlags turns on what f asks for, for the run only.
+func (c *Config) SetFlags(f Flags) {
+	c.Flags, c.savedUntracked = f, c.Settings.Untracked
+	if f.Untracked {
+		c.Settings.Untracked = true
+	}
 }
 
 // Query is a search of /: plain text, or with Regex a regular expression.
@@ -154,16 +181,10 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 				*sym.v = sym.fallback
 			}
 		}
-		// state.toml holds only the toggles. Earlier versions kept untracked
-		// there too: it is left out, without a warning.
-		state := struct {
-			settings.Toggles
-			Untracked bool `toml:"untracked"`
-		}{Toggles: c.Settings.Toggles}
-		if err := c.decode(c.statePath, &state); err != nil {
+		// state.toml holds only the toggles.
+		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
 			return nil, err
 		}
-		c.Settings.Toggles = state.Toggles
 		// inotify_max_dirs is a toggle: it may come from main.toml or
 		// state.toml, so the warning names neither.
 		if n := c.Settings.InotifyMaxDirs; n < 0 {
@@ -311,7 +332,11 @@ func (c *Config) SaveState() error {
 	if c.statePath == "" {
 		return nil
 	}
-	return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", c.Settings.Toggles)
+	t := c.Settings.Toggles
+	if c.Flags.Untracked {
+		t.Untracked = c.savedUntracked
+	}
+	return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t)
 }
 
 // writeTOML writes header and v as TOML to path, through a temporary file

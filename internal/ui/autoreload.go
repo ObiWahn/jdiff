@@ -89,6 +89,19 @@ func (s *App) toggleAutoReload() tea.Cmd {
 	return batch(cmd, on, s.autoTick(), s.watchRepo())
 }
 
+// switchAutoReload toggles auto reload for its key and saves whether it is
+// on, so that the next start starts it too: off when it could not start.
+// It ends --auto-reload, and with it the run without a timeout.
+func (s *App) switchAutoReload() tea.Cmd {
+	s.cfg.Flags.AutoReload = false
+	cmd := s.toggleAutoReload()
+	s.cfg.Settings.AutoReload = s.cfg.AutoReload
+	if w := saveState(s.cfg); w != "" {
+		cmd = batch(cmd, func() tea.Msg { return showMsg(w) })
+	}
+	return cmd
+}
+
 // gitView reports whether the view shows git diff or git log, which auto
 // reload checks by git status.
 func (s *App) gitView() bool {
@@ -136,7 +149,8 @@ func (s *App) checkStatus() tea.Cmd {
 	}
 }
 
-// onAutoTick ends auto reload after the timeout without activity, else checks
+// onAutoTick ends auto reload after the timeout without activity, unless
+// --auto-reload started it, else checks
 // the status, unless git is still at it, as in a large repository, or there
 // is no git status to check.
 func (s *App) onAutoTick(msg autoTickMsg) tea.Cmd {
@@ -144,7 +158,7 @@ func (s *App) onAutoTick(msg autoTickMsg) tea.Cmd {
 		return nil
 	}
 	// In minutes as float: a large timeout overflows a time.Duration.
-	if m := s.cfg.Settings.AutoReloadTimeout; m > 0 && time.Since(s.auto.lastActive).Minutes() >= float64(m) {
+	if m := s.cfg.Settings.AutoReloadTimeout; m > 0 && !s.cfg.Flags.AutoReload && time.Since(s.auto.lastActive).Minutes() >= float64(m) {
 		s.stopAutoReload()
 		return func() tea.Msg { return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }
 	}
