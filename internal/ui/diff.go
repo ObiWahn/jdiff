@@ -725,7 +725,11 @@ func (d *Diff) openFile() {
 		d.msg = e.Path + " is a binary file"
 		return
 	}
-	d.viewOf(e).Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
+	v := d.viewOf(e)
+	if d.inLog() {
+		v.head = d.commitLine()
+	}
+	v.Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
 	d.open = e
 }
 
@@ -888,6 +892,24 @@ func (d *Diff) preview(e *fileEntry, height int) string {
 
 func (d *Diff) View() tea.View { return tea.NewView(d.frame()) }
 
+// totals returns the lines added and removed in all files.
+func (d *Diff) totals() (added, removed int) {
+	for _, e := range d.files {
+		added, removed = added+e.added, removed+e.removed
+	}
+	return added, removed
+}
+
+// commitLine renders the line of the commit of the log, d.commit, as the
+// file list, its single file view and the flow view of the log show it:
+// hash, subject, the totals of its files, author and date.
+func (d *Diff) commitLine() string {
+	t, c := d.cfg.Theme, d.commit
+	added, removed := d.totals()
+	return " " + t.CommitHash.Render(c.Short) + " " + t.Heading.Render(c.Subject) + "  " + totals(t, added, removed) +
+		"  " + t.Decoration.Render(c.Author+"  "+c.Date)
+}
+
 func (d *Diff) frame() string {
 	if d.flowShown() {
 		return d.flow.frame()
@@ -900,10 +922,9 @@ func (d *Diff) frame() string {
 	}
 
 	t := d.cfg.Theme
-	var added, removed int
+	added, removed := d.totals()
 	addW, remW, lblW := 1, 1, 0
 	for _, e := range d.files {
-		added, removed = added+e.added, removed+e.removed
 		addW = max(addW, len(fmt.Sprint(e.added)))
 		remW = max(remW, len(fmt.Sprint(e.removed)))
 		lblW = max(lblW, ansi.StringWidth(e.label(t)))
@@ -916,13 +937,9 @@ func (d *Diff) frame() string {
 	if len(d.files) == 1 {
 		changed = "1 file changed"
 	}
-	head := " " + heading.Render(changed)
-	if c := d.commit; c != nil {
-		head = " " + t.CommitHash.Render(c.Short) + " " + heading.Render(c.Subject)
-	}
-	head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-	if c := d.commit; c != nil {
-		head += "  " + t.Decoration.Render(c.Author+"  "+c.Date)
+	head := " " + heading.Render(changed) + "  " + totals(t, added, removed)
+	if d.commit != nil {
+		head = d.commitLine()
 	}
 	if d.gitDiff != nil {
 		cmd := diffCommand(d.diffArgs)

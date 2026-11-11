@@ -99,6 +99,26 @@ func TestLogListOneCommit(t *testing.T) {
 	}
 }
 
+// The single file view and the flow view of a commit show its line of the
+// file list, with the totals of all its files, and the names of the file with
+// its lines removed and added at their ends.
+func TestLogFileCommitLine(t *testing.T) {
+	l, _ := newTestLog()
+	const commit = " c3 subject c3  +2 -2  T  2026-10-22 10:00"
+	pressLog(l, "enter")
+	if top := topLines(l, 1)[0]; top != commit {
+		t.Errorf("file list: %q, want %q", top, commit)
+	}
+	for _, keys := range [][]string{{"enter"}, {"f"}} {
+		pressLog(l, keys...)
+		top := topLines(l, 2)
+		names := regexp.MustCompile(`^ a/a\.go +-1 │ b/a\.go +\+1 $`)
+		if top[0] != commit || !names.MatchString(top[1]) || ansi.StringWidth(top[1]) != 99 { // two panes of 49 and the line between them
+			t.Errorf("after %v: top lines %q, want %q and the names with -1 and +1", keys, top, commit)
+		}
+	}
+}
+
 func TestLogLevelsAndBackspace(t *testing.T) {
 	l, loads := newTestLog()
 

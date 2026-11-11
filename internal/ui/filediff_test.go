@@ -1476,3 +1476,32 @@ func TestEmphasisAfterAlign(t *testing.T) {
 	m.reload(right, []string{"x0 a", "x1 b", "x2 cc"})
 	check("reload")
 }
+
+// With the line of a commit above the names, the body has a row less: at
+// each height, from minHeight (one row) up and around all fits (height 33:
+// that line, the names, 30 rows and the status bar), home shows the first
+// line below the names, end the last one above the status bar.
+func TestFileDiffCommitLineSweep(t *testing.T) {
+	const n = 30
+	for h := minHeight; h <= n+6; h++ {
+		t.Run(fmt.Sprint(h), func(t *testing.T) {
+			t.Parallel()
+			m := NewFileDiff(config.Default(), "old", "new", numbered("a", n), numbered("b", n))
+			m.head = " c0 subject c0"
+			m.Update(tea.WindowSizeMsg{Width: 60, Height: h})
+			lines := strings.Split(ansi.Strip(m.frame()), "\n")
+			if len(lines) != h || lines[0] != m.head || !strings.Contains(lines[1], "old") {
+				t.Fatalf("%d lines, top %q; want %d, the commit, the names", len(lines), lines[:min(2, len(lines))], h)
+			}
+			if !strings.Contains(lines[2], " a0 ") {
+				t.Errorf("first row %q, want a0", lines[2])
+			}
+			press(m, "end")
+			lines = strings.Split(ansi.Strip(m.frame()), "\n")
+			last := min(h-2, n+1) // above the status bar, or below the last row when all fit
+			if !strings.Contains(lines[last], fmt.Sprintf(" a%d ", n-1)) {
+				t.Errorf("end: row %d %q, want a%d", last, lines[last], n-1)
+			}
+		})
+	}
+}

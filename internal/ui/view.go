@@ -192,9 +192,15 @@ func (a *fileAlign) numWidth() int {
 	return len(strconv.Itoa(max(len(a.lines[left]), len(a.lines[right]), 1)))
 }
 
-// header renders the file names above both panes.
+// header renders the line of the commit, if any, and the file names above
+// both panes with the lines removed and added.
 func (m *FileDiff) header() string {
-	return paneTitles(m.cfg.Theme, m.names, m.active, m.cfg.Settings.SideBySide, m.width)
+	var head string
+	if m.head != "" {
+		head = ansi.Truncate(m.head, m.width, "…") + "\n"
+	}
+	added, removed := diff.Stats(m.rows)
+	return head + paneTitles(m.cfg.Theme, m.names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)
 }
 
 // screenLine renders screen line s in the current layout, marked as the

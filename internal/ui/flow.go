@@ -860,12 +860,18 @@ func (f *Flow) header() string {
 	p, file, _ := f.position()
 	var b strings.Builder
 	if f.inLog() && p < len(f.parts) {
-		c := f.parts[p].commit
-		line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
+		part := f.parts[p]
+		line := " " + t.CommitHash.Render(part.commit.Short) + " " + t.Heading.Render(part.commit.Subject)
+		if part.diff != nil {
+			line = part.diff.commitLine()
+		}
 		b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
 	}
 	if file >= 0 {
-		b.WriteString(paneTitles(t, f.parts[p].diff.files[file].paneNames(), f.active, f.cfg.Settings.SideBySide, f.width))
+		d := f.parts[p].diff
+		e := d.files[file]
+		added, removed := diff.Stats(d.diffOf(e).rows)
+		b.WriteString(paneTitles(t, e.paneNames(), removed, added, f.active, f.cfg.Settings.SideBySide, f.width))
 	}
 	return b.String() + "\n"
 }

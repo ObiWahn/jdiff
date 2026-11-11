@@ -13,17 +13,34 @@ import (
 	"jdiff/internal/theme"
 )
 
-// paneTitles renders names above the panes of a view width columns wide.
-// Side by side the name of the active pane is bold, the other one faint; in
-// the normal layout, one column of both, both are bold.
-func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
+// paneTitles renders names above the panes of a view width columns wide,
+// at the end of the left one the lines removed, of the right one those added,
+// none when 0 or when the pane is too narrow. Side by side the name of the
+// active pane is bold, the other one faint; in the normal layout, one column
+// of both, both are bold.
+func paneTitles(t *theme.Theme, names [2]string, removed, added int, active side, sideBySide bool, width int) string {
 	w := (width - 1) / 2
 	title := func(s side) string {
 		style := t.Heading
 		if sideBySide && s != active {
 			style = t.InactiveHeading
 		}
-		return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
+		n, sign, st := removed, "-", t.Minus
+		if s == right {
+			n, sign, st = added, "+", t.Plus
+		}
+		tail := ""
+		if n > 0 {
+			tail = sign + fmt.Sprint(n)
+		}
+		// The count takes a space before and after it, and leaves the name
+		// two columns.
+		if tail == "" || len(tail)+4 > w {
+			return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
+		}
+		nameW := w - len(tail) - 2
+		name := pad(style.Render(ansi.Truncate(" "+printable(names[s]), nameW, "…")), nameW, lipgloss.NewStyle())
+		return name + " " + st.Render(tail) + " "
 	}
 	return title(left) + t.Decoration.Render("│") + title(right)
 }
@@ -458,6 +475,11 @@ func count(sign string, n, width int) string {
 // digits wide, in st of the plus and minus styles.
 func counts(t *theme.Theme, st func(lipgloss.Style) lipgloss.Style, added, removed, addW, remW int) string {
 	return st(t.Plus).Render(count("+", added, addW+1)) + " " + st(t.Minus).Render(count("-", removed, remW+1))
+}
+
+// totals renders the lines added and removed of a git diff or a commit.
+func totals(t *theme.Theme, added, removed int) string {
+	return t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
 }
 
 // minWidth and minHeight are the smallest terminal the views are drawn in.

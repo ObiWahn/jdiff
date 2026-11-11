@@ -34,8 +34,9 @@ type FileDiff struct {
 	xoff   int // horizontal scroll in columns
 
 	width, height int
-	canBack       bool // shown from the file list, which handles backspace
-	commitNav     bool // shown from the log, which switches commits
+	canBack       bool   // shown from the file list, which handles backspace
+	commitNav     bool   // shown from the log, which switches commits
+	head          string // the line of the commit above the names, shown from the log; "" for none
 
 	msg    string
 	onDisk *source.File // the files on disk, reloaded when they change; nil when not watched
@@ -435,7 +436,12 @@ func (m *FileDiff) nextChange(dir int) {
 	m.msg = "no more changes"
 }
 
-func (m *FileDiff) bodyHeight() int { return max(m.height-2, 1) }
+func (m *FileDiff) bodyHeight() int {
+	if m.head != "" {
+		return max(m.height-3, 1)
+	}
+	return max(m.height-2, 1)
+}
 
 // keepScreenRow runs f, which may rebuild the view, move the cursor or
 // resize, and then scrolls so that the cursor stays on the same screen row.
