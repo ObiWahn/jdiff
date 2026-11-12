@@ -747,7 +747,7 @@ func (l *Log) frame() string {
 			st(t.Decoration).Render(c.Date)
 	}
 	hints := statusKeys(l.cfg, barKeys{enter: "open", flow: true})
-	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, pageStatus(l.cfg, l.msg, hints))
+	return l.render(t, head, item, func(h int) string { return l.messageBox(l.commits[l.cursor].Commit, h) }, listBar(l.cfg, l.width, pageStatus(l.cfg, l.msg, hints)))
 }
 
 // messageBox renders the full message of c in a box height lines high,

@@ -31,6 +31,7 @@ type Theme struct {
 	Anchor, Pending, Cursor, Filler lipgloss.Style
 	Whitespace                      lipgloss.Style // unchanged whitespace when shown
 	AddedFile                       lipgloss.Style // U I X: untracked, ignored, excluded files in the file list
+	Version                         lipgloss.Style // jdiff's version at the right end of the status bars
 	TrailingWhitespace              lipgloss.Style // whitespace at the end of lines when shown
 	HiddenChar                      lipgloss.Style // ☠ for invisible and direction changing characters
 	Overflow                        lipgloss.Style // « and » at the edges of cut lines
@@ -100,6 +101,7 @@ func Resolve(sp Spec) *Theme {
 	t.Filler = r.styleOrStyle("filler-style", sp.FillerStyle, t.Decoration)
 	t.Whitespace = r.styleOrStyle("whitespace-style", sp.WhitespaceStyle, t.Decoration)
 	t.AddedFile = r.styleOrStyle("added-file-style", sp.AddedFileStyle, t.Filler)
+	t.Version = r.styleOrStyle("version-style", sp.VersionStyle, t.AddedFile)
 	t.TrailingWhitespace = r.style("trailing-whitespace-style", sp.TrailingWhitespaceStyle, def.TrailingWhitespaceStyle)
 	t.HiddenChar = r.style("hidden-char-style", sp.HiddenCharStyle, def.HiddenCharStyle)
 	t.Overflow = r.style("overflow-style", sp.OverflowStyle, def.OverflowStyle)

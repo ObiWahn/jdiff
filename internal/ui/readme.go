@@ -341,7 +341,7 @@ func (r *Readme) frame() string {
 		b.WriteString("\n")
 	}
 	keys := statusKeys(r.cfg, barKeys{enter: "follow", back: "back", text: true})
-	b.WriteString(statusLine(t, r.width, pageStatus(r.cfg, r.msg, keys), ""))
+	b.WriteString(pageBar(r.cfg, r.width, pageStatus(r.cfg, r.msg, keys), ""))
 	return r.withWebAddress(b.String())
 }
 

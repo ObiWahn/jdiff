@@ -1077,5 +1077,5 @@ func (d *Diff) frame() string {
 		k.back = "to_commits"
 	}
 	hints := statusKeys(d.cfg, k)
-	return d.render(t, head, item, func(h int) string { return d.preview(d.files[d.cursor], h) }, pageStatus(d.cfg, d.msg, hints))
+	return d.render(t, head, item, func(h int) string { return d.preview(d.files[d.cursor], h) }, listBar(d.cfg, d.width, pageStatus(d.cfg, d.msg, hints)))
 }

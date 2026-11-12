@@ -1148,6 +1148,56 @@ func TestIgnoredOutsideGitDiff(t *testing.T) {
 	}
 }
 
+// The version of jdiff stands at the right end of the status bar of each
+// page, after the anchors, with a space after it; where it does not fit, the
+// keys keep their room and it is left out.
+func TestStatusBarVersion(t *testing.T) {
+	const v = "v0.0.6-dirty"
+	bottom := func(m tea.Model) string {
+		lines := strings.Split(ansi.Strip(m.View().Content), "\n")
+		return lines[len(lines)-1]
+	}
+	d := newTestDiff()
+	d.cfg.Version = v
+	d.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+	if got := bottom(d); !strings.Contains(got, "q quit ") || !strings.HasSuffix(got, " "+v+" ") || ansi.StringWidth(got) != 140 {
+		t.Errorf("file list: %q", got)
+	}
+	pressDiff(d, "enter")
+	if got := bottom(d); !strings.HasSuffix(got, "anchors 0 · "+v+" ") || ansi.StringWidth(got) != 140 {
+		t.Errorf("file view: %q", got)
+	}
+	f := newFlowDiff()
+	f.cfg.Version = v
+	f.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+	pressDiff(f, "f")
+	if got := bottom(f); !strings.HasSuffix(got, "anchors 0 · "+v+" ") {
+		t.Errorf("flow view: %q", got)
+	}
+	l, _ := newTestLog()
+	l.cfg.Version = v
+	l.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+	if got := bottom(l); !strings.HasSuffix(got, " "+v+" ") {
+		t.Errorf("log: %q", got)
+	}
+	r := newTestReadme(t, 140, 20)
+	r.cfg.Version = v
+	if got := bottom(r); !strings.HasSuffix(got, " "+v+" ") {
+		t.Errorf("readme: %q", got)
+	}
+
+	// Where the keys fill the bar, as at 80 columns, they and the anchors
+	// stay, the version goes.
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	if got := bottom(d); strings.Contains(got, "v0.0.6") || !strings.Contains(got, "anchors") {
+		t.Errorf("narrow file view: %q", got)
+	}
+	pressDiff(d, "backspace")
+	if got := bottom(d); strings.Contains(got, "v0.0.6") || !strings.HasPrefix(got, "enter open") {
+		t.Errorf("narrow file list: %q", got)
+	}
+}
+
 // Outside a git diff, u says so and leaves the setting alone.
 func TestUntrackedOutsideGitDiff(t *testing.T) {
 	d := newTestDiff() // as for two directories

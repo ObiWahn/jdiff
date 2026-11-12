@@ -65,6 +65,11 @@ type Config struct {
 	// Search is what / searched for, which . and , search again and the
 	// views highlight; it is not saved.
 	Search Search
+
+	// Version is the version of jdiff the pages show at the right end of
+	// their status bars, as --version prints it; "" shows none, as in the
+	// tests.
+	Version string
 }
 
 // Flags are what the command line turns on for the run only, without

@@ -86,6 +86,36 @@ func statusText(t *theme.Theme, msg, hints string) string {
 	return t.Hint.Render(hints)
 }
 
+// pageBar renders the status bar of a page, width columns wide: left, and
+// at the right end right, as the anchors, and after it the version of jdiff
+// (Config.Version) in its style and a space. The version shows only where it
+// fits beside both, so that the keys and the anchors keep their room. It is
+// rendered beside the line, not in it: lipgloss breaks nested escape
+// sequences.
+func pageBar(cfg *config.Config, width int, left, right string) string {
+	if v := cfg.Version; v != "" {
+		tail := " " + v + " "
+		with := right
+		if right != "" {
+			with += " ·"
+		}
+		if tw := ansi.StringWidth(tail); ansi.StringWidth(left)+ansi.StringWidth(with)+tw <= width {
+			return statusLine(cfg.Theme, width-tw, left, with) + cfg.Theme.Version.Render(tail)
+		}
+	}
+	return statusLine(cfg.Theme, width, left, right)
+}
+
+// listBar returns the status bar of a list page, the commits or the files:
+// as pageBar with the version; without one left alone, which list.render
+// draws as it is.
+func listBar(cfg *config.Config, width int, left string) string {
+	if cfg.Version == "" {
+		return left
+	}
+	return pageBar(cfg, width, left, "")
+}
+
 // pageStatus returns the left part of the status bar of a page, see
 // statusText; while auto reload is on, its name comes first.
 func pageStatus(cfg *config.Config, msg, hints string) string {

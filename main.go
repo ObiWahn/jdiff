@@ -232,6 +232,7 @@ func start(o options, mode string, args []string) {
 		repo = "" // not in a repository: marks with absolute paths
 	}
 	cfg.SetFlags(config.Flags{Untracked: o.untracked, Ignored: o.ignored, Excluded: o.excluded, AutoReload: o.autoReload})
+	cfg.Version = resolveVersion()
 	cfg.LoadMarks(repo)
 
 	if mode == "readme" {

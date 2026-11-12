@@ -283,7 +283,7 @@ func (m *FileDiff) status() string {
 		row = m.view[m.cursor].row + 1
 	}
 	right := fmt.Sprintf(" row %d/%d · anchors %d", row, len(m.rows), len(m.anchors))
-	return statusLine(m.cfg.Theme, m.width, left, right)
+	return pageBar(m.cfg, m.width, left, right)
 }
 
 // fold renders displayed row v, a fold of unchanged rows, across both panes

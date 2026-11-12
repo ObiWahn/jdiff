@@ -896,7 +896,7 @@ func (f *Flow) status() string {
 		msg = f.marked.markPrompt()
 	}
 	left := pageStatus(f.cfg, msg, f.help())
-	return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))
+	return pageBar(f.cfg, f.width, left, " "+strings.Join(where, " · "))
 }
 
 // row renders row i. Diff rows are drawn by the file's diff with the flow's

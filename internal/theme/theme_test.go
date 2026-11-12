@@ -103,8 +103,12 @@ func TestGitThemePriority(t *testing.T) {
 		"jdiff.anchor-style":               "cyan",
 		"delta.high.file-decoration-style": `"#434C5E" ul`,
 	}
-	if th := Resolve(FromGit(Config{"jdiff.added-file-style": "yellow"}, nil)); th.AddedFile.GetForeground() != lipgloss.Color("3") {
-		t.Errorf("added-file-style set: fg %v, want yellow", th.AddedFile.GetForeground())
+	if th := Resolve(FromGit(Config{"jdiff.added-file-style": "yellow"}, nil)); th.AddedFile.GetForeground() != lipgloss.Color("3") ||
+		th.Version.GetForeground() != lipgloss.Color("3") {
+		t.Errorf("added-file-style set: fg %v, version %v, want yellow", th.AddedFile.GetForeground(), th.Version.GetForeground())
+	}
+	if th := Resolve(FromGit(Config{"jdiff.version-style": "red"}, nil)); th.Version.GetForeground() != lipgloss.Color("1") {
+		t.Errorf("version-style set: fg %v, want red", th.Version.GetForeground())
 	}
 	th := Resolve(FromGit(cfg, Features(cfg, "", "")))
 	checks := []struct {
@@ -121,6 +125,7 @@ func TestGitThemePriority(t *testing.T) {
 		{"decoration color", th.Decoration, lipgloss.Color("#434c5e")},
 		{"filler defaults to decoration", th.Filler, lipgloss.Color("#434c5e")},
 		{"added file defaults to filler", th.AddedFile, lipgloss.Color("#434c5e")},
+		{"version defaults to added file", th.Version, lipgloss.Color("#434c5e")},
 	}
 	for _, c := range checks {
 		if c.got.GetForeground() != c.fg {
