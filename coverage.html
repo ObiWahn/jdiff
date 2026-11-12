@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (95.3%)</option>
+				<option value="file0">jdiff/internal/config/config.go (95.5%)</option>
 				
 				<option value="file1">jdiff/internal/config/marks.go (97.2%)</option>
 				
@@ -67,7 +67,7 @@
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (93.6%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (93.7%)</option>
 				
 				<option value="file7">jdiff/internal/keys/keys.go (97.7%)</option>
 				
@@ -83,17 +83,17 @@
 				
 				<option value="file13">jdiff/internal/theme/theme.go (100.0%)</option>
 				
-				<option value="file14">jdiff/internal/ui/app.go (92.5%)</option>
+				<option value="file14">jdiff/internal/ui/app.go (90.4%)</option>
 				
-				<option value="file15">jdiff/internal/ui/autoreload.go (87.0%)</option>
+				<option value="file15">jdiff/internal/ui/autoreload.go (86.1%)</option>
 				
-				<option value="file16">jdiff/internal/ui/diff.go (95.9%)</option>
+				<option value="file16">jdiff/internal/ui/diff.go (96.0%)</option>
 				
 				<option value="file17">jdiff/internal/ui/filealign.go (95.7%)</option>
 				
-				<option value="file18">jdiff/internal/ui/filediff.go (88.7%)</option>
+				<option value="file18">jdiff/internal/ui/filediff.go (88.8%)</option>
 				
-				<option value="file19">jdiff/internal/ui/flow.go (93.5%)</option>
+				<option value="file19">jdiff/internal/ui/flow.go (93.7%)</option>
 				
 				<option value="file20">jdiff/internal/ui/help.go (98.9%)</option>
 				
@@ -117,9 +117,9 @@
 				
 				<option value="file30">jdiff/internal/ui/watch.go (89.7%)</option>
 				
-				<option value="file31">jdiff/internal/ui/widgets.go (98.1%)</option>
+				<option value="file31">jdiff/internal/ui/widgets.go (98.2%)</option>
 				
-				<option value="file32">jdiff/main.go (80.5%)</option>
+				<option value="file32">jdiff/main.go (80.9%)</option>
 				
 				<option value="file33">jdiff/watch/backend_linux.go (91.2%)</option>
 				
@@ -184,13 +184,40 @@ type Config struct {
         watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
 
         // AutoReload is whether what is shown is loaded again when the repository
-        // changes; R toggles it. It is not saved, so it is off at each start, as
-        // it ends by itself: see Settings.AutoReloadTimeout.
+        // changes, now; R toggles it. It ends by itself, see
+        // Settings.AutoReloadTimeout, and starts on with Settings.AutoReload.
         AutoReload bool
+
+        // Flags are the toggles the command line turned on, for the run only:
+        // see SetFlags. A key switching one ends its flag, so that it is saved
+        // again.
+        Flags Flags
+        // savedUntracked is what SaveState writes for untracked while the flag
+        // is set: the value of the files.
+        savedUntracked bool
 
         // Search is what / searched for, which . and , search again and the
         // views highlight; it is not saved.
         Search Search
+}
+
+// Flags are what the command line turns on for the run only, without
+// changing state.toml.
+type Flags struct {
+        // Untracked (--untracked) shows the untracked files; SaveState keeps the
+        // value of the files.
+        Untracked bool
+        // AutoReload (--auto-reload) starts auto reload, which then does not end
+        // after Settings.AutoReloadTimeout; Settings.AutoReload stays as saved.
+        AutoReload bool
+}
+
+// SetFlags turns on what f asks for, for the run only.
+func (c *Config) SetFlags(f Flags) {
+        <span class="cov8" title="1">c.Flags, c.savedUntracked = f, c.Settings.Untracked
+        if f.Untracked </span>{
+                <span class="cov8" title="1">c.Settings.Untracked = true
+</span>        }
 }
 
 // Query is a search of /: plain text, or with Regex a regular expression.
@@ -293,17 +320,11 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
                                 *sym.v = sym.fallback
 </span>                        }
                 }
-                // state.toml holds only the toggles. Earlier versions kept untracked
-                // there too: it is left out, without a warning.
-                <span class="cov8" title="1">state := struct {
-                        settings.Toggles
-                        Untracked bool `toml:"untracked"`
-                }{Toggles: c.Settings.Toggles}
-                if err := c.decode(c.statePath, &amp;state); err != nil </span>{
+                // state.toml holds only the toggles.
+                <span class="cov8" title="1">if err := c.decode(c.statePath, &amp;c.Settings.Toggles); err != nil </span>{
                         <span class="cov0" title="0">return nil, err
 </span>                }
-                <span class="cov8" title="1">c.Settings.Toggles = state.Toggles
-</span>                // inotify_max_dirs is a toggle: it may come from main.toml or
+                // inotify_max_dirs is a toggle: it may come from main.toml or
                 // state.toml, so the warning names neither.
                 <span class="cov8" title="1">if n := c.Settings.InotifyMaxDirs; n &lt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("inotify_max_dirs %d is negative, it is off", n))
@@ -450,7 +471,11 @@ func (c *Config) SaveState() error {
         <span class="cov8" title="1">if c.statePath == "" </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", c.Settings.Toggles)</span>
+        <span class="cov8" title="1">t := c.Settings.Toggles
+        if c.Flags.Untracked </span>{
+                <span class="cov8" title="1">t.Untracked = c.savedUntracked
+</span>        }
+        <span class="cov8" title="1">return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t)</span>
 }
 
 // writeTOML writes header and v as TOML to path, through a temporary file
@@ -1749,6 +1774,13 @@ func parseRaw(out []byte) ([]rawEntry, error) {
         <span class="cov8" title="1">return entries, nil</span>
 }
 
+// IsRevision reports whether git knows arg as a revision, as git diff tells
+// revisions from paths before --.
+func (r Repo) IsRevision(arg string) bool {
+        <span class="cov8" title="1">_, err := r.git("rev-parse", "--verify", "--quiet", arg)
+        return err == nil
+</span>}
+
 // Diff returns the files git diff compares with args, the arguments of git
 // diff: the working tree against the index without any, --cached for the
 // index against HEAD, commits and paths. Sides in the working tree, which
@@ -2483,11 +2515,6 @@ type Settings struct {
         // to the left; one column wide each.
         Extends  string `toml:"extends"`
         Precedes string `toml:"precedes"`
-        // Untracked (untracked) also shows the untracked files in jdiff diff,
-        // as added, where it compares with the working tree. The key of action
-        // untracked toggles it and --untracked turns it on, for the run only: it
-        // is the one toggle state.toml does not keep.
-        Untracked bool `toml:"untracked"`
         Toggles
 }
 
@@ -2541,6 +2568,15 @@ type Toggles struct {
         // changed ones, added, removed and moved. tab in the search bar toggles
         // it.
         SearchAll bool `toml:"search_all"`
+        // Untracked (untracked) also shows the untracked files in jdiff diff,
+        // as added, where it compares with the working tree; action untracked.
+        // --untracked turns it on for the run only, see config.Flags.
+        Untracked bool `toml:"untracked"`
+        // AutoReload (auto_reload) starts with auto reload on, see
+        // config.Config.AutoReload; action auto_reload sets it. Its end after
+        // AutoReloadTimeout leaves it on; --auto-reload does not set it, see
+        // config.Flags.
+        AutoReload bool `toml:"auto_reload"`
         // AutoReloadTimeout (auto_reload_timeout) is after how many minutes
         // without a key pressed or a change of the repository auto reload ends,
         // and with it its git commands; 0 is never. The settings popup sets it.
@@ -2575,7 +2611,7 @@ func Default() Settings {
                         BoldChanges:     true,
                         FullMessages:    true,
 
-                        AutoReloadTimeout: 5,
+                        AutoReloadTimeout: 15,
                         InotifyMaxDirs:    100,
                 },
 </span>        }
@@ -3366,11 +3402,13 @@ type App struct {
 }
 
 // diffPopup is the popup of git diff of App: run lists the diff of the
-// arguments asked for in input, which is set while it asks; err is why git
-// failed, until the next key. running is set while git diff runs for the
+// arguments asked for in input, which is set while it asks, isRev tells
+// their revisions from paths, see SplitDiffArgs; err is why git failed,
+// until the next key. running is set while git diff runs for the
 // request number gen of show; cancel ends it.
 type diffPopup struct {
         run     DiffFunc
+        isRev   func(ctx context.Context, arg string) bool
         input   *lineInput
         err     string
         running bool
@@ -3393,6 +3431,14 @@ func newApp(cfg *config.Config, view tea.Model, wrap func(tea.Model) tea.Model, 
         <span class="cov8" title="1">return &amp;App{Model: wrap(view), view: view, wrap: wrap, cfg: cfg, popup: diffPopup{run: gitDiff}}
 </span>}
 
+// WithRevisions sets how the popup of git diff tells revisions from paths,
+// for the line above the files, and returns s. Without, all arguments
+// before -- count as revisions.
+func (s *App) WithRevisions(isRev func(ctx context.Context, arg string) bool) *App {
+        <span class="cov0" title="0">s.popup.isRev = isRev
+        return s
+</span>}
+
 // WithAutoReload sets how auto reload gets the state of the repository, the
 // files to watch for changes of it and the directories of its working tree,
 // and returns s.
@@ -3403,16 +3449,21 @@ func (s *App) WithAutoReload(status func(ctx context.Context) (string, error), p
 </span>}
 
 // Init starts the watcher the views share, unless watching is off, and
-// gives it to the view, before it starts.
+// gives it to the view, before it starts; then auto reload, when saved on
+// or asked for by --auto-reload.
 func (s *App) Init() tea.Cmd {
-        <span class="cov8" title="1">var wait tea.Cmd
+        <span class="cov8" title="1">var wait, auto tea.Cmd
         if s.cfg.Settings.WatchInterval &gt; 0 </span>{
                 <span class="cov8" title="1">if w, err := watch.New(s.cfg.Settings.InotifyMaxDirs); err == nil </span>{
                         <span class="cov8" title="1">s.w, s.limit, wait = w, s.cfg.Settings.InotifyMaxDirs, waitChanges(w)
                         s.share()
 </span>                }
         }
-        <span class="cov8" title="1">return batch(s.Model.Init(), wait)</span>
+        <span class="cov8" title="1">init := s.Model.Init()
+        if s.cfg.Settings.AutoReload || s.cfg.Flags.AutoReload </span>{
+                <span class="cov8" title="1">auto = s.toggleAutoReload()
+</span>        }
+        <span class="cov8" title="1">return batch(init, wait, auto)</span>
 }
 
 // share gives the watcher to the view, if it watches files.
@@ -3442,7 +3493,7 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case diffListedMsg:
                 <span class="cov8" title="1">return s, s.showDiff(msg)</span>
         case askAutoReloadMsg:
-                <span class="cov8" title="1">return s, s.toggleAutoReload()</span>
+                <span class="cov8" title="1">return s, s.switchAutoReload()</span>
         case autoTickMsg:
                 <span class="cov8" title="1">return s, s.onAutoTick(msg)</span>
         case autoStatusMsg:
@@ -3601,6 +3652,7 @@ func (s *App) stop() {
 type diffListedMsg struct {
         gen   int
         args  []string
+        sides DiffSides
         files []source.File
         err   error
 }
@@ -3614,11 +3666,15 @@ func (s *App) show(args []string) tea.Cmd {
         s.popup.running = true
         ctx, cancel := context.WithCancel(context.Background())
         s.popup.cancel = cancel
-        gen, untracked, gitDiff := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run
+        gen, untracked, gitDiff, isRev := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run, s.popup.isRev
         return func() tea.Msg </span>{
                 <span class="cov8" title="1">files, err := gitDiff(ctx, args, untracked)
-                return diffListedMsg{gen, args, files, err}
-</span>        }
+                var rev func(string) bool
+                if isRev != nil </span>{
+                        <span class="cov0" title="0">rev = func(arg string) bool </span>{ <span class="cov0" title="0">return isRev(ctx, arg) }</span>
+                }
+                <span class="cov8" title="1">return diffListedMsg{gen, args, SplitDiffArgs(args, rev), files, err}</span>
+        }
 }
 
 // showDiff replaces the view by the files msg brings, from scratch, closes
@@ -3639,7 +3695,7 @@ func (s *App) showDiff(msg diffListedMsg) tea.Cmd {
         if v, ok := s.view.(interface{ stop() }); ok </span>{
                 <span class="cov8" title="1">v.stop()
 </span>        }
-        <span class="cov8" title="1">d := NewDiff(s.cfg, files).WithGitDiff(args, s.popup.run)
+        <span class="cov8" title="1">d := NewDiff(s.cfg, files).WithGitDiff(args, s.popup.run).WithSides(msg.sides)
         if len(files) &gt; 0 </span>{
                 <span class="cov8" title="1">d.setMsg(fmt.Sprintf("%s: %d files", diffCommand(args), len(files)))
 </span>        }
@@ -3770,6 +3826,19 @@ func (s *App) toggleAutoReload() tea.Cmd {
         <span class="cov8" title="1">return batch(cmd, on, s.autoTick(), s.watchRepo())</span>
 }
 
+// switchAutoReload toggles auto reload for its key and saves whether it is
+// on, so that the next start starts it too: off when it could not start.
+// It ends --auto-reload, and with it the run without a timeout.
+func (s *App) switchAutoReload() tea.Cmd {
+        <span class="cov8" title="1">s.cfg.Flags.AutoReload = false
+        cmd := s.toggleAutoReload()
+        s.cfg.Settings.AutoReload = s.cfg.AutoReload
+        if w := saveState(s.cfg); w != "" </span>{
+                <span class="cov0" title="0">cmd = batch(cmd, func() tea.Msg </span>{ <span class="cov0" title="0">return showMsg(w) }</span>)
+        }
+        <span class="cov8" title="1">return cmd</span>
+}
+
 // gitView reports whether the view shows git diff or git log, which auto
 // reload checks by git status.
 func (s *App) gitView() bool {
@@ -3817,7 +3886,8 @@ func (s *App) checkStatus() tea.Cmd {
 </span>        }
 }
 
-// onAutoTick ends auto reload after the timeout without activity, else checks
+// onAutoTick ends auto reload after the timeout without activity, unless
+// --auto-reload started it, else checks
 // the status, unless git is still at it, as in a large repository, or there
 // is no git status to check.
 func (s *App) onAutoTick(msg autoTickMsg) tea.Cmd {
@@ -3825,7 +3895,7 @@ func (s *App) onAutoTick(msg autoTickMsg) tea.Cmd {
                 <span class="cov8" title="1">return nil
 </span>        }
         // In minutes as float: a large timeout overflows a time.Duration.
-        <span class="cov8" title="1">if m := s.cfg.Settings.AutoReloadTimeout; m &gt; 0 &amp;&amp; time.Since(s.auto.lastActive).Minutes() &gt;= float64(m) </span>{
+        <span class="cov8" title="1">if m := s.cfg.Settings.AutoReloadTimeout; m &gt; 0 &amp;&amp; !s.cfg.Flags.AutoReload &amp;&amp; time.Since(s.auto.lastActive).Minutes() &gt;= float64(m) </span>{
                 <span class="cov8" title="1">s.stopAutoReload()
                 return func() tea.Msg </span>{ <span class="cov8" title="1">return showMsg(fmt.Sprintf("auto reload off: %d min without keys or changes", m)) }</span>
         }
@@ -3970,6 +4040,7 @@ func showAutoReloadError(err error) tea.Cmd {
 		<pre class="file" id="file16" style="display: none">package ui
 
 import (
+        "cmp"
         "context"
         "fmt"
         "slices"
@@ -4104,6 +4175,7 @@ type Diff struct {
         // are those of the files shown.
         gitDiff  DiffFunc
         diffArgs []string
+        sides    DiffSides // what the line above the files names, see WithSides
         // disk watches the files on disk while auto reload is on, from
         // watchFiles on; those near the cursor that it does not watch are checked
         // every watch_interval. touched is the file the cursor was on last.
@@ -4138,7 +4210,14 @@ type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source
 // WithGitDiff makes d the files of git diff with args, which r runs again,
 // and returns d.
 func (d *Diff) WithGitDiff(args []string, gitDiff DiffFunc) *Diff {
-        <span class="cov8" title="1">d.gitDiff, d.diffArgs = gitDiff, args
+        <span class="cov8" title="1">d.gitDiff, d.diffArgs, d.sides = gitDiff, args, SplitDiffArgs(args, nil)
+        return d
+</span>}
+
+// WithSides sets what the line above the files names, of git diff those
+// SplitDiffArgs returns with the revisions git knows, and returns d.
+func (d *Diff) WithSides(s DiffSides) *Diff {
+        <span class="cov8" title="1">d.sides = s
         return d
 </span>}
 
@@ -4187,6 +4266,62 @@ func (d *Diff) stop() {
 
 // shareWatcher makes d watch its files by w, which App shares.
 func (d *Diff) shareWatcher(w *watch.Watcher) { <span class="cov8" title="1">d.disk.share(w) }</span>
+
+// DiffSides are what the line above the files names of a git diff or of
+// two directories: the labels of the old and the new side, Work when the
+// new side is the working tree, where the untracked files show, and the
+// paths the comparison is limited to.
+type DiffSides struct {
+        Left, Right string
+        Work        bool
+        Paths       []string
+}
+
+// SplitDiffArgs returns the sides git diff compares with args. Flags are
+// left out but --cached and --staged. Before --, an argument with .. in it
+// is a range, the others are revisions while isRev takes them, and paths
+// from the first it does not take, as git takes them; nil isRev takes all.
+// After -- all are paths. Revisions keep their names as typed.
+func SplitDiffArgs(args []string, isRev func(arg string) bool) DiffSides {
+        <span class="cov8" title="1">var revs, paths []string
+        cached := false
+        for i := 0; i &lt; len(args); i++ </span>{
+                <span class="cov8" title="1">a := args[i]
+                switch </span>{
+                case a == "--":
+                        <span class="cov8" title="1">paths = append(paths, args[i+1:]...)
+                        i = len(args)</span>
+                case a == "--cached" || a == "--staged":
+                        <span class="cov8" title="1">cached = true</span>
+                case strings.HasPrefix(a, "-"):<span class="cov8" title="1"></span>
+                case len(paths) == 0 &amp;&amp; (strings.Contains(a, "..") || isRev == nil || isRev(a)):
+                        <span class="cov8" title="1">revs = append(revs, a)</span>
+                default:
+                        <span class="cov8" title="1">paths = append(paths, a)</span>
+                }
+        }
+        <span class="cov8" title="1">s := DiffSides{Paths: paths}
+        orHead := func(rev string) string </span>{ <span class="cov8" title="1">return cmp.Or(rev, "HEAD") }</span>
+        <span class="cov8" title="1">switch </span>{
+        case len(revs) == 0 &amp;&amp; cached:
+                <span class="cov8" title="1">s.Left, s.Right = "HEAD", "INDEX"</span>
+        case len(revs) == 0:
+                <span class="cov8" title="1">s.Left, s.Right, s.Work = "INDEX", "WORK", true</span>
+        case len(revs) &gt; 1:
+                <span class="cov8" title="1">s.Left, s.Right = strings.Join(revs[:len(revs)-1], " "), revs[len(revs)-1]</span>
+        case strings.Contains(revs[0], "..."): // from the merge base
+                <span class="cov8" title="1">_, to, _ := strings.Cut(revs[0], "...")
+                s.Left, s.Right = revs[0], orHead(to)</span>
+        case strings.Contains(revs[0], ".."):
+                <span class="cov8" title="1">from, to, _ := strings.Cut(revs[0], "..")
+                s.Left, s.Right = orHead(from), orHead(to)</span>
+        case cached:
+                <span class="cov8" title="1">s.Left, s.Right = revs[0], "INDEX"</span>
+        default:
+                <span class="cov8" title="1">s.Left, s.Right, s.Work = revs[0], "WORK+INDEX", true</span>
+        }
+        <span class="cov8" title="1">return s</span>
+}
 
 // diffCommand returns the git diff command line of args, quoted as the
 // popup of git diff reads them.
@@ -4578,8 +4713,13 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">d.setMsg(untrackedOnlyInDiff)
                         return d, nil
 </span>                }
-                <span class="cov8" title="1">d.cfg.Settings.Untracked = !d.cfg.Settings.Untracked // not saved
-                return d, d.relistFiles(false)</span>
+                <span class="cov8" title="1">d.cfg.Flags.Untracked = false // switched by key: saved
+                w := toggle(d.cfg, &amp;d.cfg.Settings.Untracked)
+                cmd := d.relistFiles(false)
+                if w != "" </span>{
+                        <span class="cov0" title="0">d.setMsg(w)
+</span>                }
+                <span class="cov8" title="1">return d, cmd</span>
         }
         <span class="cov8" title="1">if d.flowShown() </span>{
                 <span class="cov8" title="1">_, cmd := d.flow.Update(msg)
@@ -4689,7 +4829,9 @@ func (d *Diff) openFile() {
                 <span class="cov8" title="1">d.msg = e.Path + " is a binary file"
                 return
 </span>        }
-        <span class="cov8" title="1">d.viewOf(e).Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
+        <span class="cov8" title="1">v := d.viewOf(e)
+        v.head = d.headLine()
+        v.Update(tea.WindowSizeMsg{Width: d.width, Height: d.height})
         d.open = e</span>
 }
 
@@ -4852,50 +4994,62 @@ func (d *Diff) preview(e *fileEntry, height int) string {
 
 func (d *Diff) View() tea.View { <span class="cov8" title="1">return tea.NewView(d.frame()) }</span>
 
+// totals returns the lines added and removed in all files.
+func (d *Diff) totals() (added, removed int) {
+        <span class="cov8" title="1">for _, e := range d.files </span>{
+                <span class="cov8" title="1">added, removed = added+e.added, removed+e.removed
+</span>        }
+        <span class="cov8" title="1">return added, removed</span>
+}
+
+// headLine renders the line above the files, as the file list, its single
+// file view and its flow view show it: of the commit of the log its hash,
+// subject, the totals of its files, author and date; else in two cells the
+// sides, the right one with the untracked files when they show, and how
+// many files changed with the totals and the paths at their ends.
+func (d *Diff) headLine() string {
+        // Styles are rendered side by side: lipgloss underlining breaks nested
+        // escape sequences.
+        <span class="cov8" title="1">t := d.cfg.Theme
+        added, removed := d.totals()
+        if c := d.commit; c != nil </span>{
+                <span class="cov8" title="1">return " " + t.CommitHash.Render(c.Short) + " " + t.Heading.Render(c.Subject) + "  " + totals(t, added, removed) +
+                        "  " + t.Decoration.Render(c.Author+"  "+c.Date)
+</span>        }
+        <span class="cov8" title="1">changed := fmt.Sprintf("%d files changed", len(d.files))
+        if len(d.files) == 1 </span>{
+                <span class="cov8" title="1">changed = "1 file changed"
+</span>        }
+        <span class="cov8" title="1">right := d.sides.Right
+        if d.sides.Work &amp;&amp; d.cfg.Settings.Untracked </span>{
+                <span class="cov8" title="1">right += "+UNTRACKED"
+</span>        }
+        <span class="cov8" title="1">paths := t.Decoration.Render(printable(strings.Join(d.sides.Paths, " ")))
+        return sideCells(t, [2]string{d.sides.Left, right}, [2]string{t.Heading.Render(changed) + "  " + totals(t, added, removed), paths}, d.width)</span>
+}
+
 func (d *Diff) frame() string {
         <span class="cov8" title="1">if d.flowShown() </span>{
                 <span class="cov8" title="1">return d.flow.frame()
 </span>        }
         <span class="cov8" title="1">if d.open != nil </span>{
-                <span class="cov8" title="1">return d.open.view.frame()
+                <span class="cov8" title="1">d.open.view.head = d.headLine() // the totals and the untracked files change while it is open
+                return d.open.view.frame()
 </span>        }
         <span class="cov8" title="1">if d.width == 0 </span>{
                 <span class="cov0" title="0">return ""
 </span>        }
 
         <span class="cov8" title="1">t := d.cfg.Theme
-        var added, removed int
         addW, remW, lblW := 1, 1, 0
         for _, e := range d.files </span>{
-                <span class="cov8" title="1">added, removed = added+e.added, removed+e.removed
-                addW = max(addW, len(fmt.Sprint(e.added)))
+                <span class="cov8" title="1">addW = max(addW, len(fmt.Sprint(e.added)))
                 remW = max(remW, len(fmt.Sprint(e.removed)))
                 lblW = max(lblW, ansi.StringWidth(e.label(t)))
 </span>        }
 
-        // Styles are rendered side by side: lipgloss underlining breaks nested
-        // escape sequences.
-        <span class="cov8" title="1">heading := t.Heading
-        changed := fmt.Sprintf("%d files changed", len(d.files))
-        if len(d.files) == 1 </span>{
-                <span class="cov8" title="1">changed = "1 file changed"
-</span>        }
-        <span class="cov8" title="1">head := " " + heading.Render(changed)
-        if c := d.commit; c != nil </span>{
-                <span class="cov8" title="1">head = " " + t.CommitHash.Render(c.Short) + " " + heading.Render(c.Subject)
-</span>        }
-        <span class="cov8" title="1">head += "  " + t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
-        if c := d.commit; c != nil </span>{
-                <span class="cov8" title="1">head += "  " + t.Decoration.Render(c.Author+"  "+c.Date)
-</span>        }
-        <span class="cov8" title="1">if d.gitDiff != nil </span>{
-                <span class="cov8" title="1">cmd := diffCommand(d.diffArgs)
-                if d.cfg.Settings.Untracked </span>{
-                        <span class="cov8" title="1">cmd += " + untracked"
-</span>                }
-                <span class="cov8" title="1">head += "  " + t.Hint.Render(printable(cmd))</span>
-        }
-
+        <span class="cov8" title="1">head := d.headLine()
+</span>
         <span class="cov8" title="1">item := func(i int, st func(lipgloss.Style) lipgloss.Style) string </span>{
                 <span class="cov8" title="1">e := d.files[i]
                 cnt := counts(t, st, e.added, e.removed, addW, remW)
@@ -5694,8 +5848,9 @@ type FileDiff struct {
         xoff   int // horizontal scroll in columns
 
         width, height int
-        canBack       bool // shown from the file list, which handles backspace
-        commitNav     bool // shown from the log, which switches commits
+        canBack       bool   // shown from the file list, which handles backspace
+        commitNav     bool   // shown from the log, which switches commits
+        head          string // the line of the commit above the names, shown from the log; "" for none
 
         msg    string
         onDisk *source.File // the files on disk, reloaded when they change; nil when not watched
@@ -6095,7 +6250,12 @@ func (m *FileDiff) nextChange(dir int) {
         <span class="cov8" title="1">m.msg = "no more changes"</span>
 }
 
-func (m *FileDiff) bodyHeight() int { <span class="cov8" title="1">return max(m.height-2, 1) }</span>
+func (m *FileDiff) bodyHeight() int {
+        <span class="cov8" title="1">if m.head != "" </span>{
+                <span class="cov8" title="1">return max(m.height-3, 1)
+</span>        }
+        <span class="cov8" title="1">return max(m.height-2, 1)</span>
+}
 
 // keepScreenRow runs f, which may rebuild the view, move the cursor or
 // resize, and then scrolls so that the cursor stays on the same screen row.
@@ -6914,14 +7074,9 @@ func (f *Flow) position() (part, file, line int) {
         <span class="cov8" title="1">return r.part, r.file, line</span>
 }
 
-// headerLines is the number of lines above the rows: the commit in the log,
-// and the file names.
-func (f *Flow) headerLines() int {
-        <span class="cov8" title="1">if f.inLog() </span>{
-                <span class="cov8" title="1">return 2
-</span>        }
-        <span class="cov8" title="1">return 1</span>
-}
+// headerLines is the number of lines above the rows: the line of the
+// commit or of the file list, and the file names.
+func (f *Flow) headerLines() int { <span class="cov8" title="1">return 2 }</span>
 
 // cursorSub returns the line of the cursor within its diff row.
 func (f *Flow) cursorSub() int {
@@ -6967,19 +7122,28 @@ func (f *Flow) frame() string {
         return b.String()</span>
 }
 
-// header renders the lines above the rows: in the log the commit of the
-// cursor, then the names of its file as in the single file view.
+// header renders the lines above the rows: the line of the commit of the
+// cursor, outside the log of the file list, then the names of its file as in
+// the single file view.
 func (f *Flow) header() string {
         <span class="cov8" title="1">t := f.cfg.Theme
         p, file, _ := f.position()
         var b strings.Builder
-        if f.inLog() &amp;&amp; p &lt; len(f.parts) </span>{
-                <span class="cov8" title="1">c := f.parts[p].commit
-                line := " " + t.CommitHash.Render(c.Short) + " " + t.Title.Render(c.Subject)
-                b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")
-</span>        }
+        if p &lt; len(f.parts) </span>{
+                <span class="cov8" title="1">part, line := f.parts[p], ""
+                switch </span>{
+                case part.diff != nil:
+                        <span class="cov8" title="1">line = part.diff.headLine()</span>
+                case part.commit != nil: // still loading
+                        <span class="cov8" title="1">line = " " + t.CommitHash.Render(part.commit.Short) + " " + t.Heading.Render(part.commit.Subject)</span>
+                }
+                <span class="cov8" title="1">b.WriteString(ansi.Truncate(line, f.width, "…") + "\n")</span>
+        }
         <span class="cov8" title="1">if file &gt;= 0 </span>{
-                <span class="cov8" title="1">b.WriteString(paneTitles(t, f.parts[p].diff.files[file].paneNames(), f.active, f.cfg.Settings.SideBySide, f.width))
+                <span class="cov8" title="1">d := f.parts[p].diff
+                e := d.files[file]
+                added, removed := diff.Stats(d.diffOf(e).rows)
+                b.WriteString(paneTitles(t, e.paneNames(), removed, added, f.active, f.cfg.Settings.SideBySide, f.width))
 </span>        }
         <span class="cov8" title="1">return b.String() + "\n"</span>
 }
@@ -7054,7 +7218,7 @@ func (f *Flow) row(i int) string {
                 <span class="cov8" title="1">e := part.diff.files[r.file]
                 line := " "
                 if lbl := e.label(t); lbl != "" </span>{
-                        <span class="cov0" title="0">line += lbl + " "
+                        <span class="cov8" title="1">line += lbl + " "
 </span>                }
                 <span class="cov8" title="1">line += e.name()
                 if e.Binary </span>{
@@ -10731,10 +10895,16 @@ func (a *fileAlign) numWidth() int {
         <span class="cov8" title="1">return len(strconv.Itoa(max(len(a.lines[left]), len(a.lines[right]), 1)))
 </span>}
 
-// header renders the file names above both panes.
+// header renders the line of the commit, if any, and the file names above
+// both panes with the lines removed and added.
 func (m *FileDiff) header() string {
-        <span class="cov8" title="1">return paneTitles(m.cfg.Theme, m.names, m.active, m.cfg.Settings.SideBySide, m.width)
-</span>}
+        <span class="cov8" title="1">var head string
+        if m.head != "" </span>{
+                <span class="cov8" title="1">head = ansi.Truncate(m.head, m.width, "…") + "\n"
+</span>        }
+        <span class="cov8" title="1">added, removed := diff.Stats(m.rows)
+        return head + paneTitles(m.cfg.Theme, m.names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)</span>
+}
 
 // screenLine renders screen line s in the current layout, marked as the
 // cursor line when cursor is set.
@@ -11441,19 +11611,52 @@ import (
         "jdiff/internal/theme"
 )
 
-// paneTitles renders names above the panes of a view width columns wide.
-// Side by side the name of the active pane is bold, the other one faint; in
-// the normal layout, one column of both, both are bold.
-func paneTitles(t *theme.Theme, names [2]string, active side, sideBySide bool, width int) string {
+// paneTitles renders names above the panes of a view width columns wide,
+// at the end of the left one the lines removed, of the right one those added,
+// none when 0 or when the pane is too narrow. Side by side the name of the
+// active pane is bold, the other one faint; in the normal layout, one column
+// of both, both are bold.
+func paneTitles(t *theme.Theme, names [2]string, removed, added int, active side, sideBySide bool, width int) string {
         <span class="cov8" title="1">w := (width - 1) / 2
         title := func(s side) string </span>{
                 <span class="cov8" title="1">style := t.Heading
                 if sideBySide &amp;&amp; s != active </span>{
                         <span class="cov8" title="1">style = t.InactiveHeading
 </span>                }
-                <span class="cov8" title="1">return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())</span>
+                <span class="cov8" title="1">n, sign, st := removed, "-", t.Minus
+                if s == right </span>{
+                        <span class="cov8" title="1">n, sign, st = added, "+", t.Plus
+</span>                }
+                <span class="cov8" title="1">tail := ""
+                if n &gt; 0 </span>{
+                        <span class="cov8" title="1">tail = sign + fmt.Sprint(n)
+</span>                }
+                // The count takes a space before and after it, and leaves the name
+                // two columns.
+                <span class="cov8" title="1">if tail == "" || len(tail)+4 &gt; w </span>{
+                        <span class="cov8" title="1">return pad(style.Render(ansi.Truncate(" "+printable(names[s]), w, "…")), w, lipgloss.NewStyle())
+</span>                }
+                <span class="cov8" title="1">nameW := w - len(tail) - 2
+                name := pad(style.Render(ansi.Truncate(" "+printable(names[s]), nameW, "…")), nameW, lipgloss.NewStyle())
+                return name + " " + st.Render(tail) + " "</span>
         }
         <span class="cov8" title="1">return title(left) + t.Decoration.Render("│") + title(right)</span>
+}
+
+// sideCells renders the line above the names of a git diff or of two
+// directories, in two cells split as paneTitles splits the names: in each
+// its label in the commit hash style, then its tail right aligned. Each
+// cell is cut on the right where it does not fit, so that the labels show
+// longest.
+func sideCells(t *theme.Theme, labels, tails [2]string, width int) string {
+        <span class="cov8" title="1">w := (width - 1) / 2
+        cell := func(s side) string </span>{
+                <span class="cov8" title="1">label := t.CommitHash.Render(printable(labels[s]))
+                gap := max(w-2-ansi.StringWidth(label)-ansi.StringWidth(tails[s]), 2)
+                c := " " + label + strings.Repeat(" ", gap) + tails[s] + " "
+                return pad(ansi.Truncate(c, w, "…"), w, lipgloss.NewStyle())
+</span>        }
+        <span class="cov8" title="1">return cell(left) + t.Decoration.Render("│") + cell(right)</span>
 }
 
 // statusLine renders the status bar with left, already styled, and right,
@@ -11888,6 +12091,11 @@ func counts(t *theme.Theme, st func(lipgloss.Style) lipgloss.Style, added, remov
         <span class="cov8" title="1">return st(t.Plus).Render(count("+", added, addW+1)) + " " + st(t.Minus).Render(count("-", removed, remW+1))
 </span>}
 
+// totals renders the lines added and removed of a git diff or a commit.
+func totals(t *theme.Theme, added, removed int) string {
+        <span class="cov8" title="1">return t.Plus.Render(fmt.Sprintf("+%d", added)) + " " + t.Minus.Render(fmt.Sprintf("-%d", removed))
+</span>}
+
 // minWidth and minHeight are the smallest terminal the views are drawn in.
 // Side by side the gutters of both panes take 7 columns and twice the digits
 // of the line numbers, 19 for files of up to 999999 lines; the lists need a
@@ -12029,8 +12237,8 @@ func main() {
 
 // options are the flags of the command line.
 type options struct {
-        version, license, readme, untracked bool
-        features                            string
+        version, license, readme, untracked, autoReload bool
+        features                                        string
 }
 
 // newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
@@ -12084,8 +12292,10 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
         f.BoolVar(&amp;o.license, "license", false, "print the license and those of the libraries")
         f.BoolVar(&amp;o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
                 "when the output is no terminal")
-        f.BoolVarP(&amp;o.untracked, "untracked", "u", false, "also show the untracked files in a git diff; u in the view switches them.\n"+
-                "Neither is saved")
+        f.BoolVarP(&amp;o.untracked, "untracked", "u", false, "also show the untracked files in a git diff, for this run: state.toml keeps its\n"+
+                "value; u in the view switches them and saves that")
+        f.BoolVarP(&amp;o.autoReload, "auto-reload", "R", false, "start with auto reload on, for this run and without its timeout: state.toml\n"+
+                "keeps its value; R in the view switches it and saves that")
         f.StringVar(&amp;o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
                 "sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
                 "which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
@@ -12193,10 +12403,8 @@ func start(o options, mode string, args []string) {
         if err != nil </span>{
                 <span class="cov0" title="0">repo = "" // not in a repository: marks with absolute paths
 </span>        }
-        <span class="cov8" title="1">if o.untracked </span>{
-                <span class="cov0" title="0">cfg.Settings.Untracked = true
-</span>        }
-        <span class="cov8" title="1">cfg.LoadMarks(repo)
+        <span class="cov8" title="1">cfg.SetFlags(config.Flags{Untracked: o.untracked, AutoReload: o.autoReload})
+        cfg.LoadMarks(repo)
 </span>
         <span class="cov8" title="1">if mode == "readme" </span>{
                 <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.WithSearch(cfg, ui.WithHelp(cfg, ui.NewReadme(cfg, docs, docPages, 0)))))
@@ -12216,7 +12424,7 @@ func start(o options, mode string, args []string) {
 </span>        }
         // d replaces whatever is shown by the files of git diff, which runs in
         // the current directory.
-        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.NewApp(cfg, m, gitDiff).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))</span>
+        <span class="cov0" title="0">run(ui.WithSizeGuard(cfg, ui.NewApp(cfg, m, gitDiff).WithRevisions(isRevision).WithAutoReload(gitStatus, gitsrc.Repo{}.WatchPaths, gitsrc.Repo{}.WorkDirs)))</span>
 }
 
 // run runs the program that shows page. 16 color mode: colors are drawn as
@@ -12251,7 +12459,8 @@ func load(cfg *config.Config, oldPath, newPath string) (tea.Model, error) {
                         <span class="cov0" title="0">return nil, err
 </span>                }
                 <span class="cov8" title="1">relist := func(context.Context) ([]source.File, error) </span>{ <span class="cov8" title="1">return source.LoadDirs(oldPath, newPath) }</span>
-                <span class="cov8" title="1">return ui.NewDiff(cfg, files).WithRelist(relist), nil</span>
+                <span class="cov8" title="1">sides := ui.DiffSides{Left: oldPath, Right: newPath}
+                return ui.NewDiff(cfg, files).WithRelist(relist).WithSides(sides), nil</span>
         }
 
         // Path names the file in messages; the panes show the paths as given.
@@ -12297,7 +12506,8 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
         if err != nil </span>{
                 <span class="cov8" title="1">return nil, err
 </span>        }
-        <span class="cov8" title="1">return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff), nil</span>
+        <span class="cov8" title="1">sides := ui.SplitDiffArgs(args, gitsrc.Repo{}.IsRevision)
+        return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff).WithSides(sides), nil</span>
 }
 
 // gitDiff runs git diff with args, with the untracked files when untracked
@@ -12309,6 +12519,12 @@ func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File,
 </span>        }
         <span class="cov8" title="1">return repo.Diff(args)</span>
 }
+
+// isRevision reports whether git knows arg as a revision, for the popup of
+// git diff; see ui.App.WithRevisions.
+func isRevision(ctx context.Context, arg string) bool {
+        <span class="cov0" title="0">return gitsrc.Repo{}.WithContext(ctx).IsRevision(arg)
+</span>}
 
 // gitStatus returns the state of the repository for auto reload, see
 // gitsrc.Repo.Status.
