@@ -111,10 +111,7 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 		TraverseChildren: true, // the flags before log and diff
 	}
 	f := root.Flags()
-	f.BoolVar(&o.version, "version", false, "print the version")
-	f.BoolVar(&o.license, "license", false, "print the license and those of the libraries")
-	f.BoolVar(&o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
-		"when the output is no terminal")
+	f.SortFlags = false // the toggles for one run together, first
 	f.BoolVarP(&o.untracked, "untracked", "u", false, "also show the untracked files in a git diff, for this run: state.toml keeps its\n"+
 		"value; u in the view switches them and saves that")
 	f.BoolVarP(&o.autoReload, "auto-reload", "R", false, "start with auto reload on, for this run and without its timeout: state.toml\n"+
@@ -123,6 +120,10 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 		"sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
 		"which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
 		"leading + it adds to them.")
+	f.BoolVar(&o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
+		"when the output is no terminal")
+	f.BoolVar(&o.license, "license", false, "print the license and those of the libraries")
+	f.BoolVar(&o.version, "version", false, "print the version")
 	for _, c := range []struct{ name, use, short string }{
 		{"log", "log [GIT LOG ARGS]", "browse the commits that git log lists"},
 		{"diff", "diff [GIT DIFF ARGS]", "show the files that git diff shows"},
