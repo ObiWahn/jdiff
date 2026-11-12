@@ -311,7 +311,7 @@ func screenRow(m *FileDiff) int { return m.cursor - m.top }
 func TestPageKeysKeepScreenRow(t *testing.T) {
 	m := newTestFileDiff(numbered("a", 100), numbered("b", 100)) // all changed: no folds
 	press(m, "j", "j", "j", "j", "j")
-	for _, k := range []string{"pgdown", "ctrl+d", "ctrl+f", "pgup", "ctrl+u", "ctrl+b"} {
+	for _, k := range []string{"pgdown", "ctrl+d", "pgup", "ctrl+u"} {
 		top := m.top
 		press(m, k)
 		if m.pos()-m.top != 5 || m.top == top {

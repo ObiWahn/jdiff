@@ -10,7 +10,7 @@
 |---|---|
 | `j` `k` (`down` `up`) | move |
 | `N` `P`, `n` `p` | next, previous commit in history, also with `--reverse` |
-| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
+| `pgup` `pgdn` | page up, down |
 | `home` `end` | first, last commit |
 | `enter` | show the files of the commit |
 | `'<letter>` | a mark: says to open a commit to jump to it |
@@ -21,7 +21,7 @@
 | Key | Action |
 |---|---|
 | `j` `k` (`down` `up`), `n` `p` | move |
-| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | scroll the diff preview; page up, down while it is hidden |
+| `pgup` `pgdn` | scroll the diff preview; page up, down while it is hidden |
 | `home` `end` | first, last file |
 | `enter` | show the diff of the file |
 | `'<letter>` | open the file of a jump mark |
@@ -37,7 +37,7 @@
 | `esc` | cancel the mark |
 | `space` / `ctrl+space` | fold or unfold the nearest / all unchanged code |
 | `j` `k` (`down` `up`) | move |
-| `pgup` `pgdn` (`ctrl+b` `ctrl+f`), `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
+| `pgup` `pgdn`, `ctrl+u` `ctrl+d` | page, half page; the cursor keeps its screen row |
 | `home` `end` | top, bottom |
 | `h` `l` (`left` `right`) | scroll left, right, unless lines are wrapped |
 | `]` `[` | next, previous change |
@@ -69,7 +69,7 @@ The keys of the diff view, and:
 | Key | Action |
 |---|---|
 | `j` `k` (`down` `up`) | move the cursor |
-| `pgup` `pgdn` (`ctrl+b` `ctrl+f`) | page up, down |
+| `pgup` `pgdn` | page up, down |
 | `ctrl+u` `ctrl+d` | half page up, down |
 | `home` `end` | top, bottom |
 | `tab` `shift+tab` | the next, previous link |

@@ -311,10 +311,10 @@ func TestDiffPreviewScrolls(t *testing.T) {
 			pressDiff(d, "pgup")
 			check("pgup", max(last-page, 0))
 			for range 60 {
-				pressDiff(d, "ctrl+b")
+				pressDiff(d, "pgup")
 			}
-			check("ctrl+b to the top", 0)
-			pressDiff(d, "ctrl+f", "j", "k")
+			check("pgup to the top", 0)
+			pressDiff(d, "pgdown", "j", "k")
 			check("j k", 27)
 			setOption(d, d.cfg, "v")
 			pressDiff(d, "pgdown")

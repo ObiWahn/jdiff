@@ -58,7 +58,8 @@ func TestKeyLookup(t *testing.T) {
 		{DiffView, "j", Hit{"move", 0}},
 		{DiffView, "up", Hit{"move", 1}},
 		{DiffView, "pgdown", Hit{"page", 1}},
-		{DiffView, "ctrl+b", Hit{"page", 0}},
+		{DiffView, "pgup", Hit{"page", 0}},
+		{DiffView, "ctrl+b", Hit{}},
 		{DiffView, "f5", Hit{"reload", 1}},
 		{DiffView, "m", Hit{"set_mark", 0}},
 		{DiffView, "n", Hit{"next_file", 0}},
@@ -80,7 +81,7 @@ func TestKeyLookup(t *testing.T) {
 func TestKeyText(t *testing.T) {
 	for in, want := range map[string]string{
 		"{settings} close":   "o F8 close",
-		"also {page:1}":      "also ctrl+b ctrl+f",
+		"also {move:1}":      "also down up",
 		"{page}":             "pgup pgdn",
 		"{page:5}|{nothing}": "|",
 		"no {braces":         "no {braces",
