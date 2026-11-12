@@ -3,7 +3,7 @@
 ## Before writing code
 
 - Look for related helpers and code first, and use or extend them instead of writing the same
-  thing again: e.g. `lineInput` (with `cancels`), `inputBox`, `box`, `popupTitle`,
+  thing again: e.g. `lineInput` (with `cancels`), `inputBox`, `box`, `popupFrame`,
   `overlay`/`overlayAt`, `windowAt`/`windowAround`, `statusText`/`statusLine`,
   `toggle`/`saveState`, `printable`, `cutLeft`.
 - Share code where a substantial amount of it is the same, or where the copies must behave the

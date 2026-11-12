@@ -508,8 +508,8 @@ func (s *SearchBar) frame() string {
 	if len(s.cfg.Search.History) > 0 {
 		keys = slices.Insert(keys, 1, "↑↓ history")
 	}
-	title := popupTitle(t, mode+" "+scope(s.cfg.Settings), "", strings.Join(keys, " · "))
-	bar := inputPopup(t, s.width, title, "/"+printable(s.input.text), s.err, false)
+	f := popupFrame{name: mode + " " + scope(s.cfg.Settings), hints: strings.Join(keys, " · ")}
+	bar := inputPopup(t, s.width, f, "/"+printable(s.input.text), s.err, false)
 	// Above the status line, the last row.
 	y := max(strings.Count(base, "\n")-bar.h, 0)
 	return bar.at(t, base, max((s.width-bar.w)/2, 0), y, s.width)

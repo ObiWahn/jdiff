@@ -363,5 +363,5 @@ func (s *App) frame() string {
 	if s.popup.running {
 		msg = "running git diff…"
 	}
-	return inputPopup(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.popup.input.text), s.popup.err, true).over(t, base, s.width)
+	return inputPopup(t, s.width, popupFrame{"git diff", keys, msg}, printable(s.popup.input.text), s.popup.err, true).over(t, base, s.width)
 }

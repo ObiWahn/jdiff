@@ -72,6 +72,7 @@ type Spec struct {
 	HeadingStyle            *string `toml:"heading-style" git:"jdiff"`             // headings of lists and boxes, the active pane's title
 	InactiveHeadingStyle    *string `toml:"inactive-heading-style" git:"jdiff"`    // the inactive pane's title, side by side
 	KeyStyle                *string `toml:"key-style" git:"jdiff"`                 // the keys in the help
+	PopupMessageStyle       *string `toml:"popup-message-style" git:"jdiff"`       // a message in a popup's bottom border
 
 	// Colors are named colors that styles can use like color names.
 	Colors map[string]string `toml:"colors"`
@@ -151,6 +152,8 @@ func Builtin() Spec {
 		HeadingStyle:         str("bold"),
 		InactiveHeadingStyle: str("dim"),
 		KeyStyle:             str("bold"),
+		// What a popup says went wrong or happens stands out from its keys.
+		PopupMessageStyle: str("red bold"),
 	}
 }
 

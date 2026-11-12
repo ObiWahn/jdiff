@@ -372,8 +372,8 @@ func (r *Readme) withWebAddress(frame string) string {
 		x += ansi.StringWidth(s.text)
 	}
 	lines := []string{printable(target)}
-	w := popupWidth("", lines, 0, r.width)
-	return popup{"", lines, w, minBoxHeight}.at(r.cfg.Theme, frame, max(min(x, r.width-w), 0), y, r.width)
+	w := popupWidth(popupFrame{}, lines, 0, r.width)
+	return popup{popupFrame{}, lines, w, minBoxHeight}.at(r.cfg.Theme, frame, max(min(x, r.width-w), 0), y, r.width)
 }
 
 // drawLine draws l in the styles of its pieces, the selected link in the

@@ -70,12 +70,6 @@ func statusLine(t *theme.Theme, width int, left, right string) string {
 	return ansi.Truncate(left+t.Hint.Render(strings.Repeat(" ", gap)+right), width, "")
 }
 
-// popupTitle returns the title of a popup: its name, then msg or the keys
-// of hints, as statusText renders them.
-func popupTitle(t *theme.Theme, name, msg, hints string) string {
-	return t.CommitHash.Render(" "+name+" ") + t.Hint.Render(" ") + statusText(t, msg, hints) + t.Hint.Render(" ")
-}
-
 // statusText returns the left part of a status bar: msg, or without one
 // the hints, each a key and what it does, separated by " · ", in the hint
 // style. msg may name files or quote git, so it is drawn printable.
@@ -119,10 +113,11 @@ func listBar(cfg *config.Config, width int, left string) string {
 // pageStatus returns the left part of the status bar of a page, see
 // statusText; while auto reload is on, its name comes first.
 func pageStatus(cfg *config.Config, msg, hints string) string {
+	t := cfg.Theme
 	if cfg.AutoReload {
-		return popupTitle(cfg.Theme, "auto reload", msg, hints)
+		return t.CommitHash.Render(" auto reload ") + t.Hint.Render(" ") + statusText(t, msg, hints) + t.Hint.Render(" ")
 	}
-	return statusText(cfg.Theme, msg, hints)
+	return statusText(t, msg, hints)
 }
 
 // barKeys says what differs between the status bars of the pages.
@@ -203,14 +198,24 @@ func splitList(height, n int, showBox bool) (list, box int) {
 }
 
 // box renders lines in a rounded box width columns wide and height lines
-// high, with title in the top border. Lines that do not fit are cut.
+// high, with title in the top border. Lines that do not fit are cut. The
+// boxes of files and commits use it; popups draw their borders through
+// popupFrame.
 func box(t *theme.Theme, width, height int, title string, lines []string) string {
 	border := t.Decoration
+	title = ansi.Truncate(title, max(width-4, 0), "")
+	return border.Render("╭─") + title + border.Render(strings.Repeat("─", max(width-3-ansi.StringWidth(title), 0))+"╮") + "\n" +
+		boxRows(t, width, height, lines) +
+		border.Render("╰"+strings.Repeat("─", max(width-2, 0))+"╯") + "\n"
+}
+
+// boxRows renders the rows between the borders of a box width columns wide
+// and height lines high: lines, cut with … where they do not fit, padded
+// with empty rows.
+func boxRows(t *theme.Theme, width, height int, lines []string) string {
+	border := t.Decoration
 	inner := max(width-4, 0) // border and a space on each side
-	title = ansi.Truncate(title, inner, "")
 	var b strings.Builder
-	b.WriteString(border.Render("╭─") + title +
-		border.Render(strings.Repeat("─", max(width-3-ansi.StringWidth(title), 0))+"╮") + "\n")
 	for i := range height - 2 {
 		line := ""
 		if i < len(lines) {
@@ -218,7 +223,6 @@ func box(t *theme.Theme, width, height int, title string, lines []string) string
 		}
 		b.WriteString(border.Render("│") + " " + pad(line, inner, lipgloss.NewStyle()) + " " + border.Render("│") + "\n")
 	}
-	b.WriteString(border.Render("╰"+strings.Repeat("─", max(width-2, 0))+"╯") + "\n")
 	return b.String()
 }
 
@@ -243,10 +247,11 @@ func (p *listPopup) moveIn(delta, n int) {
 	p.top = windowAround(p.cursor, p.top, popupHeight(n, p.height)-2, n).first
 }
 
-// draw draws the popup over base: the items all in a box, the selected one in
-// the cursor style, or empty as a hint when there are none. It is as wide as
-// the items and title need, up to the width of the screen.
-func (p *listPopup) draw(t *theme.Theme, base, title string, all []string, empty string) string {
+// draw draws the popup over base, in frame f: the items all in a box, the
+// selected one in the cursor style, or empty as a hint when there are none.
+// It is as wide as the items and the frame need, up to the width of the
+// screen.
+func (p *listPopup) draw(t *theme.Theme, base string, f popupFrame, all []string, empty string) string {
 	n := len(all)
 	height := popupHeight(n, p.height)
 	lines := windowAround(p.cursor, p.top, height-2, n).rows(t, n, func(i int) string {
@@ -255,41 +260,138 @@ func (p *listPopup) draw(t *theme.Theme, base, title string, all []string, empty
 		}
 		return all[i]
 	})
-	width := popupWidth(title, all, 0, p.width)
+	width := popupWidth(f, all, 0, p.width)
 	if n == 0 {
-		lines, width = []string{t.Hint.Render(empty)}, popupWidth(title, nil, emptyListWidth, p.width)
+		lines, width = []string{t.Hint.Render(empty)}, popupWidth(f, nil, emptyListWidth, p.width)
 	}
-	return popup{title, lines, width, height}.over(t, base, p.width)
+	return popup{f, lines, width, height}.over(t, base, p.width)
 }
 
-// popup is a box drawn over the screen: its title, its lines, and its width
-// and height, borders included. All popups are one, so that they look alike:
-// the name and the keys in the top border, the lines below it.
+// popup is a box drawn over the screen: its frame, its lines, and its width
+// and height, borders included. All popups are one, so that they look alike.
 type popup struct {
-	title string
+	frame popupFrame
 	lines []string
 	w, h  int
 }
 
-// popupWidth returns the width of a popup with title and lines: as wide as
-// they need, at least least columns inside, up to width. A line wider than
-// that is cut by box.
-func popupWidth(title string, lines []string, least, width int) int {
-	inner := max(least, ansi.StringWidth(title))
+// popupFrame is what a popup shows in its borders: name at the left of the
+// top border and hints (its keys, or where it stands) at the right end, at least a line between them;
+// msg (what went wrong or happens) at the right of the bottom border. What
+// does not fit is cut with …, the hints before the name. msg may name files
+// or quote git, so it is drawn printable.
+type popupFrame struct {
+	name, hints, msg string
+}
+
+// minDash is the least border line beside a text in a popup's border.
+const minDash = 1
+
+// topWidth returns the width of the top border's texts, " name " and
+// " hints ", with the least line between them; 0 without either.
+func (f popupFrame) topWidth() int {
+	w := 0
+	if f.name != "" {
+		w += ansi.StringWidth(f.name) + 2
+	}
+	if f.hints != "" {
+		w += ansi.StringWidth(f.hints) + 2
+	}
+	if f.name != "" && f.hints != "" {
+		w += minDash
+	}
+	return w
+}
+
+// textWidth returns the width the texts of both borders need inside the
+// least lines beside them.
+func (f popupFrame) textWidth() int {
+	if msg := printable(f.msg); msg != "" {
+		return max(f.topWidth(), ansi.StringWidth(msg)+2)
+	}
+	return f.topWidth()
+}
+
+// fitTop returns f with the hints, then the name, cut until the top border's
+// texts are at most room wide.
+func (f popupFrame) fitTop(room int) popupFrame {
+	if f.topWidth() <= room {
+		return f
+	}
+	if f.hints != "" {
+		hintsRoom := room - 2 // " hints "
+		if f.name != "" {
+			hintsRoom -= ansi.StringWidth(f.name) + 2 + minDash
+		}
+		if hintsRoom > 1 {
+			f.hints = ansi.Truncate(f.hints, hintsRoom, "…")
+			return f
+		}
+	}
+	f.name, f.hints = ansi.Truncate(f.name, max(room-2, 0), "…"), ""
+	return f
+}
+
+// borders returns the top and the bottom border of a popup width columns
+// wide, each ending in a line break.
+func (f popupFrame) borders(t *theme.Theme, width int) (top, bottom string) {
+	b := t.Decoration
+	line := max(width-2, 0) // between the corners
+	room := max(line-2*minDash, 0)
+	f = f.fitTop(room)
+	rest := max(room-f.topWidth(), 0)
+	top = b.Render("╭" + strings.Repeat("─", minDash))
+	if f.name != "" {
+		top += " " + t.CommitHash.Render(f.name) + " "
+	}
+	if f.hints == "" {
+		top += b.Render(strings.Repeat("─", rest+minDash)+"╮") + "\n"
+	} else {
+		gap := rest
+		if f.name != "" {
+			gap += minDash
+		}
+		if gap > 0 {
+			top += b.Render(strings.Repeat("─", gap))
+		}
+		top += " " + t.Hint.Render(f.hints) + " " + b.Render(strings.Repeat("─", minDash)+"╮") + "\n"
+	}
+	msg := printable(f.msg)
+	if ansi.StringWidth(msg)+2 > room {
+		msg = ansi.Truncate(msg, max(room-2, 0), "…")
+	}
+	if msg == "" {
+		return top, b.Render("╰"+strings.Repeat("─", line)+"╯") + "\n"
+	}
+	return top, b.Render("╰"+strings.Repeat("─", max(line-minDash-ansi.StringWidth(msg)-2, 0))) +
+		" " + t.PopupMessage.Render(msg) + " " + b.Render(strings.Repeat("─", minDash)+"╯") + "\n"
+}
+
+// popupWidth returns the width of a popup in frame f with lines: as wide as
+// they and the texts of its borders need, at least least columns inside, up
+// to width. A line wider than that is cut by boxRows.
+func popupWidth(f popupFrame, lines []string, least, width int) int {
+	inner := max(least, f.textWidth())
 	for _, l := range lines {
 		inner = max(inner, ansi.StringWidth(l))
 	}
 	return min(inner+4, width) // borders and a space on each side
 }
 
+// render returns p drawn: its borders and its lines between them.
+func (p popup) render(t *theme.Theme) string {
+	top, bottom := p.frame.borders(t, p.w)
+	return top + boxRows(t, p.w, p.h, p.lines) + bottom
+}
+
 // over draws p centered over base, which is width columns wide.
 func (p popup) over(t *theme.Theme, base string, width int) string {
-	return overlay(base, box(t, p.w, p.h, p.title, p.lines), p.w, width)
+	return overlay(base, p.render(t), p.w, width)
 }
 
 // at draws p over base, which is width columns wide, from column x of row y on.
 func (p popup) at(t *theme.Theme, base string, x, y, width int) string {
-	return overlayAt(base, box(t, p.w, p.h, p.title, p.lines), x, y, p.w, width)
+	return overlayAt(base, p.render(t), x, y, p.w, width)
 }
 
 // scrollWindow returns the first shown item of a window h items high over n
@@ -462,14 +564,14 @@ func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lip
 // minInputWidth is the least width of the line in the popups of inputPopup.
 const minInputWidth = 40
 
-// inputPopup returns the popup holding a line typed: title, text with the
-// cursor at its end, centered between empty lines with centered, and err
+// inputPopup returns the popup holding a line typed, in frame f: text with
+// the cursor at its end, centered between empty lines with centered, and err
 // below when set. It is at least minInputWidth wide and grows with them up
 // to width, beyond which the start of text is cut, so that its end stays
 // in view.
-func inputPopup(t *theme.Theme, width int, title, text, err string, centered bool) popup {
+func inputPopup(t *theme.Theme, width int, f popupFrame, text, err string, centered bool) popup {
 	text += "█"
-	w := popupWidth(title, []string{text, err}, minInputWidth, width)
+	w := popupWidth(f, []string{text, err}, minInputWidth, width)
 	if over := ansi.StringWidth(text) - (w - 4); over > 0 {
 		text = cutLeft(text, over)
 	}
@@ -480,7 +582,7 @@ func inputPopup(t *theme.Theme, width int, title, text, err string, centered boo
 	if err != "" {
 		lines = append(lines, t.Minus.Render(err))
 	}
-	return popup{title, lines, w, len(lines) + 2}
+	return popup{f, lines, w, len(lines) + 2}
 }
 
 // lineInput is a line of text being typed, with the cursor at its end.

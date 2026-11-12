@@ -625,8 +625,8 @@ func TestSettingsKeymapReset(t *testing.T) {
 	if cfg.Keys != keys.Builtin() || !strings.Contains(s.keymap.msg, "keybindings.toml is now keybindings.toml.bak") {
 		t.Errorf("D y: built-in keys %v, msg %q", cfg.Keys == keys.Builtin(), s.keymap.msg)
 	}
-	if v := ansi.Strip(s.frame()); strings.Contains(v, "*") {
-		t.Errorf("D y: a row still marked changed:\n%s", v)
+	if v := ansi.Strip(s.frame()); strings.Contains(v, "│  * ") || !strings.Contains(v, " keybindings.toml is now keybindings.toml.bak: the built-in keys apply ─╯") {
+		t.Errorf("D y: a row still marked changed, or no message in the bottom border:\n%s", v)
 	}
 	pressRoot(s, "D")
 	if s.keymap.reset || !strings.Contains(s.keymap.msg, "no keybindings.toml") {

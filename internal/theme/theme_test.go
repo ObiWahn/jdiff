@@ -291,6 +291,16 @@ func TestHeadingAndKeyStyles(t *testing.T) {
 	}
 }
 
+func TestPopupMessageStyle(t *testing.T) {
+	if st := Default().PopupMessage; st.GetForeground() != lipgloss.Color("1") || !st.GetBold() {
+		t.Errorf("popup message %v, bold %v; want red bold", st.GetForeground(), st.GetBold())
+	}
+	th := Resolve(FromGit(Config{"jdiff.popup-message-style": "magenta"}, nil))
+	if th.PopupMessage.GetForeground() != lipgloss.Color("5") || th.PopupMessage.GetBold() {
+		t.Errorf("jdiff.popup-message-style: %v, bold %v", th.PopupMessage.GetForeground(), th.PopupMessage.GetBold())
+	}
+}
+
 func TestSearchStyle(t *testing.T) {
 	if st := Default().Search; st.GetForeground() != lipgloss.Color("0") || st.GetBackground() != lipgloss.Color("3") {
 		t.Errorf("search matches %v on %v, want black on yellow", st.GetForeground(), st.GetBackground())

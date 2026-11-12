@@ -610,16 +610,15 @@ func (p *SettingsPopup) frame() string {
 	for i, o := range options {
 		all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, optionKey(o), o.what)
 	}
-	title := popupTitle(t, "settings", p.msg, "enter toggle · K keys · esc close")
-	view := p.draw(t, base, title, all, "")
+	view := p.draw(t, base, popupFrame{"settings", "enter toggle · K keys · esc close", p.msg}, all, "")
 	name := strings.ReplaceAll(p.options[p.cursor].action, "_", " ")
 	if p.hide.open {
 		items := make([]string, len(p.cfg.IgnoredHide))
 		for i, expr := range p.cfg.IgnoredHide {
 			items[i] = " " + printable(expr) + " "
 		}
-		title := popupTitle(t, "ignored_hide", p.hide.msg, "a add · enter edit · d delete · esc back")
-		view, name = p.hide.draw(t, view, title, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"
+		f := popupFrame{"ignored_hide", "a add · enter edit · d delete · esc back", p.hide.msg}
+		view, name = p.hide.draw(t, view, f, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"
 	}
 	if p.keymap.open {
 		view = p.keymapFrame(view)
@@ -627,17 +626,17 @@ func (p *SettingsPopup) frame() string {
 	if p.input == nil {
 		return view
 	}
-	return inputPopup(t, p.width, popupTitle(t, name, "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true).over(t, view, p.width)
+	return inputPopup(t, p.width, popupFrame{name: name, hints: "enter set · esc cancel"}, printable(p.input.text), p.inputErr, true).over(t, view, p.width)
 }
 
 // keymapFrame draws the list of the keys over view, and the keys pressed
 // while it takes them.
 func (p *SettingsPopup) keymapFrame(view string) string {
 	t := p.cfg.Theme
-	title := popupTitle(t, "keybindings", p.keymap.msg, "enter set · a add · d built-in · D all built-in · * changed · esc back")
-	view = p.keymap.draw(t, view, title, keymapItems(p.cfg.Keys, keyLines(p.cfg.Keys)), "")
+	f := popupFrame{"keybindings", "enter set · a add · d built-in · D all built-in · * changed · esc back", p.keymap.msg}
+	view = p.keymap.draw(t, view, f, keymapItems(p.cfg.Keys, keyLines(p.cfg.Keys)), "")
 	if p.keymap.reset {
-		return p.keymapAsk(view, popupTitle(t, "built-in keys", "", "y yes · n no"),
+		return p.keymapAsk(view, popupFrame{name: "built-in keys", hints: "y yes · n no"},
 			"move "+keys.FileName+" to "+keys.FileName+".bak and use the built-in keys?")
 	}
 	c := p.keymap.capture
@@ -648,15 +647,15 @@ func (p *SettingsPopup) keymapFrame(view string) string {
 	if c.want > 1 {
 		hint = fmt.Sprintf("press key %d of %d, in the order of the help · esc cancel", len(c.pressed)+1, c.want)
 	}
-	title = popupTitle(t, c.line.row.Action+" in "+c.line.page, "", hint)
-	return inputPopup(t, p.width, title, strings.Join(c.pressed, " "), "", true).over(t, view, p.width)
+	f = popupFrame{name: c.line.row.Action + " in " + c.line.page, hints: hint}
+	return inputPopup(t, p.width, f, strings.Join(c.pressed, " "), "", true).over(t, view, p.width)
 }
 
 // keymapAsk draws over view what the list of the keys asks for: line in a
-// popup as wide as it and title need, up to the screen.
-func (p *SettingsPopup) keymapAsk(view, title, line string) string {
+// popup in frame f, as wide as they need, up to the screen.
+func (p *SettingsPopup) keymapAsk(view string, f popupFrame, line string) string {
 	lines := []string{" " + line + " "}
-	return popup{title, lines, popupWidth(title, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
+	return popup{f, lines, popupWidth(f, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
 }
 
 // keymapItems returns the items of the list of the keys of km for lines: a *

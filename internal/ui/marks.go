@@ -185,6 +185,5 @@ func (p *MarksPopup) frame() string {
 	for i, mk := range marks {
 		all[i] = fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
 	}
-	title := popupTitle(t, "marks", p.msg, "enter jump · d delete · esc close")
-	return p.draw(t, base, title, all, "no marks: m and a letter sets one")
+	return p.draw(t, base, popupFrame{"marks", "enter jump · d delete · esc close", p.msg}, all, "no marks: m and a letter sets one")
 }

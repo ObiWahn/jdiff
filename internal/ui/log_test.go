@@ -1070,8 +1070,47 @@ func TestStatusBarOneColor(t *testing.T) {
 	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · s unified · d git diff · o settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
-	if got := popupTitle(l.cfg.Theme, "marks", "", "enter jump · esc close"); !strings.Contains(got, hint.Render("enter jump · esc close")) {
-		t.Errorf("popup title %q", got)
+	if got, _ := (popupFrame{"marks", "enter jump · esc close", ""}).borders(l.cfg.Theme, 60); !strings.Contains(got, hint.Render("enter jump · esc close")) {
+		t.Errorf("popup's top border %q", got)
+	}
+}
+
+// A popup's frame: the name at the left of the top border, the keys at its right end, a message at the right of the
+// bottom border in its own style; the message widens the popup up to the
+// screen; too narrow, the keys are cut before the name, the message with …,
+// and every row is as wide.
+func TestPopupFrame(t *testing.T) {
+	l, _ := newTestLog()
+	th := l.cfg.Theme
+	f := popupFrame{"marks", "enter jump · esc close", ""}
+	lines := []string{"m0", "m1"}
+	p := popup{f, lines, popupWidth(f, lines, 0, 80), 4}
+	want := "╭─ marks ─ enter jump · esc close ─╮\n│ m0                               │\n│ m1                               │\n╰──────────────────────────────────╯\n"
+	if got := ansi.Strip(p.render(th)); got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	f.msg = "x0 is set, x1\tnot"
+	p = popup{f, lines, popupWidth(f, lines, 0, 80), 4}
+	got := p.render(th)
+	if rows := strings.Split(ansi.Strip(got), "\n"); !strings.HasSuffix(rows[0], " enter jump · esc close ─╮") || !strings.HasSuffix(rows[3], " "+printable(f.msg)+" ─╯") {
+		t.Errorf("with a message:\n%s", ansi.Strip(got))
+	}
+	if !strings.Contains(got, th.PopupMessage.Render(printable(f.msg))) {
+		t.Errorf("the message is not in popup-message-style:\n%q", got)
+	}
+	f.msg = strings.Repeat("m", 50)
+	if w := popupWidth(f, lines, 0, 80); w != 56 { // the message, its spaces, a line on each side, the corners
+		t.Errorf("a message of 50: width %d, want 56", w)
+	}
+	p = popup{f, lines, popupWidth(f, lines, 0, 24), 4}
+	rows := strings.Split(strings.TrimSuffix(ansi.Strip(p.render(th)), "\n"), "\n")
+	for _, r := range rows {
+		if ansi.StringWidth(r) != 24 {
+			t.Errorf("row %q is %d wide, want 24", r, ansi.StringWidth(r))
+		}
+	}
+	if !strings.HasPrefix(rows[0], "╭─ marks ─ ") || !strings.Contains(rows[0], "…") || !strings.Contains(rows[3], "…") {
+		t.Errorf("narrow: want the name whole, the keys and the message cut:\n%s", strings.Join(rows, "\n"))
 	}
 }
 

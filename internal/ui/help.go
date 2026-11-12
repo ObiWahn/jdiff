@@ -183,11 +183,11 @@ func (h *Help) frame() string {
 	}
 	t := h.cfg.Theme
 	lines := windowAt(h.top, h.boxHeight()-2, len(h.rows)).rows(t, len(h.rows), func(i int) string { return h.rows[i] })
-	title := t.CommitHash.Render(" keys ")
+	f := popupFrame{name: "keys"}
 	if h.boxHeight()-2 < len(h.rows) {
-		title += t.Hint.Render(fmt.Sprintf(" %d/%d ", h.top+1, len(h.rows)))
+		f.hints = fmt.Sprintf("%d/%d", h.top+1, len(h.rows)) // where it stands
 	}
-	return popup{title, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
+	return popup{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }
 
 // overlay draws the popup pop, w columns wide, centered over base, which

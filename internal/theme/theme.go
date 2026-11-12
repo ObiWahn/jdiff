@@ -45,6 +45,7 @@ type Theme struct {
 	Heading                         lipgloss.Style // headings of lists and boxes, the active pane's title
 	InactiveHeading                 lipgloss.Style // the inactive pane's title, side by side
 	Key                             lipgloss.Style // the keys in the help
+	PopupMessage                    lipgloss.Style // a message in a popup's bottom border
 
 	AddedLabel, RemovedLabel, ModifiedLabel, RenamedLabel string
 
@@ -116,6 +117,7 @@ func Resolve(sp Spec) *Theme {
 	t.Heading = r.style("heading-style", sp.HeadingStyle, def.HeadingStyle)
 	t.InactiveHeading = r.style("inactive-heading-style", sp.InactiveHeadingStyle, def.InactiveHeadingStyle)
 	t.Key = r.style("key-style", sp.KeyStyle, def.KeyStyle)
+	t.PopupMessage = r.style("popup-message-style", sp.PopupMessageStyle, def.PopupMessageStyle)
 	return t
 }
 
