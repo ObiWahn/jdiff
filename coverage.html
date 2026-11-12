@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">jdiff/internal/config/config.go (95.5%)</option>
+				<option value="file0">jdiff/internal/config/config.go (95.6%)</option>
 				
 				<option value="file1">jdiff/internal/config/marks.go (97.2%)</option>
 				
@@ -67,7 +67,7 @@
 				
 				<option value="file5">jdiff/internal/diff/moved.go (100.0%)</option>
 				
-				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (93.7%)</option>
+				<option value="file6">jdiff/internal/gitsrc/gitsrc.go (92.0%)</option>
 				
 				<option value="file7">jdiff/internal/keys/keys.go (97.7%)</option>
 				
@@ -85,15 +85,15 @@
 				
 				<option value="file14">jdiff/internal/ui/app.go (90.4%)</option>
 				
-				<option value="file15">jdiff/internal/ui/autoreload.go (86.1%)</option>
+				<option value="file15">jdiff/internal/ui/autoreload.go (85.6%)</option>
 				
-				<option value="file16">jdiff/internal/ui/diff.go (96.0%)</option>
+				<option value="file16">jdiff/internal/ui/diff.go (96.4%)</option>
 				
 				<option value="file17">jdiff/internal/ui/filealign.go (95.7%)</option>
 				
 				<option value="file18">jdiff/internal/ui/filediff.go (88.8%)</option>
 				
-				<option value="file19">jdiff/internal/ui/flow.go (93.7%)</option>
+				<option value="file19">jdiff/internal/ui/flow.go (94.0%)</option>
 				
 				<option value="file20">jdiff/internal/ui/help.go (98.9%)</option>
 				
@@ -107,19 +107,19 @@
 				
 				<option value="file25">jdiff/internal/ui/moved.go (100.0%)</option>
 				
-				<option value="file26">jdiff/internal/ui/readme.go (96.8%)</option>
+				<option value="file26">jdiff/internal/ui/readme.go (97.3%)</option>
 				
 				<option value="file27">jdiff/internal/ui/search.go (98.0%)</option>
 				
-				<option value="file28">jdiff/internal/ui/settings.go (99.3%)</option>
+				<option value="file28">jdiff/internal/ui/settings.go (98.0%)</option>
 				
 				<option value="file29">jdiff/internal/ui/view.go (99.3%)</option>
 				
 				<option value="file30">jdiff/internal/ui/watch.go (89.7%)</option>
 				
-				<option value="file31">jdiff/internal/ui/widgets.go (98.2%)</option>
+				<option value="file31">jdiff/internal/ui/widgets.go (98.3%)</option>
 				
-				<option value="file32">jdiff/main.go (80.9%)</option>
+				<option value="file32">jdiff/main.go (81.3%)</option>
 				
 				<option value="file33">jdiff/watch/backend_linux.go (91.2%)</option>
 				
@@ -158,6 +158,8 @@ import (
         "regexp"
         "slices"
         "strings"
+        "sync"
+        "unicode"
 
         "github.com/BurntSushi/toml"
         "github.com/charmbracelet/x/ansi"
@@ -182,6 +184,9 @@ type Config struct {
         marks marksState // jump marks, see LoadMarks
 
         watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
+        ignoredHide []*regexp.Regexp // ignored_hide compiled, see IgnoredHidden
+        // IgnoredHide is ignored_hide as read, which SaveState writes.
+        IgnoredHide []string
 
         // AutoReload is whether what is shown is loaded again when the repository
         // changes, now; R toggles it. It ends by itself, see
@@ -192,13 +197,18 @@ type Config struct {
         // see SetFlags. A key switching one ends its flag, so that it is saved
         // again.
         Flags Flags
-        // savedUntracked is what SaveState writes for untracked while the flag
-        // is set: the value of the files.
-        savedUntracked bool
+        // saved is what SaveState writes for untracked, ignored and excluded
+        // while their flags are set: the values of the files.
+        saved settings.Toggles
 
         // Search is what / searched for, which . and , search again and the
         // views highlight; it is not saved.
         Search Search
+
+        // Version is the version of jdiff the pages show at the right end of
+        // their status bars, as --version prints it; "" shows none, as in the
+        // tests.
+        Version string
 }
 
 // Flags are what the command line turns on for the run only, without
@@ -207,6 +217,10 @@ type Flags struct {
         // Untracked (--untracked) shows the untracked files; SaveState keeps the
         // value of the files.
         Untracked bool
+        // Ignored (--ignored) and Excluded (--excluded) show the ignored files
+        // of .gitignore and of .git/info/exclude, with the untracked ones; as
+        // Untracked, SaveState keeps the values of the files.
+        Ignored, Excluded bool
         // AutoReload (--auto-reload) starts auto reload, which then does not end
         // after Settings.AutoReloadTimeout; Settings.AutoReload stays as saved.
         AutoReload bool
@@ -214,11 +228,11 @@ type Flags struct {
 
 // SetFlags turns on what f asks for, for the run only.
 func (c *Config) SetFlags(f Flags) {
-        <span class="cov8" title="1">c.Flags, c.savedUntracked = f, c.Settings.Untracked
-        if f.Untracked </span>{
-                <span class="cov8" title="1">c.Settings.Untracked = true
-</span>        }
-}
+        <span class="cov8" title="1">c.Flags, c.saved = f, c.Settings.Toggles
+        c.Settings.Untracked = c.Settings.Untracked || f.Untracked
+        c.Settings.Ignored = c.Settings.Ignored || f.Ignored
+        c.Settings.Excluded = c.Settings.Excluded || f.Excluded
+</span>}
 
 // Query is a search of /: plain text, or with Regex a regular expression.
 type Query struct {
@@ -242,9 +256,20 @@ func (s *Search) Add(q Query) {
 // Default returns the default theme and settings, without files.
 func Default() *Config {
         <span class="cov8" title="1">c := &amp;Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
-        c.compileWatchIgnore(DefaultWatchIgnore)
+        c.watchIgnore = c.compilePatterns("watch_ignore", DefaultWatchIgnore)
+        c.IgnoredHide, c.ignoredHide = slices.Clone(DefaultIgnoredHide), defaultIgnoredHide()
         return c
 </span>}
+
+// defaultIgnoredHide is DefaultIgnoredHide compiled, once: Default runs
+// often, in the tests for each view, and a compiled expression may be shared.
+var defaultIgnoredHide = sync.OnceValue(func() []*regexp.Regexp {
+        <span class="cov8" title="1">var res []*regexp.Regexp
+        for _, expr := range DefaultIgnoredHide </span>{
+                <span class="cov8" title="1">res = append(res, regexp.MustCompile(expr))
+</span>        }
+        <span class="cov8" title="1">return res</span>
+})
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
 // default ~/.config/jdiff, on all systems.
@@ -266,17 +291,38 @@ const (
         maxInterval = 86400
 )
 
-// mainFile is the content of main.toml. WatchIgnore is not one of the
-// settings, which views compare as a whole.
+// mainFile is the content of main.toml. WatchIgnore and IgnoredHide are not
+// among the settings, which views compare as a whole.
 type mainFile struct {
         settings.Settings
         Theme string `toml:"theme"`
+        // IgnoredHide (ignored_hide) are regular expressions of paths as those
+        // of WatchIgnore: an ignored or excluded file that one matches, or a
+        // directory above it, is not shown. As a toggle, state.toml keeps it,
+        // see stateFile. See IgnoredHidden.
+        IgnoredHide []string `toml:"ignored_hide"`
         // WatchIgnore (watch_ignore) are regular expressions of paths from the
         // top of the working tree, with / and directories with a / at the end:
         // while auto reload watches the working tree, a change of a file that
         // one matches does not run git status, and a directory that one matches
         // is not watched, nor those below it. See WatchIgnored.
         WatchIgnore []string `toml:"watch_ignore"`
+}
+
+// stateFile is the content of state.toml: the toggles and ignored_hide.
+// SaveState writes ignored_hide itself, one per line: the encoder would put
+// them on one.
+type stateFile struct {
+        settings.Toggles
+        IgnoredHide []string `toml:"ignored_hide"`
+}
+
+// DefaultIgnoredHide is ignored_hide by default: directories of tools, at
+// any depth, that hold many files nobody edits.
+var DefaultIgnoredHide = []string{
+        `(^|/)node_modules/$`, `(^|/)bower_components/$`, `(^|/)\.venv/$`, `(^|/)__pycache__/$`,
+        `(^|/)\.mypy_cache/$`, `(^|/)\.pytest_cache/$`, `(^|/)\.ruff_cache/$`, `(^|/)\.tox/$`, `(^|/)\.gradle/$`,
+        `(^|/)\.terraform/$`, `(^|/)\.next/$`, `(^|/)\.nuxt/$`, `(^|/)\.cache/$`, `(^|/)\.direnv/$`,
 }
 
 // DefaultWatchIgnore is watch_ignore by default: editors' files beside the
@@ -292,17 +338,17 @@ var DefaultWatchIgnore = []string{`\.sw[a-px]$`, `~$`, `(^|/)\.#`, `(^|/)#[^/]*#
 // files that cannot be parsed are an error, unless they are theme files not
 // selected. An empty dir reads no files.
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
-        <span class="cov8" title="1">c := &amp;Config{Keys: keys.Builtin(), Settings: settings.Default()}
+        <span class="cov8" title="1">c := &amp;Config{Keys: keys.Builtin(), Settings: settings.Default(), IgnoredHide: slices.Clone(DefaultIgnoredHide)}
         c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
         name, ignore := "", DefaultWatchIgnore
         if dir != "" </span>{
                 <span class="cov8" title="1">c.dir = dir
                 c.statePath = filepath.Join(dir, "state.toml")
-                m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore)}
+                m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore), IgnoredHide: c.IgnoredHide}
                 if err := c.decode(filepath.Join(dir, "main.toml"), &amp;m); err != nil </span>{
                         <span class="cov8" title="1">return nil, err
 </span>                }
-                <span class="cov8" title="1">c.Settings, ignore = m.Settings, m.WatchIgnore
+                <span class="cov8" title="1">c.Settings, ignore, c.IgnoredHide = m.Settings, m.WatchIgnore, m.IgnoredHide
                 c.checkIntervals()
 </span>                // Lines are cut and wrapped by columns: the symbols take one.
                 <span class="cov8" title="1">def := settings.Default()
@@ -321,10 +367,12 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 </span>                        }
                 }
                 // state.toml holds only the toggles.
-                <span class="cov8" title="1">if err := c.decode(c.statePath, &amp;c.Settings.Toggles); err != nil </span>{
+                <span class="cov8" title="1">st := stateFile{Toggles: c.Settings.Toggles, IgnoredHide: c.IgnoredHide}
+                if err := c.decode(c.statePath, &amp;st); err != nil </span>{
                         <span class="cov0" title="0">return nil, err
 </span>                }
-                // inotify_max_dirs is a toggle: it may come from main.toml or
+                <span class="cov8" title="1">c.Settings.Toggles, c.IgnoredHide = st.Toggles, st.IgnoredHide
+</span>                // inotify_max_dirs is a toggle: it may come from main.toml or
                 // state.toml, so the warning names neither.
                 <span class="cov8" title="1">if n := c.Settings.InotifyMaxDirs; n &lt; 0 </span>{
                         <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("inotify_max_dirs %d is negative, it is off", n))
@@ -340,8 +388,15 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 </span>                }
         }
         <span class="cov8" title="1">c.Theme = theme.Resolve(c.selectTheme(name, dir))
-        c.compileWatchIgnore(ignore)
-        return c, nil</span>
+        c.watchIgnore = c.compilePatterns("watch_ignore", ignore)
+</span>        // A toggle: from main.toml or state.toml, so the warning names main.toml
+        // for both, as for watch_ignore.
+        <span class="cov8" title="1">if slices.Equal(c.IgnoredHide, DefaultIgnoredHide) </span>{
+                <span class="cov8" title="1">c.ignoredHide = defaultIgnoredHide()
+</span>        } else {
+                <span class="cov8" title="1">c.ignoredHide = c.compilePatterns("ignored_hide", c.IgnoredHide)
+</span>        }
+        <span class="cov8" title="1">return c, nil</span>
 }
 
 // checkIntervals clamps watch_interval and auto_reload_interval of main.toml
@@ -367,18 +422,20 @@ func (c *Config) checkIntervals() {
 </span>        }
 }
 
-// compileWatchIgnore compiles exprs, watch_ignore, for WatchIgnored; one that
-// is no regular expression is left out with a warning.
-func (c *Config) compileWatchIgnore(exprs []string) {
-        <span class="cov8" title="1">c.watchIgnore = nil
+// compilePatterns compiles exprs, the list key of main.toml; one that is no
+// regular expression is left out with a warning, so that a typo never stops
+// jdiff.
+func (c *Config) compilePatterns(key string, exprs []string) []*regexp.Regexp {
+        <span class="cov8" title="1">var res []*regexp.Regexp
         for _, expr := range exprs </span>{
                 <span class="cov8" title="1">re, err := regexp.Compile(expr)
                 if err != nil </span>{
-                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_ignore %q is not a regular expression, left out: %v", expr, err))
+                        <span class="cov8" title="1">c.warnings = append(c.warnings, fmt.Sprintf("main.toml: %s %q is not a regular expression, left out: %v", key, expr, err))
                         continue</span>
                 }
-                <span class="cov8" title="1">c.watchIgnore = append(c.watchIgnore, re)</span>
+                <span class="cov8" title="1">res = append(res, re)</span>
         }
+        <span class="cov8" title="1">return res</span>
 }
 
 // WatchIgnored reports whether a pattern of watch_ignore matches rel, a path
@@ -386,6 +443,44 @@ func (c *Config) compileWatchIgnore(exprs []string) {
 // end.
 func (c *Config) WatchIgnored(rel string) bool {
         <span class="cov8" title="1">return slices.ContainsFunc(c.watchIgnore, func(re *regexp.Regexp) bool </span>{ <span class="cov8" title="1">return re.MatchString(rel) }</span>)
+}
+
+// IgnoredHidden reports whether a pattern of ignored_hide matches rel, a
+// path as for WatchIgnored. SetIgnoredHide changes them: git commands in the
+// background take IgnoredHider instead.
+func (c *Config) IgnoredHidden(rel string) bool { <span class="cov8" title="1">return c.IgnoredHider()(rel) }</span>
+
+// IgnoredHider returns IgnoredHidden of the patterns of now, which
+// SetIgnoredHide leaves as they are: it replaces them, so that git commands
+// in the background may go on with these.
+func (c *Config) IgnoredHider() func(rel string) bool {
+        <span class="cov8" title="1">res := c.ignoredHide
+        return func(rel string) bool </span>{
+                <span class="cov8" title="1">return slices.ContainsFunc(res, func(re *regexp.Regexp) bool </span>{ <span class="cov8" title="1">return re.MatchString(rel) }</span>)
+        }
+}
+
+// CheckPattern returns why expr cannot be a pattern of ignored_hide, as it
+// is no regular expression, or nil.
+func CheckPattern(expr string) error {
+        <span class="cov8" title="1">_, err := regexp.Compile(expr)
+        return err
+</span>}
+
+// SetIgnoredHide makes list ignored_hide, as the settings popup edits it,
+// unless one of them is no regular expression: then nothing changes. It
+// does not save it, see SaveState.
+func (c *Config) SetIgnoredHide(list []string) error {
+        <span class="cov8" title="1">var res []*regexp.Regexp
+        for _, expr := range list </span>{
+                <span class="cov8" title="1">re, err := regexp.Compile(expr)
+                if err != nil </span>{
+                        <span class="cov8" title="1">return fmt.Errorf("%q: %w", expr, err)
+</span>                }
+                <span class="cov8" title="1">res = append(res, re)</span>
+        }
+        <span class="cov8" title="1">c.IgnoredHide, c.ignoredHide = slices.Clone(list), res
+        return nil</span>
 }
 
 // readThemes adds the theme files in dir to the themes. A file that cannot
@@ -473,22 +568,57 @@ func (c *Config) SaveState() error {
 </span>        }
         <span class="cov8" title="1">t := c.Settings.Toggles
         if c.Flags.Untracked </span>{
-                <span class="cov8" title="1">t.Untracked = c.savedUntracked
+                <span class="cov8" title="1">t.Untracked = c.saved.Untracked
 </span>        }
-        <span class="cov8" title="1">return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t)</span>
+        <span class="cov8" title="1">if c.Flags.Ignored </span>{
+                <span class="cov8" title="1">t.Ignored = c.saved.Ignored
+</span>        }
+        <span class="cov8" title="1">if c.Flags.Excluded </span>{
+                <span class="cov8" title="1">t.Excluded = c.saved.Excluded
+</span>        }
+        <span class="cov8" title="1">tail, err := tomlList("ignored_hide", c.IgnoredHide)
+        if err != nil </span>{
+                <span class="cov0" title="0">return err
+</span>        }
+        <span class="cov8" title="1">return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t, tail)</span>
 }
 
-// writeTOML writes header and v as TOML to path, through a temporary file
-// so that the file is never left half written. Each write has a temporary
+// tomlList returns key = list as TOML, one string per line, to be read and
+// edited by hand: literal strings where they can be, as regular expressions
+// need no doubled backslashes there; others as the encoder quotes them.
+func tomlList(key string, list []string) (string, error) {
+        <span class="cov8" title="1">if len(list) == 0 </span>{
+                <span class="cov8" title="1">return key + " = []\n", nil
+</span>        }
+        <span class="cov8" title="1">var b strings.Builder
+        b.WriteString(key + " = [\n")
+        for _, s := range list </span>{
+                <span class="cov8" title="1">if !strings.ContainsAny(s, "'\n\r") &amp;&amp; !strings.ContainsFunc(s, unicode.IsControl) </span>{
+                        <span class="cov8" title="1">b.WriteString("    '" + s + "',\n")
+                        continue</span>
+                }
+                <span class="cov8" title="1">v, err := toml.Marshal(map[string]string{"v": s})
+                if err != nil </span>{
+                        <span class="cov0" title="0">return "", err
+</span>                }
+                <span class="cov8" title="1">b.WriteString("    " + strings.TrimSuffix(strings.TrimPrefix(string(v), "v = "), "\n") + ",\n")</span>
+        }
+        <span class="cov8" title="1">b.WriteString("]\n")
+        return b.String(), nil</span>
+}
+
+// writeTOML writes header, v as TOML and tail to path, through a temporary
+// file so that the file is never left half written. Each write has a temporary
 // file of its own: jdiffs running at the same time must not rename each
 // other's.
-func writeTOML(path, header string, v any) error {
+func writeTOML(path, header string, v any, tail string) error {
         <span class="cov8" title="1">var b bytes.Buffer
         b.WriteString(header)
         if err := toml.NewEncoder(&amp;b).Encode(v); err != nil </span>{
                 <span class="cov0" title="0">return err
 </span>        }
-        <span class="cov8" title="1">if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil </span>{
+        <span class="cov8" title="1">b.WriteString(tail)
+        if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil </span>{
                 <span class="cov0" title="0">return err
 </span>        }
         <span class="cov8" title="1">tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
@@ -631,7 +761,7 @@ func (c *Config) saveMarks() error {
         <span class="cov8" title="1">if c.marks.path == "" </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">return writeTOML(c.marks.path, "# Written by jdiff: jump marks per repository.\n", c.marks.all)</span>
+        <span class="cov8" title="1">return writeTOML(c.marks.path, "# Written by jdiff: jump marks per repository.\n", c.marks.all, "")</span>
 }
 </pre>
 		
@@ -1348,6 +1478,7 @@ import (
         "fmt"
         "io"
         "io/fs"
+        "maps"
         "os"
         "os/exec"
         "path"
@@ -1631,8 +1762,9 @@ var vcsDirs = []string{".git", ".svn", ".hg", ".bzr", "CVS", "_darcs", ".jj", ".
 // repository count as entries of the directory they are in, which is not
 // entered. Left out are the directories of vcsDirs, and those for which
 // ignore holds of their path from the top with / and a / at the end, with
-// the directories below them.
-func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, error) {
+// the directories below them. With the ignored or excluded files of extra,
+// the directories of those it does not hide count too.
+func (r Repo) WorkDirs(ignore func(rel string) bool, extra Extra) (map[string]time.Time, error) {
         <span class="cov8" title="1">top, err := r.TopLevel()
         if err != nil </span>{
                 <span class="cov8" title="1">return nil, err
@@ -1656,7 +1788,15 @@ func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, erro
                 left[rel] = l
                 return l</span>
         }
-        <span class="cov8" title="1">for _, rel := range strings.Split(string(out), "\x00") </span>{
+        <span class="cov8" title="1">rels := strings.Split(string(out), "\x00")
+        if extra.Ignored || extra.Excluded </span>{
+                <span class="cov8" title="1">added, err := Repo{Dir: top, ctx: r.ctx}.extraFiles(Extra{Ignored: extra.Ignored, Excluded: extra.Excluded, Hide: extra.Hide})
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+                <span class="cov8" title="1">rels = slices.AppendSeq(rels, maps.Keys(added))</span>
+        }
+        <span class="cov8" title="1">for _, rel := range rels </span>{
                 // A nested repository comes as its directory with a /.
                 <span class="cov8" title="1">rel = strings.TrimSuffix(rel, "/")
                 if rel == "" || leftOut(path.Dir(rel)) </span>{
@@ -1673,11 +1813,40 @@ func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, erro
 }
 
 // Status returns the state of the repository: the commit of HEAD, the branch,
-// staged, changed and untracked files. It does not write the index.
-func (r Repo) Status() (string, error) {
-        <span class="cov8" title="1">out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, "status", "--porcelain=v2", "--branch", "--untracked-files=all")
-        return string(out), err
-</span>}
+// staged, changed and untracked files, and with the ignored or excluded
+// files of extra the ignored ones too, but those extra.Hide hides. It does
+// not write the index.
+func (r Repo) Status(extra Extra) (string, error) {
+        <span class="cov8" title="1">args := []string{"status", "--porcelain=v2", "--branch", "--untracked-files=all"}
+        if !extra.Ignored &amp;&amp; !extra.Excluded </span>{
+                <span class="cov8" title="1">out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, args...)
+                return string(out), err
+</span>        }
+        <span class="cov8" title="1">out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, append(args, "--ignored")...)
+        if err != nil </span>{
+                <span class="cov0" title="0">return "", err
+</span>        }
+        // The paths of git status are relative to where it ran.
+        <span class="cov8" title="1">top, err := r.TopLevel()
+        if err != nil </span>{
+                <span class="cov0" title="0">return "", err
+</span>        }
+        <span class="cov8" title="1">dir, err := filepath.Abs(r.Dir)
+        if err != nil </span>{
+                <span class="cov0" title="0">return "", err
+</span>        }
+        <span class="cov8" title="1">hidden := hiddenPaths(extra.Hide)
+        var b strings.Builder
+        for _, line := range strings.SplitAfter(string(out), "\n") </span>{
+                <span class="cov8" title="1">if p, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), "! "); ok </span>{
+                        <span class="cov8" title="1">if rel, err := filepath.Rel(top, filepath.Join(dir, filepath.FromSlash(p))); err == nil &amp;&amp; hidden(filepath.ToSlash(rel)) </span>{
+                                <span class="cov8" title="1">continue</span>
+                        }
+                }
+                <span class="cov8" title="1">b.WriteString(line)</span>
+        }
+        <span class="cov8" title="1">return b.String(), nil</span>
+}
 
 // StatusPaths returns the paths of the files that the lines of status, from
 // Status, name and those of old do not: changed, renamed (the new path),
@@ -1789,24 +1958,39 @@ func (r Repo) IsRevision(arg string) bool {
 // files are left out.
 func (r Repo) Diff(args []string) ([]source.File, error) { <span class="cov8" title="1">return r.diff(nil, args) }</span>
 
-// DiffUntracked returns what Diff does, and the untracked files as added
-// where git diff compares with the working tree. They are marked with git add
-// -N in a copy of the index, which is gone on return: the real one stays as
-// it is. Directories, as nested repositories, and files that cannot be read,
-// as broken symlinks, are left out.
-func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
+// Extra are the files DiffUntracked adds to what git diff compares: the
+// untracked files that nothing ignores, and of the ignored ones those that
+// the .gitignore files of the working tree ignore and those that
+// .git/info/exclude does; the global excludes file is left out. Hide leaves
+// ignored and excluded files out by their path from the top with /, and so
+// does it of a directory above them, with a / at the end; nil hides none. It
+// is called in the background.
+type Extra struct {
+        Untracked, Ignored, Excluded bool
+        Hide                         func(rel string) bool
+}
+
+// DiffUntracked returns what Diff does, and the files of extra as added
+// where git diff compares with the working tree, each with what it was
+// added as; a file that both a .gitignore file and .git/info/exclude ignore
+// counts as ignored. They are marked with git add -N in a copy of the index,
+// which is gone on return: the real one stays as it is. Directories, as
+// nested repositories, and files that cannot be read, as broken symlinks,
+// are left out.
+func (r Repo) DiffUntracked(args []string, extra Extra) ([]source.File, error) {
         <span class="cov8" title="1">top, err := r.TopLevel()
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
-        <span class="cov8" title="1">paths, err := Repo{Dir: top, ctx: r.ctx}.untracked()
+        <span class="cov8" title="1">added, err := Repo{Dir: top, ctx: r.ctx}.extraFiles(extra)
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
-        <span class="cov8" title="1">if len(paths) == 0 </span>{
+        <span class="cov8" title="1">if len(added) == 0 </span>{
                 <span class="cov8" title="1">return r.Diff(args)
 </span>        }
-        <span class="cov8" title="1">dir, err := os.MkdirTemp("", "jdiff-")
+        <span class="cov8" title="1">paths := slices.Sorted(maps.Keys(added))
+        dir, err := os.MkdirTemp("", "jdiff-")
         if err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
@@ -1816,29 +2000,85 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
                 <span class="cov0" title="0">return nil, err
 </span>        }
         <span class="cov8" title="1">env := []string{"GIT_INDEX_FILE=" + index}
-</span>        // One file may be named like a pathspec, say with a * in it.
+</span>        // One file may be named like a pathspec, say with a * in it. -f adds
+        // the ignored ones too.
         <span class="cov8" title="1">list := []byte(strings.Join(paths, "\x00"))
         if _, err := (Repo{Dir: top, ctx: r.ctx}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
-                "add", "-N", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil </span>{
+                "add", "-N", "-f", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil </span>{
                 <span class="cov0" title="0">return nil, err
 </span>        }
-        <span class="cov8" title="1">return r.diff(env, args)</span>
+        <span class="cov8" title="1">files, err := r.diff(env, args)
+        for i := range files </span>{
+                <span class="cov8" title="1">files[i].Added = added[files[i].Path]
+</span>        }
+        <span class="cov8" title="1">return files, err</span>
 }
 
-// untracked returns the paths of the untracked files that are not ignored,
-// relative to r.Dir, which must be the top of the working tree.
-func (r Repo) untracked() ([]string, error) {
-        <span class="cov8" title="1">out, err := r.git("ls-files", "--others", "--exclude-standard", "-z")
-        if err != nil </span>{
-                <span class="cov0" title="0">return nil, err
-</span>        }
-        <span class="cov8" title="1">var paths []string
-        for _, p := range strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00") </span>{
-                <span class="cov8" title="1">if p != "" &amp;&amp; readableFile(filepath.Join(r.Dir, filepath.FromSlash(p))) </span>{
-                        <span class="cov8" title="1">paths = append(paths, p)
+// extraFiles returns the files of e by their paths from r.Dir, which must be
+// the top of the working tree, with what each is added as.
+func (r Repo) extraFiles(e Extra) (map[string]source.Added, error) {
+        <span class="cov8" title="1">added := map[string]source.Added{}
+        hidden := hiddenPaths(e.Hide)
+        list := func(kind source.Added, args ...string) error </span>{
+                <span class="cov8" title="1">out, err := r.git(append([]string{"ls-files", "--others", "-z"}, args...)...)
+                if err != nil </span>{
+                        <span class="cov0" title="0">return err
+</span>                }
+                <span class="cov8" title="1">for _, p := range strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00") </span>{
+                        <span class="cov8" title="1">if p == "" || added[p] != source.NotAdded || (kind != source.AddedUntracked &amp;&amp; hidden(p)) ||
+                                !readableFile(filepath.Join(r.Dir, filepath.FromSlash(p))) </span>{
+                                <span class="cov8" title="1">continue</span>
+                        }
+                        <span class="cov8" title="1">added[p] = kind</span>
+                }
+                <span class="cov8" title="1">return nil</span>
+        }
+        <span class="cov8" title="1">if e.Untracked </span>{
+                <span class="cov8" title="1">if err := list(source.AddedUntracked, "--exclude-standard"); err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
 </span>                }
         }
-        <span class="cov8" title="1">return paths, nil</span>
+        <span class="cov8" title="1">if e.Ignored </span>{
+                <span class="cov8" title="1">if err := list(source.AddedIgnored, "--ignored", "--exclude-per-directory=.gitignore"); err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+        }
+        <span class="cov8" title="1">if e.Excluded </span>{
+                <span class="cov8" title="1">paths, err := r.gitPaths("info/exclude")
+                if err != nil </span>{
+                        <span class="cov0" title="0">return nil, err
+</span>                }
+                // Without the file nothing is excluded; git would fail on it.
+                <span class="cov8" title="1">if info, err := os.Stat(paths[0]); err == nil &amp;&amp; info.Mode().IsRegular() </span>{
+                        <span class="cov8" title="1">if err := list(source.AddedExcluded, "--ignored", "--exclude-from="+paths[0]); err != nil </span>{
+                                <span class="cov0" title="0">return nil, err
+</span>                        }
+                }
+        }
+        <span class="cov8" title="1">return added, nil</span>
+}
+
+// hiddenPaths returns whether hide holds of a path from the top with /, or
+// of a directory above it with a / at the end; nil hides nothing. The
+// directories are looked up once each.
+func hiddenPaths(hide func(rel string) bool) func(rel string) bool {
+        <span class="cov8" title="1">if hide == nil </span>{
+                <span class="cov8" title="1">return func(string) bool </span>{ <span class="cov8" title="1">return false }</span>
+        }
+        <span class="cov8" title="1">dirs := map[string]bool{}
+        var dirHidden func(dir string) bool
+        dirHidden = func(dir string) bool </span>{
+                <span class="cov8" title="1">if dir == "." </span>{
+                        <span class="cov8" title="1">return false
+</span>                }
+                <span class="cov8" title="1">if h, ok := dirs[dir]; ok </span>{
+                        <span class="cov0" title="0">return h
+</span>                }
+                <span class="cov8" title="1">h := hide(dir+"/") || dirHidden(path.Dir(dir))
+                dirs[dir] = h
+                return h</span>
+        }
+        <span class="cov8" title="1">return func(rel string) bool </span>{ <span class="cov8" title="1">return hide(rel) || dirHidden(path.Dir(rel)) }</span>
 }
 
 // readableFile reports whether path is, or links to, a regular file that can
@@ -1857,7 +2097,12 @@ func readableFile(path string) bool {
 }
 
 // copyIndex copies the index into dir and returns the path of the copy. A
-// repository without an index yet leaves nothing to copy.
+// repository without an index yet leaves nothing to copy. The copy keeps the
+// time the index was modified: git compares the content of the files changed
+// in the same second as the index was written, as their times and sizes may
+// match, and a later time of the copy would hide such changes. The time is
+// taken before the content, so that a write in between leaves it older,
+// which only makes git compare more.
 func (r Repo) copyIndex(dir string) (string, error) {
         <span class="cov8" title="1">paths, err := r.gitPaths("index")
         if err != nil </span>{
@@ -1865,14 +2110,21 @@ func (r Repo) copyIndex(dir string) (string, error) {
 </span>        }
         <span class="cov8" title="1">from := paths[0]
         to := filepath.Join(dir, "index")
-        data, err := os.ReadFile(from)
+        info, err := os.Stat(from)
         if errors.Is(err, fs.ErrNotExist) </span>{
                 <span class="cov8" title="1">return to, nil
 </span>        }
         <span class="cov8" title="1">if err != nil </span>{
                 <span class="cov0" title="0">return "", err
 </span>        }
-        <span class="cov8" title="1">return to, os.WriteFile(to, data, 0o600)</span>
+        <span class="cov8" title="1">data, err := os.ReadFile(from)
+        if err != nil </span>{
+                <span class="cov0" title="0">return "", err
+</span>        }
+        <span class="cov8" title="1">if err := os.WriteFile(to, data, 0o600); err != nil </span>{
+                <span class="cov0" title="0">return "", err
+</span>        }
+        <span class="cov8" title="1">return to, os.Chtimes(to, info.ModTime(), info.ModTime())</span>
 }
 
 // diff is Diff with env added to the environment of git diff.
@@ -2572,6 +2824,12 @@ type Toggles struct {
         // as added, where it compares with the working tree; action untracked.
         // --untracked turns it on for the run only, see config.Flags.
         Untracked bool `toml:"untracked"`
+        // Ignored (ignored) also shows, with the untracked files, those that
+        // the .gitignore files of the working tree ignore; Excluded (excluded)
+        // those that .git/info/exclude does; actions ignored and excluded.
+        // --ignored and --excluded turn them on for the run only.
+        Ignored  bool `toml:"ignored"`
+        Excluded bool `toml:"excluded"`
         // AutoReload (auto_reload) starts with auto reload on, see
         // config.Config.AutoReload; action auto_reload sets it. Its end after
         // AutoReloadTimeout leaves it on; --auto-reload does not set it, see
@@ -2647,7 +2905,20 @@ type File struct {
         // files from git; OldStamp and NewStamp identify the versions read.
         OldFile, NewFile   string
         OldStamp, NewStamp Stamp
+        // Added is what git diff was given the file as, besides what it
+        // compares by itself; NotAdded for all others.
+        Added Added
 }
+
+// Added is what an untracked file was added to git diff as.
+type Added uint8
+
+const (
+        NotAdded Added = iota
+        AddedUntracked
+        AddedIgnored  // ignored by a .gitignore file
+        AddedExcluded // ignored by .git/info/exclude
+)
 
 // Stamp identifies a version of a file on disk.
 type Stamp struct {
@@ -2927,6 +3198,8 @@ type Spec struct {
         BranchStyle             *string `toml:"branch-style" git:"jdiff"`
         FillerStyle             *string `toml:"filler-style" git:"jdiff"`              // unset: file-decoration-style's color
         WhitespaceStyle         *string `toml:"whitespace-style" git:"jdiff"`          // unset: file-decoration-style's color
+        AddedFileStyle          *string `toml:"added-file-style" git:"jdiff"`          // U I X of untracked, ignored, excluded files; unset: filler-style
+        VersionStyle            *string `toml:"version-style" git:"jdiff"`             // jdiff's version in the status bars; unset: added-file-style
         TrailingWhitespaceStyle *string `toml:"trailing-whitespace-style" git:"jdiff"` // shown by t
         HiddenCharStyle         *string `toml:"hidden-char-style" git:"jdiff"`         // ☠ for invisible characters
         OverflowStyle           *string `toml:"overflow-style" git:"jdiff"`            // « » at the edges of cut lines
@@ -3205,6 +3478,8 @@ type Theme struct {
 
         Anchor, Pending, Cursor, Filler lipgloss.Style
         Whitespace                      lipgloss.Style // unchanged whitespace when shown
+        AddedFile                       lipgloss.Style // U I X: untracked, ignored, excluded files in the file list
+        Version                         lipgloss.Style // jdiff's version at the right end of the status bars
         TrailingWhitespace              lipgloss.Style // whitespace at the end of lines when shown
         HiddenChar                      lipgloss.Style // ☠ for invisible and direction changing characters
         Overflow                        lipgloss.Style // « and » at the edges of cut lines
@@ -3273,6 +3548,8 @@ func Resolve(sp Spec) *Theme {
         t.PlusMoved = r.style("plus-moved-style", sp.PlusMovedStyle, def.PlusMovedStyle)
         t.Filler = r.styleOrStyle("filler-style", sp.FillerStyle, t.Decoration)
         t.Whitespace = r.styleOrStyle("whitespace-style", sp.WhitespaceStyle, t.Decoration)
+        t.AddedFile = r.styleOrStyle("added-file-style", sp.AddedFileStyle, t.Filler)
+        t.Version = r.styleOrStyle("version-style", sp.VersionStyle, t.AddedFile)
         t.TrailingWhitespace = r.style("trailing-whitespace-style", sp.TrailingWhitespaceStyle, def.TrailingWhitespaceStyle)
         t.HiddenChar = r.style("hidden-char-style", sp.HiddenCharStyle, def.HiddenCharStyle)
         t.Overflow = r.style("overflow-style", sp.OverflowStyle, def.OverflowStyle)
@@ -3377,6 +3654,7 @@ import (
         tea "charm.land/bubbletea/v2"
 
         "jdiff/internal/config"
+        "jdiff/internal/gitsrc"
         "jdiff/internal/source"
         "jdiff/watch"
 )
@@ -3442,8 +3720,8 @@ func (s *App) WithRevisions(isRev func(ctx context.Context, arg string) bool) *A
 // WithAutoReload sets how auto reload gets the state of the repository, the
 // files to watch for changes of it and the directories of its working tree,
 // and returns s.
-func (s *App) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error),
-        dirs func(ignore func(rel string) bool) (map[string]time.Time, error)) *App {
+func (s *App) WithAutoReload(status func(ctx context.Context, extra gitsrc.Extra) (string, error), paths func() ([]string, error),
+        dirs func(ignore func(rel string) bool, extra gitsrc.Extra) (map[string]time.Time, error)) *App {
         <span class="cov8" title="1">s.auto.repoStatus, s.auto.repoPaths, s.auto.workDirs = status, paths, dirs
         return s
 </span>}
@@ -3666,9 +3944,9 @@ func (s *App) show(args []string) tea.Cmd {
         s.popup.running = true
         ctx, cancel := context.WithCancel(context.Background())
         s.popup.cancel = cancel
-        gen, untracked, gitDiff, isRev := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run, s.popup.isRev
+        gen, extra, gitDiff, isRev := s.popup.gen, DiffExtra(s.cfg), s.popup.run, s.popup.isRev
         return func() tea.Msg </span>{
-                <span class="cov8" title="1">files, err := gitDiff(ctx, args, untracked)
+                <span class="cov8" title="1">files, err := gitDiff(ctx, args, extra)
                 var rev func(string) bool
                 if isRev != nil </span>{
                         <span class="cov0" title="0">rev = func(arg string) bool </span>{ <span class="cov0" title="0">return isRev(ctx, arg) }</span>
@@ -3760,9 +4038,9 @@ import (
 // run of auto reload from earlier ones; ctx ends its git commands, cancel
 // ends ctx.
 type autoReload struct {
-        repoStatus  func(ctx context.Context) (string, error)
+        repoStatus  func(ctx context.Context, extra gitsrc.Extra) (string, error)
         repoPaths   func() ([]string, error)
-        workDirs    func(ignore func(rel string) bool) (map[string]time.Time, error)
+        workDirs    func(ignore func(rel string) bool, extra gitsrc.Extra) (map[string]time.Time, error)
         gitMode     bool
         tick        int
         pins        []string
@@ -3809,7 +4087,7 @@ func (s *App) toggleAutoReload() tea.Cmd {
                         <span class="cov8" title="1">return showAutoReloadError(errors.New("auto_reload_interval is 0"))
 </span>                }
                 <span class="cov8" title="1">ctx, cancel := context.WithCancel(context.Background())
-                status, err := s.auto.repoStatus(ctx)
+                status, err := s.auto.repoStatus(ctx, s.shownExtra())
                 if err != nil </span>{
                         <span class="cov8" title="1">cancel()
                         return showAutoReloadError(err)
@@ -3837,6 +4115,15 @@ func (s *App) switchAutoReload() tea.Cmd {
                 <span class="cov0" title="0">cmd = batch(cmd, func() tea.Msg </span>{ <span class="cov0" title="0">return showMsg(w) }</span>)
         }
         <span class="cov8" title="1">return cmd</span>
+}
+
+// shownExtra returns the files the view's git diff adds, which auto reload
+// watches too: none but in the file list of git diff.
+func (s *App) shownExtra() gitsrc.Extra {
+        <span class="cov8" title="1">if _, diff := s.current(); diff </span>{
+                <span class="cov8" title="1">return DiffExtra(s.cfg)
+</span>        }
+        <span class="cov0" title="0">return gitsrc.Extra{}</span>
 }
 
 // gitView reports whether the view shows git diff or git log, which auto
@@ -3879,9 +4166,9 @@ func (s *App) autoTick() tea.Cmd {
 // checkStatus returns the command running git status.
 func (s *App) checkStatus() tea.Cmd {
         <span class="cov8" title="1">s.auto.statusRuns++
-        gen, status, ctx := s.auto.gen, s.auto.repoStatus, s.auto.ctx
+        gen, status, ctx, extra := s.auto.gen, s.auto.repoStatus, s.auto.ctx, s.shownExtra()
         return func() tea.Msg </span>{
-                <span class="cov8" title="1">st, err := status(ctx)
+                <span class="cov8" title="1">st, err := status(ctx, extra)
                 return autoStatusMsg{gen, st, err}
 </span>        }
 }
@@ -4002,7 +4289,7 @@ func (s *App) watchRepo() tea.Cmd {
         <span class="cov8" title="1">if s.w == nil || s.auto.repoPaths == nil || !s.auto.gitMode </span>{
                 <span class="cov8" title="1">return nil
 </span>        }
-        <span class="cov8" title="1">gen, paths, workDirs, ignored := s.auto.gen, s.auto.repoPaths, s.auto.workDirs, s.cfg.WatchIgnored
+        <span class="cov8" title="1">gen, paths, workDirs, ignored, extra := s.auto.gen, s.auto.repoPaths, s.auto.workDirs, s.cfg.WatchIgnored, s.shownExtra()
 </span>        // Without directories to watch, the working tree is not looked at.
         <span class="cov8" title="1">scan := workDirs != nil &amp;&amp; s.cfg.Settings.InotifyMaxDirs &gt; 0
         return func() tea.Msg </span>{
@@ -4012,7 +4299,7 @@ func (s *App) watchRepo() tea.Cmd {
 </span>                }
                 <span class="cov8" title="1">var dirs map[string]time.Time
                 if scan </span>{
-                        <span class="cov8" title="1">if dirs, err = workDirs(ignored); err != nil </span>{
+                        <span class="cov8" title="1">if dirs, err = workDirs(ignored, extra); err != nil </span>{
                                 <span class="cov0" title="0">return nil
 </span>                        }
                 }
@@ -4083,6 +4370,20 @@ func (e *fileEntry) label(th *theme.Theme) string {
         <span class="cov8" title="1">return th.ModifiedLabel</span>
 }
 
+// addedTag returns the letter of what a file was added to git diff as: U
+// untracked, I ignored, X excluded; "" for the others.
+func addedTag(a source.Added) string {
+        <span class="cov8" title="1">switch a </span>{
+        case source.AddedUntracked:
+                <span class="cov8" title="1">return "U"</span>
+        case source.AddedIgnored:
+                <span class="cov8" title="1">return "I"</span>
+        case source.AddedExcluded:
+                <span class="cov8" title="1">return "X"</span>
+        }
+        <span class="cov8" title="1">return ""</span>
+}
+
 // name returns the path shown for the file, "old → new" for renames,
 // printable: paths may hold control characters.
 func (e *fileEntry) name() string {
@@ -4120,7 +4421,7 @@ func (e *fileEntry) update(f source.File, after func(*fileAlign)) (dropped int, 
         if e.Binary </span>{
                 <span class="cov8" title="1">return 0, false
 </span>        }
-        <span class="cov8" title="1">e.align.names = e.paneNames()
+        <span class="cov8" title="1">e.align.names, e.align.tag = e.paneNames(), addedTag(e.Added)
         for s, lines := range [2][]string{f.Old, f.New} </span>{
                 <span class="cov8" title="1">if slices.Equal(was[s], lines) </span>{
                         <span class="cov8" title="1">continue</span>
@@ -4201,11 +4502,19 @@ func NewDiff(cfg *config.Config, files []source.File) *Diff { <span class="cov8"
 // and ends when ctx is done.
 type ListFunc func(ctx context.Context) ([]source.File, error)
 
-// DiffFunc returns the files git diff compares with args, with the
-// untracked files as added when untracked is set. It runs in the background:
-// it must not read the settings, which the keys change meanwhile; it ends
-// when ctx is done.
-type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source.File, error)
+// DiffFunc returns the files git diff compares with args, with the files of
+// extra as added. It runs in the background: it must not read the settings,
+// which the keys change meanwhile; it ends when ctx is done.
+type DiffFunc func(ctx context.Context, args []string, extra gitsrc.Extra) ([]source.File, error)
+
+// DiffExtra returns the files git diff adds by the settings: the ignored and
+// excluded ones only with the untracked ones, of those ignored_hide does not
+// hide.
+func DiffExtra(cfg *config.Config) gitsrc.Extra {
+        <span class="cov8" title="1">s := cfg.Settings
+        return gitsrc.Extra{Untracked: s.Untracked, Ignored: s.Untracked &amp;&amp; s.Ignored, Excluded: s.Untracked &amp;&amp; s.Excluded,
+                Hide: cfg.IgnoredHider()}
+</span>}
 
 // WithGitDiff makes d the files of git diff with args, which r runs again,
 // and returns d.
@@ -4318,7 +4627,7 @@ func SplitDiffArgs(args []string, isRev func(arg string) bool) DiffSides {
         case cached:
                 <span class="cov8" title="1">s.Left, s.Right = revs[0], "INDEX"</span>
         default:
-                <span class="cov8" title="1">s.Left, s.Right, s.Work = revs[0], "WORK+INDEX", true</span>
+                <span class="cov8" title="1">s.Left, s.Right, s.Work = revs[0], "WORK/INDEX", true</span>
         }
         <span class="cov8" title="1">return s</span>
 }
@@ -4507,8 +4816,8 @@ type filesListedMsg struct {
 func (d *Diff) relistFiles(quiet bool) tea.Cmd {
         <span class="cov8" title="1">list := d.relist
         if d.gitDiff != nil </span>{
-                <span class="cov8" title="1">args, untracked, gitDiff := d.diffArgs, d.cfg.Settings.Untracked, d.gitDiff
-                list = func(ctx context.Context) ([]source.File, error) </span>{ <span class="cov8" title="1">return gitDiff(ctx, args, untracked) }</span>
+                <span class="cov8" title="1">args, extra, gitDiff := d.diffArgs, DiffExtra(d.cfg), d.gitDiff
+                list = func(ctx context.Context) ([]source.File, error) </span>{ <span class="cov8" title="1">return gitDiff(ctx, args, extra) }</span>
         }
         <span class="cov8" title="1">if list == nil </span>{
                 <span class="cov8" title="1">d.setMsg(nothingToReload)
@@ -4650,6 +4959,9 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         <span class="cov8" title="1">d.disk.limit(d.cfg)
                         return d, d.poll()
 </span>                }
+                <span class="cov8" title="1">if extra := DiffExtra(d.cfg); msg.action == "ignored_hide" &amp;&amp; d.gitDiff != nil &amp;&amp; (extra.Ignored || extra.Excluded) </span>{
+                        <span class="cov8" title="1">return d, d.relistFiles(false)
+</span>                }
         case autoReloadMsg:
                 <span class="cov8" title="1">if d.inLog() </span>{
                         <span class="cov0" title="0">return d, nil
@@ -4708,13 +5020,25 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case showMsg:
                 <span class="cov8" title="1">d.setMsg(string(msg))
                 return d, nil</span>
-        case toggleUntrackedMsg:
+        case toggleAddedMsg:
                 <span class="cov8" title="1">if d.gitDiff == nil </span>{
-                        <span class="cov8" title="1">d.setMsg(untrackedOnlyInDiff)
+                        <span class="cov8" title="1">d.setMsg(addedOnlyInDiff(msg.added))
                         return d, nil
 </span>                }
-                <span class="cov8" title="1">d.cfg.Flags.Untracked = false // switched by key: saved
-                w := toggle(d.cfg, &amp;d.cfg.Settings.Untracked)
+                <span class="cov8" title="1">s, f := &amp;d.cfg.Settings, &amp;d.cfg.Flags
+                setting, flag := &amp;s.Untracked, &amp;f.Untracked
+                switch msg.added </span>{
+                case source.AddedIgnored:
+                        <span class="cov8" title="1">setting, flag = &amp;s.Ignored, &amp;f.Ignored</span>
+                case source.AddedExcluded:
+                        <span class="cov8" title="1">setting, flag = &amp;s.Excluded, &amp;f.Excluded</span>
+                }
+                <span class="cov8" title="1">if setting != &amp;s.Untracked &amp;&amp; !s.Untracked </span>{
+                        <span class="cov8" title="1">d.setMsg(d.cfg.Keys.Text(addedName(msg.added) + ": only with the untracked files ({untracked})"))
+                        return d, nil
+</span>                }
+                <span class="cov8" title="1">*flag = false // switched by key: saved
+                w := toggle(d.cfg, setting)
                 cmd := d.relistFiles(false)
                 if w != "" </span>{
                         <span class="cov0" title="0">d.setMsg(w)
@@ -4801,7 +5125,7 @@ func (d *Diff) key(k string) tea.Cmd {
 func (d *Diff) diffOf(e *fileEntry) *fileAlign {
         <span class="cov8" title="1">if e.align == nil </span>{
                 <span class="cov8" title="1">e.align = newFileAlign(d.cfg, e.paneNames(), [2][]string{e.Old, e.New})
-                e.align.markPath = e.Path
+                e.align.markPath, e.align.tag = e.Path, addedTag(e.Added)
 </span>        }
         <span class="cov8" title="1">return e.align</span>
 }
@@ -4948,7 +5272,7 @@ func (d *Diff) previewLayout(e *fileEntry) layout {
         <span class="cov8" title="1">lo := layout{width: max(d.width-4, 0)}
         lo.shape = newShape(d.cfg, lo.width)
         if e.view != nil </span>{
-                <span class="cov0" title="0">lo.xoff, lo.active = e.view.xoff, e.view.active
+                <span class="cov8" title="1">lo.xoff, lo.active = e.view.xoff, e.view.active
 </span>        }
         <span class="cov8" title="1">return lo</span>
 }
@@ -5005,8 +5329,9 @@ func (d *Diff) totals() (added, removed int) {
 // headLine renders the line above the files, as the file list, its single
 // file view and its flow view show it: of the commit of the log its hash,
 // subject, the totals of its files, author and date; else in two cells the
-// sides, the right one with the untracked files when they show, and how
-// many files changed with the totals and the paths at their ends.
+// sides, the right one with the letters of the files added when they show
+// (U/I/X: untracked, ignored, excluded), and how many files changed with the
+// totals and the paths at their ends.
 func (d *Diff) headLine() string {
         // Styles are rendered side by side: lipgloss underlining breaks nested
         // escape sequences.
@@ -5021,9 +5346,16 @@ func (d *Diff) headLine() string {
                 <span class="cov8" title="1">changed = "1 file changed"
 </span>        }
         <span class="cov8" title="1">right := d.sides.Right
-        if d.sides.Work &amp;&amp; d.cfg.Settings.Untracked </span>{
-                <span class="cov8" title="1">right += "+UNTRACKED"
-</span>        }
+        if extra := DiffExtra(d.cfg); d.sides.Work &amp;&amp; extra.Untracked </span>{
+                <span class="cov8" title="1">tags := []string{addedTag(source.AddedUntracked)}
+                if extra.Ignored </span>{
+                        <span class="cov8" title="1">tags = append(tags, addedTag(source.AddedIgnored))
+</span>                }
+                <span class="cov8" title="1">if extra.Excluded </span>{
+                        <span class="cov8" title="1">tags = append(tags, addedTag(source.AddedExcluded))
+</span>                }
+                <span class="cov8" title="1">right += " (" + strings.Join(tags, "/") + ")"</span>
+        }
         <span class="cov8" title="1">paths := t.Decoration.Render(printable(strings.Join(d.sides.Paths, " ")))
         return sideCells(t, [2]string{d.sides.Left, right}, [2]string{t.Heading.Render(changed) + "  " + totals(t, added, removed), paths}, d.width)</span>
 }
@@ -5041,12 +5373,15 @@ func (d *Diff) frame() string {
 </span>        }
 
         <span class="cov8" title="1">t := d.cfg.Theme
-        addW, remW, lblW := 1, 1, 0
+        addW, remW, lblW, tagW := 1, 1, 0, 0
         for _, e := range d.files </span>{
                 <span class="cov8" title="1">addW = max(addW, len(fmt.Sprint(e.added)))
                 remW = max(remW, len(fmt.Sprint(e.removed)))
                 lblW = max(lblW, ansi.StringWidth(e.label(t)))
-</span>        }
+                if e.Added != source.NotAdded </span>{
+                        <span class="cov8" title="1">tagW = 2 // a space and the letter
+</span>                }
+        }
 
         <span class="cov8" title="1">head := d.headLine()
 </span>
@@ -5057,14 +5392,18 @@ func (d *Diff) frame() string {
                         <span class="cov8" title="1">cnt = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 </span>                }
                 <span class="cov8" title="1">lbl := st(lipgloss.NewStyle()).Render(" " + pad(e.label(t), lblW, lipgloss.NewStyle()) + " ")
-                return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())</span>
+                var tag string
+                if tagW &gt; 0 </span>{
+                        <span class="cov8" title="1">tag = st(t.AddedFile).Render(fmt.Sprintf("%*s", tagW, addedTag(e.Added)))
+</span>                }
+                <span class="cov8" title="1">return lbl + " " + cnt + tag + "  " + st(lipgloss.NewStyle()).Render(e.name())</span>
         }
         <span class="cov8" title="1">k := barKeys{enter: "open", commits: d.inLog(), flow: true}
         if d.inLog() </span>{
                 <span class="cov8" title="1">k.back = "to_commits"
 </span>        }
         <span class="cov8" title="1">hints := statusKeys(d.cfg, k)
-        return d.render(t, head, item, func(h int) string </span>{ <span class="cov8" title="1">return d.preview(d.files[d.cursor], h) }</span>, pageStatus(d.cfg, d.msg, hints))
+        return d.render(t, head, item, func(h int) string </span>{ <span class="cov8" title="1">return d.preview(d.files[d.cursor], h) }</span>, listBar(d.cfg, d.width, pageStatus(d.cfg, d.msg, hints)))
 }
 </pre>
 		
@@ -5180,6 +5519,7 @@ type layout struct {
 type fileAlign struct {
         cfg   *config.Config
         names [2]string
+        tag   string // the letter of what the file was added to git diff as, see addedTag; shown after its new name
         lines [2][]string
 
         anchors []diff.Anchor // sorted by Left, never crossing
@@ -5965,8 +6305,8 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">m.refresh(msg.quiet)</span>
         case showMsg:
                 <span class="cov0" title="0">m.msg = string(msg)</span>
-        case toggleUntrackedMsg:
-                <span class="cov8" title="1">m.msg = untrackedOnlyInDiff</span>
+        case toggleAddedMsg:
+                <span class="cov8" title="1">m.msg = addedOnlyInDiff(msg.added)</span>
         case toggleFlowMsg:
                 <span class="cov8" title="1">m.msg = flowOnlyOfSeveral</span>
         case settingChangedMsg:
@@ -6719,7 +7059,7 @@ func (f *Flow) followFiles(part int, before, after []*fileEntry) {
                         <span class="cov8" title="1">return</span>
                 }
         }
-        <span class="cov0" title="0">*r = flowRow{flowFile, part, len(after) - 1, 0, 0}</span>
+        <span class="cov8" title="1">*r = flowRow{flowFile, part, len(after) - 1, 0, 0}</span>
 }
 
 // followParts keeps the cursor on its commit when the commits were listed
@@ -7170,7 +7510,7 @@ func (f *Flow) status() string {
                 <span class="cov8" title="1">msg = f.marked.markPrompt()
 </span>        }
         <span class="cov8" title="1">left := pageStatus(f.cfg, msg, f.help())
-        return statusLine(f.cfg.Theme, f.width, left, " "+strings.Join(where, " · "))</span>
+        return pageBar(f.cfg, f.width, left, " "+strings.Join(where, " · "))</span>
 }
 
 // row renders row i. Diff rows are drawn by the file's diff with the flow's
@@ -7225,6 +7565,9 @@ func (f *Flow) row(i int) string {
                         <span class="cov8" title="1">line += "   binary"
 </span>                } else <span class="cov8" title="1">if e.added &gt; 0 || e.removed &gt; 0 </span>{
                         <span class="cov8" title="1">line += fmt.Sprintf("   +%d -%d", e.added, e.removed)
+</span>                }
+                <span class="cov8" title="1">if tag := addedTag(e.Added); tag != "" </span>{
+                        <span class="cov8" title="1">line += "  " + tag
 </span>                }
                 <span class="cov8" title="1">return mark + bar(line, t.FileBar)</span>
         case flowNote:
@@ -7686,8 +8029,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
         case showMsg:
                 <span class="cov0" title="0">l.setMsg(string(msg))
                 return nil</span>
-        case toggleUntrackedMsg:
-                <span class="cov8" title="1">l.setMsg(untrackedOnlyInDiff)
+        case toggleAddedMsg:
+                <span class="cov8" title="1">l.setMsg(addedOnlyInDiff(msg.added))
                 return nil</span>
         case toggleFlowMsg:
                 <span class="cov8" title="1">cmd := l.toggleFlow()
@@ -8210,7 +8553,7 @@ func (l *Log) frame() string {
                         st(t.Decoration).Render(c.Date)
 </span>        }
         <span class="cov8" title="1">hints := statusKeys(l.cfg, barKeys{enter: "open", flow: true})
-        return l.render(t, head, item, func(h int) string </span>{ <span class="cov8" title="1">return l.messageBox(l.commits[l.cursor].Commit, h) }</span>, pageStatus(l.cfg, l.msg, hints))
+        return l.render(t, head, item, func(h int) string </span>{ <span class="cov8" title="1">return l.messageBox(l.commits[l.cursor].Commit, h) }</span>, listBar(l.cfg, l.width, pageStatus(l.cfg, l.msg, hints)))
 }
 
 // messageBox renders the full message of c in a box height lines high,
@@ -9005,6 +9348,7 @@ import (
 
         "jdiff/internal/config"
         "jdiff/internal/keys"
+        "jdiff/internal/source"
 )
 
 // switchFileMsg asks the file list to show the next (1) or previous (-1)
@@ -9167,14 +9511,28 @@ func pageKey(km *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 // the popup is closed.
 type settingChangedMsg struct{ action, problem string }
 
-// toggleUntrackedMsg asks the top-level view to toggle the untracked files of
-// its git diff, which only the file list of one has.
-type toggleUntrackedMsg struct{}
+// toggleAddedMsg asks the top-level view to toggle the files its git diff
+// adds as added, the untracked, ignored or excluded ones, which only the file
+// list of one has.
+type toggleAddedMsg struct{ added source.Added }
 
-func toggleUntracked() tea.Msg { <span class="cov8" title="1">return toggleUntrackedMsg{} }</span>
+func toggleUntracked() tea.Msg { <span class="cov8" title="1">return toggleAddedMsg{source.AddedUntracked} }</span>
+func toggleIgnored() tea.Msg   { <span class="cov8" title="1">return toggleAddedMsg{source.AddedIgnored} }</span>
+func toggleExcluded() tea.Msg  { <span class="cov8" title="1">return toggleAddedMsg{source.AddedExcluded} }</span>
 
-// untrackedOnlyInDiff is the answer of the other views.
-const untrackedOnlyInDiff = "untracked files: only in jdiff diff"
+// addedName names the files added as a in messages.
+func addedName(a source.Added) string {
+        <span class="cov8" title="1">switch a </span>{
+        case source.AddedIgnored:
+                <span class="cov8" title="1">return "ignored files"</span>
+        case source.AddedExcluded:
+                <span class="cov8" title="1">return "excluded files"</span>
+        }
+        <span class="cov8" title="1">return "untracked files"</span>
+}
+
+// addedOnlyInDiff is the answer of the other views.
+func addedOnlyInDiff(a source.Added) string { <span class="cov8" title="1">return addedName(a) + ": only in jdiff diff" }</span>
 
 // flowOnlyOfSeveral is the answer of the diff view of two files.
 const flowOnlyOfSeveral = "flow: only with a file list or the log"
@@ -9753,7 +10111,7 @@ func (r *Readme) findText(dir int) {
         r.msg = searchMsg(q, i, len(hits))</span>
 }
 
-func (r *Readme) View() tea.View { <span class="cov0" title="0">return tea.NewView(r.frame()) }</span>
+func (r *Readme) View() tea.View { <span class="cov8" title="1">return tea.NewView(r.frame()) }</span>
 
 func (r *Readme) frame() string {
         <span class="cov8" title="1">if r.width == 0 </span>{
@@ -9782,7 +10140,7 @@ func (r *Readme) frame() string {
                 <span class="cov8" title="1">b.WriteString("\n")</span>
         }
         <span class="cov8" title="1">keys := statusKeys(r.cfg, barKeys{enter: "follow", back: "back", text: true})
-        b.WriteString(statusLine(t, r.width, pageStatus(r.cfg, r.msg, keys), ""))
+        b.WriteString(pageBar(r.cfg, r.width, pageStatus(r.cfg, r.msg, keys), ""))
         return r.withWebAddress(b.String())</span>
 }
 
@@ -10422,13 +10780,15 @@ import (
 // toggles it, when it can. With logFlow, its key works only in the log's flow
 // view, where it shows; in the popup always. With number instead of the toggle,
 // it is a number, asked for in a line; it has no key, the cursor goes to it in
-// the popup.
+// the popup. With patterns, it is ignored_hide, edited in a list of its own,
+// see hidePopup.
 type settingOption struct {
         key, action, what string
         setting           func(*config.Config) *bool
         ask               tea.Cmd
         logFlow           bool
         number            func(*config.Config) *int
+        patterns          bool
 }
 
 // settingTable lists the settings without their keys and words, which
@@ -10437,6 +10797,8 @@ var settingTable = []settingOption{
         {action: "layout", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.SideBySide }</span>},
         {action: "flow", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Flow }</span>, ask: toggleFlow},
         {action: "untracked", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Untracked }</span>, ask: toggleUntracked},
+        {action: "ignored", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Ignored }</span>, ask: toggleIgnored},
+        {action: "excluded", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Excluded }</span>, ask: toggleExcluded},
         {action: "wrap", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.Wrap }</span>},
         {action: "whitespace", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.ShowWhitespaces }</span>},
         {action: "mark_whitespace", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.MarkWhitespace }</span>},
@@ -10448,6 +10810,7 @@ var settingTable = []settingOption{
         {action: "stay_in_commit", setting: func(c *config.Config) *bool { <span class="cov8" title="1">return &amp;c.Settings.StayInCommit }</span>, logFlow: true},
         {action: "auto_reload_timeout", number: func(c *config.Config) *int { <span class="cov8" title="1">return &amp;c.Settings.AutoReloadTimeout }</span>},
         {action: "inotify_max_dirs", number: func(c *config.Config) *int { <span class="cov8" title="1">return &amp;c.Settings.InotifyMaxDirs }</span>},
+        {action: "ignored_hide", patterns: true},
 }
 
 // settingOptions returns the lines of the settings popup, with their keys and
@@ -10561,8 +10924,21 @@ type SettingsPopup struct {
         open    bool
         listPopup
         msg      string     // a problem saving the toggles
-        input    *lineInput // while it asks for the number of the option
-        inputErr string     // why the number typed is none
+        input    *lineInput // while it asks for the number of the option, or a pattern of hide
+        inputErr string     // why the number or pattern typed is none
+        hide     hidePopup
+}
+
+// hidePopup is the list of the patterns of ignored_hide over the settings
+// popup, which enter on its row opens: a adds a pattern and enter edits the
+// selected one, typed in the line of the settings popup; d or del deletes
+// it. A pattern is taken only when it is a regular expression, so that a
+// typo changes nothing; each change is saved and lists the files anew.
+type hidePopup struct {
+        open bool
+        listPopup
+        edit int    // the pattern the line edits; len of the patterns for a new one
+        msg  string // a problem saving them
 }
 
 // WithSettings returns m with the settings popup.
@@ -10574,7 +10950,9 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         <span class="cov8" title="1">switch msg := msg.(type) </span>{
         case tea.WindowSizeMsg:
                 <span class="cov8" title="1">p.width, p.height = msg.Width, msg.Height
-                p.move(0)</span>
+                p.hide.width, p.hide.height = msg.Width, msg.Height
+                p.move(0)
+                p.moveHide(0)</span>
         case askSettingsMsg:
                 <span class="cov8" title="1">p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
                 return p, nil</span>
@@ -10583,8 +10961,12 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 <span class="cov8" title="1">return p, p.flip(p.options[i])</span>
         case tea.KeyPressMsg:
                 <span class="cov8" title="1">switch </span>{
+                case p.input != nil &amp;&amp; p.hide.open:
+                        <span class="cov8" title="1">return p, p.editPattern(msg)</span>
                 case p.input != nil:
                         <span class="cov8" title="1">return p, p.editNumber(msg)</span>
+                case p.hide.open:
+                        <span class="cov8" title="1">return p, p.hideKey(msg.String())</span>
                 case p.open:
                         <span class="cov8" title="1">return p, p.key(msg.String())</span>
                 }
@@ -10621,6 +11003,10 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 func (p *SettingsPopup) flip(o settingOption) tea.Cmd {
         <span class="cov8" title="1">if o.number != nil </span>{
                 <span class="cov8" title="1">p.input, p.inputErr = &amp;lineInput{text: strconv.Itoa(*o.number(p.cfg))}, ""
+                return nil
+</span>        }
+        <span class="cov8" title="1">if o.patterns </span>{
+                <span class="cov8" title="1">p.hide.open, p.hide.cursor, p.hide.top, p.hide.msg = true, 0, 0, ""
                 return nil
 </span>        }
         <span class="cov8" title="1">if o.ask != nil </span>{
@@ -10663,6 +11049,77 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
 
 func (p *SettingsPopup) move(delta int) { <span class="cov8" title="1">p.moveIn(delta, len(p.options)) }</span>
 
+func (p *SettingsPopup) moveHide(delta int) { <span class="cov8" title="1">p.hide.moveIn(delta, len(p.cfg.IgnoredHide)) }</span>
+
+// hideKey handles k in the list of ignored_hide: esc, q and the key of the
+// settings go back to them.
+func (p *SettingsPopup) hideKey(k string) tea.Cmd {
+        <span class="cov8" title="1">if cmd, ok := popupNav(p.cfg.Keys, k, "settings", &amp;p.hide.open, p.moveHide); ok </span>{
+                <span class="cov8" title="1">return cmd
+</span>        }
+        <span class="cov8" title="1">list := p.cfg.IgnoredHide
+        switch k </span>{
+        case "a":
+                <span class="cov8" title="1">p.hide.edit, p.input, p.inputErr = len(list), &amp;lineInput{}, ""</span>
+        case "enter":
+                <span class="cov8" title="1">if p.hide.cursor &lt; len(list) </span>{
+                        <span class="cov8" title="1">p.hide.edit, p.input, p.inputErr = p.hide.cursor, &amp;lineInput{text: list[p.hide.cursor]}, ""
+</span>                }
+        case "d", "delete":
+                <span class="cov8" title="1">if p.hide.cursor &lt; len(list) </span>{
+                        <span class="cov8" title="1">return p.setHide(slices.Delete(slices.Clone(list), p.hide.cursor, p.hide.cursor+1))
+</span>                }
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// editPattern edits the pattern asked for: enter takes and saves it, unless
+// it is empty, which would hide all, or no regular expression; esc and
+// backspace on nothing typed cancel.
+func (p *SettingsPopup) editPattern(k tea.KeyPressMsg) tea.Cmd {
+        <span class="cov8" title="1">in := p.input
+        switch </span>{
+        case k.String() == "ctrl+c":
+                <span class="cov0" title="0">return tea.Quit</span>
+        case in.cancels(k):
+                <span class="cov8" title="1">p.input = nil</span>
+        case k.String() == "enter":
+                <span class="cov8" title="1">if in.text == "" </span>{
+                        <span class="cov8" title="1">p.inputErr = "a regular expression; empty would hide all"
+                        return nil
+</span>                }
+                <span class="cov8" title="1">if err := config.CheckPattern(in.text); err != nil </span>{
+                        <span class="cov8" title="1">p.inputErr = "no regular expression: " + strings.TrimPrefix(firstLine(err), "error parsing regexp: ")
+                        return nil
+</span>                }
+                <span class="cov8" title="1">list := slices.Clone(p.cfg.IgnoredHide)
+                if p.hide.edit &lt; len(list) </span>{
+                        <span class="cov8" title="1">list[p.hide.edit] = in.text
+</span>                } else {
+                        <span class="cov8" title="1">list = append(list, in.text)
+</span>                }
+                <span class="cov8" title="1">p.input, p.hide.cursor = nil, p.hide.edit
+                return p.setHide(list)</span>
+        default:
+                <span class="cov8" title="1">p.inputErr = ""
+                in.edit(k)</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// setHide makes list ignored_hide, saves it and tells the page below, which
+// lists its files anew.
+func (p *SettingsPopup) setHide(list []string) tea.Cmd {
+        <span class="cov8" title="1">if err := p.cfg.SetIgnoredHide(list); err != nil </span>{ // checked when typed
+                <span class="cov0" title="0">p.hide.msg = firstLine(err)
+                return nil
+</span>        }
+        <span class="cov8" title="1">p.hide.msg = saveState(p.cfg)
+        p.moveHide(0)
+        _, cmd := p.Model.Update(settingChangedMsg{action: "ignored_hide"})
+        return cmd</span>
+}
+
 func (p *SettingsPopup) View() tea.View { <span class="cov8" title="1">return tea.NewView(p.frame()) }</span>
 
 func (p *SettingsPopup) frame() string {
@@ -10680,6 +11137,8 @@ func (p *SettingsPopup) frame() string {
                 <span class="cov8" title="1">switch </span>{
                 case o.number != nil:
                         <span class="cov8" title="1">states[i] = fmt.Sprintf("[%d]", *o.number(p.cfg))</span>
+                case o.patterns:
+                        <span class="cov8" title="1">states[i] = fmt.Sprintf("[%d]", len(p.cfg.IgnoredHide))</span>
                 case *o.setting(p.cfg):
                         <span class="cov8" title="1">states[i] = "[x]"</span>
                 default:
@@ -10693,10 +11152,19 @@ func (p *SettingsPopup) frame() string {
 </span>        }
         <span class="cov8" title="1">title := popupTitle(t, "settings", p.msg, "enter toggle · esc close")
         view := p.draw(t, base, title, all, "")
-        if p.input == nil </span>{
+        name := strings.ReplaceAll(p.options[p.cursor].action, "_", " ")
+        if p.hide.open </span>{
+                <span class="cov8" title="1">items := make([]string, len(p.cfg.IgnoredHide))
+                for i, expr := range p.cfg.IgnoredHide </span>{
+                        <span class="cov8" title="1">items[i] = " " + printable(expr) + " "
+</span>                }
+                <span class="cov8" title="1">title := popupTitle(t, "ignored_hide", p.hide.msg, "a add · enter edit · d delete · esc back")
+                view, name = p.hide.draw(t, view, title, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"</span>
+        }
+        <span class="cov8" title="1">if p.input == nil </span>{
                 <span class="cov8" title="1">return view
 </span>        }
-        <span class="cov8" title="1">pop, popW := inputBox(t, p.width, popupTitle(t, "auto reload timeout", "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true)
+        <span class="cov8" title="1">pop, popW := inputBox(t, p.width, popupTitle(t, name, "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true)
         return overlay(view, pop, popW, p.width)</span>
 }
 </pre>
@@ -10903,7 +11371,11 @@ func (m *FileDiff) header() string {
                 <span class="cov8" title="1">head = ansi.Truncate(m.head, m.width, "…") + "\n"
 </span>        }
         <span class="cov8" title="1">added, removed := diff.Stats(m.rows)
-        return head + paneTitles(m.cfg.Theme, m.names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)</span>
+        names := m.names
+        if m.tag != "" </span>{
+                <span class="cov8" title="1">names[right] += "  " + m.tag
+</span>        }
+        <span class="cov8" title="1">return head + paneTitles(m.cfg.Theme, names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)</span>
 }
 
 // screenLine renders screen line s in the current layout, marked as the
@@ -10982,7 +11454,7 @@ func (m *FileDiff) status() string {
                 <span class="cov8" title="1">row = m.view[m.cursor].row + 1
 </span>        }
         <span class="cov8" title="1">right := fmt.Sprintf(" row %d/%d · anchors %d", row, len(m.rows), len(m.anchors))
-        return statusLine(m.cfg.Theme, m.width, left, right)</span>
+        return pageBar(m.cfg, m.width, left, right)</span>
 }
 
 // fold renders displayed row v, a fold of unchanged rows, across both panes
@@ -11684,6 +12156,36 @@ func statusText(t *theme.Theme, msg, hints string) string {
         <span class="cov8" title="1">return t.Hint.Render(hints)</span>
 }
 
+// pageBar renders the status bar of a page, width columns wide: left, and
+// at the right end right, as the anchors, and after it the version of jdiff
+// (Config.Version) in its style and a space. The version shows only where it
+// fits beside both, so that the keys and the anchors keep their room. It is
+// rendered beside the line, not in it: lipgloss breaks nested escape
+// sequences.
+func pageBar(cfg *config.Config, width int, left, right string) string {
+        <span class="cov8" title="1">if v := cfg.Version; v != "" </span>{
+                <span class="cov8" title="1">tail := " " + v + " "
+                with := right
+                if right != "" </span>{
+                        <span class="cov8" title="1">with += " ·"
+</span>                }
+                <span class="cov8" title="1">if tw := ansi.StringWidth(tail); ansi.StringWidth(left)+ansi.StringWidth(with)+tw &lt;= width </span>{
+                        <span class="cov8" title="1">return statusLine(cfg.Theme, width-tw, left, with) + cfg.Theme.Version.Render(tail)
+</span>                }
+        }
+        <span class="cov8" title="1">return statusLine(cfg.Theme, width, left, right)</span>
+}
+
+// listBar returns the status bar of a list page, the commits or the files:
+// as pageBar with the version; without one left alone, which list.render
+// draws as it is.
+func listBar(cfg *config.Config, width int, left string) string {
+        <span class="cov8" title="1">if cfg.Version == "" </span>{
+                <span class="cov8" title="1">return left
+</span>        }
+        <span class="cov8" title="1">return pageBar(cfg, width, left, "")</span>
+}
+
 // pageStatus returns the left part of the status bar of a page, see
 // statusText; while auto reload is on, its name comes first.
 func pageStatus(cfg *config.Config, msg, hints string) string {
@@ -12237,8 +12739,8 @@ func main() {
 
 // options are the flags of the command line.
 type options struct {
-        version, license, readme, untracked, autoReload bool
-        features                                        string
+        version, license, readme, untracked, ignored, excluded, autoReload bool
+        features                                                           string
 }
 
 // newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
@@ -12288,18 +12790,23 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
                 TraverseChildren: true, // the flags before log and diff
         }
         <span class="cov8" title="1">f := root.Flags()
-        f.BoolVar(&amp;o.version, "version", false, "print the version")
-        f.BoolVar(&amp;o.license, "license", false, "print the license and those of the libraries")
-        f.BoolVar(&amp;o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
-                "when the output is no terminal")
+        f.SortFlags = false // the toggles for one run together, first
         f.BoolVarP(&amp;o.untracked, "untracked", "u", false, "also show the untracked files in a git diff, for this run: state.toml keeps its\n"+
                 "value; u in the view switches them and saves that")
+        f.BoolVarP(&amp;o.ignored, "ignored", "i", false, "with the untracked files, also those .gitignore ignores, for this run: state.toml\n"+
+                "keeps its value; i in the view switches them and saves that")
+        f.BoolVarP(&amp;o.excluded, "excluded", "I", false, "with the untracked files, also those .git/info/exclude ignores, for this run:\n"+
+                "state.toml keeps its value; I in the view switches them and saves that")
         f.BoolVarP(&amp;o.autoReload, "auto-reload", "R", false, "start with auto reload on, for this run and without its timeout: state.toml\n"+
                 "keeps its value; R in the view switches it and saves that")
         f.StringVar(&amp;o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
                 "sections of your git config, separated by spaces. They only shape the \"delta\" theme,\n"+
                 "which is used unless main.toml names another. DELTA_FEATURES, when set, wins; with a\n"+
                 "leading + it adds to them.")
+        f.BoolVar(&amp;o.readme, "readme", false, "show the README and the documentation it links to; print the README as markdown\n"+
+                "when the output is no terminal")
+        f.BoolVar(&amp;o.license, "license", false, "print the license and those of the libraries")
+        f.BoolVar(&amp;o.version, "version", false, "print the version")
         for _, c := range []struct{ name, use, short string }{
                 {"log", "log [GIT LOG ARGS]", "browse the commits that git log lists"},
                 {"diff", "diff [GIT DIFF ARGS]", "show the files that git diff shows"},
@@ -12403,7 +12910,8 @@ func start(o options, mode string, args []string) {
         if err != nil </span>{
                 <span class="cov0" title="0">repo = "" // not in a repository: marks with absolute paths
 </span>        }
-        <span class="cov8" title="1">cfg.SetFlags(config.Flags{Untracked: o.untracked, AutoReload: o.autoReload})
+        <span class="cov8" title="1">cfg.SetFlags(config.Flags{Untracked: o.untracked, Ignored: o.ignored, Excluded: o.excluded, AutoReload: o.autoReload})
+        cfg.Version = resolveVersion()
         cfg.LoadMarks(repo)
 </span>
         <span class="cov8" title="1">if mode == "readme" </span>{
@@ -12502,7 +13010,7 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 // loadDiff opens the file list for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-        <span class="cov8" title="1">files, err := gitDiff(context.Background(), args, cfg.Settings.Untracked)
+        <span class="cov8" title="1">files, err := gitDiff(context.Background(), args, ui.DiffExtra(cfg))
         if err != nil </span>{
                 <span class="cov8" title="1">return nil, err
 </span>        }
@@ -12510,12 +13018,12 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
         return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff).WithSides(sides), nil</span>
 }
 
-// gitDiff runs git diff with args, with the untracked files when untracked
-// is set; see ui.DiffFunc.
-func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+// gitDiff runs git diff with args, with the files of extra added; see
+// ui.DiffFunc.
+func gitDiff(ctx context.Context, args []string, extra gitsrc.Extra) ([]source.File, error) {
         <span class="cov8" title="1">repo := gitsrc.Repo{}.WithContext(ctx)
-        if untracked </span>{
-                <span class="cov8" title="1">return repo.DiffUntracked(args)
+        if extra.Untracked || extra.Ignored || extra.Excluded </span>{
+                <span class="cov8" title="1">return repo.DiffUntracked(args, extra)
 </span>        }
         <span class="cov8" title="1">return repo.Diff(args)</span>
 }
@@ -12528,7 +13036,9 @@ func isRevision(ctx context.Context, arg string) bool {
 
 // gitStatus returns the state of the repository for auto reload, see
 // gitsrc.Repo.Status.
-func gitStatus(ctx context.Context) (string, error) { <span class="cov0" title="0">return gitsrc.Repo{}.WithContext(ctx).Status() }</span>
+func gitStatus(ctx context.Context, extra gitsrc.Extra) (string, error) {
+        <span class="cov0" title="0">return gitsrc.Repo{}.WithContext(ctx).Status(extra)
+</span>}
 
 func fatal(err error) {
         <span class="cov8" title="1">fmt.Fprintln(os.Stderr, "jdiff:", err)
