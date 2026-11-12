@@ -23,9 +23,9 @@ import (
 // run of auto reload from earlier ones; ctx ends its git commands, cancel
 // ends ctx.
 type autoReload struct {
-	repoStatus  func(ctx context.Context) (string, error)
+	repoStatus  func(ctx context.Context, extra gitsrc.Extra) (string, error)
 	repoPaths   func() ([]string, error)
-	workDirs    func(ignore func(rel string) bool) (map[string]time.Time, error)
+	workDirs    func(ignore func(rel string) bool, extra gitsrc.Extra) (map[string]time.Time, error)
 	gitMode     bool
 	tick        int
 	pins        []string
@@ -72,7 +72,7 @@ func (s *App) toggleAutoReload() tea.Cmd {
 			return showAutoReloadError(errors.New("auto_reload_interval is 0"))
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		status, err := s.auto.repoStatus(ctx)
+		status, err := s.auto.repoStatus(ctx, s.shownExtra())
 		if err != nil {
 			cancel()
 			return showAutoReloadError(err)
@@ -100,6 +100,15 @@ func (s *App) switchAutoReload() tea.Cmd {
 		cmd = batch(cmd, func() tea.Msg { return showMsg(w) })
 	}
 	return cmd
+}
+
+// shownExtra returns the files the view's git diff adds, which auto reload
+// watches too: none but in the file list of git diff.
+func (s *App) shownExtra() gitsrc.Extra {
+	if _, diff := s.current(); diff {
+		return DiffExtra(s.cfg)
+	}
+	return gitsrc.Extra{}
 }
 
 // gitView reports whether the view shows git diff or git log, which auto
@@ -142,9 +151,9 @@ func (s *App) autoTick() tea.Cmd {
 // checkStatus returns the command running git status.
 func (s *App) checkStatus() tea.Cmd {
 	s.auto.statusRuns++
-	gen, status, ctx := s.auto.gen, s.auto.repoStatus, s.auto.ctx
+	gen, status, ctx, extra := s.auto.gen, s.auto.repoStatus, s.auto.ctx, s.shownExtra()
 	return func() tea.Msg {
-		st, err := status(ctx)
+		st, err := status(ctx, extra)
 		return autoStatusMsg{gen, st, err}
 	}
 }
@@ -265,7 +274,7 @@ func (s *App) watchRepo() tea.Cmd {
 	if s.w == nil || s.auto.repoPaths == nil || !s.auto.gitMode {
 		return nil
 	}
-	gen, paths, workDirs, ignored := s.auto.gen, s.auto.repoPaths, s.auto.workDirs, s.cfg.WatchIgnored
+	gen, paths, workDirs, ignored, extra := s.auto.gen, s.auto.repoPaths, s.auto.workDirs, s.cfg.WatchIgnored, s.shownExtra()
 	// Without directories to watch, the working tree is not looked at.
 	scan := workDirs != nil && s.cfg.Settings.InotifyMaxDirs > 0
 	return func() tea.Msg {
@@ -275,7 +284,7 @@ func (s *App) watchRepo() tea.Cmd {
 		}
 		var dirs map[string]time.Time
 		if scan {
-			if dirs, err = workDirs(ignored); err != nil {
+			if dirs, err = workDirs(ignored, extra); err != nil {
 				return nil
 			}
 		}

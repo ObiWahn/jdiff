@@ -110,6 +110,7 @@ type layout struct {
 type fileAlign struct {
 	cfg   *config.Config
 	names [2]string
+	tag   string // the letter of what the file was added to git diff as, see addedTag; shown after its new name
 	lines [2][]string
 
 	anchors []diff.Anchor // sorted by Left, never crossing

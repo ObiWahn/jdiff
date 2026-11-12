@@ -19,6 +19,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/charmbracelet/x/ansi"
@@ -43,6 +45,9 @@ type Config struct {
 	marks marksState // jump marks, see LoadMarks
 
 	watchIgnore []*regexp.Regexp // watch_ignore compiled, see WatchIgnored
+	ignoredHide []*regexp.Regexp // ignored_hide compiled, see IgnoredHidden
+	// IgnoredHide is ignored_hide as read, which SaveState writes.
+	IgnoredHide []string
 
 	// AutoReload is whether what is shown is loaded again when the repository
 	// changes, now; R toggles it. It ends by itself, see
@@ -53,9 +58,9 @@ type Config struct {
 	// see SetFlags. A key switching one ends its flag, so that it is saved
 	// again.
 	Flags Flags
-	// savedUntracked is what SaveState writes for untracked while the flag
-	// is set: the value of the files.
-	savedUntracked bool
+	// saved is what SaveState writes for untracked, ignored and excluded
+	// while their flags are set: the values of the files.
+	saved settings.Toggles
 
 	// Search is what / searched for, which . and , search again and the
 	// views highlight; it is not saved.
@@ -68,6 +73,10 @@ type Flags struct {
 	// Untracked (--untracked) shows the untracked files; SaveState keeps the
 	// value of the files.
 	Untracked bool
+	// Ignored (--ignored) and Excluded (--excluded) show the ignored files
+	// of .gitignore and of .git/info/exclude, with the untracked ones; as
+	// Untracked, SaveState keeps the values of the files.
+	Ignored, Excluded bool
 	// AutoReload (--auto-reload) starts auto reload, which then does not end
 	// after Settings.AutoReloadTimeout; Settings.AutoReload stays as saved.
 	AutoReload bool
@@ -75,10 +84,10 @@ type Flags struct {
 
 // SetFlags turns on what f asks for, for the run only.
 func (c *Config) SetFlags(f Flags) {
-	c.Flags, c.savedUntracked = f, c.Settings.Untracked
-	if f.Untracked {
-		c.Settings.Untracked = true
-	}
+	c.Flags, c.saved = f, c.Settings.Toggles
+	c.Settings.Untracked = c.Settings.Untracked || f.Untracked
+	c.Settings.Ignored = c.Settings.Ignored || f.Ignored
+	c.Settings.Excluded = c.Settings.Excluded || f.Excluded
 }
 
 // Query is a search of /: plain text, or with Regex a regular expression.
@@ -103,9 +112,20 @@ func (s *Search) Add(q Query) {
 // Default returns the default theme and settings, without files.
 func Default() *Config {
 	c := &Config{Theme: theme.Default(), Keys: keys.Builtin(), Settings: settings.Default()}
-	c.compileWatchIgnore(DefaultWatchIgnore)
+	c.watchIgnore = c.compilePatterns("watch_ignore", DefaultWatchIgnore)
+	c.IgnoredHide, c.ignoredHide = slices.Clone(DefaultIgnoredHide), defaultIgnoredHide()
 	return c
 }
+
+// defaultIgnoredHide is DefaultIgnoredHide compiled, once: Default runs
+// often, in the tests for each view, and a compiled expression may be shared.
+var defaultIgnoredHide = sync.OnceValue(func() []*regexp.Regexp {
+	var res []*regexp.Regexp
+	for _, expr := range DefaultIgnoredHide {
+		res = append(res, regexp.MustCompile(expr))
+	}
+	return res
+})
 
 // Dir returns jdiff's configuration directory: $XDG_CONFIG_HOME/jdiff, by
 // default ~/.config/jdiff, on all systems.
@@ -127,17 +147,38 @@ const (
 	maxInterval = 86400
 )
 
-// mainFile is the content of main.toml. WatchIgnore is not one of the
-// settings, which views compare as a whole.
+// mainFile is the content of main.toml. WatchIgnore and IgnoredHide are not
+// among the settings, which views compare as a whole.
 type mainFile struct {
 	settings.Settings
 	Theme string `toml:"theme"`
+	// IgnoredHide (ignored_hide) are regular expressions of paths as those
+	// of WatchIgnore: an ignored or excluded file that one matches, or a
+	// directory above it, is not shown. As a toggle, state.toml keeps it,
+	// see stateFile. See IgnoredHidden.
+	IgnoredHide []string `toml:"ignored_hide"`
 	// WatchIgnore (watch_ignore) are regular expressions of paths from the
 	// top of the working tree, with / and directories with a / at the end:
 	// while auto reload watches the working tree, a change of a file that
 	// one matches does not run git status, and a directory that one matches
 	// is not watched, nor those below it. See WatchIgnored.
 	WatchIgnore []string `toml:"watch_ignore"`
+}
+
+// stateFile is the content of state.toml: the toggles and ignored_hide.
+// SaveState writes ignored_hide itself, one per line: the encoder would put
+// them on one.
+type stateFile struct {
+	settings.Toggles
+	IgnoredHide []string `toml:"ignored_hide"`
+}
+
+// DefaultIgnoredHide is ignored_hide by default: directories of tools, at
+// any depth, that hold many files nobody edits.
+var DefaultIgnoredHide = []string{
+	`(^|/)node_modules/$`, `(^|/)bower_components/$`, `(^|/)\.venv/$`, `(^|/)__pycache__/$`,
+	`(^|/)\.mypy_cache/$`, `(^|/)\.pytest_cache/$`, `(^|/)\.ruff_cache/$`, `(^|/)\.tox/$`, `(^|/)\.gradle/$`,
+	`(^|/)\.terraform/$`, `(^|/)\.next/$`, `(^|/)\.nuxt/$`, `(^|/)\.cache/$`, `(^|/)\.direnv/$`,
 }
 
 // DefaultWatchIgnore is watch_ignore by default: editors' files beside the
@@ -153,17 +194,17 @@ var DefaultWatchIgnore = []string{`\.sw[a-px]$`, `~$`, `(^|/)\.#`, `(^|/)#[^/]*#
 // files that cannot be parsed are an error, unless they are theme files not
 // selected. An empty dir reads no files.
 func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
-	c := &Config{Keys: keys.Builtin(), Settings: settings.Default()}
+	c := &Config{Keys: keys.Builtin(), Settings: settings.Default(), IgnoredHide: slices.Clone(DefaultIgnoredHide)}
 	c.Themes = []theme.Spec{theme.Builtin(), theme.FromGit(gitCfg, theme.Features(gitCfg, env, flag))}
 	name, ignore := "", DefaultWatchIgnore
 	if dir != "" {
 		c.dir = dir
 		c.statePath = filepath.Join(dir, "state.toml")
-		m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore)}
+		m := mainFile{Settings: c.Settings, WatchIgnore: slices.Clone(DefaultWatchIgnore), IgnoredHide: c.IgnoredHide}
 		if err := c.decode(filepath.Join(dir, "main.toml"), &m); err != nil {
 			return nil, err
 		}
-		c.Settings, ignore = m.Settings, m.WatchIgnore
+		c.Settings, ignore, c.IgnoredHide = m.Settings, m.WatchIgnore, m.IgnoredHide
 		c.checkIntervals()
 		// Lines are cut and wrapped by columns: the symbols take one.
 		def := settings.Default()
@@ -182,9 +223,11 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			}
 		}
 		// state.toml holds only the toggles.
-		if err := c.decode(c.statePath, &c.Settings.Toggles); err != nil {
+		st := stateFile{Toggles: c.Settings.Toggles, IgnoredHide: c.IgnoredHide}
+		if err := c.decode(c.statePath, &st); err != nil {
 			return nil, err
 		}
+		c.Settings.Toggles, c.IgnoredHide = st.Toggles, st.IgnoredHide
 		// inotify_max_dirs is a toggle: it may come from main.toml or
 		// state.toml, so the warning names neither.
 		if n := c.Settings.InotifyMaxDirs; n < 0 {
@@ -201,7 +244,14 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 		}
 	}
 	c.Theme = theme.Resolve(c.selectTheme(name, dir))
-	c.compileWatchIgnore(ignore)
+	c.watchIgnore = c.compilePatterns("watch_ignore", ignore)
+	// A toggle: from main.toml or state.toml, so the warning names main.toml
+	// for both, as for watch_ignore.
+	if slices.Equal(c.IgnoredHide, DefaultIgnoredHide) {
+		c.ignoredHide = defaultIgnoredHide()
+	} else {
+		c.ignoredHide = c.compilePatterns("ignored_hide", c.IgnoredHide)
+	}
 	return c, nil
 }
 
@@ -228,18 +278,20 @@ func (c *Config) checkIntervals() {
 	}
 }
 
-// compileWatchIgnore compiles exprs, watch_ignore, for WatchIgnored; one that
-// is no regular expression is left out with a warning.
-func (c *Config) compileWatchIgnore(exprs []string) {
-	c.watchIgnore = nil
+// compilePatterns compiles exprs, the list key of main.toml; one that is no
+// regular expression is left out with a warning, so that a typo never stops
+// jdiff.
+func (c *Config) compilePatterns(key string, exprs []string) []*regexp.Regexp {
+	var res []*regexp.Regexp
 	for _, expr := range exprs {
 		re, err := regexp.Compile(expr)
 		if err != nil {
-			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: watch_ignore %q is not a regular expression, left out: %v", expr, err))
+			c.warnings = append(c.warnings, fmt.Sprintf("main.toml: %s %q is not a regular expression, left out: %v", key, expr, err))
 			continue
 		}
-		c.watchIgnore = append(c.watchIgnore, re)
+		res = append(res, re)
 	}
+	return res
 }
 
 // WatchIgnored reports whether a pattern of watch_ignore matches rel, a path
@@ -247,6 +299,44 @@ func (c *Config) compileWatchIgnore(exprs []string) {
 // end.
 func (c *Config) WatchIgnored(rel string) bool {
 	return slices.ContainsFunc(c.watchIgnore, func(re *regexp.Regexp) bool { return re.MatchString(rel) })
+}
+
+// IgnoredHidden reports whether a pattern of ignored_hide matches rel, a
+// path as for WatchIgnored. SetIgnoredHide changes them: git commands in the
+// background take IgnoredHider instead.
+func (c *Config) IgnoredHidden(rel string) bool { return c.IgnoredHider()(rel) }
+
+// IgnoredHider returns IgnoredHidden of the patterns of now, which
+// SetIgnoredHide leaves as they are: it replaces them, so that git commands
+// in the background may go on with these.
+func (c *Config) IgnoredHider() func(rel string) bool {
+	res := c.ignoredHide
+	return func(rel string) bool {
+		return slices.ContainsFunc(res, func(re *regexp.Regexp) bool { return re.MatchString(rel) })
+	}
+}
+
+// CheckPattern returns why expr cannot be a pattern of ignored_hide, as it
+// is no regular expression, or nil.
+func CheckPattern(expr string) error {
+	_, err := regexp.Compile(expr)
+	return err
+}
+
+// SetIgnoredHide makes list ignored_hide, as the settings popup edits it,
+// unless one of them is no regular expression: then nothing changes. It
+// does not save it, see SaveState.
+func (c *Config) SetIgnoredHide(list []string) error {
+	var res []*regexp.Regexp
+	for _, expr := range list {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			return fmt.Errorf("%q: %w", expr, err)
+		}
+		res = append(res, re)
+	}
+	c.IgnoredHide, c.ignoredHide = slices.Clone(list), res
+	return nil
 }
 
 // readThemes adds the theme files in dir to the themes. A file that cannot
@@ -334,21 +424,56 @@ func (c *Config) SaveState() error {
 	}
 	t := c.Settings.Toggles
 	if c.Flags.Untracked {
-		t.Untracked = c.savedUntracked
+		t.Untracked = c.saved.Untracked
 	}
-	return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t)
+	if c.Flags.Ignored {
+		t.Ignored = c.saved.Ignored
+	}
+	if c.Flags.Excluded {
+		t.Excluded = c.saved.Excluded
+	}
+	tail, err := tomlList("ignored_hide", c.IgnoredHide)
+	if err != nil {
+		return err
+	}
+	return writeTOML(c.statePath, "# Written by jdiff: the toggles as last set, over main.toml.\n", t, tail)
 }
 
-// writeTOML writes header and v as TOML to path, through a temporary file
-// so that the file is never left half written. Each write has a temporary
+// tomlList returns key = list as TOML, one string per line, to be read and
+// edited by hand: literal strings where they can be, as regular expressions
+// need no doubled backslashes there; others as the encoder quotes them.
+func tomlList(key string, list []string) (string, error) {
+	if len(list) == 0 {
+		return key + " = []\n", nil
+	}
+	var b strings.Builder
+	b.WriteString(key + " = [\n")
+	for _, s := range list {
+		if !strings.ContainsAny(s, "'\n\r") && !strings.ContainsFunc(s, unicode.IsControl) {
+			b.WriteString("    '" + s + "',\n")
+			continue
+		}
+		v, err := toml.Marshal(map[string]string{"v": s})
+		if err != nil {
+			return "", err
+		}
+		b.WriteString("    " + strings.TrimSuffix(strings.TrimPrefix(string(v), "v = "), "\n") + ",\n")
+	}
+	b.WriteString("]\n")
+	return b.String(), nil
+}
+
+// writeTOML writes header, v as TOML and tail to path, through a temporary
+// file so that the file is never left half written. Each write has a temporary
 // file of its own: jdiffs running at the same time must not rename each
 // other's.
-func writeTOML(path, header string, v any) error {
+func writeTOML(path, header string, v any, tail string) error {
 	var b bytes.Buffer
 	b.WriteString(header)
 	if err := toml.NewEncoder(&b).Encode(v); err != nil {
 		return err
 	}
+	b.WriteString(tail)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

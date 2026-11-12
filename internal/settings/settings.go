@@ -94,6 +94,12 @@ type Toggles struct {
 	// as added, where it compares with the working tree; action untracked.
 	// --untracked turns it on for the run only, see config.Flags.
 	Untracked bool `toml:"untracked"`
+	// Ignored (ignored) also shows, with the untracked files, those that
+	// the .gitignore files of the working tree ignore; Excluded (excluded)
+	// those that .git/info/exclude does; actions ignored and excluded.
+	// --ignored and --excluded turn them on for the run only.
+	Ignored  bool `toml:"ignored"`
+	Excluded bool `toml:"excluded"`
 	// AutoReload (auto_reload) starts with auto reload on, see
 	// config.Config.AutoReload; action auto_reload sets it. Its end after
 	// AutoReloadTimeout leaves it on; --auto-reload does not set it, see

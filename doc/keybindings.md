@@ -88,7 +88,9 @@ The keys of the diff view, and:
 | `d` | [show another `git diff`](#another-git-diff) |
 | `s` | side by side or normal layout, also of the preview |
 | `f` | flow view of all files or commits; in it, the single file view |
-| `u` | in `jdiff diff`, [also show untracked files](#untracked-files); kept in `state.toml` |
+| `u` | in `jdiff diff`, [also show untracked files](#untracked-ignored-and-excluded-files); kept in `state.toml` |
+| `i` | with `u`, also the files `.gitignore` ignores; kept in `state.toml` |
+| `I` | with `u`, also the files `.git/info/exclude` ignores; kept in `state.toml` |
 | `w` | wrap long lines or cut them |
 | `W` | show all whitespace and line ends or only changed |
 | `ctrl+w` | mark changed whitespace or not |
@@ -131,19 +133,24 @@ Type ARGS, e.g. `--cached` or `HEAD~3 HEAD`.
 
 git runs in the directory jdiff was started in, also when it compares two directories or files.
 
-### Untracked files
+### Untracked, ignored and excluded files
 
 `u` also shows the untracked files that are not ignored, as added, and lists the files anew.
-It is kept in `state.toml`, so later runs show them too; `jdiff -u diff` (`--untracked`) shows them for that run only, without changing `state.toml`.
+With `u` on, `i` adds the files the `.gitignore` files of the working tree ignore, and `I` those `.git/info/exclude` ignores; the global excludes file (`core.excludesFile`) is left out.
+Each is kept in `state.toml`, so later runs show them too; `jdiff -u diff` (`--untracked`), `-i` (`--ignored`) and `-I` (`--excluded`) show them for that run only, without changing `state.toml`.
 
 - They show where `git diff` compares with the working tree: `jdiff diff`, `jdiff diff HEAD`, not `--cached` or two commits.
-- Your index stays as it is: jdiff marks them in a temporary copy of it, and the line above the files says `WORK+UNTRACKED`, or `WORK+INDEX+UNTRACKED`.
+- Your index stays as it is: jdiff marks them in a temporary copy of it.
+- The line above the files names what shows: `WORK (U)`, `WORK (U/I)`, `WORK/INDEX (U/I/X)`. Each file says what it is after its counts, in the file list, its single file view and the flow view: `U` untracked, `I` ignored by `.gitignore`, `X` excluded by `.git/info/exclude`; one both ignore counts as `I`.
+- `i` and `I` with `u` off say so and change nothing; `u` off hides them, `u` on brings them back.
+- [`ignored_hide`](config.md) leaves out ignored and excluded files by their paths; by default the directories of tools, as `node_modules/`, `.venv/` or `__pycache__/`, at any depth. The [settings popup](#settings-popup) edits it; it is kept in `state.toml`, one pattern per line.
+- While they show, auto reload also runs `git status` with the ignored files and watches their directories.
 - Directories, as nested repositories, and files that cannot be read, as broken symlinks, are left out.
 
 ### Settings popup
 
 `o` or `F8` opens a popup with all the settings above, also `c` and `C` of the flow view, to find them.
-Only there can you set the minutes until auto reload ends and the most directories watched (`inotify_max_dirs`), typed in a line after `enter` on them.
+Only there can you set the minutes until auto reload ends and the most directories watched (`inotify_max_dirs`), typed in a line after `enter` on them, and edit the patterns of [`ignored_hide`](#untracked-ignored-and-excluded-files): `enter` on its row lists them, `a` adds one, `enter` edits the selected one, `d` or `del` deletes it, `esc` goes back to the settings. A pattern that is no regular expression, or an empty one, is refused with the reason; each change is saved in `state.toml` and lists the files anew.
 
 - `j` `k` move; `enter`, `space` or the letter toggles, kept in `state.toml`.
 - The popup stays open; `o`, `F8`, `esc` or `q` close it.

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
@@ -292,8 +293,9 @@ var vcsDirs = []string{".git", ".svn", ".hg", ".bzr", "CVS", "_darcs", ".jj", ".
 // repository count as entries of the directory they are in, which is not
 // entered. Left out are the directories of vcsDirs, and those for which
 // ignore holds of their path from the top with / and a / at the end, with
-// the directories below them.
-func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, error) {
+// the directories below them. With the ignored or excluded files of extra,
+// the directories of those it does not hide count too.
+func (r Repo) WorkDirs(ignore func(rel string) bool, extra Extra) (map[string]time.Time, error) {
 	top, err := r.TopLevel()
 	if err != nil {
 		return nil, err
@@ -317,7 +319,15 @@ func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, erro
 		left[rel] = l
 		return l
 	}
-	for _, rel := range strings.Split(string(out), "\x00") {
+	rels := strings.Split(string(out), "\x00")
+	if extra.Ignored || extra.Excluded {
+		added, err := Repo{Dir: top, ctx: r.ctx}.extraFiles(Extra{Ignored: extra.Ignored, Excluded: extra.Excluded, Hide: extra.Hide})
+		if err != nil {
+			return nil, err
+		}
+		rels = slices.AppendSeq(rels, maps.Keys(added))
+	}
+	for _, rel := range rels {
 		// A nested repository comes as its directory with a /.
 		rel = strings.TrimSuffix(rel, "/")
 		if rel == "" || leftOut(path.Dir(rel)) {
@@ -334,10 +344,39 @@ func (r Repo) WorkDirs(ignore func(rel string) bool) (map[string]time.Time, erro
 }
 
 // Status returns the state of the repository: the commit of HEAD, the branch,
-// staged, changed and untracked files. It does not write the index.
-func (r Repo) Status() (string, error) {
-	out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, "status", "--porcelain=v2", "--branch", "--untracked-files=all")
-	return string(out), err
+// staged, changed and untracked files, and with the ignored or excluded
+// files of extra the ignored ones too, but those extra.Hide hides. It does
+// not write the index.
+func (r Repo) Status(extra Extra) (string, error) {
+	args := []string{"status", "--porcelain=v2", "--branch", "--untracked-files=all"}
+	if !extra.Ignored && !extra.Excluded {
+		out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, args...)
+		return string(out), err
+	}
+	out, err := r.run([]string{"GIT_OPTIONAL_LOCKS=0"}, nil, append(args, "--ignored")...)
+	if err != nil {
+		return "", err
+	}
+	// The paths of git status are relative to where it ran.
+	top, err := r.TopLevel()
+	if err != nil {
+		return "", err
+	}
+	dir, err := filepath.Abs(r.Dir)
+	if err != nil {
+		return "", err
+	}
+	hidden := hiddenPaths(extra.Hide)
+	var b strings.Builder
+	for _, line := range strings.SplitAfter(string(out), "\n") {
+		if p, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), "! "); ok {
+			if rel, err := filepath.Rel(top, filepath.Join(dir, filepath.FromSlash(p))); err == nil && hidden(filepath.ToSlash(rel)) {
+				continue
+			}
+		}
+		b.WriteString(line)
+	}
+	return b.String(), nil
 }
 
 // StatusPaths returns the paths of the files that the lines of status, from
@@ -450,23 +489,38 @@ func (r Repo) IsRevision(arg string) bool {
 // files are left out.
 func (r Repo) Diff(args []string) ([]source.File, error) { return r.diff(nil, args) }
 
-// DiffUntracked returns what Diff does, and the untracked files as added
-// where git diff compares with the working tree. They are marked with git add
-// -N in a copy of the index, which is gone on return: the real one stays as
-// it is. Directories, as nested repositories, and files that cannot be read,
-// as broken symlinks, are left out.
-func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
+// Extra are the files DiffUntracked adds to what git diff compares: the
+// untracked files that nothing ignores, and of the ignored ones those that
+// the .gitignore files of the working tree ignore and those that
+// .git/info/exclude does; the global excludes file is left out. Hide leaves
+// ignored and excluded files out by their path from the top with /, and so
+// does it of a directory above them, with a / at the end; nil hides none. It
+// is called in the background.
+type Extra struct {
+	Untracked, Ignored, Excluded bool
+	Hide                         func(rel string) bool
+}
+
+// DiffUntracked returns what Diff does, and the files of extra as added
+// where git diff compares with the working tree, each with what it was
+// added as; a file that both a .gitignore file and .git/info/exclude ignore
+// counts as ignored. They are marked with git add -N in a copy of the index,
+// which is gone on return: the real one stays as it is. Directories, as
+// nested repositories, and files that cannot be read, as broken symlinks,
+// are left out.
+func (r Repo) DiffUntracked(args []string, extra Extra) ([]source.File, error) {
 	top, err := r.TopLevel()
 	if err != nil {
 		return nil, err
 	}
-	paths, err := Repo{Dir: top, ctx: r.ctx}.untracked()
+	added, err := Repo{Dir: top, ctx: r.ctx}.extraFiles(extra)
 	if err != nil {
 		return nil, err
 	}
-	if len(paths) == 0 {
+	if len(added) == 0 {
 		return r.Diff(args)
 	}
+	paths := slices.Sorted(maps.Keys(added))
 	dir, err := os.MkdirTemp("", "jdiff-")
 	if err != nil {
 		return nil, err
@@ -477,29 +531,85 @@ func (r Repo) DiffUntracked(args []string) ([]source.File, error) {
 		return nil, err
 	}
 	env := []string{"GIT_INDEX_FILE=" + index}
-	// One file may be named like a pathspec, say with a * in it.
+	// One file may be named like a pathspec, say with a * in it. -f adds
+	// the ignored ones too.
 	list := []byte(strings.Join(paths, "\x00"))
 	if _, err := (Repo{Dir: top, ctx: r.ctx}).run(append(env, "GIT_LITERAL_PATHSPECS=1"), list,
-		"add", "-N", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
+		"add", "-N", "-f", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 		return nil, err
 	}
-	return r.diff(env, args)
+	files, err := r.diff(env, args)
+	for i := range files {
+		files[i].Added = added[files[i].Path]
+	}
+	return files, err
 }
 
-// untracked returns the paths of the untracked files that are not ignored,
-// relative to r.Dir, which must be the top of the working tree.
-func (r Repo) untracked() ([]string, error) {
-	out, err := r.git("ls-files", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return nil, err
+// extraFiles returns the files of e by their paths from r.Dir, which must be
+// the top of the working tree, with what each is added as.
+func (r Repo) extraFiles(e Extra) (map[string]source.Added, error) {
+	added := map[string]source.Added{}
+	hidden := hiddenPaths(e.Hide)
+	list := func(kind source.Added, args ...string) error {
+		out, err := r.git(append([]string{"ls-files", "--others", "-z"}, args...)...)
+		if err != nil {
+			return err
+		}
+		for _, p := range strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00") {
+			if p == "" || added[p] != source.NotAdded || (kind != source.AddedUntracked && hidden(p)) ||
+				!readableFile(filepath.Join(r.Dir, filepath.FromSlash(p))) {
+				continue
+			}
+			added[p] = kind
+		}
+		return nil
 	}
-	var paths []string
-	for _, p := range strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00") {
-		if p != "" && readableFile(filepath.Join(r.Dir, filepath.FromSlash(p))) {
-			paths = append(paths, p)
+	if e.Untracked {
+		if err := list(source.AddedUntracked, "--exclude-standard"); err != nil {
+			return nil, err
 		}
 	}
-	return paths, nil
+	if e.Ignored {
+		if err := list(source.AddedIgnored, "--ignored", "--exclude-per-directory=.gitignore"); err != nil {
+			return nil, err
+		}
+	}
+	if e.Excluded {
+		paths, err := r.gitPaths("info/exclude")
+		if err != nil {
+			return nil, err
+		}
+		// Without the file nothing is excluded; git would fail on it.
+		if info, err := os.Stat(paths[0]); err == nil && info.Mode().IsRegular() {
+			if err := list(source.AddedExcluded, "--ignored", "--exclude-from="+paths[0]); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return added, nil
+}
+
+// hiddenPaths returns whether hide holds of a path from the top with /, or
+// of a directory above it with a / at the end; nil hides nothing. The
+// directories are looked up once each.
+func hiddenPaths(hide func(rel string) bool) func(rel string) bool {
+	if hide == nil {
+		return func(string) bool { return false }
+	}
+	dirs := map[string]bool{}
+	var dirHidden func(dir string) bool
+	dirHidden = func(dir string) bool {
+		if dir == "." {
+			return false
+		}
+		if h, ok := dirs[dir]; ok {
+			return h
+		}
+		h := hide(dir+"/") || dirHidden(path.Dir(dir))
+		dirs[dir] = h
+		return h
+	}
+	return func(rel string) bool { return hide(rel) || dirHidden(path.Dir(rel)) }
 }
 
 // readableFile reports whether path is, or links to, a regular file that can

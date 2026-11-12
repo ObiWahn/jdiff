@@ -151,8 +151,8 @@ func (m *FileDiff) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(msg.quiet)
 	case showMsg:
 		m.msg = string(msg)
-	case toggleUntrackedMsg:
-		m.msg = untrackedOnlyInDiff
+	case toggleAddedMsg:
+		m.msg = addedOnlyInDiff(msg.added)
 	case toggleFlowMsg:
 		m.msg = flowOnlyOfSeveral
 	case settingChangedMsg:

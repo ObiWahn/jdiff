@@ -20,13 +20,15 @@ import (
 // toggles it, when it can. With logFlow, its key works only in the log's flow
 // view, where it shows; in the popup always. With number instead of the toggle,
 // it is a number, asked for in a line; it has no key, the cursor goes to it in
-// the popup.
+// the popup. With patterns, it is ignored_hide, edited in a list of its own,
+// see hidePopup.
 type settingOption struct {
 	key, action, what string
 	setting           func(*config.Config) *bool
 	ask               tea.Cmd
 	logFlow           bool
 	number            func(*config.Config) *int
+	patterns          bool
 }
 
 // settingTable lists the settings without their keys and words, which
@@ -35,6 +37,8 @@ var settingTable = []settingOption{
 	{action: "layout", setting: func(c *config.Config) *bool { return &c.Settings.SideBySide }},
 	{action: "flow", setting: func(c *config.Config) *bool { return &c.Settings.Flow }, ask: toggleFlow},
 	{action: "untracked", setting: func(c *config.Config) *bool { return &c.Settings.Untracked }, ask: toggleUntracked},
+	{action: "ignored", setting: func(c *config.Config) *bool { return &c.Settings.Ignored }, ask: toggleIgnored},
+	{action: "excluded", setting: func(c *config.Config) *bool { return &c.Settings.Excluded }, ask: toggleExcluded},
 	{action: "wrap", setting: func(c *config.Config) *bool { return &c.Settings.Wrap }},
 	{action: "whitespace", setting: func(c *config.Config) *bool { return &c.Settings.ShowWhitespaces }},
 	{action: "mark_whitespace", setting: func(c *config.Config) *bool { return &c.Settings.MarkWhitespace }},
@@ -46,6 +50,7 @@ var settingTable = []settingOption{
 	{action: "stay_in_commit", setting: func(c *config.Config) *bool { return &c.Settings.StayInCommit }, logFlow: true},
 	{action: "auto_reload_timeout", number: func(c *config.Config) *int { return &c.Settings.AutoReloadTimeout }},
 	{action: "inotify_max_dirs", number: func(c *config.Config) *int { return &c.Settings.InotifyMaxDirs }},
+	{action: "ignored_hide", patterns: true},
 }
 
 // settingOptions returns the lines of the settings popup, with their keys and
@@ -159,8 +164,21 @@ type SettingsPopup struct {
 	open    bool
 	listPopup
 	msg      string     // a problem saving the toggles
-	input    *lineInput // while it asks for the number of the option
-	inputErr string     // why the number typed is none
+	input    *lineInput // while it asks for the number of the option, or a pattern of hide
+	inputErr string     // why the number or pattern typed is none
+	hide     hidePopup
+}
+
+// hidePopup is the list of the patterns of ignored_hide over the settings
+// popup, which enter on its row opens: a adds a pattern and enter edits the
+// selected one, typed in the line of the settings popup; d or del deletes
+// it. A pattern is taken only when it is a regular expression, so that a
+// typo changes nothing; each change is saved and lists the files anew.
+type hidePopup struct {
+	open bool
+	listPopup
+	edit int    // the pattern the line edits; len of the patterns for a new one
+	msg  string // a problem saving them
 }
 
 // WithSettings returns m with the settings popup.
@@ -172,7 +190,9 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		p.width, p.height = msg.Width, msg.Height
+		p.hide.width, p.hide.height = msg.Width, msg.Height
 		p.move(0)
+		p.moveHide(0)
 	case askSettingsMsg:
 		p.open, p.cursor, p.top, p.msg = true, 0, 0, ""
 		return p, nil
@@ -181,8 +201,12 @@ func (p *SettingsPopup) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, p.flip(p.options[i])
 	case tea.KeyPressMsg:
 		switch {
+		case p.input != nil && p.hide.open:
+			return p, p.editPattern(msg)
 		case p.input != nil:
 			return p, p.editNumber(msg)
+		case p.hide.open:
+			return p, p.hideKey(msg.String())
 		case p.open:
 			return p, p.key(msg.String())
 		}
@@ -219,6 +243,10 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 func (p *SettingsPopup) flip(o settingOption) tea.Cmd {
 	if o.number != nil {
 		p.input, p.inputErr = &lineInput{text: strconv.Itoa(*o.number(p.cfg))}, ""
+		return nil
+	}
+	if o.patterns {
+		p.hide.open, p.hide.cursor, p.hide.top, p.hide.msg = true, 0, 0, ""
 		return nil
 	}
 	if o.ask != nil {
@@ -261,6 +289,77 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
 
 func (p *SettingsPopup) move(delta int) { p.moveIn(delta, len(p.options)) }
 
+func (p *SettingsPopup) moveHide(delta int) { p.hide.moveIn(delta, len(p.cfg.IgnoredHide)) }
+
+// hideKey handles k in the list of ignored_hide: esc, q and the key of the
+// settings go back to them.
+func (p *SettingsPopup) hideKey(k string) tea.Cmd {
+	if cmd, ok := popupNav(p.cfg.Keys, k, "settings", &p.hide.open, p.moveHide); ok {
+		return cmd
+	}
+	list := p.cfg.IgnoredHide
+	switch k {
+	case "a":
+		p.hide.edit, p.input, p.inputErr = len(list), &lineInput{}, ""
+	case "enter":
+		if p.hide.cursor < len(list) {
+			p.hide.edit, p.input, p.inputErr = p.hide.cursor, &lineInput{text: list[p.hide.cursor]}, ""
+		}
+	case "d", "delete":
+		if p.hide.cursor < len(list) {
+			return p.setHide(slices.Delete(slices.Clone(list), p.hide.cursor, p.hide.cursor+1))
+		}
+	}
+	return nil
+}
+
+// editPattern edits the pattern asked for: enter takes and saves it, unless
+// it is empty, which would hide all, or no regular expression; esc and
+// backspace on nothing typed cancel.
+func (p *SettingsPopup) editPattern(k tea.KeyPressMsg) tea.Cmd {
+	in := p.input
+	switch {
+	case k.String() == "ctrl+c":
+		return tea.Quit
+	case in.cancels(k):
+		p.input = nil
+	case k.String() == "enter":
+		if in.text == "" {
+			p.inputErr = "a regular expression; empty would hide all"
+			return nil
+		}
+		if err := config.CheckPattern(in.text); err != nil {
+			p.inputErr = "no regular expression: " + strings.TrimPrefix(firstLine(err), "error parsing regexp: ")
+			return nil
+		}
+		list := slices.Clone(p.cfg.IgnoredHide)
+		if p.hide.edit < len(list) {
+			list[p.hide.edit] = in.text
+		} else {
+			list = append(list, in.text)
+		}
+		p.input, p.hide.cursor = nil, p.hide.edit
+		return p.setHide(list)
+	default:
+		p.inputErr = ""
+		in.edit(k)
+	}
+	return nil
+}
+
+// setHide makes list ignored_hide, saves it and tells the page below, which
+// lists its files anew.
+func (p *SettingsPopup) setHide(list []string) tea.Cmd {
+	if err := p.cfg.SetIgnoredHide(list); err != nil { // checked when typed
+		p.hide.msg = firstLine(err)
+		return nil
+	}
+	p.hide.msg = saveState(p.cfg)
+	p.moveHide(0)
+	_, cmd := p.Model.Update(settingChangedMsg{action: "ignored_hide"})
+	return cmd
+}
+
 func (p *SettingsPopup) View() tea.View { return tea.NewView(p.frame()) }
 
 func (p *SettingsPopup) frame() string {
@@ -278,6 +377,8 @@ func (p *SettingsPopup) frame() string {
 		switch {
 		case o.number != nil:
 			states[i] = fmt.Sprintf("[%d]", *o.number(p.cfg))
+		case o.patterns:
+			states[i] = fmt.Sprintf("[%d]", len(p.cfg.IgnoredHide))
 		case *o.setting(p.cfg):
 			states[i] = "[x]"
 		default:
@@ -291,9 +392,18 @@ func (p *SettingsPopup) frame() string {
 	}
 	title := popupTitle(t, "settings", p.msg, "enter toggle · esc close")
 	view := p.draw(t, base, title, all, "")
+	name := "auto reload timeout"
+	if p.hide.open {
+		items := make([]string, len(p.cfg.IgnoredHide))
+		for i, expr := range p.cfg.IgnoredHide {
+			items[i] = " " + printable(expr) + " "
+		}
+		title := popupTitle(t, "ignored_hide", p.hide.msg, "a add · enter edit · d delete · esc back")
+		view, name = p.hide.draw(t, view, title, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"
+	}
 	if p.input == nil {
 		return view
 	}
-	pop, popW := inputBox(t, p.width, popupTitle(t, "auto reload timeout", "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true)
+	pop, popW := inputBox(t, p.width, popupTitle(t, name, "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true)
 	return overlay(view, pop, popW, p.width)
 }

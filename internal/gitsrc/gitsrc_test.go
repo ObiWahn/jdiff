@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -551,7 +552,7 @@ func TestDiffUntracked(t *testing.T) {
 	}
 	diff := func(args ...string) []source.File {
 		t.Helper()
-		files, err := r.DiffUntracked(args)
+		files, err := r.DiffUntracked(args, Extra{Untracked: true})
 		if err != nil {
 			t.Fatalf("DiffUntracked %v: %v", args, err)
 		}
@@ -640,7 +641,7 @@ func TestDiffUntracked(t *testing.T) {
 
 	// From a subdirectory all files are found, with paths from the top.
 	sub := Repo{Dir: filepath.Join(r.Dir, "sub")}
-	files, err := sub.DiffUntracked([]string{"HEAD"})
+	files, err := sub.DiffUntracked([]string{"HEAD"}, Extra{Untracked: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,18 +679,146 @@ func TestDiffUntrackedNoCommits(t *testing.T) {
 	}
 	gitIn(t, dir, "init", "-q")
 	r := Repo{Dir: dir}
-	if files, err := r.DiffUntracked(nil); err != nil || len(files) != 0 {
+	if files, err := r.DiffUntracked(nil, Extra{Untracked: true}); err != nil || len(files) != 0 {
 		t.Errorf("no files: %v, %v", files, err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "x0"), []byte("new\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	files, err := r.DiffUntracked(nil)
+	files, err := r.DiffUntracked(nil, Extra{Untracked: true})
 	if err != nil || len(files) != 1 || files[0].Path != "x0" || files[0].InOld {
 		t.Errorf("x0: %+v, %v", files, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".git", "index")); err == nil {
 		t.Error("an index appeared in the repository")
+	}
+}
+
+// newIgnoreRepo returns newRepo with files of each kind DiffUntracked can
+// add: x0 untracked; i0.log and sub/i1.tmp ignored by .gitignore files; x1.ex
+// excluded by .git/info/exclude; both.log ignored by both; g0.glob ignored by
+// the global excludes file only; big/i2.log ignored, in a directory to hide;
+// .gitignore itself untracked.
+func newIgnoreRepo(t *testing.T) Repo {
+	t.Helper()
+	r := newRepo(t)
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(r.Dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	global := filepath.Join(t.TempDir(), "ignore")
+	if err := os.WriteFile(global, []byte("*.glob\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, r.Dir, "config", "core.excludesFile", global)
+	write(".gitignore", "*.log\n")
+	write("sub/.gitignore", "*.tmp\n")
+	write(".git/info/exclude", "*.ex\nboth.*\n")
+	for _, name := range []string{"x0", "i0.log", "sub/i1.tmp", "x1.ex", "both.log", "g0.glob", "big/i2.log"} {
+		write(name, name+"\n")
+	}
+	return r
+}
+
+// DiffUntracked adds the files of each kind asked for, each with what it is
+// added as, and none of the global excludes file; Hide leaves out ignored
+// and excluded files below a hidden directory, not untracked ones.
+func TestDiffUntrackedIgnored(t *testing.T) {
+	r := newIgnoreRepo(t)
+	hide := func(rel string) bool { return rel == "big/" || rel == "x0" }
+	U, I, X := source.AddedUntracked, source.AddedIgnored, source.AddedExcluded
+	for _, c := range []struct {
+		name  string
+		extra Extra
+		want  map[string]source.Added
+	}{
+		{"untracked", Extra{Untracked: true}, map[string]source.Added{".gitignore": U, "sub/.gitignore": U, "x0": U}},
+		{"ignored", Extra{Ignored: true}, map[string]source.Added{"i0.log": I, "sub/i1.tmp": I, "both.log": I, "big/i2.log": I}},
+		{"excluded", Extra{Excluded: true}, map[string]source.Added{"x1.ex": X, "both.log": X}},
+		{"all", Extra{Untracked: true, Ignored: true, Excluded: true}, map[string]source.Added{
+			".gitignore": U, "sub/.gitignore": U, "x0": U,
+			"i0.log": I, "sub/i1.tmp": I, "both.log": I, "big/i2.log": I, "x1.ex": X}},
+		{"all hidden", Extra{Untracked: true, Ignored: true, Excluded: true, Hide: hide}, map[string]source.Added{
+			".gitignore": U, "sub/.gitignore": U, "x0": U,
+			"i0.log": I, "sub/i1.tmp": I, "both.log": I, "x1.ex": X}},
+	} {
+		for _, args := range [][]string{nil, {"HEAD"}} {
+			files, err := r.DiffUntracked(args, c.extra)
+			if err != nil {
+				t.Fatalf("%s %v: %v", c.name, args, err)
+			}
+			got := map[string]source.Added{}
+			for _, f := range files {
+				if f.Added != source.NotAdded {
+					got[f.Path] = f.Added
+				} else if f.Path != "a.txt" && f.Path != "c.txt" {
+					t.Errorf("%s %v: %s not marked", c.name, args, f.Path)
+				}
+			}
+			if !maps.Equal(got, c.want) {
+				t.Errorf("%s %v: %v, want %v", c.name, args, got, c.want)
+			}
+		}
+	}
+
+	// Without .git/info/exclude nothing is excluded, and nothing fails.
+	if err := os.Remove(filepath.Join(r.Dir, ".git", "info", "exclude")); err != nil {
+		t.Fatal(err)
+	}
+	if files, err := r.DiffUntracked(nil, Extra{Excluded: true}); err != nil || len(files) != 0 {
+		t.Errorf("no exclude file: %v, %v", files, err)
+	}
+}
+
+// With ignored files, Status names them, but those Hide hides, and WorkDirs
+// counts their directories.
+func TestStatusAndWorkDirsIgnored(t *testing.T) {
+	r := newIgnoreRepo(t)
+	hide := func(rel string) bool { return rel == "big/" }
+	plain, err := r.Status(Extra{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain, "! ") {
+		t.Errorf("without ignored files, status names some:\n%s", plain)
+	}
+	// From a subdirectory too: its paths are relative to there.
+	for _, dir := range []string{r.Dir, filepath.Join(r.Dir, "sub")} {
+		status, err := Repo{Dir: dir}.Status(Extra{Ignored: true, Hide: hide})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(status, "i1.tmp\n") || strings.Contains(status, "i2.log") {
+			t.Errorf("from %s: status lacks i1.tmp or names the hidden big/i2.log:\n%s", dir, status)
+		}
+	}
+
+	none := func(string) bool { return false }
+	dirs, err := r.WorkDirs(none, Extra{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dirs[filepath.Join(r.Dir, "big")]; ok {
+		t.Error("without ignored files, big is watched")
+	}
+	dirs, err = r.WorkDirs(none, Extra{Ignored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dirs[filepath.Join(r.Dir, "big")]; !ok {
+		t.Errorf("with ignored files, big is not watched: %v", dirs)
+	}
+	if dirs, err = r.WorkDirs(none, Extra{Ignored: true, Hide: hide}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dirs[filepath.Join(r.Dir, "big")]; ok {
+		t.Error("big is hidden, yet watched")
 	}
 }
 
@@ -853,7 +982,7 @@ func TestWorkDirs(t *testing.T) {
 
 	ignore := func(rel string) bool { return rel == "vendor/" }
 	for _, dir := range []string{r.Dir, filepath.Join(r.Dir, "x", "sub")} {
-		got, err := Repo{Dir: dir}.WorkDirs(ignore)
+		got, err := Repo{Dir: dir}.WorkDirs(ignore, Extra{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -873,7 +1002,7 @@ func TestWorkDirs(t *testing.T) {
 			t.Errorf("from %s: %d directories, want %d: %v", dir, len(got), len(want)+1, got)
 		}
 	}
-	if _, err := (Repo{Dir: t.TempDir()}).WorkDirs(ignore); err == nil {
+	if _, err := (Repo{Dir: t.TempDir()}).WorkDirs(ignore, Extra{}); err == nil {
 		t.Error("outside a repository: no error")
 	}
 }
@@ -885,7 +1014,7 @@ func TestStatus(t *testing.T) {
 	seen := map[string]bool{}
 	check := func(what string) {
 		t.Helper()
-		s, err := r.Status()
+		s, err := r.Status(Extra{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -926,7 +1055,7 @@ func TestStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Status(); err != nil {
+	if _, err := r.Status(Extra{}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.Stat(index)
@@ -936,7 +1065,7 @@ func TestStatus(t *testing.T) {
 	if !after.ModTime().Equal(before.ModTime()) {
 		t.Error("Status wrote the index")
 	}
-	if _, err := (Repo{Dir: t.TempDir()}).Status(); err == nil {
+	if _, err := (Repo{Dir: t.TempDir()}).Status(Extra{}); err == nil {
 		t.Error("outside a repository: no error")
 	}
 }
@@ -955,14 +1084,14 @@ func TestStatusPaths(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	before, err := r.Status()
+	before, err := r.Status(Extra{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	write("a.txt", "edited\n")
 	write("dir/with space.txt", "x\n")
 	gitIn(t, r.Dir, "mv", "c.txt", "moved.txt")
-	status, err := r.Status()
+	status, err := r.Status(Extra{})
 	if err != nil {
 		t.Fatal(err)
 	}

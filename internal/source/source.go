@@ -27,7 +27,20 @@ type File struct {
 	// files from git; OldStamp and NewStamp identify the versions read.
 	OldFile, NewFile   string
 	OldStamp, NewStamp Stamp
+	// Added is what git diff was given the file as, besides what it
+	// compares by itself; NotAdded for all others.
+	Added Added
 }
+
+// Added is what an untracked file was added to git diff as.
+type Added uint8
+
+const (
+	NotAdded Added = iota
+	AddedUntracked
+	AddedIgnored  // ignored by a .gitignore file
+	AddedExcluded // ignored by .git/info/exclude
+)
 
 // Stamp identifies a version of a file on disk.
 type Stamp struct {

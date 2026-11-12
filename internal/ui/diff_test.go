@@ -17,6 +17,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/source"
 )
 
@@ -45,8 +46,8 @@ func TestSplitDiffArgs(t *testing.T) {
 		{nil, "INDEX", "WORK", true, nil},
 		{[]string{"--cached"}, "HEAD", "INDEX", false, nil},
 		{[]string{"--staged", "-w"}, "HEAD", "INDEX", false, nil},
-		{[]string{"HEAD"}, "HEAD", "WORK+INDEX", true, nil},
-		{[]string{"-w", "12334fdf", "--stat"}, "12334fdf", "WORK+INDEX", true, nil},
+		{[]string{"HEAD"}, "HEAD", "WORK/INDEX", true, nil},
+		{[]string{"-w", "12334fdf", "--stat"}, "12334fdf", "WORK/INDEX", true, nil},
 		{[]string{"--cached", "HEAD~1"}, "HEAD~1", "INDEX", false, nil},
 		{[]string{"12334fdf", "HEAD"}, "12334fdf", "HEAD", false, nil},
 		{[]string{"HEAD~5", "HEAD^1"}, "HEAD~5", "HEAD^1", false, nil},
@@ -55,8 +56,8 @@ func TestSplitDiffArgs(t *testing.T) {
 		{[]string{"..main"}, "HEAD", "main", false, nil},
 		{[]string{"main...topic"}, "main...topic", "topic", false, nil},
 		{[]string{"main..."}, "main...", "HEAD", false, nil},
-		{[]string{"HEAD", "--", "internal/ui"}, "HEAD", "WORK+INDEX", true, []string{"internal/ui"}},
-		{[]string{"HEAD", "p", "q"}, "HEAD", "WORK+INDEX", true, []string{"p", "q"}},
+		{[]string{"HEAD", "--", "internal/ui"}, "HEAD", "WORK/INDEX", true, []string{"internal/ui"}},
+		{[]string{"HEAD", "p", "q"}, "HEAD", "WORK/INDEX", true, []string{"p", "q"}},
 		{[]string{"p"}, "INDEX", "WORK", true, []string{"p"}},
 		{[]string{"--", "HEAD"}, "INDEX", "WORK", true, []string{"HEAD"}},
 	} {
@@ -78,7 +79,7 @@ func TestDiffSidesLine(t *testing.T) {
 	d := newUntrackedDiff() // git diff HEAD
 	d.WithSides(SplitDiffArgs([]string{"HEAD", "--", "f00", "f01"}, nil))
 	setOption(d, d.cfg, "u")
-	line := regexp.MustCompile(`^ HEAD +3 files changed  \+3 -2 │ WORK\+INDEX\+UNTRACKED +f00 f01 $`)
+	line := regexp.MustCompile(`^ HEAD +3 files changed  \+3 -2 │ WORK/INDEX \(U\) +f00 f01 $`)
 	names := regexp.MustCompile(`^ a/f00 +-1 │ b/f00 +\+1 $`)
 	if top := topLines(d, 1)[0]; !line.MatchString(top) || ansi.StringWidth(top) != 79 {
 		t.Errorf("file list: %q", top)
@@ -90,7 +91,7 @@ func TestDiffSidesLine(t *testing.T) {
 		}
 	}
 	d.Update(tea.WindowSizeMsg{Width: 30, Height: 12})
-	if top := topLines(d, 1)[0]; top != " HEAD  3 file…│ WORK+INDEX+U…" {
+	if top := topLines(d, 1)[0]; top != " HEAD  3 file…│ WORK/INDEX (…" {
 		t.Errorf("narrow: %q", top)
 	}
 
@@ -434,7 +435,7 @@ type fakeGitDiff struct {
 	ctx  context.Context // of the last run
 }
 
-func (g *fakeGitDiff) diff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+func (g *fakeGitDiff) diff(ctx context.Context, args []string, _ gitsrc.Extra) ([]source.File, error) {
 	g.runs, g.ctx = append(g.runs, args), ctx
 	if g.err != nil {
 		return nil, g.err
@@ -964,20 +965,27 @@ func TestDiffPathsDrawnPrintable(t *testing.T) {
 }
 
 // newUntrackedDiff returns the file list of a git diff of f00 and f01,
-// with the new file x0 while the untracked files are shown.
+// with the new file x0 while the untracked files are shown, x1 while the
+// ignored ones are, x2 while the excluded ones are.
 func newUntrackedDiff() *Diff {
 	cfg := config.Default()
 	file := func(name string) source.File {
 		return source.File{Path: name, Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
 	}
-	list := func(_ context.Context, _ []string, untracked bool) ([]source.File, error) {
+	list := func(_ context.Context, _ []string, extra gitsrc.Extra) ([]source.File, error) {
 		files := []source.File{file("f00"), file("f01")}
-		if untracked {
-			files = append(files, source.File{Path: "x0", New: []string{"new"}, InNew: true})
+		for _, x := range []struct {
+			on    bool
+			name  string
+			added source.Added
+		}{{extra.Untracked, "x0", source.AddedUntracked}, {extra.Ignored, "x1", source.AddedIgnored}, {extra.Excluded, "x2", source.AddedExcluded}} {
+			if x.on {
+				files = append(files, source.File{Path: x.name, New: []string{"new"}, InNew: true, Added: x.added})
+			}
 		}
 		return files, nil
 	}
-	files, _ := list(context.Background(), nil, cfg.Settings.Untracked)
+	files, _ := list(context.Background(), nil, DiffExtra(cfg))
 	d := NewDiff(cfg, files).WithGitDiff([]string{"HEAD"}, list)
 	d.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	return d
@@ -1010,7 +1018,7 @@ func TestUntrackedToggle(t *testing.T) {
 	if !d.cfg.Settings.Untracked || len(d.files) != 3 || d.files[2].Path != "x0" {
 		t.Fatalf("u: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if top := topLines(d, 1)[0]; !strings.HasPrefix(top, " HEAD ") || !strings.Contains(top, "│ WORK+INDEX+UNTRACKED ") {
+	if top := topLines(d, 1)[0]; !strings.HasPrefix(top, " HEAD ") || !strings.Contains(top, "│ WORK/INDEX (U) ") {
 		t.Errorf("u: header lacks the untracked files: %q", top)
 	}
 	// Files that stay keep their entry, and so anchors and folds.
@@ -1022,8 +1030,8 @@ func TestUntrackedToggle(t *testing.T) {
 	if d.cfg.Settings.Untracked || len(d.files) != 2 {
 		t.Fatalf("u again: setting %v, %d files", d.cfg.Settings.Untracked, len(d.files))
 	}
-	if top := topLines(d, 1)[0]; strings.Contains(top, "UNTRACKED") || !strings.Contains(top, "│ WORK+INDEX ") {
-		t.Errorf("u again: header %q, want WORK+INDEX only", top)
+	if top := topLines(d, 1)[0]; strings.Contains(top, "(U)") || !strings.Contains(top, "│ WORK/INDEX ") {
+		t.Errorf("u again: header %q, want WORK/INDEX only", top)
 	}
 
 	// In the diff view of a file that stays, it stays open.
@@ -1050,24 +1058,114 @@ func TestUntrackedToggle(t *testing.T) {
 	}
 }
 
+// i and I add the ignored (x1) and excluded (x2) files, only with the
+// untracked ones (x0): the line above the files names what shows, each file
+// says what it is in the file list, its file view and the flow view.
+func TestIgnoredToggle(t *testing.T) {
+	d := newUntrackedDiff() // git diff HEAD
+	s := WithSettings(d.cfg, d)
+	paths := func() string {
+		var out []string
+		for _, e := range d.files {
+			out = append(out, e.Path)
+		}
+		return strings.Join(out, " ")
+	}
+
+	// Without u they say so and change nothing.
+	pressRoot(s, "i")
+	if d.cfg.Settings.Ignored || paths() != "f00 f01" || d.msg != "ignored files: only with the untracked files (u)" {
+		t.Errorf("i without u: setting %v, files %s, msg %q", d.cfg.Settings.Ignored, paths(), d.msg)
+	}
+	pressRoot(s, "I")
+	if d.cfg.Settings.Excluded || d.msg != "excluded files: only with the untracked files (u)" {
+		t.Errorf("I without u: setting %v, msg %q", d.cfg.Settings.Excluded, d.msg)
+	}
+
+	for _, c := range []struct {
+		key, files, head string
+	}{
+		{"u", "f00 f01 x0", "WORK/INDEX (U) "},
+		{"I", "f00 f01 x0 x2", "WORK/INDEX (U/X) "},
+		{"i", "f00 f01 x0 x1 x2", "WORK/INDEX (U/I/X) "},
+		{"I", "f00 f01 x0 x1", "WORK/INDEX (U/I) "},
+		{"I", "f00 f01 x0 x1 x2", "WORK/INDEX (U/I/X) "},
+	} {
+		pressRoot(s, c.key)
+		if got := paths(); got != c.files {
+			t.Errorf("%s: files %s, want %s", c.key, got, c.files)
+		}
+		if top := topLines(d, 1)[0]; !strings.Contains(top, "│ "+c.head) {
+			t.Errorf("%s: header %q, want %q", c.key, top, c.head)
+		}
+	}
+
+	// The letters after the counts; the other files keep the column empty.
+	d.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	rows := topLines(d, 7)[2:]
+	for i, want := range []string{"+1 -1    f00", "+1 -1    f01", "+1    U  x0", "+1    I  x1", "+1    X  x2"} {
+		if !strings.HasSuffix(rows[i], want) {
+			t.Errorf("row %d %q, want it to end in %q", i, rows[i], want)
+		}
+	}
+	// In its file view after its name, in the flow view after its counts.
+	pressDiff(d, "end", "enter")
+	if top := topLines(d, 2)[1]; !strings.Contains(top, "│ b/x2  X") {
+		t.Errorf("file view of x2: %q", top)
+	}
+	pressDiff(d, "f")
+	if !strings.Contains(ansi.Strip(d.View().Content), " added: x2   +1 -0  X") {
+		t.Errorf("flow view lacks the bar of x2 with X:\n%s", ansi.Strip(d.View().Content))
+	}
+	pressDiff(d, "f", "backspace")
+
+	// u off hides them all, u on brings them back as set.
+	pressRoot(s, "u")
+	if got := paths(); got != "f00 f01" || !d.cfg.Settings.Ignored || !d.cfg.Settings.Excluded {
+		t.Errorf("u off: files %s, ignored %v, excluded %v", got, d.cfg.Settings.Ignored, d.cfg.Settings.Excluded)
+	}
+	if top := topLines(d, 1)[0]; strings.Contains(top, "(") {
+		t.Errorf("u off: header %q", top)
+	}
+	pressRoot(s, "u")
+	if got := paths(); got != "f00 f01 x0 x1 x2" {
+		t.Errorf("u on again: files %s", got)
+	}
+}
+
+// Outside a git diff, i and I say so and leave the settings alone.
+func TestIgnoredOutsideGitDiff(t *testing.T) {
+	d := newTestDiff() // as for two directories
+	d.cfg.Settings.Untracked = true
+	setOption(d, d.cfg, "i")
+	if d.cfg.Settings.Ignored || d.msg != "ignored files: only in jdiff diff" {
+		t.Errorf("file list: setting %v, msg %q", d.cfg.Settings.Ignored, d.msg)
+	}
+	l, _ := newTestLog()
+	setOption(l, l.cfg, "I")
+	if l.cfg.Settings.Excluded || l.msg != "excluded files: only in jdiff diff" {
+		t.Errorf("log: setting %v, msg %q", l.cfg.Settings.Excluded, l.msg)
+	}
+}
+
 // Outside a git diff, u says so and leaves the setting alone.
 func TestUntrackedOutsideGitDiff(t *testing.T) {
 	d := newTestDiff() // as for two directories
 	setOption(d, d.cfg, "u")
-	if d.cfg.Settings.Untracked || d.msg != untrackedOnlyInDiff {
+	if d.cfg.Settings.Untracked || d.msg != addedOnlyInDiff(source.AddedUntracked) {
 		t.Errorf("file list: setting %v, msg %q", d.cfg.Settings.Untracked, d.msg)
 	}
 
 	f := source.File{Path: "f00", Old: []string{"a"}, New: []string{"b"}, InOld: true, InNew: true}
 	m := NewFileDiff(config.Default(), "old", "new", f.Old, f.New)
 	setOption(m, m.cfg, "u")
-	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
+	if m.cfg.Settings.Untracked || m.msg != addedOnlyInDiff(source.AddedUntracked) {
 		t.Errorf("two files: setting %v, msg %q", m.cfg.Settings.Untracked, m.msg)
 	}
 
 	l, _ := newTestLog()
 	setOption(l, l.cfg, "u")
-	if l.cfg.Settings.Untracked || l.msg != untrackedOnlyInDiff {
+	if l.cfg.Settings.Untracked || l.msg != addedOnlyInDiff(source.AddedUntracked) {
 		t.Errorf("log: setting %v, msg %q", l.cfg.Settings.Untracked, l.msg)
 	}
 }

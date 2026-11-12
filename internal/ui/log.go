@@ -223,8 +223,8 @@ func (l *Log) update(msg tea.Msg) tea.Cmd {
 	case showMsg:
 		l.setMsg(string(msg))
 		return nil
-	case toggleUntrackedMsg:
-		l.setMsg(untrackedOnlyInDiff)
+	case toggleAddedMsg:
+		l.setMsg(addedOnlyInDiff(msg.added))
 		return nil
 	case toggleFlowMsg:
 		cmd := l.toggleFlow()

@@ -55,6 +55,7 @@ type Spec struct {
 	BranchStyle             *string `toml:"branch-style" git:"jdiff"`
 	FillerStyle             *string `toml:"filler-style" git:"jdiff"`              // unset: file-decoration-style's color
 	WhitespaceStyle         *string `toml:"whitespace-style" git:"jdiff"`          // unset: file-decoration-style's color
+	AddedFileStyle          *string `toml:"added-file-style" git:"jdiff"`          // U I X of untracked, ignored, excluded files; unset: filler-style
 	TrailingWhitespaceStyle *string `toml:"trailing-whitespace-style" git:"jdiff"` // shown by t
 	HiddenCharStyle         *string `toml:"hidden-char-style" git:"jdiff"`         // ☠ for invisible characters
 	OverflowStyle           *string `toml:"overflow-style" git:"jdiff"`            // « » at the edges of cut lines

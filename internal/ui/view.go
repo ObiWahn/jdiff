@@ -200,7 +200,11 @@ func (m *FileDiff) header() string {
 		head = ansi.Truncate(m.head, m.width, "…") + "\n"
 	}
 	added, removed := diff.Stats(m.rows)
-	return head + paneTitles(m.cfg.Theme, m.names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)
+	names := m.names
+	if m.tag != "" {
+		names[right] += "  " + m.tag
+	}
+	return head + paneTitles(m.cfg.Theme, names, removed, added, m.active, m.cfg.Settings.SideBySide, m.width)
 }
 
 // screenLine renders screen line s in the current layout, marked as the

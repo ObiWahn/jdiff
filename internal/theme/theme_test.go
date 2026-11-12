@@ -103,6 +103,9 @@ func TestGitThemePriority(t *testing.T) {
 		"jdiff.anchor-style":               "cyan",
 		"delta.high.file-decoration-style": `"#434C5E" ul`,
 	}
+	if th := Resolve(FromGit(Config{"jdiff.added-file-style": "yellow"}, nil)); th.AddedFile.GetForeground() != lipgloss.Color("3") {
+		t.Errorf("added-file-style set: fg %v, want yellow", th.AddedFile.GetForeground())
+	}
 	th := Resolve(FromGit(cfg, Features(cfg, "", "")))
 	checks := []struct {
 		name string
@@ -117,6 +120,7 @@ func TestGitThemePriority(t *testing.T) {
 		{"anchor from [jdiff]", th.Anchor, lipgloss.Color("6")},
 		{"decoration color", th.Decoration, lipgloss.Color("#434c5e")},
 		{"filler defaults to decoration", th.Filler, lipgloss.Color("#434c5e")},
+		{"added file defaults to filler", th.AddedFile, lipgloss.Color("#434c5e")},
 	}
 	for _, c := range checks {
 		if c.got.GetForeground() != c.fg {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
@@ -31,7 +33,7 @@ func optionValues(cfg *config.Config) []bool {
 	var out []bool
 	for _, o := range settingOptions(keys.Builtin()) {
 		if o.setting == nil {
-			continue // a number: see TestSettingsNumber
+			continue // a number: see TestSettingsNumber; the patterns: TestSettingsIgnoredHide
 		}
 		out = append(out, *o.setting(cfg))
 	}
@@ -80,8 +82,8 @@ func TestSettingsOptions(t *testing.T) {
 	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "W": "show_whitespaces", "ctrl+w": "mark_whitespace",
 		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "w": "wrap", "c": "full_messages", "C": "stay_in_commit"}
 	for i, o := range settingOptions(keys.Builtin()) {
-		if o.ask != nil || o.number != nil {
-			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber
+		if o.ask != nil || o.number != nil || o.patterns {
+			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber; the patterns: TestSettingsIgnoredHide
 		}
 		dir := t.TempDir()
 		cfg, err := config.Load(dir, nil, "", "")
@@ -290,6 +292,164 @@ func TestSettingsPopupSweep(t *testing.T) {
 	}
 }
 
+// openIgnoredHide returns the settings popup over the file list of a git
+// diff with the untracked and ignored files shown, its list of ignored_hide
+// open; relists counts the times the files are listed anew.
+func openIgnoredHide(t *testing.T, width, height int) (s *SettingsPopup, dir string, relists *int) {
+	t.Helper()
+	dir = t.TempDir()
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := newUntrackedDiff()
+	d.cfg = cfg
+	cfg.Settings.Untracked, cfg.Settings.Ignored = true, true
+	list, n := d.gitDiff, 0
+	d.gitDiff = func(ctx context.Context, args []string, extra gitsrc.Extra) ([]source.File, error) {
+		n++
+		return list(ctx, args, extra)
+	}
+	s = WithSettings(cfg, d)
+	s.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	pressRoot(s, "o")
+	for range slices.IndexFunc(s.options, func(o settingOption) bool { return o.patterns }) {
+		pressRoot(s, "j")
+	}
+	pressRoot(s, "enter")
+	if !s.hide.open {
+		t.Fatal("enter on ignored_hide: its list did not open")
+	}
+	return s, dir, &n
+}
+
+// The list of ignored_hide: a adds a pattern, enter edits one, d deletes it;
+// each change is saved and lists the files anew. What is no regular
+// expression, or empty, stays asked for and changes nothing. esc goes back
+// to the settings.
+func TestSettingsIgnoredHide(t *testing.T) {
+	s, dir, relists := openIgnoredHide(t, 100, 40)
+	cfg := s.cfg
+	n := len(config.DefaultIgnoredHide)
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "ignored_hide") || !strings.Contains(view, "(^|/)node_modules/$") {
+		t.Errorf("the list does not show:\n%s", view)
+	}
+	saved := func() string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+
+	pressRoot(s, "a")
+	s.Update(tea.PasteMsg{Content: "^x0/$"})
+	pressRoot(s, "enter")
+	if s.input != nil || len(cfg.IgnoredHide) != n+1 || cfg.IgnoredHide[n] != "^x0/$" || s.hide.cursor != n || *relists != 1 {
+		t.Fatalf("a ^x0/$: input %v, %q, cursor %d, %d relists", s.input, cfg.IgnoredHide, s.hide.cursor, *relists)
+	}
+	if !strings.Contains(saved(), "    '^x0/$',\n]") || !cfg.IgnoredHidden("x0/") {
+		t.Errorf("^x0/$ not saved or not used:\n%s", saved())
+	}
+
+	for _, bad := range []struct{ text, err string }{{"(", "no regular expression: missing closing ): `(`"}, {"", "empty would hide all"}} {
+		pressRoot(s, "a")
+		s.Update(tea.PasteMsg{Content: bad.text})
+		pressRoot(s, "enter")
+		if s.input == nil || !strings.Contains(s.inputErr, bad.err) || len(cfg.IgnoredHide) != n+1 || *relists != 1 {
+			t.Errorf("%q: input %v, err %q, %d patterns, %d relists", bad.text, s.input, s.inputErr, len(cfg.IgnoredHide), *relists)
+		}
+		if view := ansi.Strip(s.frame()); !strings.Contains(view, bad.err) {
+			t.Errorf("%q: the error does not show:\n%s", bad.text, view)
+		}
+		pressRoot(s, "esc")
+		if s.input != nil || !s.hide.open {
+			t.Errorf("%q: esc: input %v, list open %v", bad.text, s.input, s.hide.open)
+		}
+	}
+
+	pressRoot(s, "enter") // on ^x0/$
+	if s.input == nil || s.input.text != "^x0/$" {
+		t.Fatalf("enter: input %+v, want ^x0/$ to edit", s.input)
+	}
+	pressRoot(s, "ctrl+u")
+	s.Update(tea.PasteMsg{Content: "^x1/$"})
+	pressRoot(s, "enter")
+	if len(cfg.IgnoredHide) != n+1 || cfg.IgnoredHide[n] != "^x1/$" || cfg.IgnoredHidden("x0/") || *relists != 2 {
+		t.Errorf("edited: %q, %d relists", cfg.IgnoredHide, *relists)
+	}
+
+	pressRoot(s, "d")
+	if len(cfg.IgnoredHide) != n || s.hide.cursor != n-1 || *relists != 3 || strings.Contains(saved(), "x1") {
+		t.Errorf("d: %d patterns, cursor %d, %d relists:\n%s", len(cfg.IgnoredHide), s.hide.cursor, *relists, saved())
+	}
+	for range n {
+		pressRoot(s, "delete")
+	}
+	if len(cfg.IgnoredHide) != 0 || !strings.Contains(saved(), "ignored_hide = []") || cfg.IgnoredHidden("node_modules/") {
+		t.Errorf("all deleted: %q:\n%s", cfg.IgnoredHide, saved())
+	}
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "none: ignored files all show") {
+		t.Errorf("no hint without patterns:\n%s", view)
+	}
+	pressRoot(s, "d", "enter") // nothing to delete or edit
+	if s.input != nil || *relists != 3+n {
+		t.Errorf("d, enter on nothing: input %v, %d relists", s.input, *relists)
+	}
+
+	pressRoot(s, "esc")
+	if s.hide.open || !s.open {
+		t.Errorf("esc: list open %v, settings open %v; want back in the settings", s.hide.open, s.open)
+	}
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "[0]") {
+		t.Errorf("the settings do not show [0] patterns:\n%s", view)
+	}
+}
+
+func TestSettingsIgnoredHideSweep(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	const n = 30 // more than the settings, so that the list's box stands out on top
+	index := func(r string) int {
+		var k int
+		fmt.Sscanf(strings.TrimSpace(r), "^x%d", &k)
+		return k
+	}
+	// Every height from the smallest drawn past "all fit" at n+4; a narrow
+	// terminal keeps drawing fast.
+	for height := minHeight; height <= n+6; height++ {
+		t.Run(fmt.Sprint("height ", height), func(t *testing.T) {
+			t.Parallel()
+			s, _, _ := openIgnoredHide(t, 40, height)
+			var list []string
+			for i := range n {
+				list = append(list, fmt.Sprintf("^x%02d", i))
+			}
+			if err := s.cfg.SetIgnoredHide(list); err != nil {
+				t.Fatal(err)
+			}
+			what := fmt.Sprintf("ignored_hide, height %d", height)
+			h := popupHeight(n, height) - 2
+			check := func(k string, shown []int) []int {
+				t.Helper()
+				view := s.frame()
+				if got := len(strings.Split(view, "\n")); got > height {
+					t.Fatalf("%s, %s: %d lines", what, k, got)
+				}
+				if line := rawText(view, 40); line != "" {
+					t.Fatalf("%s, %s: line too wide: %q", what, k, line)
+				}
+				return checkShown(t, what+", "+k, popupRows(view), h, n, s.hide.cursor, shown, index)
+			}
+			shown := check("", nil)
+			for _, k := range append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...) {
+				pressRoot(s, k)
+				shown = check(k, shown)
+			}
+		})
+	}
+}
+
 // A key that does the same on several pages stands once in the help: what
 // "Everywhere" lists is in no other section, and no section lists a key twice.
 func TestHelpListsSharedKeysOnce(t *testing.T) {
@@ -318,7 +478,7 @@ func TestHelpListsSharedKeysOnce(t *testing.T) {
 func TestSettingKeysOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
 		for _, o := range settingOptions(keys.Builtin()) {
-			if o.ask != nil || o.logFlow || o.number != nil {
+			if o.ask != nil || o.logFlow || o.number != nil || o.patterns {
 				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere, TestSettingsNumber
 			}
 			m, cfg := page.make()
@@ -383,7 +543,7 @@ func TestUntrackedKeyOnPages(t *testing.T) {
 	m := newMarkFileDiff()
 	s = WithSettings(m.cfg, m)
 	pressRoot(s, "u")
-	if m.cfg.Settings.Untracked || m.msg != untrackedOnlyInDiff {
+	if m.cfg.Settings.Untracked || m.msg != addedOnlyInDiff(source.AddedUntracked) {
 		t.Errorf("u on two files: %v, msg %q", m.cfg.Settings.Untracked, m.msg)
 	}
 }
@@ -498,7 +658,8 @@ func TestSettingsNumberPasteClearsError(t *testing.T) {
 	s := WithSettings(config.Default(), newTestFileDiff(numbered("x", 30), numbered("y", 30)))
 	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	pressRoot(s, "o")
-	for range len(settingOptions(keys.Builtin())) - 1 {
+	dirs := slices.IndexFunc(settingOptions(keys.Builtin()), func(o settingOption) bool { return o.action == "inotify_max_dirs" })
+	for range dirs {
 		pressRoot(s, "j")
 	}
 	pressRoot(s, "enter", "ctrl+u", "x", "enter")

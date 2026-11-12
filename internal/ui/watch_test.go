@@ -17,6 +17,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/settings"
 	"jdiff/internal/source"
 	"jdiff/watch"
@@ -557,14 +558,15 @@ type fakeRepo struct {
 	dirs      []string        // of the working tree
 	dirsCalls int             // the calls of getDirs
 	ctx       context.Context // of the last status
+	extra     gitsrc.Extra    // of the last status
 }
 
-func (r *fakeRepo) getStatus(ctx context.Context) (string, error) {
-	r.ctx = ctx
+func (r *fakeRepo) getStatus(ctx context.Context, extra gitsrc.Extra) (string, error) {
+	r.ctx, r.extra = ctx, extra
 	return r.status, r.err
 }
 func (r *fakeRepo) getPaths() ([]string, error) { return r.paths, nil }
-func (r *fakeRepo) getDirs(func(string) bool) (map[string]time.Time, error) {
+func (r *fakeRepo) getDirs(_ func(string) bool, _ gitsrc.Extra) (map[string]time.Time, error) {
 	r.dirsCalls++
 	dirs := map[string]time.Time{}
 	for _, d := range r.dirs {

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -397,6 +398,123 @@ func TestWatchIgnore(t *testing.T) {
 		if got := c.WatchIgnored(rel); got != want {
 			t.Errorf("%s: ignored %v, want %v", rel, got, want)
 		}
+	}
+}
+
+// ignored_hide hides the directories of common tools by default, at any
+// depth; a pattern that is no regular expression is left out with a warning,
+// and one of the wrong type is an error of main.toml: neither stops with a
+// panic.
+func TestIgnoredHide(t *testing.T) {
+	for rel, want := range map[string]bool{"node_modules/": true, "d/node_modules/": true, ".venv/": true, "a/__pycache__/": true,
+		"build/": false, "node_modules": false, "x0.venv/": false} {
+		if got := Default().IgnoredHidden(rel); got != want {
+			t.Errorf("default %q: hidden %v, want %v", rel, got, want)
+		}
+	}
+	c, err := Load(writeFiles(t, map[string]string{"main.toml": `ignored_hide = ['^node_modules/$', '(', '[z-a]', '\.o$']` + "\n"}), nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{`ignored_hide "("`, `ignored_hide "[z-a]"`} {
+		if w := c.Warning(); !strings.Contains(w, bad+" is not a regular expression") {
+			t.Errorf("warning %q lacks %s", w, bad)
+		}
+	}
+	for rel, want := range map[string]bool{"node_modules/": true, "a/node_modules/": false, "x0.o": true, "x0.go": false, "": false} {
+		if got := c.IgnoredHidden(rel); got != want {
+			t.Errorf("%q: hidden %v, want %v", rel, got, want)
+		}
+	}
+	for _, main := range []string{"ignored_hide = 'x0'\n", "ignored_hide = [1]\n", "ignored_hide = [\n"} {
+		if _, err := Load(writeFiles(t, map[string]string{"main.toml": main}), nil, "", ""); err == nil {
+			t.Errorf("%q: no error", main)
+		}
+	}
+}
+
+// ignored_hide is a toggle: state.toml wins over main.toml, and SaveState
+// writes it one pattern per line, as literal strings where they can be; it
+// reads back the same, also empty, which hides nothing.
+func TestIgnoredHideSaved(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"main.toml":  "ignored_hide = ['^x0/$']\n",
+		"state.toml": "ignored_hide = ['^x1/$']\n",
+	})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.IgnoredHidden("x1/") || c.IgnoredHidden("x0/") {
+		t.Errorf("state.toml does not win: %q", c.IgnoredHide)
+	}
+	for _, list := range [][]string{{`(^|/)\.venv/$`, `it's`, "tab\tx", `"q"`}, {}} {
+		c.IgnoredHide = list
+		if err := c.SaveState(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "state.toml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) > 0 && !strings.Contains(string(data), "ignored_hide = [\n    '(^|/)\\.venv/$',\n") {
+			t.Errorf("not one per line, literal:\n%s", data)
+		}
+		again, err := Load(dir, nil, "", "")
+		if err != nil {
+			t.Fatalf("%q: %v\n%s", list, err, data)
+		}
+		if !slices.Equal(again.IgnoredHide, list) {
+			t.Errorf("read back %q, want %q:\n%s", again.IgnoredHide, list, data)
+		}
+	}
+	if c, err = Load(dir, nil, "", ""); err != nil || c.IgnoredHidden("node_modules/") {
+		t.Errorf("saved empty: still hides node_modules/, %v", err)
+	}
+}
+
+// SetIgnoredHide replaces the patterns, so that those taken before by
+// IgnoredHider, as for a git command in the background, stay as they were;
+// a list with one that is no regular expression changes nothing.
+func TestSetIgnoredHide(t *testing.T) {
+	c := Default()
+	before := c.IgnoredHider()
+	if err := c.SetIgnoredHide([]string{"^x0/$"}); err != nil {
+		t.Fatal(err)
+	}
+	if !before("node_modules/") || before("x0/") || c.IgnoredHidden("node_modules/") || !c.IgnoredHidden("x0/") {
+		t.Error("the patterns taken before changed, or the new ones are not used")
+	}
+	if err := c.SetIgnoredHide([]string{"^x1/$", "("}); err == nil || !slices.Equal(c.IgnoredHide, []string{"^x0/$"}) || c.IgnoredHidden("x1/") {
+		t.Errorf("a bad pattern: err %v, patterns %q", err, c.IgnoredHide)
+	}
+}
+
+// --ignored and --excluded hold for the run only, as --untracked: SaveState
+// keeps the values of the files, until a key switches them.
+func TestIgnoredFlagsNotSaved(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"state.toml": "excluded = true\n"})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetFlags(Flags{Ignored: true, Excluded: true})
+	if !c.Settings.Ignored || !c.Settings.Excluded || c.Settings.Untracked {
+		t.Errorf("flags: ignored %v excluded %v untracked %v; want on, on, off", c.Settings.Ignored, c.Settings.Excluded, c.Settings.Untracked)
+	}
+	if err := c.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(dir, nil, "", ""); err != nil || c.Settings.Ignored || !c.Settings.Excluded {
+		t.Errorf("saved with flags: ignored %v excluded %v, %v; want off, on", c.Settings.Ignored, c.Settings.Excluded, err)
+	}
+	c.SetFlags(Flags{Ignored: true})
+	c.Flags.Ignored = false // a key switched it, on again
+	if err := c.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = Load(dir, nil, "", ""); err != nil || !c.Settings.Ignored {
+		t.Errorf("switched by key: ignored %v, %v", c.Settings.Ignored, err)
 	}
 }
 

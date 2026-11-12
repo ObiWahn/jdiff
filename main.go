@@ -60,8 +60,8 @@ func main() {
 
 // options are the flags of the command line.
 type options struct {
-	version, license, readme, untracked, autoReload bool
-	features                                        string
+	version, license, readme, untracked, ignored, excluded, autoReload bool
+	features                                                           string
 }
 
 // newRoot returns the command line: jdiff OLD NEW, jdiff log and jdiff diff,
@@ -114,6 +114,10 @@ func newRoot(start func(o options, mode string, args []string)) *cobra.Command {
 	f.SortFlags = false // the toggles for one run together, first
 	f.BoolVarP(&o.untracked, "untracked", "u", false, "also show the untracked files in a git diff, for this run: state.toml keeps its\n"+
 		"value; u in the view switches them and saves that")
+	f.BoolVarP(&o.ignored, "ignored", "i", false, "with the untracked files, also those .gitignore ignores, for this run: state.toml\n"+
+		"keeps its value; i in the view switches them and saves that")
+	f.BoolVarP(&o.excluded, "excluded", "I", false, "with the untracked files, also those .git/info/exclude ignores, for this run:\n"+
+		"state.toml keeps its value; I in the view switches them and saves that")
 	f.BoolVarP(&o.autoReload, "auto-reload", "R", false, "start with auto reload on, for this run and without its timeout: state.toml\n"+
 		"keeps its value; R in the view switches it and saves that")
 	f.StringVar(&o.features, "features", "", "delta features to use instead of delta.features: `NAMES` of [delta \"name\"]\n"+
@@ -227,7 +231,7 @@ func start(o options, mode string, args []string) {
 	if err != nil {
 		repo = "" // not in a repository: marks with absolute paths
 	}
-	cfg.SetFlags(config.Flags{Untracked: o.untracked, AutoReload: o.autoReload})
+	cfg.SetFlags(config.Flags{Untracked: o.untracked, Ignored: o.ignored, Excluded: o.excluded, AutoReload: o.autoReload})
 	cfg.LoadMarks(repo)
 
 	if mode == "readme" {
@@ -326,7 +330,7 @@ func loadLog(cfg *config.Config, args []string) (tea.Model, error) {
 // loadDiff opens the file list for the files git diff compares with
 // args; files of the working tree are reloaded when they change on disk.
 func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
-	files, err := gitDiff(context.Background(), args, cfg.Settings.Untracked)
+	files, err := gitDiff(context.Background(), args, ui.DiffExtra(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -334,12 +338,12 @@ func loadDiff(cfg *config.Config, args []string) (tea.Model, error) {
 	return ui.NewDiff(cfg, files).WithGitDiff(args, gitDiff).WithSides(sides), nil
 }
 
-// gitDiff runs git diff with args, with the untracked files when untracked
-// is set; see ui.DiffFunc.
-func gitDiff(ctx context.Context, args []string, untracked bool) ([]source.File, error) {
+// gitDiff runs git diff with args, with the files of extra added; see
+// ui.DiffFunc.
+func gitDiff(ctx context.Context, args []string, extra gitsrc.Extra) ([]source.File, error) {
 	repo := gitsrc.Repo{}.WithContext(ctx)
-	if untracked {
-		return repo.DiffUntracked(args)
+	if extra.Untracked || extra.Ignored || extra.Excluded {
+		return repo.DiffUntracked(args, extra)
 	}
 	return repo.Diff(args)
 }
@@ -352,7 +356,9 @@ func isRevision(ctx context.Context, arg string) bool {
 
 // gitStatus returns the state of the repository for auto reload, see
 // gitsrc.Repo.Status.
-func gitStatus(ctx context.Context) (string, error) { return gitsrc.Repo{}.WithContext(ctx).Status() }
+func gitStatus(ctx context.Context, extra gitsrc.Extra) (string, error) {
+	return gitsrc.Repo{}.WithContext(ctx).Status(extra)
+}
 
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "jdiff:", err)

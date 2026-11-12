@@ -952,6 +952,9 @@ func (f *Flow) row(i int) string {
 		} else if e.added > 0 || e.removed > 0 {
 			line += fmt.Sprintf("   +%d -%d", e.added, e.removed)
 		}
+		if tag := addedTag(e.Added); tag != "" {
+			line += "  " + tag
+		}
 		return mark + bar(line, t.FileBar)
 	case flowNote:
 		note := "no changed files"

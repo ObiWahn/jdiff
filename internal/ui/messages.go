@@ -10,6 +10,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
+	"jdiff/internal/source"
 )
 
 // switchFileMsg asks the file list to show the next (1) or previous (-1)
@@ -172,14 +173,28 @@ func pageKey(km *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
 // the popup is closed.
 type settingChangedMsg struct{ action, problem string }
 
-// toggleUntrackedMsg asks the top-level view to toggle the untracked files of
-// its git diff, which only the file list of one has.
-type toggleUntrackedMsg struct{}
+// toggleAddedMsg asks the top-level view to toggle the files its git diff
+// adds as added, the untracked, ignored or excluded ones, which only the file
+// list of one has.
+type toggleAddedMsg struct{ added source.Added }
 
-func toggleUntracked() tea.Msg { return toggleUntrackedMsg{} }
+func toggleUntracked() tea.Msg { return toggleAddedMsg{source.AddedUntracked} }
+func toggleIgnored() tea.Msg   { return toggleAddedMsg{source.AddedIgnored} }
+func toggleExcluded() tea.Msg  { return toggleAddedMsg{source.AddedExcluded} }
 
-// untrackedOnlyInDiff is the answer of the other views.
-const untrackedOnlyInDiff = "untracked files: only in jdiff diff"
+// addedName names the files added as a in messages.
+func addedName(a source.Added) string {
+	switch a {
+	case source.AddedIgnored:
+		return "ignored files"
+	case source.AddedExcluded:
+		return "excluded files"
+	}
+	return "untracked files"
+}
+
+// addedOnlyInDiff is the answer of the other views.
+func addedOnlyInDiff(a source.Added) string { return addedName(a) + ": only in jdiff diff" }
 
 // flowOnlyOfSeveral is the answer of the diff view of two files.
 const flowOnlyOfSeveral = "flow: only with a file list or the log"

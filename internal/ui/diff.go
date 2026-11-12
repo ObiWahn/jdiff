@@ -44,6 +44,20 @@ func (e *fileEntry) label(th *theme.Theme) string {
 	return th.ModifiedLabel
 }
 
+// addedTag returns the letter of what a file was added to git diff as: U
+// untracked, I ignored, X excluded; "" for the others.
+func addedTag(a source.Added) string {
+	switch a {
+	case source.AddedUntracked:
+		return "U"
+	case source.AddedIgnored:
+		return "I"
+	case source.AddedExcluded:
+		return "X"
+	}
+	return ""
+}
+
 // name returns the path shown for the file, "old → new" for renames,
 // printable: paths may hold control characters.
 func (e *fileEntry) name() string {
@@ -81,7 +95,7 @@ func (e *fileEntry) update(f source.File, after func(*fileAlign)) (dropped int, 
 	if e.Binary {
 		return 0, false
 	}
-	e.align.names = e.paneNames()
+	e.align.names, e.align.tag = e.paneNames(), addedTag(e.Added)
 	for s, lines := range [2][]string{f.Old, f.New} {
 		if slices.Equal(was[s], lines) {
 			continue
@@ -162,11 +176,19 @@ func NewDiff(cfg *config.Config, files []source.File) *Diff { return newDiff(cfg
 // and ends when ctx is done.
 type ListFunc func(ctx context.Context) ([]source.File, error)
 
-// DiffFunc returns the files git diff compares with args, with the
-// untracked files as added when untracked is set. It runs in the background:
-// it must not read the settings, which the keys change meanwhile; it ends
-// when ctx is done.
-type DiffFunc func(ctx context.Context, args []string, untracked bool) ([]source.File, error)
+// DiffFunc returns the files git diff compares with args, with the files of
+// extra as added. It runs in the background: it must not read the settings,
+// which the keys change meanwhile; it ends when ctx is done.
+type DiffFunc func(ctx context.Context, args []string, extra gitsrc.Extra) ([]source.File, error)
+
+// DiffExtra returns the files git diff adds by the settings: the ignored and
+// excluded ones only with the untracked ones, of those ignored_hide does not
+// hide.
+func DiffExtra(cfg *config.Config) gitsrc.Extra {
+	s := cfg.Settings
+	return gitsrc.Extra{Untracked: s.Untracked, Ignored: s.Untracked && s.Ignored, Excluded: s.Untracked && s.Excluded,
+		Hide: cfg.IgnoredHider()}
+}
 
 // WithGitDiff makes d the files of git diff with args, which r runs again,
 // and returns d.
@@ -279,7 +301,7 @@ func SplitDiffArgs(args []string, isRev func(arg string) bool) DiffSides {
 	case cached:
 		s.Left, s.Right = revs[0], "INDEX"
 	default:
-		s.Left, s.Right, s.Work = revs[0], "WORK+INDEX", true
+		s.Left, s.Right, s.Work = revs[0], "WORK/INDEX", true
 	}
 	return s
 }
@@ -468,8 +490,8 @@ type filesListedMsg struct {
 func (d *Diff) relistFiles(quiet bool) tea.Cmd {
 	list := d.relist
 	if d.gitDiff != nil {
-		args, untracked, gitDiff := d.diffArgs, d.cfg.Settings.Untracked, d.gitDiff
-		list = func(ctx context.Context) ([]source.File, error) { return gitDiff(ctx, args, untracked) }
+		args, extra, gitDiff := d.diffArgs, DiffExtra(d.cfg), d.gitDiff
+		list = func(ctx context.Context) ([]source.File, error) { return gitDiff(ctx, args, extra) }
 	}
 	if list == nil {
 		d.setMsg(nothingToReload)
@@ -611,6 +633,9 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.disk.limit(d.cfg)
 			return d, d.poll()
 		}
+		if extra := DiffExtra(d.cfg); msg.action == "ignored_hide" && d.gitDiff != nil && (extra.Ignored || extra.Excluded) {
+			return d, d.relistFiles(false)
+		}
 	case autoReloadMsg:
 		if d.inLog() {
 			return d, nil
@@ -669,13 +694,25 @@ func (d *Diff) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case showMsg:
 		d.setMsg(string(msg))
 		return d, nil
-	case toggleUntrackedMsg:
+	case toggleAddedMsg:
 		if d.gitDiff == nil {
-			d.setMsg(untrackedOnlyInDiff)
+			d.setMsg(addedOnlyInDiff(msg.added))
 			return d, nil
 		}
-		d.cfg.Flags.Untracked = false // switched by key: saved
-		w := toggle(d.cfg, &d.cfg.Settings.Untracked)
+		s, f := &d.cfg.Settings, &d.cfg.Flags
+		setting, flag := &s.Untracked, &f.Untracked
+		switch msg.added {
+		case source.AddedIgnored:
+			setting, flag = &s.Ignored, &f.Ignored
+		case source.AddedExcluded:
+			setting, flag = &s.Excluded, &f.Excluded
+		}
+		if setting != &s.Untracked && !s.Untracked {
+			d.setMsg(d.cfg.Keys.Text(addedName(msg.added) + ": only with the untracked files ({untracked})"))
+			return d, nil
+		}
+		*flag = false // switched by key: saved
+		w := toggle(d.cfg, setting)
 		cmd := d.relistFiles(false)
 		if w != "" {
 			d.setMsg(w)
@@ -762,7 +799,7 @@ func (d *Diff) key(k string) tea.Cmd {
 func (d *Diff) diffOf(e *fileEntry) *fileAlign {
 	if e.align == nil {
 		e.align = newFileAlign(d.cfg, e.paneNames(), [2][]string{e.Old, e.New})
-		e.align.markPath = e.Path
+		e.align.markPath, e.align.tag = e.Path, addedTag(e.Added)
 	}
 	return e.align
 }
@@ -966,8 +1003,9 @@ func (d *Diff) totals() (added, removed int) {
 // headLine renders the line above the files, as the file list, its single
 // file view and its flow view show it: of the commit of the log its hash,
 // subject, the totals of its files, author and date; else in two cells the
-// sides, the right one with the untracked files when they show, and how
-// many files changed with the totals and the paths at their ends.
+// sides, the right one with the letters of the files added when they show
+// (U/I/X: untracked, ignored, excluded), and how many files changed with the
+// totals and the paths at their ends.
 func (d *Diff) headLine() string {
 	// Styles are rendered side by side: lipgloss underlining breaks nested
 	// escape sequences.
@@ -982,8 +1020,15 @@ func (d *Diff) headLine() string {
 		changed = "1 file changed"
 	}
 	right := d.sides.Right
-	if d.sides.Work && d.cfg.Settings.Untracked {
-		right += "+UNTRACKED"
+	if extra := DiffExtra(d.cfg); d.sides.Work && extra.Untracked {
+		tags := []string{addedTag(source.AddedUntracked)}
+		if extra.Ignored {
+			tags = append(tags, addedTag(source.AddedIgnored))
+		}
+		if extra.Excluded {
+			tags = append(tags, addedTag(source.AddedExcluded))
+		}
+		right += " (" + strings.Join(tags, "/") + ")"
 	}
 	paths := t.Decoration.Render(printable(strings.Join(d.sides.Paths, " ")))
 	return sideCells(t, [2]string{d.sides.Left, right}, [2]string{t.Heading.Render(changed) + "  " + totals(t, added, removed), paths}, d.width)
@@ -1002,11 +1047,14 @@ func (d *Diff) frame() string {
 	}
 
 	t := d.cfg.Theme
-	addW, remW, lblW := 1, 1, 0
+	addW, remW, lblW, tagW := 1, 1, 0, 0
 	for _, e := range d.files {
 		addW = max(addW, len(fmt.Sprint(e.added)))
 		remW = max(remW, len(fmt.Sprint(e.removed)))
 		lblW = max(lblW, ansi.StringWidth(e.label(t)))
+		if e.Added != source.NotAdded {
+			tagW = 2 // a space and the letter
+		}
 	}
 
 	head := d.headLine()
@@ -1018,7 +1066,11 @@ func (d *Diff) frame() string {
 			cnt = st(t.Filler).Render(fmt.Sprintf("%-*s", addW+remW+3, "binary"))
 		}
 		lbl := st(lipgloss.NewStyle()).Render(" " + pad(e.label(t), lblW, lipgloss.NewStyle()) + " ")
-		return lbl + " " + cnt + "  " + st(lipgloss.NewStyle()).Render(e.name())
+		var tag string
+		if tagW > 0 {
+			tag = st(t.AddedFile).Render(fmt.Sprintf("%*s", tagW, addedTag(e.Added)))
+		}
+		return lbl + " " + cnt + tag + "  " + st(lipgloss.NewStyle()).Render(e.name())
 	}
 	k := barKeys{enter: "open", commits: d.inLog(), flow: true}
 	if d.inLog() {

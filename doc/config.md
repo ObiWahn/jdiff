@@ -7,7 +7,7 @@ Its files live in `$XDG_CONFIG_HOME/jdiff`, by default `~/.config/jdiff`:
 |---|---|
 | `main.toml` | settings and the name of the theme |
 | `themes/<name>.toml` | a theme |
-| `state.toml` | the toggles `s` `f` `u` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` `R`, the minutes of auto reload, the directories watched, and how `/` searches, as last set; written by jdiff |
+| `state.toml` | the toggles `s` `f` `u` `i` `I` `w` `W` `ctrl+w` `t` `e` `b` `v` `c` `C` `R`, the minutes of auto reload, the directories watched, the paths `ignored_hide` hides, and how `/` searches, as last set; written by jdiff |
 | `marks.toml` | jump marks, per repository; written by jdiff |
 | `keybindings.toml` | [your keys](#keybindingstoml), where they differ from the built-in ones |
 
@@ -35,6 +35,8 @@ precedes = "«"                  # first column of a line scrolled out to the le
 side_by_side = true
 flow = false
 untracked = false               # jdiff diff also shows untracked files (u)
+ignored = false                 # with them, those .gitignore ignores (i)
+excluded = false                # with them, those .git/info/exclude ignores (I)
 wrap = false
 show_whitespaces = false
 mark_whitespace = true
@@ -49,6 +51,26 @@ search_all = false              # / searches all lines, not only changed ones (t
 auto_reload = false             # start with auto reload (R) on; -R only for a run
 auto_reload_timeout = 15        # minutes without keys or changes until auto reload (R) ends; 0 never
 inotify_max_dirs = 100          # while R is on, Linux: the most directories watched, the most recently used, besides HEAD and the index; 0 those only
+# Ignored and excluded files (i, I) that one of these regular expressions matches are not shown,
+# by their path from the top of the working tree, nor those below a directory one matches (with a /
+# at the end). One that is no regular expression is left out with a warning; [] hides none. By
+# default directories of tools. The settings popup (o) edits them; state.toml gets one per line, as here.
+ignored_hide = [
+    '(^|/)node_modules/$',
+    '(^|/)bower_components/$',
+    '(^|/)\.venv/$',
+    '(^|/)__pycache__/$',
+    '(^|/)\.mypy_cache/$',
+    '(^|/)\.pytest_cache/$',
+    '(^|/)\.ruff_cache/$',
+    '(^|/)\.tox/$',
+    '(^|/)\.gradle/$',
+    '(^|/)\.terraform/$',
+    '(^|/)\.next/$',
+    '(^|/)\.nuxt/$',
+    '(^|/)\.cache/$',
+    '(^|/)\.direnv/$',
+]
 ```
 
 ## keybindings.toml
@@ -89,6 +111,6 @@ sand = "#c2b280"
 The options:
 
 - From delta: `minus-style`, `minus-emph-style`, `minus-non-emph-style` (unset: `minus-style`), `plus-style`, `plus-emph-style`, `plus-non-emph-style` (unset: `plus-style`), `zero-style`, `line-numbers-minus-style`, `line-numbers-plus-style`, `line-numbers-zero-style`, `line-numbers-left-style`, `line-numbers-right-style`, `file-style`, `file-decoration-style`, `inline-hint-style`, `file-added-label`, `file-removed-label`, `file-modified-label`, `file-renamed-label`.
-- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style` and `whitespace-style` (unset: the color of `file-decoration-style`), `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `search-style` (text found by `/`), `minus-indent-style` (unset: `minus-emph-style`), `plus-indent-style` (unset: `plus-emph-style`), `minus-moved-style`, `plus-moved-style`, `doc-heading-style` (headings of `--readme`; unset: `branch-style`), `doc-code-style` (code there; unset: `file-style`), `doc-link-style` (links there), `heading-style` (headings of lists and boxes and the active pane's title; bold), `inactive-heading-style` (the inactive pane's title, side by side; dim), `key-style` (the keys in the help; bold).
+- jdiff's own: `anchor-style`, `pending-style`, `cursor-style`, `file-bar-style`, `commit-bar-style`, `commit-hash-style`, `branch-style`, `filler-style` and `whitespace-style` (unset: the color of `file-decoration-style`), `added-file-style` (the `U`, `I`, `X` of untracked, ignored and excluded files; unset: `filler-style`), `trailing-whitespace-style`, `hidden-char-style`, `overflow-style`, `more-style` (the ↑ and ↓ of lists that go on; unset: `whitespace-style`), `search-style` (text found by `/`), `minus-indent-style` (unset: `minus-emph-style`), `plus-indent-style` (unset: `plus-emph-style`), `minus-moved-style`, `plus-moved-style`, `doc-heading-style` (headings of `--readme`; unset: `branch-style`), `doc-code-style` (code there; unset: `file-style`), `doc-link-style` (links there), `heading-style` (headings of lists and boxes and the active pane's title; bold), `inactive-heading-style` (the inactive pane's title, side by side; dim), `key-style` (the keys in the help; bold).
 
 Styles use delta's syntax: attributes (`bold`, `dim`, `italic`, `ul`, `reverse`, …), then a foreground and a background color, given as a name, `bright-` name, 0–255 or `#rrggbb`. Colors beyond the 16 ANSI colors are mapped to the nearest one.

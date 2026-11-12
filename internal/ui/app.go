@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
+	"jdiff/internal/gitsrc"
 	"jdiff/internal/source"
 	"jdiff/watch"
 )
@@ -74,8 +75,8 @@ func (s *App) WithRevisions(isRev func(ctx context.Context, arg string) bool) *A
 // WithAutoReload sets how auto reload gets the state of the repository, the
 // files to watch for changes of it and the directories of its working tree,
 // and returns s.
-func (s *App) WithAutoReload(status func(ctx context.Context) (string, error), paths func() ([]string, error),
-	dirs func(ignore func(rel string) bool) (map[string]time.Time, error)) *App {
+func (s *App) WithAutoReload(status func(ctx context.Context, extra gitsrc.Extra) (string, error), paths func() ([]string, error),
+	dirs func(ignore func(rel string) bool, extra gitsrc.Extra) (map[string]time.Time, error)) *App {
 	s.auto.repoStatus, s.auto.repoPaths, s.auto.workDirs = status, paths, dirs
 	return s
 }
@@ -298,9 +299,9 @@ func (s *App) show(args []string) tea.Cmd {
 	s.popup.running = true
 	ctx, cancel := context.WithCancel(context.Background())
 	s.popup.cancel = cancel
-	gen, untracked, gitDiff, isRev := s.popup.gen, s.cfg.Settings.Untracked, s.popup.run, s.popup.isRev
+	gen, extra, gitDiff, isRev := s.popup.gen, DiffExtra(s.cfg), s.popup.run, s.popup.isRev
 	return func() tea.Msg {
-		files, err := gitDiff(ctx, args, untracked)
+		files, err := gitDiff(ctx, args, extra)
 		var rev func(string) bool
 		if isRev != nil {
 			rev = func(arg string) bool { return isRev(ctx, arg) }

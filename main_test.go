@@ -116,6 +116,8 @@ func TestCommandLine(t *testing.T) {
 		{[]string{"-u", "diff", "--cached", "-u"}, started{options{untracked: true}, "diff", []string{"--cached", "-u"}}},
 		{[]string{"--untracked", "diff"}, started{options{untracked: true}, "diff", []string{}}},
 		{[]string{"-R", "log"}, started{options{autoReload: true}, "log", []string{}}},
+		{[]string{"-u", "-i", "-I", "diff"}, started{options{untracked: true, ignored: true, excluded: true}, "diff", []string{}}},
+		{[]string{"--ignored", "--excluded", "diff", "-i"}, started{options{ignored: true, excluded: true}, "diff", []string{"-i"}}},
 		{[]string{"--auto-reload", "x0", "x1"}, started{options{autoReload: true}, "", []string{"x0", "x1"}}},
 		// After --, files named like a command.
 		{[]string{"--", "log", "log1"}, started{options{}, "", []string{"log", "log1"}}},
@@ -139,7 +141,7 @@ func TestMainHelp(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	stdout, _, code := runMain(t, dir, "--help")
-	for _, want := range []string{"--version", "--readme", "-u, --untracked", "-R, --auto-reload", "--features NAMES", "\n  jdiff [flags] OLD NEW\n" +
+	for _, want := range []string{"--version", "--readme", "-u, --untracked", "-i, --ignored", "-I, --excluded", "-R, --auto-reload", "--features NAMES", "\n  jdiff [flags] OLD NEW\n" +
 		"  jdiff [flags] log [GIT LOG ARGS]\n  jdiff [flags] diff [GIT DIFF ARGS]\n  jdiff completion bash|zsh|fish\n"} {
 		if code != 0 || !strings.Contains(stdout, want) {
 			t.Errorf("--help: exit %d, lacks %q:\n%s", code, want, stdout)
@@ -191,7 +193,7 @@ func TestComplete(t *testing.T) {
 		want []string
 	}{
 		{[]string{"__complete", ""}, []string{"log\t", "diff\t", "completion\t"}},
-		{[]string{"__complete", "--"}, []string{"--readme\t", "--untracked\t", "--auto-reload\t", "--features\t", "--version\t"}},
+		{[]string{"__complete", "--"}, []string{"--readme\t", "--untracked\t", "--ignored\t", "--excluded\t", "--auto-reload\t", "--features\t", "--version\t"}},
 		{[]string{"__complete", "completion", ""}, []string{"bash\n", "zsh\n", "fish\n"}},
 	} {
 		stdout, _, code := runMain(t, dir, c.args...)
@@ -482,7 +484,7 @@ func TestLoadDiffSides(t *testing.T) {
 		t.Fatal(err)
 	}
 	top, _, _ := strings.Cut(shown(m), "\n")
-	if !regexp.MustCompile(`^ HEAD +1 file changed  \+1 -1 │ WORK\+INDEX +a\.txt $`).MatchString(top) {
+	if !regexp.MustCompile(`^ HEAD +1 file changed  \+1 -1 │ WORK/INDEX +a\.txt $`).MatchString(top) {
 		t.Errorf("top line %q", top)
 	}
 }
