@@ -694,6 +694,47 @@ func TestDiffUntrackedNoCommits(t *testing.T) {
 	}
 }
 
+// A file changed in the same second as the index was written, to the same
+// size, has times that match its entry: git compares its content. The copy
+// of the index DiffUntracked makes must keep that, or a.txt, changed, would
+// be taken as unchanged. ctime is not compared, as it cannot be set.
+func TestDiffUntrackedRacyFile(t *testing.T) {
+	r := newRepo(t)
+	gitIn(t, r.Dir, "config", "core.trustctime", "false")
+	a := filepath.Join(r.Dir, "a.txt")
+	same := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.WriteFile(a, []byte("x0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(a, same, same); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, r.Dir, "add", "a.txt") // the entry takes the times and the size of x0
+	if err := os.WriteFile(a, []byte("x1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(r.Dir, ".git", "index")
+	for _, p := range []string{a, index} {
+		if err := os.Chtimes(p, same, same); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(r.Dir, "x0"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, err := r.DiffUntracked(nil, Extra{Untracked: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, f := range files {
+		paths = append(paths, f.Path)
+	}
+	if !slices.Equal(paths, []string{"a.txt", "x0"}) {
+		t.Errorf("files %v, want a.txt changed and x0 added", paths)
+	}
+}
+
 // newIgnoreRepo returns newRepo with files of each kind DiffUntracked can
 // add: x0 untracked; i0.log and sub/i1.tmp ignored by .gitignore files; x1.ex
 // excluded by .git/info/exclude; both.log ignored by both; g0.glob ignored by

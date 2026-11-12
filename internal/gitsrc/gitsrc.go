@@ -628,7 +628,12 @@ func readableFile(path string) bool {
 }
 
 // copyIndex copies the index into dir and returns the path of the copy. A
-// repository without an index yet leaves nothing to copy.
+// repository without an index yet leaves nothing to copy. The copy keeps the
+// time the index was modified: git compares the content of the files changed
+// in the same second as the index was written, as their times and sizes may
+// match, and a later time of the copy would hide such changes. The time is
+// taken before the content, so that a write in between leaves it older,
+// which only makes git compare more.
 func (r Repo) copyIndex(dir string) (string, error) {
 	paths, err := r.gitPaths("index")
 	if err != nil {
@@ -636,14 +641,21 @@ func (r Repo) copyIndex(dir string) (string, error) {
 	}
 	from := paths[0]
 	to := filepath.Join(dir, "index")
-	data, err := os.ReadFile(from)
+	info, err := os.Stat(from)
 	if errors.Is(err, fs.ErrNotExist) {
 		return to, nil
 	}
 	if err != nil {
 		return "", err
 	}
-	return to, os.WriteFile(to, data, 0o600)
+	data, err := os.ReadFile(from)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(to, data, 0o600); err != nil {
+		return "", err
+	}
+	return to, os.Chtimes(to, info.ModTime(), info.ModTime())
 }
 
 // diff is Diff with env added to the environment of git diff.
