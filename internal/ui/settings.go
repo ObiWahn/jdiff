@@ -404,6 +404,5 @@ func (p *SettingsPopup) frame() string {
 	if p.input == nil {
 		return view
 	}
-	pop, popW := inputBox(t, p.width, popupTitle(t, name, "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true)
-	return overlay(view, pop, popW, p.width)
+	return inputPopup(t, p.width, popupTitle(t, name, "", "enter set · esc cancel"), printable(p.input.text), p.inputErr, true).over(t, view, p.width)
 }

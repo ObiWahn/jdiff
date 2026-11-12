@@ -363,6 +363,5 @@ func (s *App) frame() string {
 	if s.popup.running {
 		msg = "running git diff…"
 	}
-	pop, w := inputBox(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.popup.input.text), s.popup.err, true)
-	return overlay(base, pop, w, s.width)
+	return inputPopup(t, s.width, popupTitle(t, "git diff", msg, keys), printable(s.popup.input.text), s.popup.err, true).over(t, base, s.width)
 }

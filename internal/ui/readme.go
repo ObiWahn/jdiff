@@ -371,9 +371,9 @@ func (r *Readme) withWebAddress(frame string) string {
 		}
 		x += ansi.StringWidth(s.text)
 	}
-	address := printable(target)
-	w := min(ansi.StringWidth(address)+4, r.width)
-	return overlayAt(frame, box(r.cfg.Theme, w, minBoxHeight, "", []string{address}), max(min(x, r.width-w), 0), y, w, r.width)
+	lines := []string{printable(target)}
+	w := popupWidth("", lines, 0, r.width)
+	return popup{"", lines, w, minBoxHeight}.at(r.cfg.Theme, frame, max(min(x, r.width-w), 0), y, r.width)
 }
 
 // drawLine draws l in the styles of its pieces, the selected link in the

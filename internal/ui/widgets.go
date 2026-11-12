@@ -255,15 +255,41 @@ func (p *listPopup) draw(t *theme.Theme, base, title string, all []string, empty
 		}
 		return all[i]
 	})
-	widest := 0
-	for _, item := range all {
-		widest = max(widest, ansi.StringWidth(item))
-	}
+	width := popupWidth(title, all, 0, p.width)
 	if n == 0 {
-		lines, widest = []string{t.Hint.Render(empty)}, emptyListWidth
+		lines, width = []string{t.Hint.Render(empty)}, popupWidth(title, nil, emptyListWidth, p.width)
 	}
-	width := min(max(widest+4, ansi.StringWidth(title)+4), p.width)
-	return overlay(base, box(t, width, height, title, lines), width, p.width)
+	return popup{title, lines, width, height}.over(t, base, p.width)
+}
+
+// popup is a box drawn over the screen: its title, its lines, and its width
+// and height, borders included. All popups are one, so that they look alike:
+// the name and the keys in the top border, the lines below it.
+type popup struct {
+	title string
+	lines []string
+	w, h  int
+}
+
+// popupWidth returns the width of a popup with title and lines: as wide as
+// they need, at least least columns inside, up to width. A line wider than
+// that is cut by box.
+func popupWidth(title string, lines []string, least, width int) int {
+	inner := max(least, ansi.StringWidth(title))
+	for _, l := range lines {
+		inner = max(inner, ansi.StringWidth(l))
+	}
+	return min(inner+4, width) // borders and a space on each side
+}
+
+// over draws p centered over base, which is width columns wide.
+func (p popup) over(t *theme.Theme, base string, width int) string {
+	return overlay(base, box(t, p.w, p.h, p.title, p.lines), p.w, width)
+}
+
+// at draws p over base, which is width columns wide, from column x of row y on.
+func (p popup) at(t *theme.Theme, base string, x, y, width int) string {
+	return overlayAt(base, box(t, p.w, p.h, p.title, p.lines), x, y, p.w, width)
 }
 
 // scrollWindow returns the first shown item of a window h items high over n
@@ -433,29 +459,28 @@ func (li *list) render(t *theme.Theme, head string, item func(i int, st func(lip
 	return b.String()
 }
 
-// minInputWidth is the least width of the line in the popups of inputBox.
+// minInputWidth is the least width of the line in the popups of inputPopup.
 const minInputWidth = 40
 
-// inputBox renders a popup holding a line typed: title, text with the
+// inputPopup returns the popup holding a line typed: title, text with the
 // cursor at its end, centered between empty lines with centered, and err
 // below when set. It is at least minInputWidth wide and grows with them up
 // to width, beyond which the start of text is cut, so that its end stays
-// in view. It returns the popup and its width.
-func inputBox(t *theme.Theme, width int, title, text, err string, centered bool) (string, int) {
+// in view.
+func inputPopup(t *theme.Theme, width int, title, text, err string, centered bool) popup {
 	text += "█"
-	inner := max(minInputWidth, ansi.StringWidth(title), ansi.StringWidth(text), ansi.StringWidth(err))
-	inner = min(inner, width-4) // borders and a space on each side
-	if over := ansi.StringWidth(text) - inner; over > 0 {
+	w := popupWidth(title, []string{text, err}, minInputWidth, width)
+	if over := ansi.StringWidth(text) - (w - 4); over > 0 {
 		text = cutLeft(text, over)
 	}
 	lines := []string{text}
 	if centered {
-		lines = []string{"", strings.Repeat(" ", (inner-ansi.StringWidth(text))/2) + text, ""}
+		lines = []string{"", strings.Repeat(" ", (w-4-ansi.StringWidth(text))/2) + text, ""}
 	}
 	if err != "" {
 		lines = append(lines, t.Minus.Render(err))
 	}
-	return box(t, inner+4, len(lines)+2, title, lines), inner + 4
+	return popup{title, lines, w, len(lines) + 2}
 }
 
 // lineInput is a line of text being typed, with the cursor at its end.

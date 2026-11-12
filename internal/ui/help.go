@@ -187,7 +187,7 @@ func (h *Help) frame() string {
 	if h.boxHeight()-2 < len(h.rows) {
 		title += t.Hint.Render(fmt.Sprintf(" %d/%d ", h.top+1, len(h.rows)))
 	}
-	return overlay(base, box(t, h.boxWidth, h.boxHeight(), title, lines), h.boxWidth, h.width)
+	return popup{title, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }
 
 // overlay draws the popup pop, w columns wide, centered over base, which

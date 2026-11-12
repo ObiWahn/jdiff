@@ -485,7 +485,7 @@ func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
 
 // frame draws the bar over the view, above its status line, while it is
 // open: the query, and why its regular expression does not compile, see
-// inputBox.
+// inputPopup.
 func (s *SearchBar) View() tea.View { return tea.NewView(s.frame()) }
 
 func (s *SearchBar) frame() string {
@@ -509,8 +509,8 @@ func (s *SearchBar) frame() string {
 		keys = slices.Insert(keys, 1, "↑↓ history")
 	}
 	title := popupTitle(t, mode+" "+scope(s.cfg.Settings), "", strings.Join(keys, " · "))
-	bar, w := inputBox(t, s.width, title, "/"+printable(s.input.text), s.err, false)
+	bar := inputPopup(t, s.width, title, "/"+printable(s.input.text), s.err, false)
 	// Above the status line, the last row.
-	y := max(strings.Count(base, "\n")-strings.Count(bar, "\n"), 0)
-	return overlayAt(base, bar, max((s.width-w)/2, 0), y, w, s.width)
+	y := max(strings.Count(base, "\n")-bar.h, 0)
+	return bar.at(t, base, max((s.width-bar.w)/2, 0), y, s.width)
 }
