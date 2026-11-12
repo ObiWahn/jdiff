@@ -43,10 +43,11 @@ homebrew_casks:
       bash: completions/jdiff.bash
       zsh: completions/jdiff.zsh
       fish: completions/jdiff.fish
-    repository: &repository
+    repository:
       owner: ObiWahn
-      name: jdiff
+      name: homebrew-tap
       branch: master
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     # Releases are unsigned; remove quarantine only from the staged binary.
     hooks:
       post:
@@ -98,7 +99,11 @@ scoops:
     license: MIT
     skip_upload: auto
     directory: bucket
-    repository: *repository
+    repository:
+      owner: ObiWahn
+      name: scoop-bucket
+      branch: master
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
 
 changelog:
   use: github-native
@@ -118,7 +123,9 @@ release:
     - macOS: [arm64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-darwin-arm64.tar.gz), [amd64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-darwin-amd64.tar.gz)
     - Windows: [amd64](https://github.com/ObiWahn/jdiff/releases/download/{{ .Tag }}/jdiff-v{{ .Version }}-windows-amd64.zip)
 
-    **Homebrew:** `brew install --cask obiwahn/jdiff/jdiff`
+    **Homebrew:** `brew install --cask obiwahn/tap/jdiff`
+
+    **Scoop:** `scoop bucket add obiwahn https://github.com/ObiWahn/scoop-bucket`, then `scoop install jdiff`
 
     **Others:** the Linux packages and bare binaries are under Assets below.
 

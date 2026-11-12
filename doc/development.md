@@ -29,12 +29,12 @@ GitLab CI (`.gitlab-ci.yml`) reports the coverage too.
 
 When CI passes, [GoReleaser](https://goreleaser.com/) builds jdiff for Linux (amd64, arm64), macOS (arm64, amd64) and Windows (amd64).
 Branches and scheduled runs (including on forks) build snapshots and attach the archives, binaries, packages, SHA-256 sums and generated cask to the run without publishing.
-A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives, binaries, packages and `sha256sums.txt` as a GitHub release, then updates `Casks/jdiff.rb` on upstream's `master` branch.
+A tag `v*` pushed to `ObiWahn/jdiff`, e.g. `git tag v0.0.3 && git push upstream v0.0.3`, publishes the archives, binaries, packages and `sha256sums.txt` as a GitHub release, then writes the cask to `ObiWahn/homebrew-tap` and the Scoop manifest to `ObiWahn/scoop-bucket`.
 Prereleases do not update the cask.
 
-The upstream repository itself is the Homebrew tap: the explicit URL in `brew tap` avoids needing a separate `homebrew-jdiff` repository.
-The release job uses its `GITHUB_TOKEN` with `contents: write`; no extra token or tap repository is needed.
-If branch protection is enabled, it must allow the release bot to update `Casks/jdiff.rb` on `master`.
+The tap and the bucket are repositories of their own, shared with other projects; named `homebrew-tap`, the tap needs no URL in `brew tap`.
+The release job's `GITHUB_TOKEN` (`contents: write`) can write only `ObiWahn/jdiff`; the two others are written with the secret `TAP_GITHUB_TOKEN`, a fine-grained token with Contents read and write on those two only.
+When it has expired, the release is made but the cask and the manifest are not updated: renew it, delete the release of the tag and run the job again.
 The macOS binaries are not notarized; the cask removes the quarantine attribute only from the staged jdiff binary so it can run.
 
 To check the release setup locally with GoReleaser 2.19.0:

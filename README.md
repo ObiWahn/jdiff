@@ -25,11 +25,10 @@ Unlike [delta](https://github.com/dandavison/delta), which formats git's output 
 
 ```sh
 # macOS
-brew tap ObiWahn/jdiff https://github.com/ObiWahn/jdiff.git
-brew install --cask obiwahn/jdiff/jdiff
+brew install --cask obiwahn/tap/jdiff
 
 # Windows
-scoop bucket add jdiff https://github.com/ObiWahn/jdiff
+scoop bucket add obiwahn https://github.com/ObiWahn/scoop-bucket
 scoop install jdiff
 
 # In a clone of this repository, with Go 1.26 or newer

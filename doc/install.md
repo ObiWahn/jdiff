@@ -5,11 +5,10 @@
 On Apple Silicon or Intel, install the upstream Homebrew cask:
 
 ```sh
-brew tap ObiWahn/jdiff https://github.com/ObiWahn/jdiff.git
-brew install --cask obiwahn/jdiff/jdiff
+brew install --cask obiwahn/tap/jdiff
 ```
 
-To update it, run `brew update && brew upgrade --cask obiwahn/jdiff/jdiff`.
+To update it, run `brew update && brew upgrade --cask obiwahn/tap/jdiff`.
 The cask installs a prebuilt binary; Go is not needed.
 
 ## Linux
@@ -28,7 +27,7 @@ sudo pacman -U ./jdiff-<version>-1-x86_64.pkg.tar.zst       # Arch
 Install it with Scoop:
 
 ```sh
-scoop bucket add jdiff https://github.com/ObiWahn/jdiff
+scoop bucket add obiwahn https://github.com/ObiWahn/scoop-bucket
 scoop install jdiff
 ```
 
