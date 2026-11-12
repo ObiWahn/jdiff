@@ -1,7 +1,8 @@
 // Package keys holds the keymap of jdiff: keybindings.toml, which binds the
 // keys of all pages to actions, gives their words and decides the order of
 // the settings, with the keys of the user's keybindings.toml over it. A Map
-// is built once, with the configuration, and not changed after.
+// is built once, with the configuration, and not changed after; changing keys
+// in the settings popup builds a new one (SetUserRows, config.SetKeys).
 package keys
 
 import (
@@ -126,7 +127,7 @@ func (km Map) Text(s string) string {
 // twoWay lists the actions whose rows take two keys, one for each way.
 var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
 
-// userRow is a row of the user's keybindings.toml, which changes only keys.
+// userRow is a row of the user's keybindings.toml, see userFile.
 type userRow struct {
 	Action string
 	Keys   []string
@@ -138,15 +139,7 @@ type userRow struct {
 // with a problem changes nothing, so that a mistake cannot take away the keys
 // to quit or get help.
 func (km Map) ApplyUserKeys(text string) (Map, []string) {
-	var u struct {
-		CommitList []userRow `toml:"commit_list"`
-		FileList   []userRow `toml:"file_list"`
-		DiffView   []userRow `toml:"diff_view"`
-		FlowView   []userRow `toml:"flow_view"`
-		Everywhere []userRow `toml:"everywhere"`
-		DocView    []userRow `toml:"doc_view"`
-	}
-	md, err := toml.Decode(text, &u)
+	fromFile, md, err := decodeUser(text)
 	if err != nil {
 		return km, []string{err.Error()}
 	}
@@ -155,10 +148,6 @@ func (km Map) ApplyUserKeys(text string) (Map, []string) {
 		problems = append(problems, "unknown "+k.String())
 	}
 	merged := km
-	fromFile := map[string][]userRow{
-		"everywhere": u.Everywhere, "diff_view": u.DiffView, "flow_view": u.FlowView,
-		"commit_list": u.CommitList, "file_list": u.FileList, "doc_view": u.DocView,
-	}
 	for _, pg := range merged.pages() {
 		for _, r := range fromFile[pg.name] {
 			switch {

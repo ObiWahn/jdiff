@@ -204,3 +204,92 @@ func TestPagesComplete(t *testing.T) {
 		t.Errorf("pages: %q, want the pages %q", got, want)
 	}
 }
+
+// SetUserRows changes only the rows of one action on one page, in the form of
+// the file, and keeps the rest as written: comments, rows over several lines,
+// odd spacing, brackets and # in strings.
+func TestSetUserRows(t *testing.T) {
+	odd := `# mine
+"diff_view" = [   # rows
+    {action="move",
+     keys=[ "x",   # down
+            "y" ]},   # moved
+    { action = "change", keys = ["#", "]"] },
+	{ action = 'pane', keys = ['T'] }
+]
+everywhere = [{ action = "settings", keys = ["O"] }]
+`
+	tables := `# mine
+[[diff_view]]
+# the moves
+action = "move"
+keys = [
+  "x",
+  "y",
+]
+
+# the pane
+[[diff_view]]
+action = "pane"   # switch
+keys = ["T"]
+`
+	for _, c := range []struct {
+		name, text, page, action string
+		rows                     [][]string
+		want                     string
+	}{
+		{"new file", "", "diff_view", "pane", [][]string{{"x"}},
+			"diff_view = [\n    { action = \"pane\", keys = [\"x\"] },\n]\n"},
+		{"new page", "# mine", "everywhere", "quit", [][]string{{"Q"}, {"\\"}},
+			"# mine\neverywhere = [\n    { action = \"quit\", keys = [\"Q\"] },\n    { action = \"quit\", keys = [\"\\\\\"] },\n]\n"},
+		{"over several lines", odd, "diff_view", "move", [][]string{{"a", "b"}},
+			strings.Replace(odd, "{action=\"move\",\n     keys=[ \"x\",   # down\n            \"y\" ]}", `{ action = "move", keys = ["a", "b"] }`, 1)},
+		{"one row into two", odd, "diff_view", "move", [][]string{{"a", "b"}, {"c", "d"}},
+			strings.Replace(odd, "{action=\"move\",\n     keys=[ \"x\",   # down\n            \"y\" ]}",
+				"{ action = \"move\", keys = [\"a\", \"b\"] },\n    { action = \"move\", keys = [\"c\", \"d\"] }", 1)},
+		{"# and ] in strings", odd, "diff_view", "change", [][]string{{"[", "]"}},
+			strings.Replace(odd, `{ action = "change", keys = ["#", "]"] }`, `{ action = "change", keys = ["[", "]"] }`, 1)},
+		{"out, its line too", odd, "diff_view", "change", nil,
+			strings.Replace(odd, "    { action = \"change\", keys = [\"#\", \"]\"] },\n", "", 1)},
+		{"out, the comment stays", odd, "diff_view", "move", nil,
+			strings.Replace(odd, "{action=\"move\",\n     keys=[ \"x\",   # down\n            \"y\" ]},", "", 1)},
+		{"the last out", odd, "diff_view", "pane", nil,
+			strings.Replace(odd, "\t{ action = 'pane', keys = ['T'] }\n", "", 1)},
+		{"added after the last, without comma", odd, "diff_view", "fold", [][]string{{"z"}},
+			strings.Replace(odd, "\t{ action = 'pane', keys = ['T'] }\n", "\t{ action = 'pane', keys = ['T'] },\n\t{ action = \"fold\", keys = [\"z\"] },\n", 1)},
+		{"added in one line", odd, "everywhere", "quit", [][]string{{"Q"}},
+			strings.Replace(odd, `[{ action = "settings", keys = ["O"] }]`, "[{ action = \"settings\", keys = [\"O\"] },\n    { action = \"quit\", keys = [\"Q\"] },\n]", 1)},
+		{"into an empty array", "diff_view = []\n", "diff_view", "pane", [][]string{{"x"}},
+			"diff_view = [\n    { action = \"pane\", keys = [\"x\"] },\n]\n"},
+		{"a table", tables, "diff_view", "move", [][]string{{"a", "b"}},
+			strings.Replace(tables, "[[diff_view]]\n# the moves\naction = \"move\"\nkeys = [\n  \"x\",\n  \"y\",\n]\n", "[[diff_view]]\naction = \"move\"\nkeys = [\"a\", \"b\"]\n", 1)},
+		{"a table out", tables, "diff_view", "pane", nil,
+			strings.Replace(tables, "[[diff_view]]\naction = \"pane\"   # switch\nkeys = [\"T\"]\n", "", 1)},
+		{"a table added", tables, "diff_view", "fold", [][]string{{"z"}},
+			tables + "\n[[diff_view]]\naction = \"fold\"\nkeys = [\"z\"]\n"},
+		{"a page after tables", tables, "everywhere", "quit", [][]string{{"Q"}},
+			tables + "\n[[everywhere]]\naction = \"quit\"\nkeys = [\"Q\"]\n"},
+		{"nothing to take out", odd, "commit_list", "move", nil, odd},
+	} {
+		got, err := SetUserRows(c.text, c.page, c.action, c.rows)
+		if err != nil || got != c.want {
+			t.Errorf("%s: error %v\n got %q\nwant %q", c.name, err, got, c.want)
+		}
+	}
+	for _, c := range []struct{ text, want string }{
+		{"diff_view = [", "toml:"},
+		{"diff_view = 1", "toml:"},
+	} {
+		if _, err := SetUserRows(c.text, "diff_view", "pane", [][]string{{"x"}}); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%q: error %v, want %q", c.text, err, c.want)
+		}
+	}
+}
+
+func TestSpelling(t *testing.T) {
+	for _, k := range []string{"pgdn", "F5", "F12", "f", "ctrl+f", "j", "<"} {
+		if got := Spelling(Name(k)); got != k {
+			t.Errorf("%s: %s", k, got)
+		}
+	}
+}

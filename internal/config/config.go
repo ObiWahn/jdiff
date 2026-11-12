@@ -34,7 +34,7 @@ import (
 // all of them.
 type Config struct {
 	Theme    *theme.Theme
-	Keys     *keys.Map // the keys of all pages, the built-in ones with the user's
+	Keys     *keys.Map // the keys of all pages, built-in and the user's; SetKeys replaces them
 	Settings settings.Settings
 	Themes   []theme.Spec // all themes found; Theme is the selected one
 
@@ -468,10 +468,7 @@ func tomlList(key string, list []string) (string, error) {
 	return b.String(), nil
 }
 
-// writeTOML writes header, v as TOML and tail to path, through a temporary
-// file so that the file is never left half written. Each write has a temporary
-// file of its own: jdiffs running at the same time must not rename each
-// other's.
+// writeTOML writes header, v as TOML and tail to path, see writeFile.
 func writeTOML(path, header string, v any, tail string) error {
 	var b bytes.Buffer
 	b.WriteString(header)
@@ -479,6 +476,13 @@ func writeTOML(path, header string, v any, tail string) error {
 		return err
 	}
 	b.WriteString(tail)
+	return writeFile(path, b.Bytes())
+}
+
+// writeFile writes data to path, through a temporary file so that the file is
+// never left half written. Each write has a temporary file of its own: jdiffs
+// running at the same time must not rename each other's.
+func writeFile(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -486,7 +490,7 @@ func writeTOML(path, header string, v any, tail string) error {
 	if err != nil {
 		return err
 	}
-	_, err = tmp.Write(b.Bytes())
+	_, err = tmp.Write(data)
 	err = errors.Join(err, tmp.Close(), os.Chmod(tmp.Name(), 0o644))
 	if err == nil {
 		err = os.Rename(tmp.Name(), path)
@@ -495,6 +499,60 @@ func writeTOML(path, header string, v any, tail string) error {
 		os.Remove(tmp.Name())
 	}
 	return err
+}
+
+// SetKeys makes rows, the keys of each row, the rows of action on page in the
+// user's keybindings.toml, nil the built-in ones, saves it and makes its keys
+// the keys at once. A file that would have a problem, as a key with two
+// actions on one page, is not saved and changes nothing: the error says what
+// is wrong. The rest of the file stays as written, see keys.SetUserRows.
+func (c *Config) SetKeys(page, action string, rows [][]string) error {
+	if c.dir == "" {
+		return errors.New("no configuration directory for " + keys.FileName)
+	}
+	path := filepath.Join(c.dir, keys.FileName)
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	text, err := keys.SetUserRows(string(data), page, action, rows)
+	if err != nil {
+		return err
+	}
+	km, problems := keys.Builtin().ApplyUserKeys(text)
+	if len(problems) > 0 {
+		return errors.New(strings.Join(problems, "; "))
+	}
+	if err := writeFile(path, []byte(text)); err != nil {
+		return err
+	}
+	c.Keys = &km
+	return nil
+}
+
+// HasUserKeys reports whether there is a user's keybindings.toml, which
+// ResetKeys would move away.
+func (c *Config) HasUserKeys() bool {
+	if c.dir == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(c.dir, keys.FileName))
+	return err == nil
+}
+
+// ResetKeys moves the user's keybindings.toml to keybindings.toml.bak, over an
+// older one, so that what was written by hand is kept, and makes the built-in
+// keys the keys at once.
+func (c *Config) ResetKeys() error {
+	if c.dir == "" {
+		return errors.New("no configuration directory for " + keys.FileName)
+	}
+	path := filepath.Join(c.dir, keys.FileName)
+	if err := os.Rename(path, path+".bak"); err != nil {
+		return err
+	}
+	c.Keys = keys.Builtin()
+	return nil
 }
 
 // Dir returns the configuration directory the files were read from, "" for

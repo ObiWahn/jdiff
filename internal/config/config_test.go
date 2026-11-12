@@ -686,3 +686,81 @@ func TestIntervalBounds(t *testing.T) {
 		}
 	}
 }
+
+// SetKeys saves the rows of one action in the user's keybindings.toml, keeps
+// the rest of it as written, and the keys apply at once; a file that would
+// have a problem changes nothing.
+func TestSetKeys(t *testing.T) {
+	const mine = "# mine\neverywhere = [{ action = \"settings\", keys = [\"O\"] }]\n"
+	dir := writeFiles(t, map[string]string{keys.FileName: mine})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := func() string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, keys.FileName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	if err := c.SetKeys("diff_view", "pane", [][]string{{"x"}}); err != nil {
+		t.Fatal(err)
+	}
+	want := mine + "diff_view = [\n    { action = \"pane\", keys = [\"x\"] },\n]\n"
+	if got := saved(); got != want {
+		t.Errorf("saved:\n%s\nwant:\n%s", got, want)
+	}
+	if c.Keys.Key(keys.DiffView, "x").Action != "pane" || c.Keys.Key(keys.DiffView, "O").Action != "settings" {
+		t.Errorf("the keys do not apply: x %+v, O %+v", c.Keys.Key(keys.DiffView, "x"), c.Keys.Key(keys.DiffView, "O"))
+	}
+	before := c.Keys
+	if err := c.SetKeys("diff_view", "pane", [][]string{{"j"}}); err == nil || !strings.Contains(err.Error(), "key j has two actions in diff_view") {
+		t.Errorf("a conflict: %v", err)
+	}
+	if c.Keys != before || saved() != want {
+		t.Errorf("a conflict changed the keys or the file:\n%s", saved())
+	}
+	if err := c.SetKeys("diff_view", "pane", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := saved(); got != mine+"diff_view = [\n]\n" || c.Keys.Key(keys.DiffView, "tab").Action != "pane" {
+		t.Errorf("back to the built-in keys:\n%s", got)
+	}
+	if err := Default().SetKeys("diff_view", "pane", [][]string{{"x"}}); err == nil {
+		t.Error("no configuration directory: no error")
+	}
+}
+
+// ResetKeys moves keybindings.toml to keybindings.toml.bak, over an older
+// one, and the built-in keys apply.
+func TestResetKeys(t *testing.T) {
+	dir := writeFiles(t, map[string]string{keys.FileName: "# x0\n", keys.FileName + ".bak": "# older\n"})
+	c, err := Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetKeys("diff_view", "pane", [][]string{{"x"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !c.HasUserKeys() {
+		t.Fatal("no user's keys before the reset")
+	}
+	if err := c.ResetKeys(); err != nil {
+		t.Fatal(err)
+	}
+	bak, err := os.ReadFile(filepath.Join(dir, keys.FileName+".bak"))
+	if err != nil || !strings.HasPrefix(string(bak), "# x0\n") || !strings.Contains(string(bak), `"pane"`) {
+		t.Errorf("the .bak: %q, %v", bak, err)
+	}
+	if c.HasUserKeys() || c.Keys != keys.Builtin() {
+		t.Errorf("after the reset: file %v, built-in keys %v", c.HasUserKeys(), c.Keys == keys.Builtin())
+	}
+	if err := c.ResetKeys(); err == nil {
+		t.Error("a reset without a file: no error")
+	}
+	if Default().HasUserKeys() || Default().ResetKeys() == nil {
+		t.Error("no configuration directory: user's keys, or no error")
+	}
+}
