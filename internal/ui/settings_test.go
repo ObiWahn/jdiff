@@ -82,8 +82,8 @@ func TestSettingsOptions(t *testing.T) {
 	tomlKeys := map[string]string{"s": "side_by_side", "v": "preview", "W": "show_whitespaces", "ctrl+w": "mark_whitespace",
 		"t": "show_trailing", "e": "show_cr", "b": "bold_changes", "w": "wrap", "c": "full_messages", "C": "stay_in_commit"}
 	for i, o := range settingOptions(keys.Builtin()) {
-		if o.ask != nil || o.number != nil || o.patterns {
-			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber; the patterns: TestSettingsIgnoredHide
+		if o.ask != nil || o.number != nil || o.patterns || o.keymap {
+			continue // the page toggles it: see TestUntracked...; a number: see TestSettingsNumber; the patterns: TestSettingsIgnoredHide; the keys: TestSettingsKeymap
 		}
 		dir := t.TempDir()
 		cfg, err := config.Load(dir, nil, "", "")
@@ -450,6 +450,247 @@ func TestSettingsIgnoredHideSweep(t *testing.T) {
 	}
 }
 
+// openKeymap returns the settings popup over a diff, width × height, with the
+// list of the keys open, and the configuration directory, in which
+// keybindings.toml holds text.
+func openKeymap(t *testing.T, width, height int, text string) (*SettingsPopup, string) {
+	t.Helper()
+	dir := t.TempDir()
+	if text != "" {
+		if err := os.WriteFile(filepath.Join(dir, keys.FileName), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg, err := config.Load(dir, nil, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := WithSettings(cfg, NewFileDiff(cfg, "old", "new", numbered("x", 10), numbered("y", 10)))
+	s.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	pressRoot(s, "o", "K")
+	if !s.keymap.open {
+		t.Fatal("K in the settings: the keys did not open")
+	}
+	return s, dir
+}
+
+// keymapTo moves the cursor of the list of the keys to the row of action on
+// page with key.
+func keymapTo(t *testing.T, s *SettingsPopup, page, action, key string) {
+	t.Helper()
+	i := slices.IndexFunc(keyLines(s.cfg.Keys), func(l keyLine) bool {
+		return l.page == page && l.row.Action == action && slices.Contains(l.row.Keys, key)
+	})
+	if i < 0 {
+		t.Fatalf("no row of %s with %s in %s", action, key, page)
+	}
+	s.keymap.cursor = i
+	s.moveKeymap(0)
+}
+
+func TestSettingsKeymap(t *testing.T) {
+	const mine = "# mine\ndiff_view = [\n    { action = \"fold\",   # z\n      keys = [\"z\"] },\n]\n"
+	s, dir := openKeymap(t, 120, 40, mine)
+	cfg := s.cfg
+	saved := func() string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(dir, keys.FileName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	view := func() string { return ansi.Strip(s.frame()) }
+	if v := view(); !strings.Contains(v, "keybindings") || !strings.Contains(v, "* diff_view") {
+		t.Errorf("the list does not show, or not fold as changed:\n%s", v)
+	}
+
+	keymapTo(t, s, "diff_view", "pane", "tab")
+	pressRoot(s, "enter")
+	if s.keymap.capture == nil || !strings.Contains(view(), "pane in diff_view") {
+		t.Fatalf("enter: no capture:\n%s", view())
+	}
+	pressRoot(s, "x")
+	if s.keymap.capture != nil || cfg.Keys.Key(keys.DiffView, "x").Action != "pane" || cfg.Keys.Key(keys.DiffView, "tab").Action != "" {
+		t.Errorf("x: capture %v, x %+v, tab %+v", s.keymap.capture, cfg.Keys.Key(keys.DiffView, "x"), cfg.Keys.Key(keys.DiffView, "tab"))
+	}
+	if want := mine + "diff_view = [\n"; strings.HasPrefix(saved(), want) || !strings.HasPrefix(saved(), "# mine\ndiff_view = [\n    { action = \"fold\",   # z\n      keys = [\"z\"] },\n    { action = \"pane\", keys = [\"x\"] },\n]\n") {
+		t.Errorf("x not saved, or the file not kept:\n%s", saved())
+	}
+
+	pressRoot(s, "enter", "j") // j moves
+	if !strings.Contains(s.keymap.msg, "key j has two actions in diff_view: move, pane") || cfg.Keys.Key(keys.DiffView, "x").Action != "pane" {
+		t.Errorf("a conflict: msg %q, x %+v", s.keymap.msg, cfg.Keys.Key(keys.DiffView, "x"))
+	}
+	if !strings.Contains(view(), "key j has two actions") {
+		t.Errorf("the conflict does not show:\n%s", view())
+	}
+	pressRoot(s, "a", "y")
+	if r := rowsOf(cfg.Keys.RowsIn("diff_view"), "pane"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"x", "y"}) || s.keymap.msg != "" {
+		t.Errorf("a y: %+v, msg %q", r, s.keymap.msg)
+	}
+	pressRoot(s, "a", "x")
+	if !strings.Contains(s.keymap.msg, "x stands twice") {
+		t.Errorf("a x: msg %q", s.keymap.msg)
+	}
+	pressRoot(s, "enter", "esc")
+	if s.keymap.capture != nil || !s.keymap.open || cfg.Keys.Key(keys.DiffView, "x").Action != "pane" {
+		t.Errorf("esc: capture %v, open %v; want it cancelled, nothing changed", s.keymap.capture, s.keymap.open)
+	}
+
+	// Two ways: two keys, in the order of the row.
+	keymapTo(t, s, "diff_view", "change", "]")
+	pressRoot(s, "enter", "f8")
+	if v := view(); s.keymap.capture == nil || !strings.Contains(v, "key 2 of 2") || !strings.Contains(v, " F8█ ") {
+		t.Fatalf("f8: want the second key asked for:\n%s", v)
+	}
+	pressRoot(s, "ctrl+g")
+	if r := rowsOf(cfg.Keys.RowsIn("diff_view"), "change"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"F8", "ctrl+g"}) {
+		t.Errorf("f8 ctrl+g: %+v, msg %q", r, s.keymap.msg)
+	}
+	if !strings.Contains(saved(), `{ action = "change", keys = ["F8", "ctrl+g"] }`) {
+		t.Errorf("not saved as the help writes the keys:\n%s", saved())
+	}
+	pressRoot(s, "a")
+	if !strings.Contains(s.keymap.msg, "change takes two keys") || s.keymap.capture != nil {
+		t.Errorf("a on two ways: msg %q", s.keymap.msg)
+	}
+
+	keymapTo(t, s, "diff_view", "set_mark", "m<letter>")
+	pressRoot(s, "enter", "M")
+	if r := cfg.Keys.Row("set_mark"); !slices.Equal(r.Keys, []string{"M<letter>"}) {
+		t.Errorf("M on set_mark: %q", r.Keys)
+	}
+
+	// Back to the built-in keys; the rest of the file stays.
+	keymapTo(t, s, "diff_view", "pane", "x")
+	pressRoot(s, "d")
+	if cfg.Keys.Key(keys.DiffView, "tab").Action != "pane" || strings.Contains(saved(), "pane") || !strings.HasPrefix(saved(), mine[:len(mine)-2]) {
+		t.Errorf("d: tab %+v:\n%s", cfg.Keys.Key(keys.DiffView, "tab"), saved())
+	}
+	pressRoot(s, "delete")
+	if !strings.Contains(s.keymap.msg, "has the built-in keys") {
+		t.Errorf("del on a built-in row: msg %q", s.keymap.msg)
+	}
+
+	// The keys apply at once: on the page, in the settings and in the help.
+	keymapTo(t, s, "everywhere", "wrap", "w")
+	pressRoot(s, "enter", "Z")
+	if v := view(); !strings.Contains(v, "* everywhere   Z") {
+		t.Errorf("Z: not marked as changed:\n%s", v)
+	}
+	pressRoot(s, "esc")
+	if s.keymap.open || !s.open {
+		t.Fatalf("esc: keys open %v, settings open %v; want back in the settings", s.keymap.open, s.open)
+	}
+	if v := view(); !strings.Contains(v, "Z       wrap long lines") || !strings.Contains(v, "[4]   K       the keys") {
+		t.Errorf("the settings do not show Z, or not 4 rows changed:\n%s", v)
+	}
+	pressRoot(s, "esc")
+	wrap := cfg.Settings.Wrap
+	pressRoot(s, "Z")
+	if cfg.Settings.Wrap == wrap {
+		t.Errorf("Z on the page does not toggle wrap")
+	}
+	h := WithHelp(cfg, s)
+	h.Update(tea.WindowSizeMsg{Width: 120, Height: 100})
+	pressRoot(h, "?")
+	if v := ansi.Strip(h.frame()); !strings.Contains(v, "Z              wrap long lines") {
+		t.Errorf("the help does not show Z:\n%s", v)
+	}
+}
+
+// D asks, and y moves keybindings.toml to keybindings.toml.bak: the built-in
+// keys apply at once; n and esc keep it.
+func TestSettingsKeymapReset(t *testing.T) {
+	const mine = "# mine\neverywhere = [{ action = \"wrap\", keys = [\"Z\"] }]\n"
+	s, dir := openKeymap(t, 120, 40, mine)
+	cfg := s.cfg
+	path := filepath.Join(dir, keys.FileName)
+	for _, no := range []string{"n", "esc"} {
+		pressRoot(s, "D")
+		if v := ansi.Strip(s.frame()); !s.keymap.reset || !strings.Contains(v, "keybindings.toml.bak and use the built-in keys?") {
+			t.Fatalf("D: no question:\n%s", v)
+		}
+		pressRoot(s, "j", no) // j is no answer
+		if s.keymap.reset || !cfg.HasUserKeys() || cfg.Keys.Row("wrap").Keys[0] != "Z" || s.keymap.cursor != 0 {
+			t.Errorf("D j %s: asking %v, file %v, wrap %q, cursor %d; want it kept", no, s.keymap.reset, cfg.HasUserKeys(), cfg.Keys.Row("wrap").Keys, s.keymap.cursor)
+		}
+	}
+	pressRoot(s, "D", "y")
+	bak, err := os.ReadFile(path + ".bak")
+	if err != nil || string(bak) != mine || cfg.HasUserKeys() {
+		t.Errorf("D y: .bak %q, %v, file there %v", bak, err, cfg.HasUserKeys())
+	}
+	if cfg.Keys != keys.Builtin() || !strings.Contains(s.keymap.msg, "keybindings.toml is now keybindings.toml.bak") {
+		t.Errorf("D y: built-in keys %v, msg %q", cfg.Keys == keys.Builtin(), s.keymap.msg)
+	}
+	if v := ansi.Strip(s.frame()); strings.Contains(v, "*") {
+		t.Errorf("D y: a row still marked changed:\n%s", v)
+	}
+	pressRoot(s, "D")
+	if s.keymap.reset || !strings.Contains(s.keymap.msg, "no keybindings.toml") {
+		t.Errorf("D without a file: asking %v, msg %q", s.keymap.reset, s.keymap.msg)
+	}
+	pressRoot(s, "esc", "esc", "w")
+	if !cfg.Settings.Wrap {
+		t.Errorf("w on the page does not toggle wrap after the reset")
+	}
+}
+
+// The list of the keys scrolls as the other lists; its lines are found by
+// their start, which a narrow terminal leaves, cut: the page and the keys.
+func TestSettingsKeymapSweep(t *testing.T) {
+	t.Parallel() // a sweep: its own config and views, nothing shared
+	n := len(keyLines(keys.Builtin()))
+	// Every height from the smallest drawn up to 40, and around "all fit" at
+	// n+4.
+	var heights []int
+	for height := minHeight; height <= 40; height++ {
+		heights = append(heights, height)
+	}
+	for height := n + 2; height <= n+6; height++ {
+		heights = append(heights, height)
+	}
+	for _, height := range heights {
+		t.Run(fmt.Sprint("height ", height), func(t *testing.T) {
+			t.Parallel()
+			s, _ := openKeymap(t, 40, height, "")
+			items := keymapItems(s.cfg.Keys, keyLines(s.cfg.Keys))
+			index := func(r string) int {
+				r, found := strings.TrimSuffix(r, "…"), -1
+				for i, item := range items {
+					if strings.HasPrefix(item, r) {
+						if found >= 0 {
+							return -1 // two lines start alike
+						}
+						found = i
+					}
+				}
+				return found
+			}
+			what := fmt.Sprintf("keys, height %d", height)
+			h := popupHeight(n, height) - 2
+			check := func(k string, shown []int) []int {
+				t.Helper()
+				view := s.frame()
+				if got := len(strings.Split(view, "\n")); got > height {
+					t.Fatalf("%s, %s: %d lines", what, k, got)
+				}
+				if line := rawText(view, 40); line != "" {
+					t.Fatalf("%s, %s: line too wide: %q", what, k, line)
+				}
+				return checkShown(t, what+", "+k, popupRows(view), h, n, s.keymap.cursor, shown, index)
+			}
+			shown := check("", nil)
+			for _, k := range append(slices.Repeat([]string{"j"}, n), slices.Repeat([]string{"k"}, n)...) {
+				pressRoot(s, k)
+				shown = check(k, shown)
+			}
+		})
+	}
+}
+
 // A key that does the same on several pages stands once in the help: what
 // "Everywhere" lists is in no other section, and no section lists a key twice.
 func TestHelpListsSharedKeysOnce(t *testing.T) {
@@ -478,8 +719,8 @@ func TestHelpListsSharedKeysOnce(t *testing.T) {
 func TestSettingKeysOnAllPages(t *testing.T) {
 	for _, page := range settingsPages() {
 		for _, o := range settingOptions(keys.Builtin()) {
-			if o.ask != nil || o.logFlow || o.number != nil || o.patterns {
-				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere, TestSettingsNumber
+			if o.ask != nil || o.logFlow || o.number != nil || o.patterns || o.keymap {
+				continue // see TestUntrackedKeyOnPages, TestLogFlowKeysOnlyThere, TestSettingsNumber, TestSettingsKeymap
 			}
 			m, cfg := page.make()
 			s := WithSettings(cfg, m)

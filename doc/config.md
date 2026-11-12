@@ -91,6 +91,7 @@ everywhere = [
 - An action that goes two ways takes two keys, in the order of the built-in row: for `move` down, then up.
 - The status bar, the help and the settings popup show your keys with their usual words. Messages, and the keys inside popups and input fields, stay as built in.
 - A file with a problem, such as an unknown page, action or field, a row without keys, or a key with two actions on one page, changes no key: the status bar says what is wrong.
+- The [settings popup](keybindings.md#settings-popup) changes keys too (`K` there): it rewrites only the rows of the action changed, in the form the file uses, `page = [...]` or `[[page]]` tables, and keeps the rest as written, comments included. `D` there moves the file to `keybindings.toml.bak`: the built-in keys apply.
 
 ## Themes
 

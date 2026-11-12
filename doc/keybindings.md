@@ -155,6 +155,15 @@ Only there can you set the minutes until auto reload ends and the most directori
 - `j` `k` move; `enter`, `space` or the letter toggles, kept in `state.toml`.
 - The popup stays open; `o`, `F8`, `esc` or `q` close it.
 
+`K` there, or `enter` on its last line, lists the keys of all pages, row by row, with `*` at those your [keybindings.toml](config.md#keybindingstoml) changes:
+
+- `enter` takes the key pressed next as the keys of the row; an action that goes two ways takes two, in the order of the help, as `]` `[` for next, previous change. `esc` cancels.
+- `a` adds the key pressed next to the row, `d` or `del` gives the action on that page its built-in keys again.
+- `D` gives all actions their built-in keys: after `y` to its question it moves `keybindings.toml` to `keybindings.toml.bak`, over an older one; `n` or `esc` keep it.
+- Each change is saved in `keybindings.toml` and applies at once, on the pages, in the status bars, the settings and the help. The rest of the file stays as you wrote it.
+- A change that would leave a key with two actions on one page, or a key twice in the rows of an action, is refused with the reason.
+- `esc`, `q`, `o` or `F8` go back to the settings.
+
 ### Auto reload
 
 `R` keeps what is shown up to date: the files shown are reloaded when they change on disk, and in `jdiff diff` and `jdiff log` all is loaded again whenever `git status` changes, as with a commit, `git add`, a checkout, a new file or an edit of a file not yet in the diff.

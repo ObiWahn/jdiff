@@ -16,7 +16,7 @@ import (
 func TestHelpPopup(t *testing.T) {
 	d := newTestDiff()
 	h := WithHelp(config.Default(), d)
-	h.Update(tea.WindowSizeMsg{Width: 80, Height: 78}) // room for all bindings
+	h.Update(tea.WindowSizeMsg{Width: 80, Height: 80}) // room for all bindings
 	pressRoot(h, "?")
 	view := ansi.Strip(h.frame())
 	for _, want := range []string{"╭─ keys ─", "Everywhere", "Commit list and file list", "Diff and flow view",
@@ -25,8 +25,8 @@ func TestHelpPopup(t *testing.T) {
 			t.Errorf("help lacks %q:\n%s", want, view)
 		}
 	}
-	if lines := strings.Split(view, "\n"); len(lines) != 78 {
-		t.Errorf("help view has %d lines, want the screen's 78", len(lines))
+	if lines := strings.Split(view, "\n"); len(lines) != 80 {
+		t.Errorf("help view has %d lines, want the screen's 80", len(lines))
 	}
 	// Keys do not reach the page while the popup is open.
 	pressRoot(h, "j", "enter")

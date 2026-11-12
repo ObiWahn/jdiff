@@ -38,7 +38,7 @@ func helpBindings(km *keys.Map) []binding {
 type Help struct {
 	tea.Model
 	cfg           *config.Config
-	lines         []binding // of cfg.Keys, which do not change
+	lines         []binding // of cfg.Keys, again on each opening: the settings change them
 	rows          []string  // the lines drawn, wrapped to the width while open
 	boxWidth      int
 	open          bool
@@ -82,7 +82,7 @@ func popupKeys(km *keys.Map, msg tea.KeyPressMsg, open bool, opener string, key 
 // key handles k in the popup, or opens it on ?.
 func (h *Help) key(k string) tea.Cmd {
 	if !h.open {
-		h.open, h.top = true, 0
+		h.open, h.top, h.lines = true, 0, helpLines(h.cfg.Keys)
 		h.wrap()
 		return nil
 	}

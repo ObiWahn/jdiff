@@ -42,6 +42,7 @@ everywhere = [
     { action = "auto_reload_timeout", setting = "minutes without keys or changes until auto reload ends; 0 never" },
     { action = "inotify_max_dirs", setting = "directories auto reload watches, the most recently used; others checked near the cursor" },
     { action = "ignored_hide", setting = "patterns of the ignored and excluded paths not shown (ignored_hide)" },
+    { action = "keybindings", setting = "the keys of all pages, saved in keybindings.toml" },
     { action = "help", keys = ["?"], label = ["help"], help = "this help ({help} esc q close, j k scroll)" },
     { action = "quit", keys = ["q", "ctrl+c"], label = ["quit"], help = "quit" },
 ]
@@ -153,6 +154,7 @@ help = [
     { note = "j k move, enter, space or the letter toggles, {settings} esc q close" },
     { note = "there also the minutes until auto reload ends and the directories watched: enter on one, type the number" },
     { note = "and the patterns of ignored_hide: enter on it, then a adds one, enter edits, d or del deletes, esc back" },
+    { note = "and the keys: K or enter on its line, then enter sets the keys of a row, a adds one, d or del the built-in ones again, D all of them (the file kept as .bak)" },
     { note = "{layout} {flow} {untracked} {ignored} {excluded} {wrap} {whitespace} {mark_whitespace} {trailing} {line_ends} {bold} {preview} {full_messages} {stay_in_commit} {auto_reload}, the minutes, the directories watched, ignored_hide, and tab shift+tab of /, are saved in state.toml" },
     { action = "help" },
     { action = "to_files" },
