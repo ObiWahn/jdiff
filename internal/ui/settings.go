@@ -392,7 +392,7 @@ func (p *SettingsPopup) frame() string {
 	}
 	title := popupTitle(t, "settings", p.msg, "enter toggle · esc close")
 	view := p.draw(t, base, title, all, "")
-	name := "auto reload timeout"
+	name := strings.ReplaceAll(p.options[p.cursor].action, "_", " ")
 	if p.hide.open {
 		items := make([]string, len(p.cfg.IgnoredHide))
 		for i, expr := range p.cfg.IgnoredHide {

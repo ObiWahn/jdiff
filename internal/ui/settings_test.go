@@ -662,7 +662,11 @@ func TestSettingsNumberPasteClearsError(t *testing.T) {
 	for range dirs {
 		pressRoot(s, "j")
 	}
-	pressRoot(s, "enter", "ctrl+u", "x", "enter")
+	pressRoot(s, "enter")
+	if view := ansi.Strip(s.frame()); !strings.Contains(view, "inotify max dirs") || strings.Contains(view, "auto reload timeout") {
+		t.Errorf("the line of inotify_max_dirs is not named after it:\n%s", view)
+	}
+	pressRoot(s, "ctrl+u", "x", "enter")
 	if s.inputErr == "" {
 		t.Fatal("x was taken for a number")
 	}
