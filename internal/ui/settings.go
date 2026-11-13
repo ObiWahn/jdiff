@@ -656,7 +656,7 @@ func (p *SettingsPopup) keymapFrame(view string) string {
 // popup in frame f, as wide as they need, up to the screen.
 func (p *SettingsPopup) keymapAsk(view string, f popupFrame, line string) string {
 	lines := []string{" " + line + " "}
-	return popup{f, lines, popupWidth(f, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
+	return popupBox{f, lines, popupWidth(f, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
 }
 
 // keymapItems returns the items of the list of the keys of km for lines: a *

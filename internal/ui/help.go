@@ -196,5 +196,5 @@ func (h *Help) frame() string {
 	if h.boxHeight()-2 < len(h.rows) {
 		f.hints = fmt.Sprintf("%d/%d", h.top+1, len(h.rows)) // where it stands
 	}
-	return popup{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
+	return popupBox{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }

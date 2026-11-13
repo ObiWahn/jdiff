@@ -1070,7 +1070,7 @@ func TestStatusBarOneColor(t *testing.T) {
 	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · s unified · d git diff · o settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
-	if got, _ := (popupFrame{"marks", "enter jump · esc close", ""}).borders(l.cfg.Theme, 60); !strings.Contains(got, hint.Render("enter jump · esc close")) {
+	if got := (popupBox{popupFrame{"marks", "enter jump · esc close", ""}, nil, 60, 2}).drawn(l.cfg.Theme); !strings.Contains(got, hint.Render("enter jump · esc close")) {
 		t.Errorf("popup's top border %q", got)
 	}
 }
@@ -1084,14 +1084,14 @@ func TestPopupFrame(t *testing.T) {
 	th := l.cfg.Theme
 	f := popupFrame{"marks", "enter jump · esc close", ""}
 	lines := []string{"m0", "m1"}
-	p := popup{f, lines, popupWidth(f, lines, 0, 80), 4}
-	want := "╭─ marks ─ enter jump · esc close ─╮\n│ m0                               │\n│ m1                               │\n╰──────────────────────────────────╯\n"
-	if got := ansi.Strip(p.render(th)); got != want {
+	p := popupBox{f, lines, popupWidth(f, lines, 0, 80), 4}
+	want := "╭─ marks ─ enter jump · esc close ─╮\n│ m0                               │\n│ m1                               │\n╰──────────────────────────────────╯"
+	if got := ansi.Strip(p.drawn(th)); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	f.msg = "x0 is set, x1\tnot"
-	p = popup{f, lines, popupWidth(f, lines, 0, 80), 4}
-	got := p.render(th)
+	p = popupBox{f, lines, popupWidth(f, lines, 0, 80), 4}
+	got := p.drawn(th)
 	if rows := strings.Split(ansi.Strip(got), "\n"); !strings.HasSuffix(rows[0], " enter jump · esc close ─╮") || !strings.HasSuffix(rows[3], " "+printable(f.msg)+" ─╯") {
 		t.Errorf("with a message:\n%s", ansi.Strip(got))
 	}
@@ -1102,8 +1102,8 @@ func TestPopupFrame(t *testing.T) {
 	if w := popupWidth(f, lines, 0, 80); w != 56 { // the message, its spaces, a line on each side, the corners
 		t.Errorf("a message of 50: width %d, want 56", w)
 	}
-	p = popup{f, lines, popupWidth(f, lines, 0, 24), 4}
-	rows := strings.Split(strings.TrimSuffix(ansi.Strip(p.render(th)), "\n"), "\n")
+	p = popupBox{f, lines, popupWidth(f, lines, 0, 24), 4}
+	rows := strings.Split(ansi.Strip(p.drawn(th)), "\n")
 	for _, r := range rows {
 		if ansi.StringWidth(r) != 24 {
 			t.Errorf("row %q is %d wide, want 24", r, ansi.StringWidth(r))
