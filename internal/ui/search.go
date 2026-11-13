@@ -15,6 +15,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
+	"jdiff/internal/keys"
 	"jdiff/internal/settings"
 )
 
@@ -426,18 +427,19 @@ func (s *SearchBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // lines, shift+tab between plain text and regular expression; up and
 // down go through the history, each query in its mode.
 func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
-	in, history, st := s.input, s.cfg.Search.History, &s.cfg.Settings
+	in, history, st, km := s.input, s.cfg.Search.History, &s.cfg.Settings, s.cfg.Keys
 	s.err = ""
 	show := func(q config.Query) { in.text, s.regex = q.Text, q.Regex }
+	h := km.Key(keys.SearchLine, k.String())
 	switch {
-	case k.String() == "ctrl+c":
+	case h.Action == "quit":
 		return tea.Quit
-	case in.cancels(k):
+	case in.cancels(km, k):
 		s.input = nil
 		return nil
 	}
-	switch k.String() {
-	case "enter":
+	switch h.Action {
+	case "done":
 		q := config.Query{Text: in.text, Regex: s.regex}
 		if q.Text == "" {
 			s.input = nil
@@ -454,22 +456,22 @@ func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
 			s.err = saveState(s.cfg)
 		}
 		return func() tea.Msg { return findMsg(1) }
-	case "tab":
+	case "scope":
 		s.err = toggle(s.cfg, &st.SearchAll)
-	case "shift+tab":
+	case "regex":
 		s.regex = !s.regex
 		st.SearchRegex = s.regex
 		s.err = saveState(s.cfg)
-	case "up":
-		if s.hist == len(history) {
-			s.draft = config.Query{Text: in.text, Regex: s.regex}
-		}
-		if s.hist > 0 {
-			s.hist--
-			show(history[s.hist])
-		}
-	case "down":
-		if s.hist < len(history) {
+	case "history":
+		if h.I == 0 { // earlier
+			if s.hist == len(history) {
+				s.draft = config.Query{Text: in.text, Regex: s.regex}
+			}
+			if s.hist > 0 {
+				s.hist--
+				show(history[s.hist])
+			}
+		} else if s.hist < len(history) {
 			s.hist++
 			if s.hist == len(history) {
 				show(s.draft)
@@ -478,7 +480,7 @@ func (s *SearchBar) key(k tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 	default:
-		in.edit(k)
+		in.edit(km, k)
 	}
 	return nil
 }

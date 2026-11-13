@@ -36,25 +36,27 @@
 
 ## Keys and status bars
 
-- Every key binding of a page is a row of `internal/keys/keybindings.toml`, also a new one: the code
-  switches on its action (`cfg.Keys.Key`), never on a key. Only the keys inside popups and input
-  fields, and those that messages name, stay in the code.
+- Every key binding of a page, a popup or an input field is a row of
+  `internal/keys/keybindings.toml`, also a new one: the code switches on its action
+  (`cfg.Keys.Key`), never on a key. That file is embedded in the program and is the one truth
+  for the actions and their words (labels, help, settings); the user's keybindings.toml changes
+  only which keys a row has, never its action or its words. Only the keys that messages name
+  stay in the code.
 - The status bars are short and come from `statusKeys`, in one order on all pages:
   enter · backspace · N/P · f · s · d · o · ? · q;
   each page shows only those that work there, the other keys are in the help (?). The labels of
   f and s name what the key switches to, so pressing it changes only its own label. The anchors
   stand at the right end.
-- `internal/keys/keybindings.toml` binds the keys of all pages to actions, with their labels in the
-  status bar and their lines of the help; change keys and words there, not in the code, which
-  switches on actions (`cfg.Keys.Key`). A key named in the words is a placeholder, `{action}` or
-  `{action:1}`, so that it follows the user's `keybindings.toml`, which changes only keys
-  (`keys.Load`, read by `config.Load` into `Config.Keys`, which does not change after). The keys
-  inside popups and input fields, and those that messages name, stay in the code. The
-  rows of `everywhere` decide the order of the settings: the popup and the help's block of settings
-  follow them (`ui.settingOptions`, `ui.helpLines`). A setting with a key of its own is a row of
-  `everywhere`, unless it works only in one view (`logFlow`); `TestKeybindingsFile` checks that.
-  `doc/keybindings.md` lists the same keys in the same order, `TestKeybindingsDoc` checks that. The
-  status bars keep their own order, above.
+- `internal/keys/keybindings.toml` binds the keys of all pages, popups and input fields to actions,
+  with their labels in the status bar and their lines of the help; change keys and words there, not
+  in the code, which switches on actions (`cfg.Keys.Key`). A key named in the words is a
+  placeholder, `{action}` or `{action:1}`, so that it follows the user's `keybindings.toml`, which
+  changes only keys (`keys.Load`, read by `config.Load` into `Config.Keys`, which does not change
+  after). The keys that messages name stay in the code. The rows of `everywhere` decide the order of
+  the settings: the popup and the help's block of settings follow them (`ui.settingOptions`,
+  `ui.helpLines`). A setting with a key of its own is a row of `everywhere`, unless it works only in
+  one view (`logFlow`); `TestKeybindingsFile` checks that. `doc/keybindings.md` lists the same keys
+  in the same order, `TestKeybindingsDoc` checks that. The status bars keep their own order, above.
 - The direction in history (N n next, P p previous, also with `--reverse`) is decided in one
   place only: `historyDir` and `historyOrder.step` in `internal/ui/messages.go`.
 - Toggles are fields of `settings.Toggles`, kept in `state.toml`; list a new one in the help's

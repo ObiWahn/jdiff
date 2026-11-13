@@ -10,6 +10,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keys"
 	"jdiff/internal/source"
 	"jdiff/watch"
 )
@@ -175,17 +176,17 @@ func (s *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // the line; with nothing typed it closes the popup, as esc and backspace on
 // it do.
 func (s *App) key(k tea.KeyPressMsg) tea.Cmd {
-	in := s.popup.input
+	in, km := s.popup.input, s.cfg.Keys
 	switch {
-	case k.String() == "ctrl+c":
+	case km.Key(keys.GitDiffLine, k.String()).Action == "quit":
 		return tea.Quit
-	case in.cancels(k):
+	case in.cancels(km, k):
 		s.popup.input = nil
 		s.endDiff()
 		return nil
 	}
-	switch k.String() {
-	case "enter":
+	switch km.Key(keys.GitDiffLine, k.String()).Action {
+	case "done":
 		args, err := splitArgs(in.text)
 		if err != nil {
 			s.popup.err = err.Error()
@@ -196,12 +197,12 @@ func (s *App) key(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		return s.show(args)
-	case "up":
+	case "current":
 		if args, ok := s.current(); ok {
 			in.text = joinArgs(args)
 		}
 	default:
-		in.edit(k)
+		in.edit(km, k)
 	}
 	return nil
 }

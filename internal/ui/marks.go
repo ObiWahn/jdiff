@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keys"
 )
 
 // markJumpMsg asks the file list to show mark letter in another file of
@@ -146,15 +147,15 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 		return cmd
 	}
 	marks := p.cfg.Marks()
-	switch k {
-	case "d", "delete":
+	switch p.cfg.Keys.Key(keys.MarksPopup, k).Action {
+	case "delete":
 		if p.cursor < len(marks) {
 			if err := p.cfg.DeleteMark(marks[p.cursor].Letter); err != nil {
 				p.msg = "marks: " + err.Error()
 			}
 			p.move(0)
 		}
-	case "enter":
+	case "jump":
 		if p.cursor < len(marks) {
 			// Jump as the key of jump, ', and the letter do on the page.
 			p.open = false

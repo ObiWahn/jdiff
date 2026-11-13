@@ -533,10 +533,11 @@ func inputPopup(t *theme.Theme, width int, f popupFrame, text, err string, cente
 // lineInput is a line of text being typed, with the cursor at its end.
 type lineInput struct{ text string }
 
-// cancels reports whether k closes the input without using it: esc, or
-// backspace on nothing typed.
-func (in *lineInput) cancels(k tea.KeyPressMsg) bool {
-	return k.String() == "esc" || k.String() == "backspace" && in.text == ""
+// cancels reports whether k closes the input without using it: a key of
+// cancel, or of erase on nothing typed (keys.InputLine of km).
+func (in *lineInput) cancels(km *keys.Map, k tea.KeyPressMsg) bool {
+	a := km.Key(keys.InputLine, k.String()).Action
+	return a == "cancel" || a == "erase" && in.text == ""
 }
 
 // paste adds pasted text, which comes as a tea.PasteMsg: on one line, line
@@ -554,19 +555,20 @@ func (in *lineInput) paste(text string) {
 	}, text)
 }
 
-// edit applies k to the text: typed text is added, backspace deletes a
-// character, ctrl+w a word and ctrl+u the line. Pasted text comes as a
-// tea.PasteMsg, which the owner adds with paste.
-func (in *lineInput) edit(k tea.KeyPressMsg) {
-	switch k.String() {
-	case "backspace":
+// edit applies k to the text: typed text is added, the keys of erase delete
+// a character, of erase_word a word and of erase_line the line
+// (keys.InputLine of km). Pasted text comes as a tea.PasteMsg, which the
+// owner adds with paste.
+func (in *lineInput) edit(km *keys.Map, k tea.KeyPressMsg) {
+	switch km.Key(keys.InputLine, k.String()).Action {
+	case "erase":
 		if r := []rune(in.text); len(r) > 0 {
 			in.text = string(r[:len(r)-1])
 		}
-	case "ctrl+w":
+	case "erase_word":
 		in.text = strings.TrimRight(in.text, " ")
 		in.text = in.text[:strings.LastIndex(in.text, " ")+1]
-	case "ctrl+u":
+	case "erase_line":
 		in.text = ""
 	default:
 		in.text += k.Text
@@ -636,7 +638,7 @@ func (g *SizeGuard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		g.width, g.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
 		if g.tooSmall() {
-			if msg.String() == "ctrl+c" {
+			if g.cfg.Keys.Key(keys.TooSmall, msg.String()).Action == "quit" {
 				return g, tea.Quit
 			}
 			return g, nil

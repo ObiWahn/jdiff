@@ -23,7 +23,8 @@ import (
 // it is a number, asked for in a line; it has no key, the cursor goes to it in
 // the popup. With patterns, it is ignored_hide, edited in a list of its own,
 // see hidePopup. With keymap, it is the keys, in a list of their own, see
-// keymapPopup; it has no key on the pages, in the popup keymapKey.
+// keymapPopup; it has no key on the pages, in the popup the keys of
+// keys.SettingsPopup's keys.
 type settingOption struct {
 	key, action, what string
 	setting           func(*config.Config) *bool
@@ -312,10 +313,10 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 	if cmd, ok := popupNav(p.cfg.Keys, k, "settings", &p.open, p.move); ok {
 		return cmd
 	}
-	switch k {
-	case "enter", "space":
+	switch p.cfg.Keys.Key(keys.SettingsPopup, k).Action {
+	case "toggle":
 		return p.flip(p.options[p.cursor])
-	case keymapKey:
+	case "keys":
 		i := slices.IndexFunc(p.options, func(o settingOption) bool { return o.keymap })
 		p.move(i - p.cursor)
 		return p.flip(p.options[i])
@@ -357,13 +358,13 @@ func (p *SettingsPopup) flip(o settingOption) tea.Cmd {
 // editNumber edits the number asked for: enter sets and saves it, unless it is
 // none, esc and backspace on nothing typed cancel.
 func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
-	in := p.input
-	switch {
-	case k.String() == "ctrl+c":
+	in, km := p.input, p.cfg.Keys
+	switch a := km.Key(keys.InputLine, k.String()).Action; {
+	case a == "quit":
 		return tea.Quit
-	case in.cancels(k):
+	case in.cancels(km, k):
 		p.input = nil
-	case k.String() == "enter":
+	case a == "done":
 		n, err := strconv.Atoi(strings.TrimSpace(in.text))
 		if err != nil || n < 0 {
 			p.inputErr = "a whole number, 0 or more"
@@ -376,7 +377,7 @@ func (p *SettingsPopup) editNumber(k tea.KeyPressMsg) tea.Cmd {
 		return cmd
 	default:
 		p.inputErr = ""
-		in.edit(k)
+		in.edit(km, k)
 	}
 	return nil
 }
@@ -392,14 +393,14 @@ func (p *SettingsPopup) hideKey(k string) tea.Cmd {
 		return cmd
 	}
 	list := p.cfg.IgnoredHide
-	switch k {
-	case "a":
+	switch p.cfg.Keys.Key(keys.IgnoredHide, k).Action {
+	case "add":
 		p.hide.edit, p.input, p.inputErr = len(list), &lineInput{}, ""
-	case "enter":
+	case "edit":
 		if p.hide.cursor < len(list) {
 			p.hide.edit, p.input, p.inputErr = p.hide.cursor, &lineInput{text: list[p.hide.cursor]}, ""
 		}
-	case "d", "delete":
+	case "delete":
 		if p.hide.cursor < len(list) {
 			return p.setHide(slices.Delete(slices.Clone(list), p.hide.cursor, p.hide.cursor+1))
 		}
@@ -411,13 +412,13 @@ func (p *SettingsPopup) hideKey(k string) tea.Cmd {
 // it is empty, which would hide all, or no regular expression; esc and
 // backspace on nothing typed cancel.
 func (p *SettingsPopup) editPattern(k tea.KeyPressMsg) tea.Cmd {
-	in := p.input
-	switch {
-	case k.String() == "ctrl+c":
+	in, km := p.input, p.cfg.Keys
+	switch a := km.Key(keys.InputLine, k.String()).Action; {
+	case a == "quit":
 		return tea.Quit
-	case in.cancels(k):
+	case in.cancels(km, k):
 		p.input = nil
-	case k.String() == "enter":
+	case a == "done":
 		if in.text == "" {
 			p.inputErr = "a regular expression; empty would hide all"
 			return nil
@@ -436,7 +437,7 @@ func (p *SettingsPopup) editPattern(k tea.KeyPressMsg) tea.Cmd {
 		return p.setHide(list)
 	default:
 		p.inputErr = ""
-		in.edit(k)
+		in.edit(km, k)
 	}
 	return nil
 }
@@ -454,13 +455,15 @@ func (p *SettingsPopup) setHide(list []string) tea.Cmd {
 	return cmd
 }
 
-// keymapKey opens the keymap popup in the settings popup, and only there.
-const keymapKey = "K"
-
-// optionKey returns the key of o as the settings popup shows it.
-func optionKey(o settingOption) string {
+// optionKey returns the key of o as the settings popup of km shows it: the
+// keys get the first key of keys.SettingsPopup's keys, which opens them
+// there, and only there.
+func optionKey(km *keys.Map, o settingOption) string {
 	if o.keymap {
-		return keymapKey
+		if rows := km.RowsIn(keys.SettingsPopup, "keys"); len(rows) > 0 && len(rows[0].Keys) > 0 {
+			return keys.Spelling(rows[0].Keys[0])
+		}
+		return ""
 	}
 	return keys.Spelling(o.key)
 }
@@ -475,22 +478,22 @@ func (p *SettingsPopup) keymapKey(k string) tea.Cmd {
 	}
 	l := keyLines(p.cfg.Keys)[p.keymap.cursor]
 	twoWay := p.cfg.Keys.TwoWay(l.row.Action)
-	switch k {
-	case "enter":
+	switch p.cfg.Keys.Key(keys.KeysPopup, k).Action {
+	case "set":
 		p.keymap.capture, p.keymap.msg = &keyCapture{line: l, want: 1 + btoi(twoWay)}, ""
-	case "a":
+	case "add":
 		if twoWay {
 			p.keymap.msg = l.row.Action + " takes two keys, one each way: enter sets them"
 			return nil
 		}
 		p.keymap.capture, p.keymap.msg = &keyCapture{line: l, add: true, want: 1}, ""
-	case "d", "delete":
+	case "builtin":
 		if !l.changed {
 			p.keymap.msg = l.row.Action + " in " + l.page + " has the built-in keys"
 			return nil
 		}
 		p.setKeys(l.page, l.row.Action, nil)
-	case "D":
+	case "all_builtin":
 		if !p.cfg.HasUserKeys() {
 			p.keymap.msg = "no " + keys.FileName + ": the keys are the built-in ones"
 			return nil
@@ -503,12 +506,12 @@ func (p *SettingsPopup) keymapKey(k string) tea.Cmd {
 // resetKey answers the question of D: y moves keybindings.toml away, n and
 // esc keep it; other keys wait for an answer.
 func (p *SettingsPopup) resetKey(k string) tea.Cmd {
-	switch k {
-	case "ctrl+c":
+	switch p.cfg.Keys.Key(keys.Confirm, k).Action {
+	case "quit":
 		return tea.Quit
-	case "n", "esc":
+	case "no":
 		p.keymap.reset = false
-	case "y":
+	case "yes":
 		p.keymap.reset = false
 		if err := p.cfg.ResetKeys(); err != nil {
 			p.keymap.msg = firstLine(err)
@@ -525,7 +528,7 @@ func (p *SettingsPopup) resetKey(k string) tea.Cmd {
 // the rows of its action.
 func (p *SettingsPopup) captureKey(k string) tea.Cmd {
 	c := p.keymap.capture
-	if k == "esc" {
+	if p.cfg.Keys.Key(keys.KeyCapture, k).Action == "cancel" {
 		p.keymap.capture = nil
 		return nil
 	}
@@ -605,11 +608,11 @@ func (p *SettingsPopup) frame() string {
 		default:
 			states[i] = "[ ]"
 		}
-		keyW = max(keyW, ansi.StringWidth(optionKey(o)))
+		keyW = max(keyW, ansi.StringWidth(optionKey(p.cfg.Keys, o)))
 		stateW = max(stateW, ansi.StringWidth(states[i]))
 	}
 	for i, o := range options {
-		all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, optionKey(o), o.what)
+		all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, optionKey(p.cfg.Keys, o), o.what)
 	}
 	view := p.draw(t, base, popupFrame{"settings", "enter toggle · K keys · esc close", p.msg}, all, "")
 	name := strings.ReplaceAll(p.options[p.cursor].action, "_", " ")

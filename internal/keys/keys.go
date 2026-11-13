@@ -28,19 +28,45 @@ const (
 	Everywhere = "everywhere" // the popups over all pages
 )
 
+// The popups, the input lines and the screen of a terminal too small, each a
+// table of its own: a popup looks a key up there, then in Popup; an input
+// line there, then in InputLine.
+const (
+	Popup         = "popup"
+	MarksPopup    = "marks_popup"
+	SettingsPopup = "settings_popup"
+	IgnoredHide   = "ignored_hide"
+	KeysPopup     = "keys_popup"
+	KeyCapture    = "key_capture"
+	Confirm       = "confirm"
+	InputLine     = "input_line"
+	GitDiffLine   = "git_diff_line"
+	SearchLine    = "search_line"
+	TooSmall      = "too_small"
+)
+
 // twoWay lists the actions whose rows take two keys, one for each way.
 var twoWay = []string{"move", "page", "half_page", "ends", "scroll", "change", "next_file", "history", "match", "link", "line_link", "next_page"}
 
-// Spec is keybindings.toml: its pages in the order an action is looked up,
-// the pages each page looks keys up in, and the actions that go two ways.
+// Spec is keybindings.toml: its tables in the order an action is looked up,
+// the tables each page, popup and input line looks keys up in, and the
+// actions that go two ways.
 var Spec = keymap.Spec{
-	Tables: []string{Everywhere, DiffView, FlowView, CommitList, FileList, DocView},
+	Tables: []string{Everywhere, DiffView, FlowView, CommitList, FileList, DocView,
+		Popup, MarksPopup, SettingsPopup, IgnoredHide, KeysPopup, KeyCapture, Confirm,
+		InputLine, GitDiffLine, SearchLine, TooSmall},
 	Pages: map[string][]string{
-		CommitList: {CommitList, Everywhere},
-		FileList:   {FileList, Everywhere},
-		DiffView:   {DiffView, Everywhere},
-		FlowView:   {FlowView, DiffView, Everywhere},
-		DocView:    {DocView, Everywhere},
+		CommitList:    {CommitList, Everywhere},
+		FileList:      {FileList, Everywhere},
+		DiffView:      {DiffView, Everywhere},
+		FlowView:      {FlowView, DiffView, Everywhere},
+		DocView:       {DocView, Everywhere},
+		MarksPopup:    {MarksPopup, Popup},
+		SettingsPopup: {SettingsPopup, Popup},
+		IgnoredHide:   {IgnoredHide, Popup},
+		KeysPopup:     {KeysPopup, Popup},
+		GitDiffLine:   {GitDiffLine, InputLine},
+		SearchLine:    {SearchLine, InputLine},
 	},
 	TwoWay: twoWay,
 }

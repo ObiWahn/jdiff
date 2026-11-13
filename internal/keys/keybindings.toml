@@ -128,6 +128,62 @@ doc_view = [
 
 # The lines of the help popup: an action gives its keys and its help; a heading stands alone, a note
 # goes on from the line above. The settings among them follow the order of everywhere.
+# The popups, the input lines and the screen shown while the terminal is too small. A popup looks
+# a key up in its own table, then in popup; an input line in its own, then in input_line. The key
+# that opened a popup closes it too.
+popup = [
+    { action = "close", keys = ["esc", "q"], label = ["close"], help = "close the popup" },
+    { action = "quit", keys = ["ctrl+c"], help = "quit" },
+    { action = "move", keys = ["down", "up"], help = "move down, up" },
+    { action = "move", keys = ["j", "k"], help = "move down, up" },
+]
+marks_popup = [
+    { action = "jump", keys = ["enter"], label = ["jump"], help = "jump to the mark" },
+    { action = "delete", keys = ["d", "delete"], label = ["delete"], help = "delete the mark" },
+]
+settings_popup = [
+    { action = "toggle", keys = ["enter", "space"], label = ["toggle"], help = "toggle the setting, or type its value" },
+    { action = "keys", keys = ["K"], label = ["keys"], help = "list the keys of all pages, to change them" },
+]
+ignored_hide = [
+    { action = "add", keys = ["a"], label = ["add"], help = "add a pattern" },
+    { action = "edit", keys = ["enter"], label = ["edit"], help = "edit the pattern" },
+    { action = "delete", keys = ["d", "delete"], label = ["delete"], help = "delete the pattern" },
+]
+keys_popup = [
+    { action = "set", keys = ["enter"], label = ["set"], help = "take the keys pressed next as the keys of the row" },
+    { action = "add", keys = ["a"], label = ["add"], help = "add the key pressed next to the row" },
+    { action = "builtin", keys = ["d", "delete"], label = ["built-in"], help = "give the row its built-in keys" },
+    { action = "all_builtin", keys = ["D"], label = ["all built-in"], help = "give all rows their built-in keys, the file kept as .bak" },
+]
+key_capture = [
+    { action = "cancel", keys = ["esc"], label = ["cancel"], help = "cancel; every other key is taken" },
+]
+confirm = [
+    { action = "yes", keys = ["y"], label = ["yes"], help = "yes" },
+    { action = "no", keys = ["n", "esc"], label = ["no"], help = "no" },
+    { action = "quit", keys = ["ctrl+c"], help = "quit" },
+]
+input_line = [
+    { action = "done", keys = ["enter"], label = ["set"], help = "take what is typed" },
+    { action = "cancel", keys = ["esc"], label = ["cancel"], help = "cancel" },
+    { action = "erase", keys = ["backspace"], help = "erase a character; on nothing typed cancel" },
+    { action = "erase_word", keys = ["ctrl+w"], help = "erase a word" },
+    { action = "erase_line", keys = ["ctrl+u"], help = "erase the line" },
+    { action = "quit", keys = ["ctrl+c"], help = "quit" },
+]
+git_diff_line = [
+    { action = "current", keys = ["up"], help = "the current ARGS, to edit" },
+]
+search_line = [
+    { action = "scope", keys = ["tab"], help = "changed or all lines" },
+    { action = "regex", keys = ["shift+tab"], help = "plain text or a regular expression" },
+    { action = "history", keys = ["up", "down"], help = "earlier, later searches" },
+]
+too_small = [
+    { action = "quit", keys = ["ctrl+c"], help = "quit" },
+]
+
 help = [
     { heading = "Everywhere" },
     { table = "diff_view", action = "move" },
@@ -161,7 +217,7 @@ help = [
     { note = "{layout} {everywhere.flow} {untracked} {ignored} {excluded} {wrap} {whitespace} {mark_whitespace} {trailing} {line_ends} {bold} {preview} {full_messages} {stay_in_commit} {auto_reload}, the minutes, the directories watched, ignored_hide, and tab shift+tab of /, are saved in state.toml" },
     { action = "help" },
     { action = "to_files" },
-    { action = "quit" },
+    { table = "everywhere", action = "quit" },
     { heading = "Commit list and file list" },
     { table = "commit_list", action = "open" },
     { heading = "Diff and flow view" },

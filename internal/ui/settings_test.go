@@ -577,7 +577,7 @@ func TestSettingsKeymap(t *testing.T) {
 	// The keys apply at once: on the page, in the settings and in the help.
 	keymapTo(t, s, "everywhere", "wrap", "w")
 	pressRoot(s, "enter", "Z")
-	if v := view(); !strings.Contains(v, "* everywhere   Z") {
+	if v := view(); !regexp.MustCompile(`\* everywhere +Z`).MatchString(v) { // the page column is as wide as the longest table
 		t.Errorf("Z: not marked as changed:\n%s", v)
 	}
 	pressRoot(s, "esc")
@@ -1180,6 +1180,17 @@ func TestKeybindingsDoc(t *testing.T) {
 		{"Flow view", p.Rows(keys.FlowView)},
 		{"README (`jdiff --readme`)", p.Rows(keys.DocView)},
 		{"Everywhere", p.Rows(keys.Everywhere)},
+		{"All popups (`popup`)", p.Rows(keys.Popup)},
+		{"Jump marks (`marks_popup`)", p.Rows(keys.MarksPopup)},
+		{"Settings (`settings_popup`)", p.Rows(keys.SettingsPopup)},
+		{"Patterns of ignored_hide (`ignored_hide`)", p.Rows(keys.IgnoredHide)},
+		{"Keys (`keys_popup`)", p.Rows(keys.KeysPopup)},
+		{"A key pressed for a row (`key_capture`)", p.Rows(keys.KeyCapture)},
+		{"Questions (`confirm`)", p.Rows(keys.Confirm)},
+		{"Input lines (`input_line`)", p.Rows(keys.InputLine)},
+		{"Another git diff (`git_diff_line`)", p.Rows(keys.GitDiffLine)},
+		{"Search (`search_line`)", p.Rows(keys.SearchLine)},
+		{"While the terminal is too small (`too_small`)", p.Rows(keys.TooSmall)},
 	}
 	for _, c := range pages {
 		var want []string

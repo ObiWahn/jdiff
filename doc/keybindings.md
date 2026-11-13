@@ -104,6 +104,94 @@ The keys of the diff view, and:
 | `?` | help |
 | `q` `ctrl+c` | quit |
 
+## In popups and input lines
+
+These keys are rows of [keybindings.toml](config.md#keybindingstoml) too, each popup and input line a table of its own. A popup looks a key up in its table, then in `popup`; an input line in its table, then in `input_line`. The key that opened a popup closes it too.
+
+### All popups (`popup`)
+
+| Key | Action |
+|---|---|
+| `esc` `q` | close the popup |
+| `ctrl+c` | quit |
+| `down` `up`, `j` `k` | move down, up |
+
+### Jump marks (`marks_popup`)
+
+| Key | Action |
+|---|---|
+| `enter` | jump to the mark |
+| `d` `delete` | delete the mark |
+
+### Settings (`settings_popup`)
+
+| Key | Action |
+|---|---|
+| `enter` `space` | toggle the setting, or type its value |
+| `K` | [list the keys](#settings-popup) of all pages, to change them |
+
+### Patterns of ignored_hide (`ignored_hide`)
+
+| Key | Action |
+|---|---|
+| `a` | add a pattern |
+| `enter` | edit the pattern |
+| `d` `delete` | delete the pattern |
+
+### Keys (`keys_popup`)
+
+| Key | Action |
+|---|---|
+| `enter` | take the keys pressed next as the keys of the row |
+| `a` | add the key pressed next to the row |
+| `d` `delete` | give the row its built-in keys |
+| `D` | give all rows their built-in keys, the file kept as `.bak` |
+
+### A key pressed for a row (`key_capture`)
+
+| Key | Action |
+|---|---|
+| `esc` | cancel; every other key is taken |
+
+### Questions (`confirm`)
+
+| Key | Action |
+|---|---|
+| `y` | yes |
+| `n` `esc` | no |
+| `ctrl+c` | quit |
+
+### Input lines (`input_line`)
+
+| Key | Action |
+|---|---|
+| `enter` | take what is typed |
+| `esc` | cancel |
+| `backspace` | erase a character; on nothing typed cancel |
+| `ctrl+w` | erase a word |
+| `ctrl+u` | erase the line |
+| `ctrl+c` | quit |
+
+### Another git diff (`git_diff_line`)
+
+| Key | Action |
+|---|---|
+| `up` | the current ARGS, to edit |
+
+### Search (`search_line`)
+
+| Key | Action |
+|---|---|
+| `tab` | changed or all lines |
+| `shift+tab` | plain text or a regular expression |
+| `up` `down` | earlier, later searches |
+
+### While the terminal is too small (`too_small`)
+
+| Key | Action |
+|---|---|
+| `ctrl+c` | quit |
+
 ## Details
 
 ### Search

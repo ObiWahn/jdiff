@@ -18,6 +18,7 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
 
@@ -1295,7 +1296,7 @@ func TestLineInputEdit(t *testing.T) {
 		{"", "backspace", ""},
 	} {
 		in := &lineInput{text: c.text}
-		in.edit(keyMsg(c.key))
+		in.edit(keys.Builtin(), keyMsg(c.key))
 		if in.text != c.want {
 			t.Errorf("%s on %q: %q, want %q", c.key, c.text, in.text, c.want)
 		}

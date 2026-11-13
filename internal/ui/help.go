@@ -99,24 +99,22 @@ func (h *Help) key(k string) tea.Cmd {
 	return cmd
 }
 
-// popupNav handles the keys that all popups share, so that they close and
-// move alike: a key of opener, esc and q close the popup, ctrl+c quits, down
-// and j move by one, up and k back. It reports whether k was one of them;
-// the popup handles the others.
+// popupNav handles the keys that all popups share, those of keys.Popup, so
+// that they close and move alike: a key of opener and close close the popup,
+// quit quits, move moves by one. It reports whether k was one of them; the
+// popup handles the others.
 func popupNav(km *keys.Map, k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
 	if isAction(km, k, opener) {
 		*open = false
 		return nil, true
 	}
-	switch k {
-	case "esc", "q":
+	switch h := km.Key(keys.Popup, k); h.Action {
+	case "close":
 		*open = false
-	case "ctrl+c":
+	case "quit":
 		return tea.Quit, true
-	case "down", "j":
-		move(1)
-	case "up", "k":
-		move(-1)
+	case "move":
+		move(direction(h.I == 0))
 	default:
 		return nil, false
 	}
