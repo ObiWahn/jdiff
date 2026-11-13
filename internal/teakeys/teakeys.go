@@ -19,6 +19,7 @@ import (
 // displayBase are the keys a help shows otherwise than a file writes them.
 var displayBase = map[string]string{
 	"up": "↑", "down": "↓", "left": "←", "right": "→", "enter": "↵", "space": "spc", "pgdown": "pgdn",
+	"delete": "del",
 }
 
 // split returns the modifiers of a key written as name, with their last +,
@@ -31,7 +32,7 @@ func split(name string) (mods, base string) {
 }
 
 // Display returns a key written as name in a file as a help shows it: the
-// arrows ↑↓←→, enter ↵, space spc, pgdown pgdn, f1 F1; the rest stays,
+// arrows ↑↓←→, enter ↵, space spc, pgdown pgdn, delete del, f1 F1; the rest stays,
 // shift too (shift+↑, not ⇧↑), and <letter> after the key (m<letter>).
 func Display(name string) string {
 	k, letter := keymap.KeyPress(name)

@@ -168,18 +168,18 @@ func TestSearchBarToggles(t *testing.T) {
 		return ""
 	}
 	pressRoot(s, "/")
-	if got := title(); got != "search changed lines ─ enter find · tab all · shift+tab regex · esc cancel" {
+	if got := title(); got != "search changed lines ─ ↵ find · tab all · shift+tab regex · esc cancel" {
 		t.Errorf("title %q", got)
 	}
 	// tab: all lines, shift+tab: regex; each saved at once.
 	pressRoot(s, "tab")
 	if !cfg.Settings.SearchAll || !strings.Contains(state(), "search_all = true") ||
-		title() != "search all lines ─ enter find · tab changed · shift+tab regex · esc cancel" {
+		title() != "search all lines ─ ↵ find · tab changed · shift+tab regex · esc cancel" {
 		t.Errorf("shift+tab: all %v, title %q, state\n%s", cfg.Settings.SearchAll, title(), state())
 	}
 	pressRoot(s, "shift+tab")
 	if !s.regex || !cfg.Settings.SearchRegex || !strings.Contains(state(), "search_regex = true") ||
-		title() != "regex all lines ─ enter find · tab changed · shift+tab text · esc cancel" {
+		title() != "regex all lines ─ ↵ find · tab changed · shift+tab text · esc cancel" {
 		t.Errorf("tab: regex %v, title %q, state\n%s", s.regex, title(), state())
 	}
 	pressRoot(s, "shift+tab", "tab")
@@ -347,7 +347,7 @@ func TestSearchBar(t *testing.T) {
 	view := ansi.Strip(s.frame())
 	rows := strings.Split(view, "\n")
 	// The bar above the status line, which stays.
-	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines ─ enter find · tab all · shift+tab regex · esc cancel") ||
+	if s.input == nil || !strings.Contains(rows[len(rows)-4], "╭─ search changed lines ─ ↵ find · tab all · shift+tab regex · esc cancel") ||
 		!strings.Contains(rows[len(rows)-3], "/█") || status() != before {
 		t.Fatalf("/: bar\n%s", view)
 	}

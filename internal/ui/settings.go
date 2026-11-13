@@ -617,15 +617,15 @@ func (p *SettingsPopup) frame() string {
 		all[i] = fmt.Sprintf(" %-*s %-*s  %s ", stateW, states[i], keyW, optionKey(p.cfg.Keys, o), o.what)
 	}
 	km := p.cfg.Keys
-	view := p.draw(t, base, popup.Frame{Title: "settings", Top: hints(km, keys.SettingsPopup, "toggle", "keys", "close"), Msg: p.msg}, all, "")
+	view := p.draw(t, base, keyBox(km, keys.SettingsPopup, "settings", "toggle", "keys", "close").SetMsg(p.msg), all, "")
 	name := strings.ReplaceAll(p.options[p.cursor].action, "_", " ")
 	if p.hide.open {
 		items := make([]string, len(p.cfg.IgnoredHide))
 		for i, expr := range p.cfg.IgnoredHide {
 			items[i] = " " + printable(expr) + " "
 		}
-		f := popup.Frame{Title: "ignored_hide", Top: hints(km, keys.IgnoredHide, "add", "edit", "delete", "close"), Msg: p.hide.msg}
-		view, name = p.hide.draw(t, view, f, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"
+		b := keyBox(km, keys.IgnoredHide, "ignored_hide", "add", "edit", "delete", "close").SetMsg(p.hide.msg)
+		view, name = p.hide.draw(t, view, b, items, "none: ignored files all show; a adds a pattern"), "ignored_hide pattern"
 	}
 	if p.keymap.open {
 		view = p.keymapFrame(view)
@@ -633,23 +633,24 @@ func (p *SettingsPopup) frame() string {
 	if p.input == nil {
 		return view
 	}
-	f := popup.Frame{Title: name, Top: hints(km, keys.InputLine, "done", "cancel")}
-	return inputPopup(t, p.width, f, printable(p.input.text), p.inputErr, true).over(t, view, p.width)
+	b := keyBox(km, keys.InputLine, name, "done", "cancel")
+	return inputPopup(t, p.width, b, printable(p.input.text), p.inputErr, true).over(t, view, p.width)
 }
 
-// changedMark explains the * of the rows a user's file changes, among the
-// keys of the list of the keys: a mark, no key.
+// changedMark explains the * of the rows a user's file changes, in the
+// bottom border of the list of the keys: a mark, no key; a message takes
+// its place.
 var changedMark = key.NewBinding(key.WithKeys("*"), key.WithHelp("*", "changed"))
 
 // keymapFrame draws the list of the keys over view, and the keys pressed
 // while it takes them.
 func (p *SettingsPopup) keymapFrame(view string) string {
 	t, km := p.cfg.Theme, p.cfg.Keys
-	top := append(hints(km, keys.KeysPopup, "set", "add", "builtin", "all_builtin"), changedMark, hint(km, keys.KeysPopup, "close", 0))
-	f := popup.Frame{Title: "keybindings", Top: top, Msg: p.keymap.msg}
-	view = p.keymap.draw(t, view, f, keymapItems(p.cfg.Keys, keyLines(p.cfg.Keys)), "")
+	b := keyBox(km, keys.KeysPopup, "keybindings", "set", "add", "builtin", "all_builtin", "close").SetMsg(p.keymap.msg)
+	b.Bottom = []key.Binding{changedMark}
+	view = p.keymap.draw(t, view, b, keymapItems(p.cfg.Keys, keyLines(p.cfg.Keys)), "")
 	if p.keymap.reset {
-		return p.keymapAsk(view, popup.Frame{Title: "built-in keys", Top: hints(km, keys.Confirm, "yes", "no")},
+		return p.keymapAsk(view, keyBox(km, keys.Confirm, "built-in keys", "yes", "no"),
 			"move "+keys.FileName+" to "+keys.FileName+".bak and use the built-in keys?")
 	}
 	c := p.keymap.capture
@@ -660,15 +661,16 @@ func (p *SettingsPopup) keymapFrame(view string) string {
 	if c.want > 1 {
 		ask = fmt.Sprintf("press key %d of %d, in the order of the help", len(c.pressed)+1, c.want)
 	}
-	f = popup.Frame{Title: c.line.row.Action + " in " + c.line.page, Top: []key.Binding{note(ask), hint(km, keys.KeyCapture, "cancel", 0)}}
-	return inputPopup(t, p.width, f, strings.Join(keys.Shown(c.pressed), " "), "", true).over(t, view, p.width)
+	capture := keyBox(km, keys.KeyCapture, c.line.row.Action+" in "+c.line.page, "cancel")
+	capture.Top = []key.Binding{note(ask)}
+	return inputPopup(t, p.width, capture, strings.Join(keys.Shown(c.pressed), " "), "", true).over(t, view, p.width)
 }
 
 // keymapAsk draws over view what the list of the keys asks for: line in a
-// popup in frame f, as wide as they need, up to the screen.
-func (p *SettingsPopup) keymapAsk(view string, f popup.Frame, line string) string {
+// popup in box b, as wide as they need, up to the screen.
+func (p *SettingsPopup) keymapAsk(view string, b popup.Box, line string) string {
 	lines := []string{" " + line + " "}
-	return popupBox{f, lines, popupWidth(f, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
+	return popupBox{b, lines, popupWidth(b, lines, 0, p.width), len(lines) + 2}.over(p.cfg.Theme, view, p.width)
 }
 
 // keymapItems returns the items of the list of the keys of km for lines: a *

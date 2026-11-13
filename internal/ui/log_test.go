@@ -16,7 +16,6 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 	"jdiff/internal/source"
 )
 
@@ -1072,8 +1071,8 @@ func TestStatusBarOneColor(t *testing.T) {
 	if v := l.frame(); !strings.Contains(v, hint.Render("enter open · f flow · s unified · d git diff · o settings · ? help · q quit")) {
 		t.Errorf("status bar not in the hint style alone:\n%q", v[strings.LastIndex(v, "\n")+1:])
 	}
-	f := popup.Frame{Title: "marks", Top: hints(l.cfg.Keys, keys.MarksPopup, "jump", "close")}
-	if got := (popupBox{f, nil, 60, 2}).drawn(l.cfg.Theme); !strings.Contains(got, hint.Render("enter jump · esc close")) {
+	b := keyBox(l.cfg.Keys, keys.MarksPopup, "marks", "jump", "close")
+	if got := (popupBox{b, nil, 60, 2}).drawn(l.cfg.Theme); !strings.Contains(got, hint.Render("↵ jump · esc/q close")) {
 		t.Errorf("popup's top border %q", got)
 	}
 }
@@ -1085,27 +1084,27 @@ func TestStatusBarOneColor(t *testing.T) {
 func TestPopupFrame(t *testing.T) {
 	l, _ := newTestLog()
 	th := l.cfg.Theme
-	f := popup.Frame{Title: "marks", Top: hints(l.cfg.Keys, keys.MarksPopup, "jump", "close")}
+	b := keyBox(l.cfg.Keys, keys.MarksPopup, "marks", "jump", "close")
 	lines := []string{"m0", "m1"}
-	p := popupBox{f, lines, popupWidth(f, lines, 0, 80), 4}
-	want := "╭─ marks ─ enter jump · esc close ─╮\n│ m0                               │\n│ m1                               │\n╰──────────────────────────────────╯"
+	p := popupBox{b, lines, popupWidth(b, lines, 0, 80), 4}
+	want := "╭─ marks ─ ↵ jump · esc/q close ─╮\n│ m0" + strings.Repeat(" ", 28) + " │\n│ m1" + strings.Repeat(" ", 28) + " │\n╰" + strings.Repeat("─", 32) + "╯"
 	if got := ansi.Strip(p.drawn(th)); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
-	f.Msg = "x0 is set, x1\tnot"
-	p = popupBox{f, lines, popupWidth(f, lines, 0, 80), 4}
+	b = b.SetMsg("x0 is set, x1\tnot")
+	p = popupBox{b, lines, popupWidth(b, lines, 0, 80), 4}
 	got := p.drawn(th)
-	if rows := strings.Split(ansi.Strip(got), "\n"); !strings.HasSuffix(rows[0], " enter jump · esc close ─╮") || !strings.HasSuffix(rows[3], " "+printable(f.Msg)+" ─╯") {
+	if rows := strings.Split(ansi.Strip(got), "\n"); !strings.HasSuffix(rows[0], " ↵ jump · esc/q close ─╮") || !strings.HasSuffix(rows[3], " "+printable(b.Msg)+" ─╯") {
 		t.Errorf("with a message:\n%s", ansi.Strip(got))
 	}
-	if !strings.Contains(got, th.PopupMessage.Render(printable(f.Msg))) {
+	if !strings.Contains(got, th.PopupMessage.Render(printable(b.Msg))) {
 		t.Errorf("the message is not in popup-message-style:\n%q", got)
 	}
-	f.Msg = strings.Repeat("m", 50)
-	if w := popupWidth(f, lines, 0, 80); w != 56 { // the message, its spaces, a line on each side, the corners
+	b = b.SetMsg(strings.Repeat("m", 50))
+	if w := popupWidth(b, lines, 0, 80); w != 56 { // the message, its spaces, a line on each side, the corners
 		t.Errorf("a message of 50: width %d, want 56", w)
 	}
-	p = popupBox{f, lines, popupWidth(f, lines, 0, 24), 4}
+	p = popupBox{b, lines, popupWidth(b, lines, 0, 24), 4}
 	rows := strings.Split(ansi.Strip(p.drawn(th)), "\n")
 	for _, r := range rows {
 		if ansi.StringWidth(r) != 24 {

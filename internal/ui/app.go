@@ -11,7 +11,6 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 	"jdiff/internal/source"
 	"jdiff/watch"
 )
@@ -361,9 +360,9 @@ func (s *App) frame() string {
 	if _, ok := s.current(); ok {
 		shown = []string{"done", "current", "cancel"}
 	}
-	f := popup.Frame{Title: "git diff", Top: hints(s.cfg.Keys, keys.GitDiffLine, shown...)}
+	b := keyBox(s.cfg.Keys, keys.GitDiffLine, "git diff", shown...)
 	if s.popup.running {
-		f.Msg = "running git diff…"
+		b = b.SetMsg("running git diff…")
 	}
-	return inputPopup(t, s.width, f, printable(s.popup.input.text), s.popup.err, true).over(t, base, s.width)
+	return inputPopup(t, s.width, b, printable(s.popup.input.text), s.popup.err, true).over(t, base, s.width)
 }

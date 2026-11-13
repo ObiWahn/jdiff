@@ -10,7 +10,6 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 )
 
 // markJumpMsg asks the file list to show mark letter in another file of
@@ -186,6 +185,6 @@ func (p *MarksPopup) frame() string {
 	for i, mk := range marks {
 		all[i] = fmt.Sprintf(" %s  %s:%d  %s ", mk.Letter, printable(mk.Path), mk.Line, printable(strings.TrimSpace(mk.Text)))
 	}
-	f := popup.Frame{Title: "marks", Top: hints(p.cfg.Keys, keys.MarksPopup, "jump", "delete", "close"), Msg: p.msg}
-	return p.draw(t, base, f, all, "no marks: m and a letter sets one")
+	b := keyBox(p.cfg.Keys, keys.MarksPopup, "marks", "jump", "delete", "close").SetMsg(p.msg)
+	return p.draw(t, base, b, all, "no marks: m and a letter sets one")
 }

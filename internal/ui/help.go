@@ -11,7 +11,6 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 )
 
 // binding is a key and what it does; a binding without key is a heading. Its
@@ -193,9 +192,9 @@ func (h *Help) frame() string {
 	}
 	t := h.cfg.Theme
 	lines := windowAt(h.top, h.boxHeight()-2, len(h.rows)).rows(t, len(h.rows), func(i int) string { return h.rows[i] })
-	f := popup.Frame{Title: "keys"}
+	b := plainBox("keys")
 	if h.boxHeight()-2 < len(h.rows) {
-		f.Top = []key.Binding{note(fmt.Sprintf("%d/%d", h.top+1, len(h.rows)))} // where it stands
+		b.Top = []key.Binding{note(fmt.Sprintf("%d/%d", h.top+1, len(h.rows)))} // where it stands
 	}
-	return popupBox{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
+	return popupBox{b, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }

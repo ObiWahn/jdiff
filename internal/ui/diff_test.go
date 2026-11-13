@@ -479,7 +479,7 @@ func TestAppDiffTyped(t *testing.T) {
 
 	pressRoot(s, "d")
 	if popup := ansi.Strip(s.frame()); s.popup.input == nil ||
-		!strings.Contains(popup, "╭─ git diff ─ enter show · ↑ current · esc cancel ─╮") || strings.Contains(popup, "working tree") {
+		!strings.Contains(popup, "╭─ git diff ─ ↵ show · ↑ current · esc cancel ─╮") || strings.Contains(popup, "working tree") {
 		t.Errorf("d: popup\n%s", popup)
 	}
 	// ? goes into the line, not to the help popup around the view.

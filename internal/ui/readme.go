@@ -14,7 +14,6 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 )
 
 // Readme shows the pages of jdiff's documentation, markdown rendered for the
@@ -373,8 +372,8 @@ func (r *Readme) withWebAddress(frame string) string {
 		x += ansi.StringWidth(s.text)
 	}
 	lines := []string{printable(target)}
-	w := popupWidth(popup.Frame{}, lines, 0, r.width)
-	return popupBox{popup.Frame{}, lines, w, minBoxHeight}.at(r.cfg.Theme, frame, max(min(x, r.width-w), 0), y, r.width)
+	w := popupWidth(plainBox(""), lines, 0, r.width)
+	return popupBox{plainBox(""), lines, w, minBoxHeight}.at(r.cfg.Theme, frame, max(min(x, r.width-w), 0), y, r.width)
 }
 
 // drawLine draws l in the styles of its pieces, the selected link in the

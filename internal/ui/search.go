@@ -10,14 +10,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/keys"
-	"jdiff/internal/popup"
 	"jdiff/internal/settings"
 )
 
@@ -505,15 +503,22 @@ func (s *SearchBar) frame() string {
 		mode = "regex"
 	}
 	km := s.cfg.Keys
-	top := []key.Binding{hint(km, keys.SearchLine, "done", 0),
-		hint(km, keys.SearchLine, "scope", btoi(s.cfg.Settings.SearchAll)),
-		hint(km, keys.SearchLine, "regex", btoi(s.regex)),
-		hint(km, keys.SearchLine, "cancel", 0)}
+	top := []string{"done", "scope", "regex", "cancel"}
 	if len(s.cfg.Search.History) > 0 {
-		top = slices.Insert(top, 1, hint(km, keys.SearchLine, "history", 0))
+		top = slices.Insert(top, 1, "history")
 	}
-	f := popup.Frame{Title: mode + " " + scope(s.cfg.Settings), Top: top}
-	bar := inputPopup(t, s.width, f, "/"+printable(s.input.text), s.err, false)
+	b := keyBox(km, keys.SearchLine, mode+" "+scope(s.cfg.Settings), top...)
+	// scope and regex are labelled by what they switch to.
+	b.State = func(action string) int {
+		switch action {
+		case "scope":
+			return btoi(s.cfg.Settings.SearchAll)
+		case "regex":
+			return btoi(s.regex)
+		}
+		return 0
+	}
+	bar := inputPopup(t, s.width, b, "/"+printable(s.input.text), s.err, false)
 	// Above the status line, the last row.
 	y := max(strings.Count(base, "\n")-bar.h, 0)
 	return bar.at(t, base, max((s.width-bar.w)/2, 0), y, s.width)
