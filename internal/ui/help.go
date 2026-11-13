@@ -11,6 +11,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
+	"jdiff/internal/popup"
 )
 
 // binding is a key and what it does; a binding without key is a heading. Its
@@ -145,7 +146,7 @@ func (h *Help) wrap() {
 	for _, b := range h.lines {
 		keyW = max(keyW, ansi.StringWidth(shownKeys(b.key)))
 	}
-	inner := h.width - 4 // border and padding
+	inner := plainBox("keys").InnerWidth(h.width) // the rows wrap inside the frame
 	h.rows = h.rows[:0]
 	for _, b := range h.lines {
 		switch {
@@ -158,11 +159,8 @@ func (h *Help) wrap() {
 			h.rows = append(h.rows, wrapRows(key, keyW+4, b.what, inner, lipgloss.NewStyle())...)
 		}
 	}
-	rowW := 0
-	for _, r := range h.rows {
-		rowW = max(rowW, ansi.StringWidth(r))
-	}
-	h.boxWidth = min(rowW+4, h.width)
+	_, outer, _ := plainBox("keys").Fit(strings.Join(h.rows, "\n"), popup.Size{}, popup.Size{W: h.width})
+	h.boxWidth = outer.W
 }
 
 // wrapRows returns the rows of text in style after prefix, which is indent

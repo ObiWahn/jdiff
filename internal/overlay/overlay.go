@@ -7,25 +7,27 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"jdiff/internal/geom"
 )
 
-// Center returns base (width × height cells) with popup drawn over its
+// Center returns base (a screen of size screen) with popup drawn over its
 // middle.
-func Center(base, popup string, width, height int) string {
-	x := max(0, (width-lipgloss.Width(popup))/2)
-	y := max(0, (height-lipgloss.Height(popup))/2)
-	return At(base, popup, x, y, width, height)
+func Center(base, popup string, screen geom.Size) string {
+	at := geom.Pos{X: max(0, (screen.W-lipgloss.Width(popup))/2), Y: max(0, (screen.H-lipgloss.Height(popup))/2)}
+	return At(base, popup, at, screen)
 }
 
-// At returns base (width × height cells) with popup drawn at column x, row y:
-// height rows of base, each cut to width, those base lacks empty. The popup
+// At returns base (a screen of size screen) with popup drawn from position
+// at on: screen.H rows of base, each cut to screen.W, those base lacks empty. The popup
 // is a rectangle as wide as its widest line, shorter lines filled with
 // spaces, clipped to the view; a wide character of base that it cuts in half
 // becomes a space, so that the columns stay. The rows are cut as strings,
 // keeping the escape sequences of base and popup: several times faster than
 // composing cells (lipgloss' Canvas), which matters for a full screen drawn
 // on every key.
-func At(base, popup string, x, y, width, height int) string {
+func At(base, popup string, at geom.Pos, screen geom.Size) string {
+	x, y, width, height := at.X, at.Y, screen.W, screen.H
 	if width <= 0 || height <= 0 {
 		return ""
 	}

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -11,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/geom"
 	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
 	"jdiff/internal/overlay"
@@ -288,7 +288,7 @@ type popupBox struct {
 // of the page that has an action decides, a two-way action shows once, an
 // action without a row is left out.
 func keyBox(km *keys.Map, page, title string, actions ...string) popup.Box {
-	return popup.NewBox(km.Keymap, page, title, actions, nil)
+	return popup.NewBox(title, km.Keymap, page, actions, nil)
 }
 
 // plainBox returns the box titled title without keys: what its frame's Top
@@ -306,8 +306,8 @@ func printed(b popup.Box) popup.Box { return b.SetMsg(printable(b.Msg)) }
 // they and the texts of its borders need, at least least columns inside, up
 // to width. A line wider than that is cut with ….
 func popupWidth(b popup.Box, lines []string, least, width int) int {
-	body := append(slices.Clone(lines), strings.Repeat(" ", least))
-	return printed(b).Width(strings.Join(body, "\n"), width)
+	_, outer, _ := printed(b).Fit(strings.Join(lines, "\n"), popup.Size{W: least}, popup.Size{W: width})
+	return outer.W
 }
 
 // drawn returns p drawn, its frame in the colors of t: the rows between its
@@ -316,17 +316,17 @@ func popupWidth(b popup.Box, lines []string, least, width int) int {
 func (p popupBox) drawn(t *theme.Theme) string {
 	b := printed(p.box)
 	b.Styles = popup.Styles{Border: t.Decoration, Title: t.CommitHash, Hint: t.Hint, Msg: t.PopupMessage}
-	return b.Render(strings.Join(p.lines, "\n"), p.w, p.h)
+	return b.Render(strings.Join(p.lines, "\n"), popup.Size{W: p.w, H: p.h})
 }
 
 // over draws p centered over base, which is width columns wide.
 func (p popupBox) over(t *theme.Theme, base string, width int) string {
-	return overlay.Center(base, p.drawn(t), width, strings.Count(base, "\n")+1)
+	return overlay.Center(base, p.drawn(t), geom.Size{W: width, H: strings.Count(base, "\n") + 1})
 }
 
 // at draws p over base, which is width columns wide, from column x of row y on.
 func (p popupBox) at(t *theme.Theme, base string, x, y, width int) string {
-	return overlay.At(base, p.drawn(t), x, y, width, strings.Count(base, "\n")+1)
+	return overlay.At(base, p.drawn(t), geom.Pos{X: x, Y: y}, geom.Size{W: width, H: strings.Count(base, "\n") + 1})
 }
 
 // scrollWindow returns the first shown item of a window h items high over n
@@ -507,12 +507,13 @@ const minInputWidth = 40
 func inputPopup(t *theme.Theme, width int, b popup.Box, text, err string, centered bool) popupBox {
 	text += "█"
 	w := popupWidth(b, []string{text, err}, minInputWidth, width)
-	if over := ansi.StringWidth(text) - (w - 4); over > 0 {
+	inner := b.InnerWidth(w)
+	if over := ansi.StringWidth(text) - inner; over > 0 {
 		text = cutLeft(text, over)
 	}
 	lines := []string{text}
 	if centered {
-		lines = []string{"", strings.Repeat(" ", (w-4-ansi.StringWidth(text))/2) + text, ""}
+		lines = []string{"", strings.Repeat(" ", (inner-ansi.StringWidth(text))/2) + text, ""}
 	}
 	if err != "" {
 		lines = append(lines, t.Minus.Render(err))
