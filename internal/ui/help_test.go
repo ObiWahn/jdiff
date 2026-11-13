@@ -65,13 +65,6 @@ func TestHelpScrolls(t *testing.T) {
 	}
 }
 
-func TestOverlayKeepsSides(t *testing.T) {
-	got := overlay("abcdefgh\nijklmnop\nqrstuvwx", "XY\n", 2, 8)
-	if want := "abcdefgh\nijkXYnop\nqrstuvwx"; got != want {
-		t.Errorf("overlay = %q, want %q", got, want)
-	}
-}
-
 func TestSizeGuardWhenTooSmall(t *testing.T) {
 	d := newTestDiff()
 	g := WithSizeGuard(d.cfg, d)

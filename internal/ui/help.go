@@ -198,27 +198,3 @@ func (h *Help) frame() string {
 	}
 	return popup{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }
-
-// overlay draws the popup pop, w columns wide, centered over base, which
-// is width columns wide.
-func overlay(base, pop string, w, width int) string {
-	y := max((strings.Count(base, "\n")+1-strings.Count(strings.TrimSuffix(pop, "\n"), "\n")-1)/2, 0)
-	return overlayAt(base, pop, max((width-w)/2, 0), y, w, width)
-}
-
-// overlayAt draws the popup pop, w columns wide, over base, which is width
-// columns wide, from column x of row y on.
-func overlayAt(base, pop string, x, y, w, width int) string {
-	rows := strings.Split(base, "\n")
-	popRows := strings.Split(strings.TrimSuffix(pop, "\n"), "\n")
-	for i, p := range popRows {
-		if y+i >= len(rows) {
-			break
-		}
-		row := rows[y+i]
-		left := ansi.Truncate(row, x, "")
-		left += strings.Repeat(" ", x-ansi.StringWidth(left))
-		rows[y+i] = left + p + ansi.Cut(row, x+w, width)
-	}
-	return strings.Join(rows, "\n")
-}

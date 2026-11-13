@@ -11,6 +11,7 @@ import (
 	"jdiff/internal/config"
 	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
+	"jdiff/internal/overlay"
 	"jdiff/internal/theme"
 )
 
@@ -387,13 +388,17 @@ func (p popup) render(t *theme.Theme) string {
 
 // over draws p centered over base, which is width columns wide.
 func (p popup) over(t *theme.Theme, base string, width int) string {
-	return overlay(base, p.render(t), p.w, width)
+	return overlay.Center(base, p.drawn(t), width, strings.Count(base, "\n")+1)
 }
 
 // at draws p over base, which is width columns wide, from column x of row y on.
 func (p popup) at(t *theme.Theme, base string, x, y, width int) string {
-	return overlayAt(base, p.render(t), x, y, p.w, width)
+	return overlay.At(base, p.drawn(t), x, y, width, strings.Count(base, "\n")+1)
 }
+
+// drawn returns p as overlay draws it: rendered, without the newline after
+// its last row, which would be a row of its own.
+func (p popup) drawn(t *theme.Theme) string { return strings.TrimSuffix(p.render(t), "\n") }
 
 // scrollWindow returns the first shown item of a window h items high over n
 // items: top, moved as little as needed to show cursor.
