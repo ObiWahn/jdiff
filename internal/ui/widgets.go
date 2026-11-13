@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
 	"jdiff/internal/theme"
 )
@@ -143,14 +144,14 @@ func barState(on bool) int {
 // help. keybindings.toml gives the keys and the words.
 func statusKeys(cfg *config.Config, k barKeys) string {
 	var shown []string
-	add := func(row keys.Row, keyNames string, state int) {
-		if l := row.LabelIn(state); l != "" {
+	add := func(row keymap.Row, keyNames string, state int) {
+		if l := row.LabelOf(state); l != "" {
 			shown = append(shown, keyNames+" "+l)
 		}
 	}
 	first := func(action string, state int) {
 		if r := cfg.Keys.Row(action); len(r.Keys) > 0 {
-			add(r, r.Keys[0], state)
+			add(r, keys.Spelling(r.Keys[0]), state)
 		}
 	}
 	first(k.enter, 0)
@@ -159,7 +160,7 @@ func statusKeys(cfg *config.Config, k barKeys) string {
 	}
 	if k.commits {
 		r := cfg.Keys.Row("history")
-		add(r, strings.Join(r.Keys, "/"), 0)
+		add(r, strings.Join(keys.Shown(r.Keys), "/"), 0)
 	}
 	if k.flow {
 		first("flow", barState(cfg.Settings.Flow))

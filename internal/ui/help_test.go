@@ -253,7 +253,7 @@ func TestHelpWrapsSweep(t *testing.T) {
 	pressRoot(probe, "?")
 	fits, keyW := probe.boxWidth, 0
 	for _, b := range probe.lines {
-		keyW = max(keyW, ansi.StringWidth(b.key))
+		keyW = max(keyW, ansi.StringWidth(shownKeys(b.key)))
 	}
 	noSpace := func(s string) string { return strings.Join(strings.Fields(s), "") }
 	for width := keyW + 9; width <= fits+1; width++ {
@@ -282,8 +282,8 @@ func TestHelpWrapsSweep(t *testing.T) {
 				t.Errorf("a line is cut:\n%s", strings.Join(got, "\n"))
 			}
 			for _, b := range h.lines {
-				if want := noSpace(b.key + b.what); !strings.Contains(text, want) {
-					t.Errorf("lacks %q %q:\n%s", b.key, b.what, strings.Join(got, "\n"))
+				if want := noSpace(shownKeys(b.key) + b.what); !strings.Contains(text, want) {
+					t.Errorf("lacks %q %q:\n%s", shownKeys(b.key), b.what, strings.Join(got, "\n"))
 				}
 			}
 		})

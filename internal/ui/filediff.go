@@ -211,7 +211,7 @@ func (m *FileDiff) key(k string) tea.Cmd {
 	switch h.Action {
 	case "next_file":
 		if m.canBack {
-			dir := switchFileMsg(direction(h.Index == 0))
+			dir := switchFileMsg(direction(h.I == 0))
 			return func() tea.Msg { return dir }
 		}
 	case "history":

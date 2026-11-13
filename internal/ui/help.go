@@ -12,22 +12,31 @@ import (
 	"jdiff/internal/keys"
 )
 
-// binding is a key and what it does; a binding without key is a heading.
+// binding is a key and what it does; a binding without key is a heading. Its
+// keys are Bubble Tea's names apart by spaces, as the settings are ordered by
+// them; the help shows them as shownKeys does.
 type binding struct{ key, what string }
+
+// shownKeys returns the keys of a binding as the help shows them
+// (keys.Spelling).
+func shownKeys(key string) string { return strings.Join(keys.Shown(strings.Fields(key)), " ") }
 
 // helpBindings returns the lines of the help popup of km, in the order of its
 // help; helpLines puts the settings in their order.
 func helpBindings(km *keys.Map) []binding {
 	var bs []binding
-	for _, h := range km.Help {
+	for _, l := range km.Lines() {
 		switch {
-		case h.Heading != "":
-			bs = append(bs, binding{"", h.Heading})
-		case h.Note != "":
-			bs = append(bs, binding{"", "  " + km.Text(h.Note)})
+		case l.Heading != "":
+			bs = append(bs, binding{"", l.Heading})
+		case l.Note != "":
+			bs = append(bs, binding{"", "  " + km.Text(l.Note)})
 		default:
-			r := km.Row(h.Action)
-			bs = append(bs, binding{strings.Join(r.Keys, " "), km.Text(r.Help)})
+			var help string
+			if rows := km.RowsAt(l.Table, l.Action); len(rows) > 0 {
+				help = rows[0].Help
+			}
+			bs = append(bs, binding{strings.Join(l.Keys, " "), km.Text(help)})
 		}
 	}
 	return bs
@@ -134,7 +143,7 @@ func (h *Help) wrap() {
 	t := h.cfg.Theme
 	keyW := 0
 	for _, b := range h.lines {
-		keyW = max(keyW, ansi.StringWidth(b.key))
+		keyW = max(keyW, ansi.StringWidth(shownKeys(b.key)))
 	}
 	inner := h.width - 4 // border and padding
 	h.rows = h.rows[:0]
@@ -145,7 +154,7 @@ func (h *Help) wrap() {
 		case b.key == "":
 			h.rows = append(h.rows, wrapRows(strings.Repeat(" ", keyW+2), keyW+2, strings.TrimSpace(b.what), inner, t.Hint)...)
 		default:
-			key := t.Key.Render(fmt.Sprintf("  %-*s", keyW, b.key)) + "  "
+			key := t.Key.Render(fmt.Sprintf("  %-*s", keyW, shownKeys(b.key))) + "  "
 			h.rows = append(h.rows, wrapRows(key, keyW+4, b.what, inner, lipgloss.NewStyle())...)
 		}
 	}

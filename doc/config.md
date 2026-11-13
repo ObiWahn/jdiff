@@ -89,9 +89,10 @@ everywhere = [
 - The pages are `everywhere`, `diff_view`, `flow_view` (keys of the diff view apply too), `commit_list`, `file_list` and `doc_view` (the README of `--readme`); the actions and their keys are those of the [built-in file](../internal/keys/keybindings.toml).
 - The rows of an action replace all its rows on that page: above, `x` `y` take the place of both `j` `k` and `down` `up` in the commit list. To keep a key, list its row too.
 - An action that goes two ways takes two keys, in the order of the built-in row: for `move` down, then up.
+- Keys are named as Bubble Tea names them: `pgdown`, `f5`, `ctrl+pgdown`, `space`; the older spellings `pgdn` and `F5` are read too. The help and the status bar show `pgdn` and `F5`.
 - The status bar, the help and the settings popup show your keys with their usual words. Messages, and the keys inside popups and input fields, stay as built in.
-- A file with a problem, such as an unknown page, action or field, a row without keys, or a key with two actions on one page, changes no key: the status bar says what is wrong.
-- The [settings popup](keybindings.md#settings-popup) changes keys too (`K` there): it rewrites only the rows of the action changed, in the form the file uses, `page = [...]` or `[[page]]` tables, and keeps the rest as written, comments included. `D` there moves the file to `keybindings.toml.bak`: the built-in keys apply.
+- A file with a problem, such as an unknown page, action or field, a row without keys, a key that is no key press, or a key with two actions on one page, changes no key: the status bar says what is wrong.
+- The [settings popup](keybindings.md#settings-popup) changes keys too (`K` there): it rewrites only the rows of the action changed, with Bubble Tea's names, in the form the file uses, `page = [...]` or `[[page]]` tables, and keeps the rest as written, comments included. `D` there moves the file to `keybindings.toml.bak`: the built-in keys apply.
 
 ## Themes
 

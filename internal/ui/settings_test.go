@@ -16,6 +16,7 @@ import (
 
 	"jdiff/internal/config"
 	"jdiff/internal/gitsrc"
+	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
@@ -526,7 +527,7 @@ func TestSettingsKeymap(t *testing.T) {
 		t.Errorf("the conflict does not show:\n%s", view())
 	}
 	pressRoot(s, "a", "y")
-	if r := rowsOf(cfg.Keys.RowsIn("diff_view"), "pane"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"x", "y"}) || s.keymap.msg != "" {
+	if r := rowsOf(cfg.Keys.Rows("diff_view"), "pane"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"x", "y"}) || s.keymap.msg != "" {
 		t.Errorf("a y: %+v, msg %q", r, s.keymap.msg)
 	}
 	pressRoot(s, "a", "x")
@@ -545,11 +546,11 @@ func TestSettingsKeymap(t *testing.T) {
 		t.Fatalf("f8: want the second key asked for:\n%s", v)
 	}
 	pressRoot(s, "ctrl+g")
-	if r := rowsOf(cfg.Keys.RowsIn("diff_view"), "change"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"F8", "ctrl+g"}) {
+	if r := rowsOf(cfg.Keys.Rows("diff_view"), "change"); len(r) != 1 || !slices.Equal(r[0].Keys, []string{"f8", "ctrl+g"}) {
 		t.Errorf("f8 ctrl+g: %+v, msg %q", r, s.keymap.msg)
 	}
-	if !strings.Contains(saved(), `{ action = "change", keys = ["F8", "ctrl+g"] }`) {
-		t.Errorf("not saved as the help writes the keys:\n%s", saved())
+	if !strings.Contains(saved(), `{ action = "change", keys = ["f8", "ctrl+g"] }`) {
+		t.Errorf("not saved as Bubble Tea names the keys:\n%s", saved())
 	}
 	pressRoot(s, "a")
 	if !strings.Contains(s.keymap.msg, "change takes two keys") || s.keymap.capture != nil {
@@ -1054,28 +1055,31 @@ func TestOrderSettings(t *testing.T) {
 // The settings and the help follow the order and the keys of the user's file.
 func TestSettingsOfUserKeys(t *testing.T) {
 	cfg := config.Default()
-	p, problems := cfg.Keys.ApplyUserKeys(`everywhere = [
-    { action = "wrap", keys = ["W2"] },
+	p, problems := cfg.Keys.WithUser(`everywhere = [
+    { action = "wrap", keys = ["alt+w"] },
     { action = "layout", keys = ["S"] },
 ]`)
 	if len(problems) != 0 {
 		t.Fatal(problems)
 	}
-	cfg.Keys = &p
+	cfg.Keys = &keys.Map{Keymap: p}
 	options := settingOptions(cfg.Keys)
 	if i := slices.IndexFunc(options, func(o settingOption) bool { return o.action == "layout" }); options[i].key != "S" {
 		t.Errorf("layout: key %q", options[i].key)
 	}
-	if !slices.ContainsFunc(helpLines(cfg.Keys), func(b binding) bool { return b.key == "W2" }) {
-		t.Errorf("the help has not W2: %q", helpLines(cfg.Keys))
+	if !slices.ContainsFunc(helpLines(cfg.Keys), func(b binding) bool { return b.key == "alt+w" }) {
+		t.Errorf("the help has not alt+w: %q", helpLines(cfg.Keys))
 	}
 }
 
 func TestKeyOrderProblems(t *testing.T) {
+	// A row of its own for each key, so that taking one out leaves the setting.
 	var rows string
-	for _, o := range settingOptions(keys.Builtin()) {
+	keyRow := map[string]string{}
+	for i, o := range settingOptions(keys.Builtin()) {
 		if o.key != "" && !o.logFlow {
-			rows += fmt.Sprintf("{ keys = [%q] },\n", o.key)
+			keyRow[o.key] = fmt.Sprintf("{ action = \"k%d\", keys = [%q] },\n", i, o.key)
+			rows += keyRow[o.key]
 		}
 	}
 	for _, o := range settingOptions(keys.Builtin()) {
@@ -1089,10 +1093,11 @@ func TestKeyOrderProblems(t *testing.T) {
 	}
 	for _, c := range []struct{ text, want string }{
 		{"everywhere = [", "toml:"},
-		{"x = 1\n", "no rows"},
-		{table(rows + `{ keys = ["s"] },` + "\n"), "key s stands twice"},
-		{table(rows + `{ keys = ["x0"] },` + "\n"), "key x0 is not in the help"},
-		{table(strings.Replace(rows, `{ keys = ["t"] },`+"\n", "", 1)), "setting t is not in the table"},
+		{"x = 1\n", "unknown table x"},
+		{"diff_view = []\n", "no rows"},
+		{table(rows + keyRow["s"]), "key s stands twice"},
+		{table(rows + `{ action = "x0", keys = ["alt+x"] },` + "\n"), "key alt+x is not in the help"},
+		{table(strings.Replace(rows, keyRow["t"], "", 1)), "setting t is not in the table"},
 		{table(rows) + `help = [{ action = "x0" }]`, "action x0 has no help"},
 		{table(rows) + `diff_view = [{ action = "a", keys = ["x"] }, { action = "b", keys = ["x"] }]`, "key x has two actions in diff_view"},
 		{table(strings.Replace(rows, `{ action = "wrap", setting = "x" },`+"\n", "", 1)), "setting wrap has no words"},
@@ -1167,19 +1172,19 @@ func TestKeybindingsDoc(t *testing.T) {
 	}
 	pages := []struct {
 		heading string
-		rows    []keys.Row
+		rows    []keymap.Row
 	}{
-		{"Commit list (`jdiff log`)", p.CommitList},
-		{"File list", p.FileList},
-		{"Diff view", p.DiffView},
-		{"Flow view", p.FlowView},
-		{"README (`jdiff --readme`)", p.DocView},
-		{"Everywhere", p.Everywhere},
+		{"Commit list (`jdiff log`)", p.Rows(keys.CommitList)},
+		{"File list", p.Rows(keys.FileList)},
+		{"Diff view", p.Rows(keys.DiffView)},
+		{"Flow view", p.Rows(keys.FlowView)},
+		{"README (`jdiff --readme`)", p.Rows(keys.DocView)},
+		{"Everywhere", p.Rows(keys.Everywhere)},
 	}
 	for _, c := range pages {
 		var want []string
 		for _, r := range c.rows {
-			want = append(want, r.Keys...)
+			want = append(want, keys.Shown(r.Keys)...)
 		}
 		if !slices.Equal(inDoc[c.heading], want) {
 			t.Errorf("%s: doc %q, keybindings.toml %q", c.heading, inDoc[c.heading], want)

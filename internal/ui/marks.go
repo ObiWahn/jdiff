@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
-	"jdiff/internal/keys"
 )
 
 // markJumpMsg asks the file list to show mark letter in another file of
@@ -159,7 +158,7 @@ func (p *MarksPopup) key(k string) tea.Cmd {
 		if p.cursor < len(marks) {
 			// Jump as the key of jump, ', and the letter do on the page.
 			p.open = false
-			p.Model.Update(runeKey(keys.Name(p.cfg.Keys.Row("jump").Keys[0])))
+			p.Model.Update(runeKey(keyPress(p.cfg.Keys.Row("jump").Keys[0])))
 			_, cmd := p.Model.Update(runeKey(marks[p.cursor].Letter))
 			return cmd
 		}

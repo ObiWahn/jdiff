@@ -146,9 +146,9 @@ func (r *Readme) key(k string) tea.Cmd {
 		r.scrollTo(r.top + delta)
 		r.moveTo(r.cursor + delta)
 	case "link":
-		r.nextLink(direction(h.Index == 0))
+		r.nextLink(direction(h.I == 0))
 	case "line_link":
-		r.lineLink(direction(h.Index == 1))
+		r.lineLink(direction(h.I == 1))
 	case "follow":
 		r.follow()
 	case "back":
@@ -162,19 +162,19 @@ func (r *Readme) key(k string) tea.Cmd {
 		r.link = p.link
 	case "next_page":
 		i := slices.Index(r.order, r.page)
-		next := i + direction(h.Index == 0)
+		next := i + direction(h.I == 0)
 		switch {
 		case i < 0:
 			r.msg = r.page + " is no page of " + r.cfg.Keys.Text("{next_page}") + ": " + r.cfg.Keys.Text("{back}") + " goes back"
 		case next < 0 || next >= len(r.order):
-			r.msg = ends(h.Index == 0, "last page", "first page")
+			r.msg = ends(h.I == 0, "last page", "first page")
 		default:
 			r.show(r.order[next], 0, 0)
 		}
 	case "search":
 		return askSearch
 	case "match":
-		r.findText(direction(h.Index == 0))
+		r.findText(direction(h.I == 0))
 	}
 	return nil
 }

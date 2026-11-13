@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
 	"jdiff/internal/source"
 )
@@ -153,7 +154,7 @@ func settingKey(km *keys.Map, action string, logFlow bool) tea.Cmd {
 // action, see settingKey; nil when h is none of them. The pages hand them on,
 // and not the popups themselves as the help and the marks: o is a mark letter
 // too, which m and ' take before the page looks at the key.
-func pageKey(km *keys.Map, h keys.Hit, logFlow bool) tea.Cmd {
+func pageKey(km *keys.Map, h keymap.Hit, logFlow bool) tea.Cmd {
 	switch h.Action {
 	case "reload":
 		return refreshAll
@@ -226,7 +227,7 @@ func saveState(cfg *config.Config) string {
 
 // historyDir returns where key h of history goes: 1 to the next commit, for
 // the first key of its row, as N and n, -1 to the previous one, as P and p.
-func historyDir(h keys.Hit) int { return direction(h.Index == 0) }
+func historyDir(h keymap.Hit) int { return direction(h.I == 0) }
 
 // historyOrder is the order of a list of commits, as git log lists them:
 // the step from a commit to the next one in history, -1 when the newest
@@ -246,7 +247,7 @@ func (o historyOrder) step(dir int) int { return dir * int(o) }
 
 // switchCommit returns the command asking the log for the commit key h goes
 // to in history.
-func switchCommit(h keys.Hit) tea.Cmd {
+func switchCommit(h keymap.Hit) tea.Cmd {
 	dir := switchCommitMsg(historyDir(h))
 	return func() tea.Msg { return dir }
 }
@@ -264,17 +265,24 @@ func runeKey(s string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: s}
 }
 
+// keyPress returns the key press of k as keybindings.toml writes it, without
+// the <letter> typed after it.
+func keyPress(k string) string {
+	p, _ := keymap.KeyPress(k)
+	return p
+}
+
 // motion returns how many rows the cursor moves on key h, page rows for a
 // page and far to the first or last row, whether h pages, so that views of
 // file content move the window along, and whether h moves the cursor at all.
-func motion(h keys.Hit, page, far int) (delta int, paging, ok bool) {
+func motion(h keymap.Hit, page, far int) (delta int, paging, ok bool) {
 	switch h.Action {
 	case "move":
-		return direction(h.Index == 0), false, true
+		return direction(h.I == 0), false, true
 	case "page":
-		return direction(h.Index == 1) * page, true, true
+		return direction(h.I == 1) * page, true, true
 	case "ends":
-		return direction(h.Index == 1) * far, false, true
+		return direction(h.I == 1) * far, false, true
 	}
 	return 0, false, false
 }
@@ -297,7 +305,7 @@ type diffKeyView interface {
 // paging step, far the move to the first or last row. Moving between files
 // and commits, anchors, folds and moved lines differ, and stay with each
 // view.
-func diffKey(v diffKeyView, h keys.Hit, page, far int) (tea.Cmd, bool) {
+func diffKey(v diffKeyView, h keymap.Hit, page, far int) (tea.Cmd, bool) {
 	if delta, paging, ok := motion(h, page, far); ok {
 		if paging {
 			v.scroll(delta)
@@ -314,13 +322,13 @@ func diffKey(v diffKeyView, h keys.Hit, page, far int) (tea.Cmd, bool) {
 	case "half_page":
 		v.scroll(halfPage(h, page))
 	case "scroll":
-		v.scrollSideways(direction(h.Index == 1) * scrollStep)
+		v.scrollSideways(direction(h.I == 1) * scrollStep)
 	case "change":
-		v.nextChange(direction(h.Index == 0))
+		v.nextChange(direction(h.I == 0))
 	case "search":
 		return askSearch, true
 	case "match":
-		v.findText(direction(h.Index == 0))
+		v.findText(direction(h.I == 0))
 	case "set_mark":
 		v.askLetter(h.Action, setMarkPrompt)
 	case "jump":
@@ -337,7 +345,7 @@ const scrollStep = 8
 
 // halfPage returns how many rows half_page key h scrolls, half of page rows,
 // the paging step, in the diff view, the flow view and the readme alike.
-func halfPage(h keys.Hit, page int) int { return direction(h.Index == 1) * (page / 2) }
+func halfPage(h keymap.Hit, page int) int { return direction(h.I == 1) * (page / 2) }
 
 func direction(forward bool) int {
 	if forward {

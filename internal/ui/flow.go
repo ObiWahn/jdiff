@@ -184,7 +184,7 @@ func (f *Flow) key(k string) tea.Cmd {
 	case "to_files":
 		return func() tea.Msg { return backMsg{} }
 	case "next_file":
-		f.nextFile(direction(h.Index == 0))
+		f.nextFile(direction(h.I == 0))
 	case "history":
 		if !f.inLog() {
 			break

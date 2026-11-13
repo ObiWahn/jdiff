@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
+	"jdiff/internal/keymap"
 	"jdiff/internal/keys"
 )
 
@@ -59,14 +60,14 @@ var settingTable = []settingOption{
 // settingOptions returns the lines of the settings popup, with their keys and
 // what they do from km, in its order.
 func settingOptions(km *keys.Map) []settingOption {
-	options, _ := orderSettings(km.Order(), settingWords(km, settingTable), nil)
+	options, _ := orderSettings(km.FirstKeys(keys.Everywhere), settingWords(km, settingTable), nil)
 	return options
 }
 
 // helpLines returns the lines of the help popup, from km, the settings in its
 // order.
 func helpLines(km *keys.Map) []binding {
-	_, bs := orderSettings(km.Order(), settingWords(km, settingTable), helpBindings(km))
+	_, bs := orderSettings(km.FirstKeys(keys.Everywhere), settingWords(km, settingTable), helpBindings(km))
 	return bs
 }
 
@@ -124,14 +125,14 @@ func orderSettings(order []string, options []settingOption, bs []binding) ([]set
 // keyOrderProblems returns what is wrong with text, a keybindings.toml, for the
 // settings and the help of the built-in keys: a row of all pages with a key
 // that does not exist or stands twice, a setting missing or without words, and
-// the problems of its keys by themselves (keys.Map.Problems).
+// the problems of its keys by themselves (keymap.Keymap.Problems).
 func keyOrderProblems(text string) []string {
 	p, err := keys.Parse(text)
 	if err != nil {
 		return []string{err.Error()}
 	}
 	var problems []string
-	order := p.Order()
+	order := p.FirstKeys(keys.Everywhere)
 	if len(order) == 0 {
 		return []string{"no rows in everywhere"}
 	}
@@ -217,13 +218,13 @@ type keyCapture struct {
 type keyLine struct {
 	page    string
 	index   int
-	row     keys.Row
+	row     keymap.Row
 	changed bool
 }
 
 // keyLines returns the lines of the keymap popup of km: the rows with keys.
 func keyLines(km *keys.Map) []keyLine {
-	byAction := func(rows []keys.Row) map[string][][]string {
+	byAction := func(rows []keymap.Row) map[string][][]string {
 		m := map[string][][]string{}
 		for _, r := range rows {
 			m[r.Action] = append(m[r.Action], r.Keys)
@@ -231,9 +232,9 @@ func keyLines(km *keys.Map) []keyLine {
 		return m
 	}
 	var lines []keyLine
-	for _, page := range keys.PageNames() {
-		rows := km.RowsIn(page)
-		mine, builtin := byAction(rows), byAction(keys.Builtin().RowsIn(page))
+	for _, page := range km.Tables() {
+		rows := km.Rows(page)
+		mine, builtin := byAction(rows), byAction(keys.Builtin().Rows(page))
 		index := map[string]int{}
 		for _, r := range rows {
 			i := index[r.Action]
@@ -248,8 +249,8 @@ func keyLines(km *keys.Map) []keyLine {
 }
 
 // rowsOf returns the rows of action among rows.
-func rowsOf(rows []keys.Row, action string) []keys.Row {
-	var of []keys.Row
+func rowsOf(rows []keymap.Row, action string) []keymap.Row {
+	var of []keymap.Row
 	for _, r := range rows {
 		if r.Action == action {
 			of = append(of, r)
@@ -319,7 +320,7 @@ func (p *SettingsPopup) key(k string) tea.Cmd {
 		p.move(i - p.cursor)
 		return p.flip(p.options[i])
 	default:
-		if i := slices.IndexFunc(p.options, func(o settingOption) bool { return o.key != "" && keys.Name(o.key) == k }); i >= 0 {
+		if i := slices.IndexFunc(p.options, func(o settingOption) bool { return o.key != "" && keyPress(o.key) == k }); i >= 0 {
 			p.move(i - p.cursor)
 			return p.flip(p.options[i])
 		}
@@ -456,12 +457,12 @@ func (p *SettingsPopup) setHide(list []string) tea.Cmd {
 // keymapKey opens the keymap popup in the settings popup, and only there.
 const keymapKey = "K"
 
-// optionKey returns the key of o in the settings popup.
+// optionKey returns the key of o as the settings popup shows it.
 func optionKey(o settingOption) string {
 	if o.keymap {
 		return keymapKey
 	}
-	return o.key
+	return keys.Spelling(o.key)
 }
 
 func (p *SettingsPopup) moveKeymap(delta int) { p.keymap.moveIn(delta, len(keyLines(p.cfg.Keys))) }
@@ -473,7 +474,7 @@ func (p *SettingsPopup) keymapKey(k string) tea.Cmd {
 		return cmd
 	}
 	l := keyLines(p.cfg.Keys)[p.keymap.cursor]
-	twoWay := keys.TwoWay(l.row.Action)
+	twoWay := p.cfg.Keys.TwoWay(l.row.Action)
 	switch k {
 	case "enter":
 		p.keymap.capture, p.keymap.msg = &keyCapture{line: l, want: 1 + btoi(twoWay)}, ""
@@ -528,7 +529,7 @@ func (p *SettingsPopup) captureKey(k string) tea.Cmd {
 		p.keymap.capture = nil
 		return nil
 	}
-	name := keys.Spelling(k)
+	name := k
 	if strings.HasSuffix(c.line.row.Keys[0], "<letter>") {
 		name += "<letter>"
 	}
@@ -538,7 +539,7 @@ func (p *SettingsPopup) captureKey(k string) tea.Cmd {
 	}
 	p.keymap.capture = nil
 	var rows [][]string
-	for _, r := range rowsOf(p.cfg.Keys.RowsIn(c.line.page), c.line.row.Action) {
+	for _, r := range rowsOf(p.cfg.Keys.Rows(c.line.page), c.line.row.Action) {
 		rows = append(rows, r.Keys)
 	}
 	if c.add {
@@ -648,7 +649,7 @@ func (p *SettingsPopup) keymapFrame(view string) string {
 		hint = fmt.Sprintf("press key %d of %d, in the order of the help · esc cancel", len(c.pressed)+1, c.want)
 	}
 	f = popupFrame{name: c.line.row.Action + " in " + c.line.page, hints: hint}
-	return inputPopup(t, p.width, f, strings.Join(c.pressed, " "), "", true).over(t, view, p.width)
+	return inputPopup(t, p.width, f, strings.Join(keys.Shown(c.pressed), " "), "", true).over(t, view, p.width)
 }
 
 // keymapAsk draws over view what the list of the keys asks for: line in a
@@ -664,7 +665,7 @@ func keymapItems(km *keys.Map, lines []keyLine) []string {
 	pageW, keysW := 0, 0
 	for _, l := range lines {
 		pageW = max(pageW, ansi.StringWidth(l.page))
-		keysW = max(keysW, ansi.StringWidth(strings.Join(l.row.Keys, " ")))
+		keysW = max(keysW, ansi.StringWidth(strings.Join(keys.Shown(l.row.Keys), " ")))
 	}
 	items := make([]string, len(lines))
 	for i, l := range lines {
@@ -672,7 +673,7 @@ func keymapItems(km *keys.Map, lines []keyLine) []string {
 		if l.changed {
 			mark = "*"
 		}
-		items[i] = fmt.Sprintf(" %s %-*s  %-*s  %s ", mark, pageW, l.page, keysW, strings.Join(l.row.Keys, " "), km.Text(l.row.Help))
+		items[i] = fmt.Sprintf(" %s %-*s  %-*s  %s ", mark, pageW, l.page, keysW, strings.Join(keys.Shown(l.row.Keys), " "), km.Text(l.row.Help))
 	}
 	return items
 }

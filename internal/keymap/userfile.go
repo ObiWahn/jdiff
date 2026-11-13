@@ -1,99 +1,54 @@
-package keys
+package keymap
 
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
-// userFile is the user's keybindings.toml, which changes only keys.
-type userFile struct {
-	CommitList []userRow `toml:"commit_list"`
-	FileList   []userRow `toml:"file_list"`
-	DiffView   []userRow `toml:"diff_view"`
-	FlowView   []userRow `toml:"flow_view"`
-	Everywhere []userRow `toml:"everywhere"`
-	DocView    []userRow `toml:"doc_view"`
+// decodeUser returns the rows of text, a user's file, by table.
+func decodeUser(text string) (map[string][]userRow, error) {
+	var u map[string][]userRow
+	_, err := toml.Decode(text, &u)
+	return u, err
 }
 
-// decodeUser returns the rows of text, a user's keybindings.toml, by page.
-func decodeUser(text string) (map[string][]userRow, toml.MetaData, error) {
-	var u userFile
-	md, err := toml.Decode(text, &u)
-	return map[string][]userRow{
-		"everywhere": u.Everywhere, "diff_view": u.DiffView, "flow_view": u.FlowView,
-		"commit_list": u.CommitList, "file_list": u.FileList, "doc_view": u.DocView,
-	}, md, err
-}
-
-// PageNames returns the names of the pages of keybindings.toml, in its order.
-func PageNames() []string {
-	var names []string
-	for _, pg := range (&Map{}).pages() {
-		names = append(names, pg.name)
-	}
-	return names
-}
-
-// RowsIn returns the rows of the page named name.
-func (km Map) RowsIn(name string) []Row {
-	for _, pg := range km.pages() {
-		if pg.name == name {
-			return *pg.rows
-		}
-	}
-	return nil
-}
-
-// TwoWay reports whether the rows of action take two keys, one each way.
-func TwoWay(action string) bool { return slices.Contains(twoWay, action) }
-
-// Spelling returns the name keybindings.toml writes for Bubble Tea's key k,
-// as the help shows it: the reverse of Name.
-func Spelling(k string) string {
-	if k == "pgdown" {
-		return "pgdn"
-	}
-	if n, ok := strings.CutPrefix(k, "f"); ok && n != "" && strings.Trim(n, "0123456789") == "" {
-		return "F" + n
-	}
-	return k
-}
-
-// SetUserRows returns text, a user's keybindings.toml, with rows, the keys of
-// each row, as the rows of action on page; no rows take them out, so that
-// the built-in ones apply. Only those rows are written anew, where the first
-// of them stood, in the form of the file: an inline table in page = [...],
-// or a [[page]] table; the rest stays as written, also comments, rows over
-// several lines and odd spacing. What it returns is checked to hold the rows
-// of text with only that change, else it is an error.
-func SetUserRows(text, page, action string, rows [][]string) (string, error) {
-	old, _, err := decodeUser(text)
+// SetUserRows returns text, a user's file, with rows, the keys of each row,
+// as the rows of action in table; no rows take them out, so that the
+// built-in ones apply. Only those rows are written anew, where the first of
+// them stood, in the form of the file: inline tables in name = [...], or
+// TOML's array of tables [[name]]; the rest stays as written, also comments,
+// rows over several lines and odd spacing. What it returns is checked to hold
+// the rows of text with only that change, else it is an error. It does not
+// check the keys themselves: SaveUser does, with WithUser.
+func SetUserRows(text, table, action string, rows [][]string) (string, error) {
+	old, err := decodeUser(text)
 	if err != nil {
 		return "", err
 	}
-	if _, ok := old[page]; !ok {
-		return "", errors.New("no page " + page)
-	}
-	l, err := scanLayout(text, page)
+	l, err := scanLayout(text, table)
 	if err != nil {
 		return "", err
 	}
 	var edits []edit
 	switch {
 	case l.hasArray:
-		edits, err = l.arrayEdits(text, page, action, rows)
+		edits, err = l.arrayEdits(text, table, action, rows)
 	case len(l.tables) > 0:
-		edits, err = l.tableEdits(text, page, action, rows)
+		edits, err = l.tableEdits(text, table, action, rows)
 	case len(rows) == 0:
-	case l.headers: // a page = [...] would belong to the table above
-		edits = []edit{{len(text), len(text), endLine(text) + "\n" + tablesText(page, action, rows)}}
+	case l.headers: // a name = [...] would belong to the TOML table above
+		edits = []edit{{len(text), len(text), endLine(text) + "\n" + tablesText(table, action, rows)}}
 	default:
 		var b strings.Builder
-		b.WriteString(endLine(text) + page + " = [\n")
+		b.WriteString(endLine(text) + table + " = [\n")
 		for _, keys := range rows {
 			b.WriteString("    " + inlineRow(action, keys) + ",\n")
 		}
@@ -109,23 +64,92 @@ func SetUserRows(text, page, action string, rows [][]string) (string, error) {
 	for _, e := range edits {
 		out = out[:e.from] + e.text + out[e.to:]
 	}
-	if !changedOnly(old, out, page, action, rows) {
-		return "", errors.New("cannot change " + action + " in " + page + " of keybindings.toml in place: edit it by hand")
+	if !changedOnly(old, out, table, action, rows) {
+		return "", errors.New("cannot change " + action + " in " + table + " of the user's file in place: edit it by hand")
 	}
 	return out, nil
 }
 
+// SaveUser makes rows, the keys of each row, the rows of action in table of
+// the user's file at path, nil the built-in ones, and returns m with the keys
+// of the file, as Load: m is the application's own file, read with Parse. A
+// file that would have a problem, as a key with two actions in one table, is
+// not written and m comes back: the error says what is wrong. The rest of the
+// file stays as written, see SetUserRows.
+func (m *Keymap) SaveUser(path, table, action string, rows [][]string) (*Keymap, error) {
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return m, err
+	}
+	text, err := SetUserRows(string(data), table, action, rows)
+	if err != nil {
+		return m, err
+	}
+	merged, problems := m.WithUser(text)
+	if len(problems) > 0 {
+		return m, errors.New(strings.Join(problems, "; "))
+	}
+	if err := writeFile(path, []byte(text)); err != nil {
+		return m, err
+	}
+	return merged, nil
+}
+
+// ResetUser moves the user's file at path to path.bak, over an older one, so
+// that what was written by hand is kept, and returns m, the application's own
+// keys.
+func (m *Keymap) ResetUser(path string) (*Keymap, error) {
+	if err := os.Rename(path, path+".bak"); err != nil {
+		return m, err
+	}
+	return m, nil
+}
+
+// writeFile writes data to path through a temporary file next to it, so that
+// the file is never left half written; each write has a temporary file of
+// its own, so that two programs writing at once do not rename each other's.
+func writeFile(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	_, err = tmp.Write(data)
+	err = errors.Join(err, tmp.Close(), os.Chmod(tmp.Name(), 0o644))
+	if err == nil {
+		err = os.Rename(tmp.Name(), path)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
+}
+
 // changedOnly reports whether out holds the rows of old with those of action
-// on page replaced by rows.
-func changedOnly(old map[string][]userRow, out, page, action string, rows [][]string) bool {
-	got, _, err := decodeUser(out)
+// in table replaced by rows.
+func changedOnly(old map[string][]userRow, out, table, action string, rows [][]string) bool {
+	got, err := decodeUser(out)
 	if err != nil {
 		return false
 	}
+	if _, ok := old[table]; !ok {
+		old = maps.Clone(old)
+		if old == nil {
+			old = map[string][]userRow{}
+		}
+		old[table] = nil
+	}
 	same := func(a, b userRow) bool { return a.Action == b.Action && slices.Equal(a.Keys, b.Keys) }
 	other := func(r userRow) bool { return r.Action != action }
+	for name := range got {
+		if _, ok := old[name]; !ok && name != table {
+			return false
+		}
+	}
 	for name, was := range old {
-		if name != page {
+		if name != table {
 			if !slices.EqualFunc(got[name], was, same) {
 				return false
 			}
@@ -164,23 +188,23 @@ type edit struct {
 // span is the bytes [from, to) of a text.
 type span struct{ from, to int }
 
-// layout is where the rows of a page stand in a keybindings.toml.
+// layout is where the rows of a table stand in a user's file.
 type layout struct {
 	hasArray bool
-	array    span   // the value of page = [...], with its brackets
+	array    span   // the value of name = [...], with its brackets
 	elements []span // its elements
-	tables   []span // the [[page]] tables, from the header to the end of the line of their last value
-	headers  bool   // whether the text has a table header: no page = [...] can come after it
+	tables   []span // the [[name]] tables, from the header to the end of the line of their last value
+	headers  bool   // whether the text has a TOML table header: no name = [...] can come after it
 }
 
 // arrayEdits returns the edits that make rows the rows of action in the
-// array of the page: the first of its elements takes them, the others go,
-// each with its comma and, when it stood alone, its line. Without one, they
-// go at the end of the array, in lines of their own.
-func (l layout) arrayEdits(text, page, action string, rows [][]string) ([]edit, error) {
+// array name = [...] of the table: the first of its elements takes them, the
+// others go, each with its comma and, when it stood alone, its line. Without
+// one, they go at the end of the array, in lines of their own.
+func (l layout) arrayEdits(text, table, action string, rows [][]string) ([]edit, error) {
 	var mine []span
 	for _, el := range l.elements {
-		a, err := actionOf(page+" = ["+text[el.from:el.to]+"]", page)
+		a, err := actionOf(table+" = ["+text[el.from:el.to]+"]", table)
 		if err != nil {
 			return nil, err
 		}
@@ -233,12 +257,12 @@ func (l layout) arrayEdits(text, page, action string, rows [][]string) ([]edit, 
 }
 
 // tableEdits returns the edits that make rows the rows of action in the
-// [[page]] tables: the first of its tables takes them, the others go.
-// Without one, they go after the last table of the page.
-func (l layout) tableEdits(text, page, action string, rows [][]string) ([]edit, error) {
+// [[name]] tables of the table: the first of them takes them, the others
+// go. Without one, they go after its last [[name]].
+func (l layout) tableEdits(text, table, action string, rows [][]string) ([]edit, error) {
 	var mine []span
 	for _, tb := range l.tables {
-		a, err := actionOf(text[tb.from:tb.to], page)
+		a, err := actionOf(text[tb.from:tb.to], table)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +274,7 @@ func (l layout) tableEdits(text, page, action string, rows [][]string) ([]edit, 
 	if len(mine) > 0 {
 		first := mine[0]
 		if len(rows) > 0 {
-			edits = append(edits, edit{first.from, first.to, tablesText(page, action, rows)})
+			edits = append(edits, edit{first.from, first.to, tablesText(table, action, rows)})
 			mine = mine[1:]
 		}
 		for _, tb := range mine {
@@ -262,16 +286,16 @@ func (l layout) tableEdits(text, page, action string, rows [][]string) ([]edit, 
 		return nil, nil
 	}
 	end := l.tables[len(l.tables)-1].to
-	return []edit{{end, end, endLine(text[:end]) + "\n" + tablesText(page, action, rows)}}, nil
+	return []edit{{end, end, endLine(text[:end]) + "\n" + tablesText(table, action, rows)}}, nil
 }
 
-// actionOf returns the action of the one row of page in text.
-func actionOf(text, page string) (string, error) {
-	rows, _, err := decodeUser(text)
-	if err != nil || len(rows[page]) != 1 {
-		return "", fmt.Errorf("keybindings.toml: cannot read the row %q of %s", strings.TrimSpace(text), page)
+// actionOf returns the action of the one row of table in text.
+func actionOf(text, table string) (string, error) {
+	rows, err := decodeUser(text)
+	if err != nil || len(rows[table]) != 1 {
+		return "", fmt.Errorf("keymap: cannot read the row %q of %s", strings.TrimSpace(text), table)
 	}
-	return rows[page][0].Action, nil
+	return rows[table][0].Action, nil
 }
 
 // removal returns the edit that takes the element el out of its array, with
@@ -295,11 +319,11 @@ func inlineRow(action string, keys []string) string {
 	return "{ action = " + quote(action) + ", keys = " + quoteList(keys) + " }"
 }
 
-// tablesText returns the rows of action with keys as [[page]] tables.
-func tablesText(page, action string, rows [][]string) string {
+// tablesText returns the rows of action with keys as [[name]] tables of table.
+func tablesText(table, action string, rows [][]string) string {
 	var tables []string
 	for _, keys := range rows {
-		tables = append(tables, "[["+page+"]]\naction = "+quote(action)+"\nkeys = "+quoteList(keys)+"\n")
+		tables = append(tables, "[["+table+"]]\naction = "+quote(action)+"\nkeys = "+quoteList(keys)+"\n")
 	}
 	return strings.Join(tables, "\n")
 }
@@ -369,13 +393,13 @@ func skipBlank(text string, i int) int {
 	return i
 }
 
-// scanLayout returns where the rows of page stand in text, which TOML has
+// scanLayout returns where the rows of table stand in text, which TOML has
 // already read without error: the scanner knows only as much of TOML as it
 // takes to find them.
-func scanLayout(text, page string) (layout, error) {
+func scanLayout(text, table string) (layout, error) {
 	s := &scanner{text: text}
 	var l layout
-	table, inPage := "", false
+	header, inTable := "", false // the TOML table the text is in, and whether it is a [[table]]
 	for {
 		s.i = skipBlank(text, s.i)
 		if s.i >= len(text) {
@@ -386,11 +410,11 @@ func scanLayout(text, page string) (layout, error) {
 			double := strings.HasPrefix(text[s.i:], "[[")
 			s.i += 1 + btoi(double)
 			s.i = skipSpace(text, s.i)
-			table = s.key()
+			header = s.key()
 			s.i = skipSpace(text, s.i)
 			s.expect(strings.Repeat("]", 1+btoi(double)))
-			l.headers, inPage = true, double && table == page
-			if inPage {
+			l.headers, inTable = true, double && header == table
+			if inTable {
 				l.tables = append(l.tables, span{start, lineEnd(text, s.i)})
 			}
 			s.i = lineEnd(text, s.i)
@@ -401,11 +425,11 @@ func scanLayout(text, page string) (layout, error) {
 			s.i = skipSpace(text, s.i)
 			from := s.i
 			s.value()
-			if table == "" && name == page && strings.HasPrefix(text[from:], "[") {
+			if header == "" && name == table && strings.HasPrefix(text[from:], "[") {
 				l.hasArray, l.array = true, span{from, s.i}
 				l.elements = s.elements(from)
 			}
-			if inPage {
+			if inTable {
 				l.tables[len(l.tables)-1].to = lineEnd(text, s.i)
 			}
 		}
@@ -431,7 +455,7 @@ type scanner struct {
 
 func (s *scanner) fail(what string) {
 	if s.err == nil {
-		s.err = fmt.Errorf("keybindings.toml: line %d: %s", strings.Count(s.text[:s.i], "\n")+1, what)
+		s.err = fmt.Errorf("keymap: line %d: %s", strings.Count(s.text[:s.i], "\n")+1, what)
 	}
 	s.i = len(s.text)
 }

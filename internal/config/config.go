@@ -240,7 +240,7 @@ func Load(dir string, gitCfg theme.Config, env, flag string) (*Config, error) {
 			c.Settings.InotifyMaxDirs = 0
 		}
 		var problems []string
-		if c.Keys, problems = keys.Load(dir); len(problems) > 0 {
+		if c.Keys, problems = keys.Load(filepath.Join(dir, keys.FileName)); len(problems) > 0 {
 			c.warnings = append(c.warnings, keys.FileName+": "+strings.Join(problems, "; ")+"; the built-in keys are used")
 		}
 		name = m.Theme
@@ -505,28 +505,16 @@ func writeFile(path string, data []byte) error {
 // user's keybindings.toml, nil the built-in ones, saves it and makes its keys
 // the keys at once. A file that would have a problem, as a key with two
 // actions on one page, is not saved and changes nothing: the error says what
-// is wrong. The rest of the file stays as written, see keys.SetUserRows.
+// is wrong. The rest of the file stays as written, see keymap.SetUserRows.
 func (c *Config) SetKeys(page, action string, rows [][]string) error {
 	if c.dir == "" {
 		return errors.New("no configuration directory for " + keys.FileName)
 	}
-	path := filepath.Join(c.dir, keys.FileName)
-	data, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	text, err := keys.SetUserRows(string(data), page, action, rows)
+	km, err := keys.Builtin().SaveUser(filepath.Join(c.dir, keys.FileName), page, action, rows)
 	if err != nil {
 		return err
 	}
-	km, problems := keys.Builtin().ApplyUserKeys(text)
-	if len(problems) > 0 {
-		return errors.New(strings.Join(problems, "; "))
-	}
-	if err := writeFile(path, []byte(text)); err != nil {
-		return err
-	}
-	c.Keys = &km
+	c.Keys = &keys.Map{Keymap: km}
 	return nil
 }
 
@@ -547,8 +535,7 @@ func (c *Config) ResetKeys() error {
 	if c.dir == "" {
 		return errors.New("no configuration directory for " + keys.FileName)
 	}
-	path := filepath.Join(c.dir, keys.FileName)
-	if err := os.Rename(path, path+".bak"); err != nil {
+	if _, err := keys.Builtin().ResetUser(filepath.Join(c.dir, keys.FileName)); err != nil {
 		return err
 	}
 	c.Keys = keys.Builtin()
