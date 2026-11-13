@@ -134,6 +134,7 @@ These keys are rows of [keybindings.toml](config.md#keybindingstoml) too, each p
 
 | Key | Action |
 |---|---|
+| `esc` `q` | back to the settings |
 | `a` | add a pattern |
 | `enter` | edit the pattern |
 | `d` `delete` | delete the pattern |
@@ -142,6 +143,7 @@ These keys are rows of [keybindings.toml](config.md#keybindingstoml) too, each p
 
 | Key | Action |
 |---|---|
+| `esc` `q` | back to the settings |
 | `enter` | take the keys pressed next as the keys of the row |
 | `a` | add the key pressed next to the row |
 | `d` `delete` | give the row its built-in keys |
@@ -176,12 +178,14 @@ These keys are rows of [keybindings.toml](config.md#keybindingstoml) too, each p
 
 | Key | Action |
 |---|---|
+| `enter` | show the files of `git diff ARGS` |
 | `up` | the current ARGS, to edit |
 
 ### Search (`search_line`)
 
 | Key | Action |
 |---|---|
+| `enter` | find |
 | `tab` | changed or all lines |
 | `shift+tab` | plain text or a regular expression |
 | `up` `down` | earlier, later searches |

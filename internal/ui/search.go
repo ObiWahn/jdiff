@@ -10,12 +10,14 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/diff"
 	"jdiff/internal/keys"
+	"jdiff/internal/popup"
 	"jdiff/internal/settings"
 )
 
@@ -498,19 +500,19 @@ func (s *SearchBar) frame() string {
 	t := s.cfg.Theme
 	// The title says how the bar searches and what tab and shift+tab switch
 	// to.
-	mode, otherMode := "search", "regex"
+	mode := "search"
 	if s.regex {
-		mode, otherMode = "regex", "text"
+		mode = "regex"
 	}
-	otherScope := "all"
-	if s.cfg.Settings.SearchAll {
-		otherScope = "changed"
-	}
-	keys := []string{"enter find", "tab " + otherScope, "shift+tab " + otherMode, "esc cancel"}
+	km := s.cfg.Keys
+	top := []key.Binding{hint(km, keys.SearchLine, "done", 0),
+		hint(km, keys.SearchLine, "scope", btoi(s.cfg.Settings.SearchAll)),
+		hint(km, keys.SearchLine, "regex", btoi(s.regex)),
+		hint(km, keys.SearchLine, "cancel", 0)}
 	if len(s.cfg.Search.History) > 0 {
-		keys = slices.Insert(keys, 1, "↑↓ history")
+		top = slices.Insert(top, 1, hint(km, keys.SearchLine, "history", 0))
 	}
-	f := popupFrame{name: mode + " " + scope(s.cfg.Settings), hints: strings.Join(keys, " · ")}
+	f := popup.Frame{Title: mode + " " + scope(s.cfg.Settings), Top: top}
 	bar := inputPopup(t, s.width, f, "/"+printable(s.input.text), s.err, false)
 	// Above the status line, the last row.
 	y := max(strings.Count(base, "\n")-bar.h, 0)

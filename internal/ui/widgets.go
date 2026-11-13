@@ -256,7 +256,7 @@ func (p *listPopup) moveIn(delta, n int) {
 // selected one in the cursor style, or empty as a hint when there are none.
 // It is as wide as the items and the frame need, up to the width of the
 // screen.
-func (p *listPopup) draw(t *theme.Theme, base string, f popupFrame, all []string, empty string) string {
+func (p *listPopup) draw(t *theme.Theme, base string, f popup.Frame, all []string, empty string) string {
 	n := len(all)
 	height := popupHeight(n, p.height)
 	lines := windowAround(p.cursor, p.top, height-2, n).rows(t, n, func(i int) string {
@@ -274,42 +274,64 @@ func (p *listPopup) draw(t *theme.Theme, base string, f popupFrame, all []string
 
 // popupBox is a box drawn over the screen: its frame, its lines, and its
 // width and height, borders included. All popups are one, so that they look
-// alike.
+// alike. The frame shows the popup's name at the left of the top border, its
+// keys at the right end (hint), a message at the right of the bottom border;
+// the message may name files or quote git, so it is drawn printable.
 type popupBox struct {
-	frame popupFrame
+	frame popup.Frame
 	lines []string
 	w, h  int
 }
 
-// popupFrame is what a popup shows in its borders, drawn by popup.Frame:
-// name at the left of the top border and hints (its keys, each "key what",
-// apart by " · ", or where it stands) at the right end, at least a line
-// between them; msg (what went wrong or happens) at the right of the bottom
-// border. What does not fit is cut with …, the hints before the name. msg
-// may name files or quote git, so it is drawn printable.
-type popupFrame struct {
-	name, hints, msg string
+// hint returns the row of action that page looks up first as a key in a
+// popup's border: its display or its first key, as jdiff writes keys
+// (keys.Spelling), and its label in state; disabled without a row, so that
+// the border leaves it out.
+func hint(km *keys.Map, page, action string, state int) key.Binding {
+	tables, ok := keys.Spec.Pages[page]
+	if !ok {
+		tables = []string{page}
+	}
+	for _, t := range tables {
+		rows := km.RowsIn(t, action)
+		if len(rows) == 0 || len(rows[0].Keys) == 0 {
+			continue
+		}
+		r := rows[0]
+		shown := r.Display
+		if shown == "" {
+			shown = keys.Spelling(r.Keys[0])
+		}
+		return key.NewBinding(key.WithKeys(r.Keys...), key.WithHelp(shown, r.LabelOf(state)))
+	}
+	return key.Binding{}
 }
 
-// texts returns f as popup.Frame takes it, without colors: each hint a
-// binding of its key and its words.
-func (f popupFrame) texts() popup.Frame {
-	var top []key.Binding
-	if f.hints != "" {
-		for _, h := range strings.Split(f.hints, " · ") {
-			k, what, _ := strings.Cut(h, " ")
-			top = append(top, key.NewBinding(key.WithKeys(k), key.WithHelp(k, what)))
-		}
+// hints returns the keys of actions on page as hint shows them, in state 0.
+func hints(km *keys.Map, page string, actions ...string) []key.Binding {
+	bs := make([]key.Binding, len(actions))
+	for i, a := range actions {
+		bs[i] = hint(km, page, a, 0)
 	}
-	return popup.Frame{Title: f.name, Top: top, Msg: printable(f.msg)}
+	return bs
+}
+
+// note returns text as a key of a border, standing alone: what is no key but
+// is shown among them, as where a popup stands.
+func note(text string) key.Binding { return key.NewBinding(key.WithKeys(text), key.WithHelp(text, "")) }
+
+// printed returns f with its message printable.
+func printed(f popup.Frame) popup.Frame {
+	f.Msg = printable(f.Msg)
+	return f
 }
 
 // popupWidth returns the width of a popup in frame f with lines: as wide as
 // they and the texts of its borders need, at least least columns inside, up
 // to width. A line wider than that is cut with ….
-func popupWidth(f popupFrame, lines []string, least, width int) int {
+func popupWidth(f popup.Frame, lines []string, least, width int) int {
 	body := append(slices.Clone(lines), strings.Repeat(" ", least))
-	return f.texts().Width(strings.Join(body, "\n"), width)
+	return printed(f).Width(strings.Join(body, "\n"), width)
 }
 
 // drawn returns p drawn, its frame in the colors of t: the rows between its
@@ -324,7 +346,7 @@ func (p popupBox) drawn(t *theme.Theme) string {
 		}
 		rows[i] = pad(rows[i], inner, lipgloss.NewStyle())
 	}
-	f := p.frame.texts()
+	f := printed(p.frame)
 	f.Styles = popup.Styles{Border: t.Decoration, Title: t.CommitHash, Hint: t.Hint, Msg: t.PopupMessage}
 	return f.Render(strings.Join(rows, "\n"), p.w)
 }
@@ -514,7 +536,7 @@ const minInputWidth = 40
 // below when set. It is at least minInputWidth wide and grows with them up
 // to width, beyond which the start of text is cut, so that its end stays
 // in view.
-func inputPopup(t *theme.Theme, width int, f popupFrame, text, err string, centered bool) popupBox {
+func inputPopup(t *theme.Theme, width int, f popup.Frame, text, err string, centered bool) popupBox {
 	text += "█"
 	w := popupWidth(f, []string{text, err}, minInputWidth, width)
 	if over := ansi.StringWidth(text) - (w - 4); over > 0 {

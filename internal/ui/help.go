@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"jdiff/internal/config"
 	"jdiff/internal/keys"
+	"jdiff/internal/popup"
 )
 
 // binding is a key and what it does; a binding without key is a heading. Its
@@ -95,20 +97,21 @@ func (h *Help) key(k string) tea.Cmd {
 		h.wrap()
 		return nil
 	}
-	cmd, _ := popupNav(h.cfg.Keys, k, "help", &h.open, h.scroll)
+	cmd, _ := popupNav(h.cfg.Keys, k, keys.Popup, "help", &h.open, h.scroll)
 	return cmd
 }
 
 // popupNav handles the keys that all popups share, those of keys.Popup, so
 // that they close and move alike: a key of opener and close close the popup,
-// quit quits, move moves by one. It reports whether k was one of them; the
-// popup handles the others.
-func popupNav(km *keys.Map, k, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
+// quit quits, move moves by one. They are looked up on page, the popup's
+// table, which may give close words of its own. It reports whether k was one
+// of them; the popup handles the others.
+func popupNav(km *keys.Map, k, page, opener string, open *bool, move func(delta int)) (tea.Cmd, bool) {
 	if isAction(km, k, opener) {
 		*open = false
 		return nil, true
 	}
-	switch h := km.Key(keys.Popup, k); h.Action {
+	switch h := km.Key(page, k); h.Action {
 	case "close":
 		*open = false
 	case "quit":
@@ -190,9 +193,9 @@ func (h *Help) frame() string {
 	}
 	t := h.cfg.Theme
 	lines := windowAt(h.top, h.boxHeight()-2, len(h.rows)).rows(t, len(h.rows), func(i int) string { return h.rows[i] })
-	f := popupFrame{name: "keys"}
+	f := popup.Frame{Title: "keys"}
 	if h.boxHeight()-2 < len(h.rows) {
-		f.hints = fmt.Sprintf("%d/%d", h.top+1, len(h.rows)) // where it stands
+		f.Top = []key.Binding{note(fmt.Sprintf("%d/%d", h.top+1, len(h.rows)))} // where it stands
 	}
 	return popupBox{f, lines, h.boxWidth, h.boxHeight()}.over(t, base, h.width)
 }

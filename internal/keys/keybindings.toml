@@ -146,11 +146,13 @@ settings_popup = [
     { action = "keys", keys = ["K"], label = ["keys"], help = "list the keys of all pages, to change them" },
 ]
 ignored_hide = [
+    { action = "close", keys = ["esc", "q"], label = ["back"], help = "back to the settings" },
     { action = "add", keys = ["a"], label = ["add"], help = "add a pattern" },
     { action = "edit", keys = ["enter"], label = ["edit"], help = "edit the pattern" },
     { action = "delete", keys = ["d", "delete"], label = ["delete"], help = "delete the pattern" },
 ]
 keys_popup = [
+    { action = "close", keys = ["esc", "q"], label = ["back"], help = "back to the settings" },
     { action = "set", keys = ["enter"], label = ["set"], help = "take the keys pressed next as the keys of the row" },
     { action = "add", keys = ["a"], label = ["add"], help = "add the key pressed next to the row" },
     { action = "builtin", keys = ["d", "delete"], label = ["built-in"], help = "give the row its built-in keys" },
@@ -173,12 +175,14 @@ input_line = [
     { action = "quit", keys = ["ctrl+c"], help = "quit" },
 ]
 git_diff_line = [
-    { action = "current", keys = ["up"], help = "the current ARGS, to edit" },
+    { action = "done", keys = ["enter"], label = ["show"], help = "show the files of git diff ARGS" },
+    { action = "current", keys = ["up"], display = "↑", label = ["current"], help = "the current ARGS, to edit" },
 ]
 search_line = [
-    { action = "scope", keys = ["tab"], help = "changed or all lines" },
-    { action = "regex", keys = ["shift+tab"], help = "plain text or a regular expression" },
-    { action = "history", keys = ["up", "down"], help = "earlier, later searches" },
+    { action = "done", keys = ["enter"], label = ["find"], help = "find" },
+    { action = "scope", keys = ["tab"], label = ["all", "changed"], help = "changed or all lines" },
+    { action = "regex", keys = ["shift+tab"], label = ["regex", "text"], help = "plain text or a regular expression" },
+    { action = "history", keys = ["up", "down"], display = "↑↓", label = ["history"], help = "earlier, later searches" },
 ]
 too_small = [
     { action = "quit", keys = ["ctrl+c"], help = "quit" },
