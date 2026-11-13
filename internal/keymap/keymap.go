@@ -206,6 +206,18 @@ func (m *Keymap) RowsAt(table, action string) []Row {
 	return m.RowsIn(table, action)
 }
 
+// RowsOn returns the rows of action in the first table of page that has it,
+// the tables Key looks keys up in; nil when none has it: a popup shows the
+// keys of its page.
+func (m *Keymap) RowsOn(page, action string) []Row {
+	for _, t := range m.pageTables(page) {
+		if of := m.RowsIn(t, action); len(of) > 0 {
+			return of
+		}
+	}
+	return nil
+}
+
 // name is a name of a table or an action.
 const name = `[a-z0-9_]+`
 
